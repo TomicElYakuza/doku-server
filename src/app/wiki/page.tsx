@@ -1,14 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { wikiPages } from "../../data/wiki";
+import { wikiPages as defaultPages } from "../../data/wiki";
+
+import {
+  getStoredPages,
+  savePages,
+} from "../../lib/wikiStorage";
 
 export default function WikiPage() {
   const [search, setSearch] = useState("");
 
-  const filteredPages = wikiPages.filter((page) =>
+  const [pages, setPages] = useState(
+    defaultPages
+  );
+
+  useEffect(() => {
+    const stored = getStoredPages();
+
+    if (stored.length > 0) {
+      setPages(stored);
+    } else {
+      savePages(defaultPages);
+    }
+  }, []);
+
+  const filteredPages = pages.filter((page) =>
     page.title
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -24,6 +43,15 @@ export default function WikiPage() {
         <p className="text-zinc-500 mt-2">
           Unternehmensdokumentation
         </p>
+
+        <div className="mt-6">
+          <Link
+            href="/wiki/create"
+            className="inline-flex bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Neue Seite
+          </Link>
+        </div>
       </div>
 
       <input
