@@ -1,3 +1,8 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 import {
   LayoutDashboard,
   BookOpen,
@@ -7,52 +12,74 @@ import {
 } from "lucide-react";
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
-    <aside className="w-64 bg-zinc-950 text-white h-screen p-6 flex flex-col">
+    <aside className="w-64 bg-zinc-950 text-white min-h-screen p-6 flex flex-col">
       <h1 className="text-2xl font-bold mb-10">
         Intranet
       </h1>
 
       <nav className="flex flex-col gap-2">
-        <a
-          href="#"
-          className="flex items-center gap-3 p-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition"
+        <Link
+          href="/"
+          className={`flex items-center gap-3 p-3 rounded-lg transition ${
+            pathname === "/"
+              ? "bg-zinc-800"
+              : "hover:bg-zinc-800"
+          }`}
         >
           <LayoutDashboard size={20} />
           Dashboard
-        </a>
+        </Link>
 
-        <a
-          href="#"
-          className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 transition"
+        <Link
+          href="/wiki"
+          className={`flex items-center gap-3 p-3 rounded-lg transition ${
+            pathname === "/wiki"
+              ? "bg-zinc-800"
+              : "hover:bg-zinc-800"
+          }`}
         >
           <BookOpen size={20} />
           Wiki
-        </a>
+        </Link>
 
-        <a
-          href="#"
-          className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 transition"
+        <Link
+          href="/tickets"
+          className={`flex items-center gap-3 p-3 rounded-lg transition ${
+            pathname === "/tickets"
+              ? "bg-zinc-800"
+              : "hover:bg-zinc-800"
+          }`}
         >
           <Ticket size={20} />
           Tickets
-        </a>
+        </Link>
 
-        <a
-          href="#"
-          className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 transition"
+        <Link
+          href="/files"
+          className={`flex items-center gap-3 p-3 rounded-lg transition ${
+            pathname === "/files"
+              ? "bg-zinc-800"
+              : "hover:bg-zinc-800"
+          }`}
         >
           <FolderKanban size={20} />
           Dateien
-        </a>
+        </Link>
 
-        <a
-          href="#"
-          className="flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-800 transition"
+        <Link
+          href="/settings"
+          className={`flex items-center gap-3 p-3 rounded-lg transition ${
+            pathname === "/settings"
+              ? "bg-zinc-800"
+              : "hover:bg-zinc-800"
+          }`}
         >
           <Settings size={20} />
           Einstellungen
-        </a>
+        </Link>
       </nav>
     </aside>
   );
