@@ -1,7 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { wikiPages } from "@/data/wiki";
+
+import { wikiPages } from "../../data/wiki";
 
 export default function WikiPage() {
+  const [search, setSearch] = useState("");
+
+  const filteredPages = wikiPages.filter((page) =>
+    page.title
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -14,20 +26,40 @@ export default function WikiPage() {
         </p>
       </div>
 
+      <input
+        type="text"
+        placeholder="Dokument suchen..."
+        value={search}
+        onChange={(e) =>
+          setSearch(e.target.value)
+        }
+        className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+      />
+
       <div className="grid gap-4">
-        {wikiPages.map((page) => (
+        {filteredPages.map((page) => (
           <Link
             key={page.slug}
             href={`/wiki/${page.slug}`}
-            className="bg-white border rounded-2xl p-6 hover:border-zinc-400 transition"
+            className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
           >
-            <p className="text-sm text-zinc-500">
-              {page.category}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-zinc-500">
+                {page.category}
+              </p>
 
-            <h2 className="text-xl font-semibold mt-2">
+              <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                Dokument
+              </span>
+            </div>
+
+            <h2 className="text-xl font-semibold mt-3">
               {page.title}
             </h2>
+
+            <p className="text-zinc-600 mt-2">
+              {page.description}
+            </p>
           </Link>
         ))}
       </div>
