@@ -1,0 +1,22 @@
+Wiki (Intranet "DMS"):
+-	DB Anbindung (Postgres)
+-	Vordefinierte Kategorien
+	-	Über Admin Backend editierbar
+-	PDF, Word Konvertierung
+-	Kategorien Berechtigungen
+-	Live Vorschau Design (HTML CSS)
+
+Grundlegendes zum Intranet:
+-	Admin Backend
+-	Einstellungen machen
+	-	Dark Mode
+	-	Sprache eventuell
+	-	Design mit RGB / CYMK
+-	Login System
+-	Berechtigungen
+
+Weitere mögliche Features:
+-	Anstehende Projekte
+
+Readme für erweitbarkeit
+Design etwas responsiver machen
