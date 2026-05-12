@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 
 import { useParams } from "next/navigation";
@@ -84,10 +86,35 @@ export default function WikiDetailPage() {
   return (
     <div className="flex gap-6">
       <div className="flex-1 max-w-5xl">
+        {/* TOP NAV */}
+        <div className="flex items-center gap-3 mb-6 text-sm">
+          <Link
+            href="/wiki"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            wiki
+          </Link>
+
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <Link
+            href={`/wiki/department/${page.category}`}
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            {page.category}
+          </Link>
+        </div>
+
+        {/* BACK BUTTON */}
         <div className="mb-6">
-          <p className="text-sm text-zinc-500">
-            Wiki / {page.category}
-          </p>
+          <Link
+            href="/wiki"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zur Übersicht
+          </Link>
         </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
@@ -128,6 +155,14 @@ export default function WikiDetailPage() {
                 className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-700 transition"
               >
                 Bearbeiten
+              </a>
+
+              {/* HISTORY */}
+              <a
+                href={`/wiki/history/${page.slug}`}
+                className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
+              >
+                Historie
               </a>
 
               {/* DELETE */}

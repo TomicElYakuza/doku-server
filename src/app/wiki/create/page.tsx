@@ -11,10 +11,15 @@ import {
   savePages,
 } from "../../../lib/wikiStorage";
 
+import {
+  getUser,
+} from "../../../lib/userStorage";
+
 export default function CreateWikiPage() {
   const router = useRouter();
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] =
+    useState("");
 
   const [category, setCategory] =
     useState("");
@@ -39,17 +44,25 @@ Dokumentation hier schreiben...
 
     const newPage = {
       slug,
+
       title,
+
       category,
+
       description: "",
-      author: "Thomas Hörth",
+
+      author:
+        getUser()?.name ||
+        "Unbekannt",
 
       updatedAt:
         new Date().toLocaleDateString(),
 
       tags: tags
         .split(",")
-        .map((tag) => tag.trim()),
+        .map((tag) =>
+          tag.trim()
+        ),
 
       content,
     };
@@ -89,7 +102,9 @@ Dokumentation hier schreiben...
               type="text"
               value={title}
               onChange={(e) =>
-                setTitle(e.target.value)
+                setTitle(
+                  e.target.value
+                )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
               placeholder="VPN Einrichtung"
@@ -106,7 +121,9 @@ Dokumentation hier schreiben...
               type="text"
               value={category}
               onChange={(e) =>
-                setCategory(e.target.value)
+                setCategory(
+                  e.target.value
+                )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
               placeholder="IT"
@@ -123,7 +140,9 @@ Dokumentation hier schreiben...
               type="text"
               value={tags}
               onChange={(e) =>
-                setTags(e.target.value)
+                setTags(
+                  e.target.value
+                )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
               placeholder="vpn, remote, it"
@@ -143,7 +162,9 @@ Dokumentation hier schreiben...
             <textarea
               value={content}
               onChange={(e) =>
-                setContent(e.target.value)
+                setContent(
+                  e.target.value
+                )
               }
               rows={20}
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"

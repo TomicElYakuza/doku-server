@@ -31,6 +31,34 @@ export default function TagPage() {
 
   return (
     <div className="space-y-6">
+      {/* TOP NAV */}
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/wiki"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          wiki
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          #{tag}
+        </span>
+      </div>
+
+      {/* BACK BUTTON */}
+      <div>
+        <Link
+          href="/wiki"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zur Übersicht
+        </Link>
+      </div>
+
       <div>
         <p className="text-zinc-500">
           Tag
