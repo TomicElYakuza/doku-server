@@ -10,6 +10,8 @@ import TableOfContents from "../../../components/wiki/TableOfContents";
 
 import { wikiPages } from "../../../data/wiki";
 
+import { saveRecentPage } from "@/lib/recentStorage";
+
 import {
   getFavorites,
   saveFavorites,
@@ -45,6 +47,7 @@ export default function WikiDetailPage() {
     );
 
     setPage(foundPage);
+    saveRecentPage(slug);
   }, [slug]);
 
   function toggleFavorite() {
@@ -61,6 +64,10 @@ export default function WikiDetailPage() {
     setFavorites(updated);
 
     saveFavorites(updated);
+
+      window.dispatchEvent(
+        new Event("favoritesUpdated")
+      );
   }
 
   if (!page) {

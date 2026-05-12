@@ -111,6 +111,22 @@ Dokumentation hier schreiben...
             />
           </div>
 
+          <div>
+            <label className="block mb-2 font-medium">
+            Dateien hochladen
+            </label>
+
+          <input
+            type="file"
+            multiple
+            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 bg-white"
+            />
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Bilder, PDFs oder Dokumente
+            </p>
+          </div>
+
           <button
             onClick={handleCreate}
             className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
