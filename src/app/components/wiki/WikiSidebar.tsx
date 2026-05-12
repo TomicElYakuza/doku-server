@@ -31,6 +31,9 @@ export default function WikiSidebar() {
   const [recentPages, setRecentPages] =
     useState<any[]>([]);
 
+  const [departmentsOpen, setDepartmentsOpen] =
+    useState(false);
+
   useEffect(() => {
     setMounted(true);
 
@@ -79,10 +82,19 @@ export default function WikiSidebar() {
     return null;
   }
 
-  const categories: string[] = [
+  const departments: string[] = [
     ...new Set(
       pages.map(
         (page: any) => page.category
+      )
+    ),
+  ];
+
+  const allTags = [
+    ...new Set(
+      pages.flatMap(
+        (page: any) =>
+          page.tags || []
       )
     ),
   ];
@@ -149,41 +161,64 @@ export default function WikiSidebar() {
         </div>
       )}
 
-      {/* KATEGORIEN */}
-      <div className="space-y-6">
-        {categories.map(
-          (category: string) => (
-            <div key={category}>
-              <h3 className="text-sm font-semibold text-zinc-500 uppercase mb-3">
-                {category}
-              </h3>
+      {/* ABTEILUNGEN */}
+      <div className="mb-8">
+        <button
+          onClick={() =>
+            setDepartmentsOpen(
+              !departmentsOpen
+            )
+          }
+          className="w-full flex items-center justify-between mb-3"
+        >
+          <h3 className="text-sm font-semibold text-zinc-500 uppercase">
+            Abteilungen
+          </h3>
 
-              <div className="flex flex-col gap-1">
-                {pages
-                  .filter(
-                    (page: any) =>
-                      page.category ===
-                      category
-                  )
-                  .map((page: any) => (
-                    <Link
-                      key={page.slug}
-                      href={`/wiki/${page.slug}`}
-                      className={`p-3 rounded-xl transition ${
-                        pathname ===
-                        `/wiki/${page.slug}`
-                          ? "bg-zinc-900 text-white"
-                          : "hover:bg-zinc-100"
-                      }`}
-                    >
-                      {page.title}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-          )
+          <span className="text-zinc-500">
+            {departmentsOpen
+              ? "−"
+              : "+"}
+          </span>
+        </button>
+
+        {departmentsOpen && (
+          <div className="flex flex-col gap-2">
+            {departments.map(
+              (department: string) => (
+                <Link
+                  key={department}
+                  href={`/wiki/department/${department}`}
+                  className="p-3 rounded-xl bg-zinc-50 hover:bg-zinc-100 transition"
+                >
+                  {department}
+                </Link>
+              )
+            )}
+          </div>
         )}
       </div>
+
+      {/* TAGS */}
+      {allTags.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-500 uppercase mb-3">
+            Tags
+          </h3>
+
+          <div className="flex flex-wrap gap-2">
+            {allTags.map((tag: any) => (
+              <a
+                key={tag}
+                href={`/wiki/tag/${tag}`}
+                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm px-3 py-1 rounded-full transition"
+              >
+                #{tag}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

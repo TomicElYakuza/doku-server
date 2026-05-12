@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { useParams, notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 
 import ReactMarkdown from "react-markdown";
 
@@ -10,12 +10,14 @@ import TableOfContents from "../../../components/wiki/TableOfContents";
 
 import { wikiPages } from "../../../data/wiki";
 
-import { saveRecentPage } from "@/lib/recentStorage";
-
 import {
   getFavorites,
   saveFavorites,
 } from "../../../lib/favoritesStorage";
+
+import {
+  saveRecentPage,
+} from "../../../lib/recentStorage";
 
 export default function WikiDetailPage() {
   const params = useParams();
@@ -47,7 +49,12 @@ export default function WikiDetailPage() {
     );
 
     setPage(foundPage);
+
     saveRecentPage(slug);
+
+    window.dispatchEvent(
+      new Event("recentUpdated")
+    );
   }, [slug]);
 
   function toggleFavorite() {
@@ -65,9 +72,9 @@ export default function WikiDetailPage() {
 
     saveFavorites(updated);
 
-      window.dispatchEvent(
-        new Event("favoritesUpdated")
-      );
+    window.dispatchEvent(
+      new Event("favoritesUpdated")
+    );
   }
 
   if (!page) {
@@ -97,9 +104,25 @@ export default function WikiDetailPage() {
               <p className="text-zinc-600 mt-4 text-lg">
                 {page.description}
               </p>
+
+              {/* TAGS */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {page.tags?.map(
+                  (tag: string) => (
+                    <a
+                      key={tag}
+                      href={`/wiki/tag/${tag}`}
+                      className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                    >
+                      #{tag}
+                    </a>
+                  )
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3">
+              {/* EDIT */}
               <a
                 href={`/wiki/edit/${page.slug}`}
                 className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-700 transition"
@@ -107,6 +130,7 @@ export default function WikiDetailPage() {
                 Bearbeiten
               </a>
 
+              {/* DELETE */}
               <button
                 onClick={() => {
                   const confirmed = confirm(
@@ -150,6 +174,7 @@ export default function WikiDetailPage() {
                 Löschen
               </button>
 
+              {/* FAVORITE */}
               <button
                 onClick={toggleFavorite}
                 className="bg-yellow-500 text-white px-5 py-3 rounded-xl hover:bg-yellow-400 transition"
@@ -161,6 +186,7 @@ export default function WikiDetailPage() {
             </div>
           </div>
 
+          {/* META */}
           <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10">
             <p>
               Autor: {page.author}
@@ -176,6 +202,7 @@ export default function WikiDetailPage() {
             </p>
           </div>
 
+          {/* CONTENT */}
           <article className="prose prose-zinc max-w-none prose-headings:font-bold prose-p:text-zinc-700 prose-li:text-zinc-700">
             <ReactMarkdown>
               {page.content}
@@ -184,6 +211,7 @@ export default function WikiDetailPage() {
         </div>
       </div>
 
+      {/* TOC */}
       <TableOfContents
         content={page.content}
       />

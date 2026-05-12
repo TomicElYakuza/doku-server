@@ -1,5 +1,6 @@
 Wiki (Intranet "DMS"):
 -	DB Anbindung (Postgres)
+	-	Connected, Connection failed
 -	Vordefinierte Kategorien
 	-	Über Admin Backend editierbar
 -	PDF, Word Konvertierung
@@ -13,7 +14,9 @@ Grundlegendes zum Intranet:
 	-	Sprache eventuell
 	-	Design mit RGB / CYMK
 -	Login System
+	-	Password Create / Reset
 -	Berechtigungen
+-	Abteilungsbereiche, zum Beispiel bei IT Bestandsliste
 
 Weitere mögliche Features:
 -	Anstehende Projekte
