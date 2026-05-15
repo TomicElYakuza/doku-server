@@ -13,9 +13,106 @@ export default function SettingsPage() {
   const [status, setStatus] =
     useState("");
 
+  const [stats, setStats] =
+    useState({
+      pages: 0,
+      trash: 0,
+      favorites: 0,
+      recent: 0,
+      activities: 0,
+      comments: 0,
+      files: 0,
+      versions: 0,
+    });
+
   useEffect(() => {
     setUser(getUser());
+
+    loadStats();
   }, []);
+
+  function loadStats() {
+    const pages = JSON.parse(
+      localStorage.getItem("wiki-pages") ||
+        "[]"
+    );
+
+    const trash = JSON.parse(
+      localStorage.getItem("wiki-trash") ||
+        "[]"
+    );
+
+    const favorites = JSON.parse(
+      localStorage.getItem("wiki-favorites") ||
+        "[]"
+    );
+
+    const recent = JSON.parse(
+      localStorage.getItem("wiki-recent") ||
+        "[]"
+    );
+
+    const activities = JSON.parse(
+      localStorage.getItem("wiki-activities") ||
+        "[]"
+    );
+
+    const comments = JSON.parse(
+      localStorage.getItem("wiki-comments") ||
+        "{}"
+    );
+
+    const files = JSON.parse(
+      localStorage.getItem("wiki-files") ||
+        "{}"
+    );
+
+    const versions = JSON.parse(
+      localStorage.getItem("wiki-versions") ||
+        "{}"
+    );
+
+    const commentCount = (
+      Object.values(comments) as any[]
+    ).reduce(
+      (
+        acc: number,
+        current: any
+      ) => acc + current.length,
+      0
+    );
+
+    const fileCount = (
+      Object.values(files) as any[]
+    ).reduce(
+      (
+        acc: number,
+        current: any
+      ) => acc + current.length,
+      0
+    );
+
+    const versionCount = (
+      Object.values(versions) as any[]
+    ).reduce(
+      (
+        acc: number,
+        current: any
+      ) => acc + current.length,
+      0
+    );
+
+    setStats({
+      pages: pages.length,
+      trash: trash.length,
+      favorites: favorites.length,
+      recent: recent.length,
+      activities: activities.length,
+      comments: commentCount,
+      files: fileCount,
+      versions: versionCount,
+    });
+  }
 
   function exportBackup() {
     const backup = {
@@ -28,6 +125,10 @@ export default function SettingsPage() {
 
       pages: localStorage.getItem(
         "wiki-pages"
+      ),
+
+      trash: localStorage.getItem(
+        "wiki-trash"
       ),
 
       favorites:
@@ -126,6 +227,13 @@ export default function SettingsPage() {
           );
         }
 
+        if (backup.trash) {
+          localStorage.setItem(
+            "wiki-trash",
+            backup.trash
+          );
+        }
+
         if (backup.favorites) {
           localStorage.setItem(
             "wiki-favorites",
@@ -168,6 +276,10 @@ export default function SettingsPage() {
           );
         }
 
+        setUser(getUser());
+
+        loadStats();
+
         setStatus(
           "Backup wurde importiert. Seite bitte neu laden."
         );
@@ -195,6 +307,10 @@ export default function SettingsPage() {
     );
 
     localStorage.removeItem(
+      "wiki-trash"
+    );
+
+    localStorage.removeItem(
       "wiki-favorites"
     );
 
@@ -218,6 +334,8 @@ export default function SettingsPage() {
       "wiki-activities"
     );
 
+    loadStats();
+
     setStatus(
       "Wiki-Daten wurden gelöscht. Seite bitte neu laden."
     );
@@ -238,6 +356,10 @@ export default function SettingsPage() {
 
     localStorage.removeItem(
       "wiki-pages"
+    );
+
+    localStorage.removeItem(
+      "wiki-trash"
     );
 
     localStorage.removeItem(
@@ -266,13 +388,15 @@ export default function SettingsPage() {
 
     setUser(null);
 
+    loadStats();
+
     setStatus(
       "Alle lokalen Daten wurden gelöscht."
     );
   }
 
   return (
-    <div className="space-y-8 max-w-5xl">
+    <div className="space-y-8 max-w-6xl">
       {/* HEADER */}
       <div>
         <h1 className="text-4xl font-bold">
@@ -331,6 +455,99 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* STATS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Lokale Daten
+        </h2>
+
+        <p className="text-zinc-500 mt-2">
+          Übersicht über alle aktuell gespeicherten Browser-Daten.
+        </p>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Dokumente
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.pages}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Papierkorb
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.trash}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Favoriten
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.favorites}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Zuletzt geöffnet
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.recent}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Versionen
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.versions}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Anhänge
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.files}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Kommentare
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.comments}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Aktivitäten
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.activities}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* BACKUP */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
@@ -338,7 +555,7 @@ export default function SettingsPage() {
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Exportiere oder importiere alle lokalen Wiki-Daten.
+          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Papierkorb.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-4">

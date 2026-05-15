@@ -56,9 +56,15 @@ export default function TrashPage() {
     );
 
     setTrashPages(pages);
+
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
   }
 
-  function restorePage(page: any) {
+  function restorePage(
+    page: any
+  ) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente wiederherstellen."
@@ -75,12 +81,14 @@ export default function TrashPage() {
       return;
     }
 
-    const pages = getStoredPages();
+    const pages =
+      getStoredPages();
 
-    const pageExists = pages.some(
-      (item: any) =>
-        item.slug === page.slug
-    );
+    const pageExists =
+      pages.some(
+        (item: any) =>
+          item.slug === page.slug
+      );
 
     if (pageExists) {
       alert(
@@ -92,6 +100,7 @@ export default function TrashPage() {
 
     const restoredPage = {
       ...page,
+
       updatedAt:
         new Date().toLocaleDateString(),
     };
@@ -113,16 +122,28 @@ export default function TrashPage() {
 
     saveActivity({
       type: "restored",
+
       title: page.title,
+
       user:
         getUser()?.name ||
         "Unbekannt",
+
       createdAt:
         new Date().toLocaleString(),
     });
+
+    alert(
+      "Dokument wurde wiederhergestellt."
+    );
+
+    window.location.href =
+      `/wiki/${page.slug}`;
   }
 
-  function deleteForever(page: any) {
+  function deleteForever(
+    page: any
+  ) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente endgültig löschen."
@@ -149,13 +170,20 @@ export default function TrashPage() {
 
     saveActivity({
       type: "deletedForever",
+
       title: page.title,
+
       user:
         getUser()?.name ||
         "Unbekannt",
+
       createdAt:
         new Date().toLocaleString(),
     });
+
+    alert(
+      "Dokument wurde endgültig gelöscht."
+    );
   }
 
   if (!mounted) {
@@ -259,6 +287,19 @@ export default function TrashPage() {
                   <p className="text-zinc-600 mt-2">
                     {page.description}
                   </p>
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {page.tags?.map(
+                      (tag: string) => (
+                        <span
+                          key={tag}
+                          className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                        >
+                          #{tag}
+                        </span>
+                      )
+                    )}
+                  </div>
 
                   <p className="text-sm text-zinc-500 mt-4">
                     Gelöscht am:{" "}

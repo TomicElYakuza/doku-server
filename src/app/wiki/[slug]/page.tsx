@@ -150,12 +150,38 @@ export default function WikiDetailPage() {
       return;
     }
 
-    saveTrashPage(pageToDelete);
+    const currentTrash = JSON.parse(
+      localStorage.getItem("wiki-trash") ||
+        "[]"
+    );
+
+    const trashPage = {
+      ...pageToDelete,
+      deletedAt:
+        new Date().toLocaleString(),
+    };
+
+    const updatedTrash = [
+      trashPage,
+      ...currentTrash.filter(
+        (item: any) =>
+          item.slug !== pageToDelete.slug
+      ),
+    ];
+
+    localStorage.setItem(
+      "wiki-trash",
+      JSON.stringify(updatedTrash)
+    );
+
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
 
     const updatedPages =
       allPages.filter(
         (item: any) =>
-          item.slug !== page.slug
+          item.slug !== pageToDelete.slug
       );
 
     localStorage.setItem(
@@ -177,7 +203,7 @@ export default function WikiDetailPage() {
     });
 
     alert(
-      "Dokument wurde in den Papierkorb verschoben."
+      `Dokument wurde in den Papierkorb verschoben. Papierkorb enthält jetzt ${updatedTrash.length} Eintrag/Einträge.`
     );
 
     window.location.href =

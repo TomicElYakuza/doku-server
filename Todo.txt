@@ -21,5 +21,12 @@ Grundlegendes zum Intranet:
 Weitere mögliche Features:
 -	Anstehende Projekte
 
-Readme für erweitbarkeit
 Design etwas responsiver machen
+
+
+
+
+
+
+Albert Froschauer
+Laufwerk Marketing Vertrieb

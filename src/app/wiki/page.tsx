@@ -2,33 +2,41 @@
 
 import { useEffect, useState } from "react";
 
-import {
-  getActivities,
-} from "@/lib/activityStorage";
+import Link from "next/link";
+
+import { wikiPages } from "../../data/wiki";
 
 import {
   getStoredPages,
   savePages,
-} from "@/lib/wikiStorage";
-
-import {
-  getUser,
-} from "@/lib/userStorage";
+} from "../../lib/wikiStorage";
 
 import {
   canCreate,
-} from "@/lib/permissions";
+} from "../../lib/permissions";
 
-import { wikiPages } from "@/data/wiki";
+import {
+  getUser,
+} from "../../lib/userStorage";
 
-export default function HomePage() {
-  const [activities, setActivities] =
-    useState<any[]>([]);
+import {
+  getVersions,
+} from "../../lib/versionStorage";
+
+export default function WikiPage() {
+  const [search, setSearch] =
+    useState("");
+
+  const [departmentFilter, setDepartmentFilter] =
+    useState("");
+
+  const [tagFilter, setTagFilter] =
+    useState("");
+
+  const [sortBy, setSortBy] =
+    useState("updated-desc");
 
   const [pages, setPages] =
-    useState<any[]>([]);
-
-  const [trashPages, setTrashPages] =
     useState<any[]>([]);
 
   const [user, setUser] =
@@ -40,31 +48,15 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true);
 
-    const storedPages =
-      getStoredPages();
+    const stored = getStoredPages();
 
-    if (storedPages.length > 0) {
-      setPages(storedPages);
+    if (stored.length > 0) {
+      setPages(stored);
     } else {
       savePages(wikiPages);
 
       setPages(wikiPages);
     }
-
-    const trashData =
-      localStorage.getItem(
-        "wiki-trash"
-      );
-
-    setTrashPages(
-      trashData
-        ? JSON.parse(trashData)
-        : []
-    );
-
-    setActivities(
-      getActivities()
-    );
 
     setUser(getUser());
   }, []);
@@ -73,83 +65,7 @@ export default function HomePage() {
     return null;
   }
 
-  function getActivityLabel(
-    type: string
-  ) {
-    if (type === "created") {
-      return "Dokument erstellt";
-    }
-
-    if (type === "edited") {
-      return "Dokument bearbeitet";
-    }
-
-    if (type === "deleted") {
-      return "Dokument in Papierkorb verschoben";
-    }
-
-    if (type === "deletedForever") {
-      return "Dokument endgültig gelöscht";
-    }
-
-    if (type === "restored") {
-      return "Version oder Dokument wiederhergestellt";
-    }
-
-    if (type === "uploaded") {
-      return "Datei hochgeladen";
-    }
-
-    if (type === "commented") {
-      return "Kommentar hinzugefügt";
-    }
-
-    if (type === "commentDeleted") {
-      return "Kommentar gelöscht";
-    }
-
-    return "Aktivität";
-  }
-
-  function getActivityIcon(
-    type: string
-  ) {
-    if (type === "created") {
-      return "📝";
-    }
-
-    if (type === "edited") {
-      return "✏️";
-    }
-
-    if (type === "deleted") {
-      return "🗑️";
-    }
-
-    if (type === "deletedForever") {
-      return "❌";
-    }
-
-    if (type === "restored") {
-      return "♻️";
-    }
-
-    if (type === "uploaded") {
-      return "📎";
-    }
-
-    if (type === "commented") {
-      return "💬";
-    }
-
-    if (type === "commentDeleted") {
-      return "🧹";
-    }
-
-    return "📌";
-  }
-
-  const departments = [
+  const departments: string[] = [
     ...new Set(
       pages.map(
         (page: any) =>
@@ -158,7 +74,7 @@ export default function HomePage() {
     ),
   ];
 
-  const tags = [
+  const tags: string[] = [
     ...new Set(
       pages.flatMap(
         (page: any) =>
@@ -167,238 +83,379 @@ export default function HomePage() {
     ),
   ];
 
+  const versions = getVersions();
+
+  const versionCount = (
+    Object.values(
+      versions
+    ) as any[]
+  ).reduce(
+    (
+      acc: number,
+      current: any
+    ) => acc + current.length,
+    0
+  );
+
+  const filteredPages = pages.filter(
+    (page: any) => {
+      const query =
+        search.toLowerCase();
+
+      const matchesSearch =
+        page.title
+          ?.toLowerCase()
+          .includes(query) ||
+
+        page.description
+          ?.toLowerCase()
+          .includes(query) ||
+
+        page.category
+          ?.toLowerCase()
+          .includes(query) ||
+
+        page.content
+          ?.toLowerCase()
+          .includes(query) ||
+
+        page.tags?.some((tag: string) =>
+          tag
+            .toLowerCase()
+            .includes(query)
+        );
+
+      const matchesDepartment =
+        !departmentFilter ||
+        page.category ===
+          departmentFilter;
+
+      const matchesTag =
+        !tagFilter ||
+        page.tags?.includes(
+          tagFilter
+        );
+
+      return (
+        matchesSearch &&
+        matchesDepartment &&
+        matchesTag
+      );
+    }
+  );
+
+  const sortedPages = [
+    ...filteredPages,
+  ].sort((a: any, b: any) => {
+    if (sortBy === "title-asc") {
+      return a.title.localeCompare(
+        b.title
+      );
+    }
+
+    if (sortBy === "title-desc") {
+      return b.title.localeCompare(
+        a.title
+      );
+    }
+
+    if (sortBy === "category-asc") {
+      return a.category.localeCompare(
+        b.category
+      );
+    }
+
+    if (sortBy === "updated-asc") {
+      return (
+        new Date(a.updatedAt).getTime() -
+        new Date(b.updatedAt).getTime()
+      );
+    }
+
+    return (
+      new Date(b.updatedAt).getTime() -
+      new Date(a.updatedAt).getTime()
+    );
+  });
+
+  function resetFilters() {
+    setSearch("");
+
+    setDepartmentFilter("");
+
+    setTagFilter("");
+
+    setSortBy("updated-desc");
+  }
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-bold">
-            Willkommen zurück
+          <h1 className="text-3xl font-bold">
+            Wiki
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Firmen Intranet Übersicht
+            Unternehmensdokumentation
           </p>
+
+          {/* USER */}
+          {user && (
+            <div className="mt-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+                {user.name?.charAt(0)}
+              </div>
+
+              <div>
+                <p className="font-medium">
+                  {user.name}
+                </p>
+
+                <p className="text-sm text-zinc-500 capitalize">
+                  {user.role}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {user ? (
-          <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-              {user.name?.charAt(0)}
-            </div>
-
-            <div>
-              <p className="font-medium">
-                {user.name}
-              </p>
-
-              <p className="text-sm text-zinc-500 capitalize">
-                {user.role}
-              </p>
-            </div>
+        {/* CREATE */}
+        {canCreate() && (
+          <div>
+            <Link
+              href="/wiki/create"
+              className="inline-flex bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Neue Seite
+            </Link>
           </div>
-        ) : (
-          <a
-            href="/setup"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Benutzer einrichten
-          </a>
         )}
       </div>
 
-      {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <a
-          href="/wiki"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
+      {/* STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
+          <h2 className="text-3xl font-bold mt-2">
             {pages.length}
           </h2>
-        </a>
+        </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Abteilungen
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
+          <h2 className="text-3xl font-bold mt-2">
             {departments.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Tags
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
+          <h2 className="text-3xl font-bold mt-2">
             {tags.length}
           </h2>
         </div>
 
-        <a
-          href="/wiki/trash"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
-        >
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
-            Papierkorb
+            Versionen
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {trashPages.length}
-          </h2>
-        </a>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Aktivitäten
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {activities.length}
+          <h2 className="text-3xl font-bold mt-2">
+            {versionCount}
           </h2>
         </div>
       </div>
 
-      {/* QUICK ACTIONS */}
+      {/* FILTER CARD */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Schnellzugriff
+        <h2 className="text-xl font-semibold">
+          Suche & Filter
         </h2>
 
-        <div className="flex flex-wrap gap-4 mt-6">
-          <a
-            href="/wiki"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-5">
+          {/* SEARCH */}
+          <input
+            type="text"
+            placeholder="Dokumente, Tags oder Inhalte suchen..."
+            value={search}
+            onChange={(e) =>
+              setSearch(
+                e.target.value
+              )
+            }
+            className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          />
+
+          {/* DEPARTMENT FILTER */}
+          <select
+            value={departmentFilter}
+            onChange={(e) =>
+              setDepartmentFilter(
+                e.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
-            Wiki öffnen
-          </a>
+            <option value="">
+              Alle Abteilungen
+            </option>
 
-          {canCreate() && (
-            <a
-              href="/wiki/create"
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Dokument erstellen
-            </a>
-          )}
+            {departments.map(
+              (department) => (
+                <option
+                  key={department}
+                  value={department}
+                >
+                  {department}
+                </option>
+              )
+            )}
+          </select>
 
-          <a
-            href="/wiki/trash"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
+          {/* TAG FILTER */}
+          <select
+            value={tagFilter}
+            onChange={(e) =>
+              setTagFilter(
+                e.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
-            Papierkorb öffnen
-          </a>
+            <option value="">
+              Alle Tags
+            </option>
 
-          <a
-            href="/setup"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Benutzer Setup
-          </a>
-        </div>
-      </div>
-
-      {/* RECENT DOCUMENTS */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Dokumente
-        </h2>
-
-        <div className="mt-6 grid gap-4">
-          {pages.length === 0 && (
-            <p className="text-zinc-500">
-              Noch keine Dokumente vorhanden.
-            </p>
-          )}
-
-          {pages
-            .slice(0, 5)
-            .map((page: any) => (
-              <a
-                key={page.slug}
-                href={`/wiki/${page.slug}`}
-                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+            {tags.map((tag) => (
+              <option
+                key={tag}
+                value={tag}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">
-                      {page.title}
-                    </p>
-
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {page.category}
-                    </p>
-                  </div>
-
-                  <p className="text-sm text-zinc-500">
-                    {page.updatedAt}
-                  </p>
-                </div>
-              </a>
+                #{tag}
+              </option>
             ))}
+          </select>
+
+          {/* SORT */}
+          <select
+            value={sortBy}
+            onChange={(e) =>
+              setSortBy(
+                e.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          >
+            <option value="updated-desc">
+              Neueste zuerst
+            </option>
+
+            <option value="updated-asc">
+              Älteste zuerst
+            </option>
+
+            <option value="title-asc">
+              Titel A-Z
+            </option>
+
+            <option value="title-desc">
+              Titel Z-A
+            </option>
+
+            <option value="category-asc">
+              Abteilung A-Z
+            </option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between mt-5">
+          <p className="text-sm text-zinc-500">
+            {sortedPages.length} von{" "}
+            {pages.length} Dokumenten gefunden
+          </p>
+
+          <button
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Filter zurücksetzen
+          </button>
         </div>
       </div>
 
-      {/* ACTIVITIES */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Letzte Aktivitäten
-        </h2>
-
-        <div className="mt-6 space-y-4">
-          {activities.length === 0 && (
+      {/* RESULTS */}
+      <div className="grid gap-4">
+        {sortedPages.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-2xl p-6">
             <p className="text-zinc-500">
-              Noch keine Aktivitäten
+              Keine Dokumente gefunden.
             </p>
-          )}
+          </div>
+        )}
 
-          {activities.map(
-            (
-              activity: any,
-              index: number
-            ) => (
-              <div
-                key={index}
-                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
-                    {getActivityIcon(
-                      activity.type
-                    )}
-                  </div>
+        {sortedPages.map(
+          (page: any) => (
+            <Link
+              key={page.slug}
+              href={`/wiki/${page.slug}`}
+              className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-zinc-500">
+                  {page.category}
+                </p>
 
-                  <div>
-                    <p className="font-medium">
-                      {activity.user}
-                    </p>
+                <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                  Dokument
+                </span>
+              </div>
 
-                    <p className="text-zinc-500 text-sm mt-1">
-                      {getActivityLabel(
-                        activity.type
-                      )}
-                    </p>
+              <h2 className="text-xl font-semibold mt-3">
+                {page.title}
+              </h2>
 
-                    <p className="mt-2">
-                      {activity.title}
-                    </p>
-                  </div>
-                </div>
+              <p className="text-zinc-600 mt-2">
+                {page.description}
+              </p>
+
+              {/* TAGS */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {page.tags?.map(
+                  (tag: string) => (
+                    <span
+                      key={tag}
+                      className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                    >
+                      #{tag}
+                    </span>
+                  )
+                )}
+              </div>
+
+              {/* META */}
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
+                <p className="text-sm text-zinc-500">
+                  {page.author}
+                </p>
 
                 <p className="text-sm text-zinc-500">
-                  {activity.createdAt}
+                  {page.updatedAt}
                 </p>
               </div>
-            )
-          )}
-        </div>
+            </Link>
+          )
+        )}
       </div>
     </div>
   );
