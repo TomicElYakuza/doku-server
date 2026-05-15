@@ -44,45 +44,62 @@ export default function WikiSidebar() {
   const [admin, setAdmin] =
     useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-
-    setAdmin(isAdmin());
-
+  function getAllPages() {
     const storedPages = JSON.parse(
       localStorage.getItem("wiki-pages") ||
         "[]"
     );
 
-    const allPages =
-      storedPages.length > 0
-        ? storedPages
-        : wikiPages;
+    return storedPages.length > 0
+      ? storedPages
+      : wikiPages;
+  }
+
+  function loadPages() {
+    const allPages = getAllPages();
 
     setPages(allPages);
 
+    loadRecentPages(allPages);
+  }
+
+  function loadFavorites() {
+    setFavorites(getFavorites());
+  }
+
+  function loadRecentPages(
+    allPages = getAllPages()
+  ) {
     const recentSlugs =
       getRecentPages();
 
-    const recent = allPages.filter(
-      (page: any) =>
-        recentSlugs.includes(page.slug)
-    );
+    const recent = recentSlugs
+      .map((slug) =>
+        allPages.find(
+          (page: any) =>
+            page.slug === slug
+        )
+      )
+      .filter(Boolean);
 
     setRecentPages(recent);
+  }
 
-    function loadFavorites() {
-      setFavorites(getFavorites());
-    }
+  function loadTrashCount() {
+    const trash = JSON.parse(
+      localStorage.getItem("wiki-trash") ||
+        "[]"
+    );
 
-    function loadTrashCount() {
-      const trash = JSON.parse(
-        localStorage.getItem("wiki-trash") ||
-          "[]"
-      );
+    setTrashCount(trash.length);
+  }
 
-      setTrashCount(trash.length);
-    }
+  useEffect(() => {
+    setMounted(true);
+
+    setAdmin(isAdmin());
+
+    loadPages();
 
     loadFavorites();
 
@@ -94,8 +111,18 @@ export default function WikiSidebar() {
     );
 
     window.addEventListener(
+      "recentUpdated",
+      () => loadRecentPages()
+    );
+
+    window.addEventListener(
       "trashUpdated",
       loadTrashCount
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      loadPages
     );
 
     return () => {
@@ -105,8 +132,18 @@ export default function WikiSidebar() {
       );
 
       window.removeEventListener(
+        "recentUpdated",
+        () => loadRecentPages()
+      );
+
+      window.removeEventListener(
         "trashUpdated",
         loadTrashCount
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        loadPages
       );
     };
   }, []);
@@ -118,12 +155,13 @@ export default function WikiSidebar() {
   const departments: string[] = [
     ...new Set(
       pages.map(
-        (page: any) => page.category
+        (page: any) =>
+          page.category
       )
     ),
   ];
 
-  const allTags = [
+  const allTags: string[] = [
     ...new Set(
       pages.flatMap(
         (page: any) =>
@@ -184,7 +222,12 @@ export default function WikiSidebar() {
                 <Link
                   key={page.slug}
                   href={`/wiki/${page.slug}`}
-                  className="p-3 rounded-xl hover:bg-blue-50 transition"
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/${page.slug}`
+                      ? "bg-blue-600 text-white"
+                      : "hover:bg-blue-50"
+                  }`}
                 >
                   🕒 {page.title}
                 </Link>
@@ -222,7 +265,12 @@ export default function WikiSidebar() {
                 <Link
                   key={department}
                   href={`/wiki/department/${department}`}
-                  className="p-3 rounded-xl bg-zinc-50 hover:bg-zinc-100 transition"
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/department/${department}`
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-50 hover:bg-zinc-100"
+                  }`}
                 >
                   {department}
                 </Link>
@@ -240,11 +288,16 @@ export default function WikiSidebar() {
           </h3>
 
           <div className="flex flex-wrap gap-2">
-            {allTags.map((tag: any) => (
+            {allTags.map((tag: string) => (
               <a
                 key={tag}
                 href={`/wiki/tag/${tag}`}
-                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm px-3 py-1 rounded-full transition"
+                className={`text-sm px-3 py-1 rounded-full transition ${
+                  pathname ===
+                  `/wiki/tag/${tag}`
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+                }`}
               >
                 #{tag}
               </a>

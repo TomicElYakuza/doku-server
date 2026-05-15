@@ -139,6 +139,10 @@ Dokumentation hier schreiben...
 
     savePages(updatedPages);
 
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
+
     saveActivity({
       type: "created",
 

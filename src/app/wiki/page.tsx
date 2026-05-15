@@ -36,6 +36,9 @@ export default function WikiPage() {
   const [sortBy, setSortBy] =
     useState("updated-desc");
 
+  const [viewMode, setViewMode] =
+    useState<"cards" | "table">("cards");
+
   const [pages, setPages] =
     useState<any[]>([]);
 
@@ -44,6 +47,15 @@ export default function WikiPage() {
 
   const [mounted, setMounted] =
     useState(false);
+
+  const [comments, setComments] =
+    useState<any>({});
+
+  const [files, setFiles] =
+    useState<any>({});
+
+  const [versions, setVersions] =
+    useState<any>({});
 
   useEffect(() => {
     setMounted(true);
@@ -59,10 +71,76 @@ export default function WikiPage() {
     }
 
     setUser(getUser());
+
+    setComments(
+      JSON.parse(
+        localStorage.getItem(
+          "wiki-comments"
+        ) || "{}"
+      )
+    );
+
+    setFiles(
+      JSON.parse(
+        localStorage.getItem(
+          "wiki-files"
+        ) || "{}"
+      )
+    );
+
+    setVersions(getVersions());
   }, []);
 
   if (!mounted) {
     return null;
+  }
+
+  function parseDate(
+    value: string
+  ) {
+    if (!value) {
+      return 0;
+    }
+
+    const parts =
+      value.split(".");
+
+    if (parts.length >= 3) {
+      const day =
+        Number(parts[0]);
+
+      const month =
+        Number(parts[1]) - 1;
+
+      const year =
+        Number(parts[2]);
+
+      return new Date(
+        year,
+        month,
+        day
+      ).getTime();
+    }
+
+    return new Date(value).getTime();
+  }
+
+  function getCommentCount(
+    slug: string
+  ) {
+    return comments[slug]?.length || 0;
+  }
+
+  function getFileCount(
+    slug: string
+  ) {
+    return files[slug]?.length || 0;
+  }
+
+  function getVersionCount(
+    slug: string
+  ) {
+    return versions[slug]?.length || 0;
   }
 
   const departments: string[] = [
@@ -82,8 +160,6 @@ export default function WikiPage() {
       )
     ),
   ];
-
-  const versions = getVersions();
 
   const versionCount = (
     Object.values(
@@ -116,6 +192,10 @@ export default function WikiPage() {
           .includes(query) ||
 
         page.content
+          ?.toLowerCase()
+          .includes(query) ||
+
+        page.author
           ?.toLowerCase()
           .includes(query) ||
 
@@ -167,14 +247,14 @@ export default function WikiPage() {
 
     if (sortBy === "updated-asc") {
       return (
-        new Date(a.updatedAt).getTime() -
-        new Date(b.updatedAt).getTime()
+        parseDate(a.updatedAt) -
+        parseDate(b.updatedAt)
       );
     }
 
     return (
-      new Date(b.updatedAt).getTime() -
-      new Date(a.updatedAt).getTime()
+      parseDate(b.updatedAt) -
+      parseDate(a.updatedAt)
     );
   });
 
@@ -201,7 +281,6 @@ export default function WikiPage() {
             Unternehmensdokumentation
           </p>
 
-          {/* USER */}
           {user && (
             <div className="mt-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
@@ -221,7 +300,6 @@ export default function WikiPage() {
           )}
         </div>
 
-        {/* CREATE */}
         {canCreate() && (
           <div>
             <Link
@@ -279,15 +357,44 @@ export default function WikiPage() {
 
       {/* FILTER CARD */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Suche & Filter
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold">
+            Suche & Filter
+          </h2>
+
+          <div className="flex bg-zinc-100 rounded-2xl p-1">
+            <button
+              onClick={() =>
+                setViewMode("cards")
+              }
+              className={`px-4 py-2 rounded-xl text-sm transition ${
+                viewMode === "cards"
+                  ? "bg-white shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900"
+              }`}
+            >
+              Karten
+            </button>
+
+            <button
+              onClick={() =>
+                setViewMode("table")
+              }
+              className={`px-4 py-2 rounded-xl text-sm transition ${
+                viewMode === "table"
+                  ? "bg-white shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900"
+              }`}
+            >
+              Tabelle
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-5">
-          {/* SEARCH */}
           <input
             type="text"
-            placeholder="Dokumente, Tags oder Inhalte suchen..."
+            placeholder="Dokumente, Tags, Autoren oder Inhalte suchen..."
             value={search}
             onChange={(e) =>
               setSearch(
@@ -297,7 +404,6 @@ export default function WikiPage() {
             className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
-          {/* DEPARTMENT FILTER */}
           <select
             value={departmentFilter}
             onChange={(e) =>
@@ -323,7 +429,6 @@ export default function WikiPage() {
             )}
           </select>
 
-          {/* TAG FILTER */}
           <select
             value={tagFilter}
             onChange={(e) =>
@@ -347,7 +452,6 @@ export default function WikiPage() {
             ))}
           </select>
 
-          {/* SORT */}
           <select
             value={sortBy}
             onChange={(e) =>
@@ -394,69 +498,219 @@ export default function WikiPage() {
         </div>
       </div>
 
-      {/* RESULTS */}
-      <div className="grid gap-4">
-        {sortedPages.length === 0 && (
-          <div className="bg-white border border-zinc-200 rounded-2xl p-6">
-            <p className="text-zinc-500">
-              Keine Dokumente gefunden.
-            </p>
-          </div>
-        )}
+      {/* EMPTY */}
+      {sortedPages.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-zinc-500">
+            Keine Dokumente gefunden.
+          </p>
+        </div>
+      )}
 
-        {sortedPages.map(
-          (page: any) => (
-            <Link
-              key={page.slug}
-              href={`/wiki/${page.slug}`}
-              className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-500">
-                  {page.category}
+      {/* CARDS */}
+      {viewMode === "cards" && (
+        <div className="grid gap-4">
+          {sortedPages.map(
+            (page: any) => (
+              <Link
+                key={page.slug}
+                href={`/wiki/${page.slug}`}
+                className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-zinc-500">
+                    {page.category}
+                  </p>
+
+                  <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                    Dokument
+                  </span>
+                </div>
+
+                <h2 className="text-xl font-semibold mt-3">
+                  {page.title}
+                </h2>
+
+                <p className="text-zinc-600 mt-2">
+                  {page.description}
                 </p>
 
-                <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                  Dokument
-                </span>
-              </div>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {page.tags?.map(
+                    (tag: string) => (
+                      <span
+                        key={tag}
+                        className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                      >
+                        #{tag}
+                      </span>
+                    )
+                  )}
+                </div>
 
-              <h2 className="text-xl font-semibold mt-3">
-                {page.title}
-              </h2>
+                <div className="grid grid-cols-3 gap-3 mt-6">
+                  <div className="bg-zinc-50 rounded-2xl p-3">
+                    <p className="text-xs text-zinc-500">
+                      Kommentare
+                    </p>
 
-              <p className="text-zinc-600 mt-2">
-                {page.description}
-              </p>
+                    <p className="font-semibold mt-1">
+                      {getCommentCount(
+                        page.slug
+                      )}
+                    </p>
+                  </div>
 
-              {/* TAGS */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {page.tags?.map(
-                  (tag: string) => (
-                    <span
-                      key={tag}
-                      className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                    >
-                      #{tag}
-                    </span>
-                  )
-                )}
-              </div>
+                  <div className="bg-zinc-50 rounded-2xl p-3">
+                    <p className="text-xs text-zinc-500">
+                      Anhänge
+                    </p>
 
-              {/* META */}
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                <p className="text-sm text-zinc-500">
-                  {page.author}
-                </p>
+                    <p className="font-semibold mt-1">
+                      {getFileCount(
+                        page.slug
+                      )}
+                    </p>
+                  </div>
 
-                <p className="text-sm text-zinc-500">
-                  {page.updatedAt}
-                </p>
-              </div>
-            </Link>
-          )
-        )}
-      </div>
+                  <div className="bg-zinc-50 rounded-2xl p-3">
+                    <p className="text-xs text-zinc-500">
+                      Versionen
+                    </p>
+
+                    <p className="font-semibold mt-1">
+                      {getVersionCount(
+                        page.slug
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
+                  <p className="text-sm text-zinc-500">
+                    {page.author}
+                  </p>
+
+                  <p className="text-sm text-zinc-500">
+                    {page.updatedAt}
+                  </p>
+                </div>
+              </Link>
+            )
+          )}
+        </div>
+      )}
+
+      {/* TABLE */}
+      {viewMode === "table" && (
+        <div className="bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 border-b border-zinc-200">
+              <tr>
+                <th className="text-left px-5 py-4 font-semibold">
+                  Titel
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
+                  Abteilung
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
+                  Tags
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
+                  Aktivität
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
+                  Autor
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
+                  Aktualisiert
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedPages.map(
+                (page: any) => (
+                  <tr
+                    key={page.slug}
+                    className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition"
+                  >
+                    <td className="px-5 py-4">
+                      <Link
+                        href={`/wiki/${page.slug}`}
+                        className="font-medium hover:underline"
+                      >
+                        {page.title}
+                      </Link>
+
+                      <p className="text-zinc-500 mt-1">
+                        {page.description}
+                      </p>
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {page.category}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {page.tags?.map(
+                          (tag: string) => (
+                            <span
+                              key={tag}
+                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                            >
+                              #{tag}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      <div className="flex flex-col gap-1">
+                        <span>
+                          💬{" "}
+                          {getCommentCount(
+                            page.slug
+                          )}
+                        </span>
+
+                        <span>
+                          📎{" "}
+                          {getFileCount(
+                            page.slug
+                          )}
+                        </span>
+
+                        <span>
+                          🕓{" "}
+                          {getVersionCount(
+                            page.slug
+                          )}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {page.author}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {page.updatedAt}
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

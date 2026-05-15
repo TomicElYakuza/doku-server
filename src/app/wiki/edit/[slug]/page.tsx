@@ -170,6 +170,10 @@ export default function EditWikiPage() {
 
     savePages(updatedPages);
 
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
+
     saveActivity({
       type: "edited",
 
