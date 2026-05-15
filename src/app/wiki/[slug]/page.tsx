@@ -22,10 +22,12 @@ import {
 import {
   getFavorites,
   saveFavorites,
+  removeFavorite,
 } from "../../../lib/favoritesStorage";
 
 import {
   saveRecentPage,
+  removeRecentPage,
 } from "../../../lib/recentStorage";
 
 import {
@@ -173,10 +175,6 @@ export default function WikiDetailPage() {
       JSON.stringify(updatedTrash)
     );
 
-    window.dispatchEvent(
-      new Event("trashUpdated")
-    );
-
     const updatedPages =
       allPages.filter(
         (item: any) =>
@@ -186,8 +184,28 @@ export default function WikiDetailPage() {
 
     savePages(updatedPages);
 
+    removeFavorite(
+      pageToDelete.slug
+    );
+
+    removeRecentPage(
+      pageToDelete.slug
+    );
+
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
+
     window.dispatchEvent(
       new Event("wikiPagesUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("favoritesUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("recentUpdated")
     );
 
     saveActivity({
@@ -272,6 +290,7 @@ export default function WikiDetailPage() {
   return (
     <div className="flex gap-6">
       <div className="flex-1 max-w-5xl">
+        {/* TOP NAV */}
         <div className="flex items-center gap-3 mb-6 text-sm">
           <Link
             href="/wiki"
@@ -292,6 +311,7 @@ export default function WikiDetailPage() {
           </Link>
         </div>
 
+        {/* BACK BUTTON */}
         <div className="mb-6">
           <Link
             href="/wiki"
@@ -301,7 +321,9 @@ export default function WikiDetailPage() {
           </Link>
         </div>
 
+        {/* MAIN CARD */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          {/* HEADER */}
           <div className="flex items-start justify-between gap-6 mb-10">
             <div>
               <span className="inline-block bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full mb-4">
@@ -316,6 +338,7 @@ export default function WikiDetailPage() {
                 {page.description}
               </p>
 
+              {/* TAGS */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {page.tags?.map(
                   (tag: string) => (
@@ -331,6 +354,7 @@ export default function WikiDetailPage() {
               </div>
             </div>
 
+            {/* ACTIONS */}
             <div className="flex gap-3 flex-wrap justify-end">
               {canEdit() && (
                 <Link
@@ -368,6 +392,7 @@ export default function WikiDetailPage() {
             </div>
           </div>
 
+          {/* META */}
           <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10 flex-wrap">
             <p>
               Autor: {page.author}
@@ -383,20 +408,24 @@ export default function WikiDetailPage() {
             </p>
           </div>
 
+          {/* CONTENT */}
           <article className="prose prose-zinc max-w-none prose-headings:font-bold prose-p:text-zinc-700 prose-li:text-zinc-700">
             <ReactMarkdown>
               {page.content}
             </ReactMarkdown>
           </article>
 
+          {/* FILES */}
           <div className="mt-10">
             <FileList slug={slug} />
           </div>
         </div>
 
+        {/* COMMENTS */}
         <Comments slug={slug} />
       </div>
 
+      {/* TOC */}
       <TableOfContents
         content={page.content}
       />

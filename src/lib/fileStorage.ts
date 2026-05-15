@@ -1,5 +1,4 @@
-const STORAGE_KEY =
-  "wiki-files";
+const STORAGE_KEY = "wiki-files";
 
 export function getFiles() {
   if (typeof window === "undefined") {
@@ -9,48 +8,159 @@ export function getFiles() {
   const data =
     localStorage.getItem(STORAGE_KEY);
 
-  return data
-    ? JSON.parse(data)
-    : {};
+  if (!data) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(data);
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return {};
+    }
+
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+export function saveFiles(
+  files: any
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(files)
+  );
+
+  window.dispatchEvent(
+    new Event("filesUpdated")
+  );
+}
+
+export function getFilesForPage(
+  slug: string
+) {
+  if (!slug) {
+    return [];
+  }
+
+  const files = getFiles();
+
+  return files[slug] || [];
 }
 
 export function saveFile(
   slug: string,
   file: any
 ) {
-  const files = getFiles();
-
-  if (!files[slug]) {
-    files[slug] = [];
+  if (typeof window === "undefined") {
+    return;
   }
 
-  files[slug].push(file);
+  if (!slug) {
+    return;
+  }
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(files)
-  );
+  const files =
+    getFiles();
+
+  const currentFiles =
+    files[slug] || [];
+
+  const updatedFiles = {
+    ...files,
+
+    [slug]: [
+      ...currentFiles,
+      {
+        ...file,
+
+        uploadedAt:
+          file.uploadedAt ||
+          new Date().toLocaleString(),
+      },
+    ],
+  };
+
+  saveFiles(updatedFiles);
 }
 
 export function deleteFile(
   slug: string,
   index: number
 ) {
-  const files = getFiles();
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const files =
+    getFiles();
+
+  const currentFiles =
+    files[slug] || [];
+
+  const updatedSlugFiles =
+    currentFiles.filter(
+      (_file: any, fileIndex: number) =>
+        fileIndex !== index
+    );
+
+  const updatedFiles = {
+    ...files,
+  };
+
+  if (updatedSlugFiles.length === 0) {
+    delete updatedFiles[slug];
+  } else {
+    updatedFiles[slug] =
+      updatedSlugFiles;
+  }
+
+  saveFiles(updatedFiles);
+}
+
+export function deleteFilesForPage(
+  slug: string
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const files =
+    getFiles();
 
   if (!files[slug]) {
     return;
   }
 
-  files[slug] = files[slug].filter(
-    (
-      _: any,
-      i: number
-    ) => i !== index
+  const updatedFiles = {
+    ...files,
+  };
+
+  delete updatedFiles[slug];
+
+  saveFiles(updatedFiles);
+}
+
+export function clearFiles() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
   );
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(files)
+  window.dispatchEvent(
+    new Event("filesUpdated")
   );
 }

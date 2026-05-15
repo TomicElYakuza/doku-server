@@ -114,7 +114,15 @@ export default function WikiPage() {
       loadFavorites();
     }
 
+    function handleCommentsUpdated() {
+      loadMetaData();
+    }
+
     function handleFilesUpdated() {
+      loadMetaData();
+    }
+
+    function handleVersionsUpdated() {
       loadMetaData();
     }
 
@@ -133,8 +141,18 @@ export default function WikiPage() {
     );
 
     window.addEventListener(
+      "commentsUpdated",
+      handleCommentsUpdated
+    );
+
+    window.addEventListener(
       "filesUpdated",
       handleFilesUpdated
+    );
+
+    window.addEventListener(
+      "versionsUpdated",
+      handleVersionsUpdated
     );
 
     window.addEventListener(
@@ -154,8 +172,18 @@ export default function WikiPage() {
       );
 
       window.removeEventListener(
+        "commentsUpdated",
+        handleCommentsUpdated
+      );
+
+      window.removeEventListener(
         "filesUpdated",
         handleFilesUpdated
+      );
+
+      window.removeEventListener(
+        "versionsUpdated",
+        handleVersionsUpdated
       );
 
       window.removeEventListener(
@@ -365,24 +393,6 @@ export default function WikiPage() {
           <p className="text-zinc-500 mt-2">
             Unternehmensdokumentation
           </p>
-
-          {user && (
-            <div className="mt-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                {user.name?.charAt(0)}
-              </div>
-
-              <div>
-                <p className="font-medium">
-                  {user.name}
-                </p>
-
-                <p className="text-sm text-zinc-500 capitalize">
-                  {user.role}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {canCreate() && (

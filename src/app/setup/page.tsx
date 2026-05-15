@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import {
   getUser,
   saveUser,
+  clearUser,
 } from "../../lib/userStorage";
 
 export default function SetupPage() {
-  const router = useRouter();
+  const [mounted, setMounted] =
+    useState(false);
 
   const [name, setName] =
     useState("");
@@ -18,24 +20,19 @@ export default function SetupPage() {
   const [role, setRole] =
     useState("viewer");
 
-  const [mounted, setMounted] =
-    useState(false);
+  const [status, setStatus] =
+    useState("");
 
   useEffect(() => {
     setMounted(true);
 
-    const existingUser =
+    const user =
       getUser();
 
-    if (existingUser) {
-      setName(
-        existingUser.name || ""
-      );
+    if (user) {
+      setName(user.name || "");
 
-      setRole(
-        existingUser.role ||
-          "viewer"
-      );
+      setRole(user.role || "viewer");
     }
   }, []);
 
@@ -48,16 +45,40 @@ export default function SetupPage() {
       return;
     }
 
-    saveUser({
-      name,
-      role,
-    });
+    const user = {
+      name: name.trim(),
 
-    window.dispatchEvent(
-      new Event("userUpdated")
+      role,
+
+      updatedAt:
+        new Date().toLocaleString(),
+    };
+
+    saveUser(user);
+
+    setStatus(
+      "Benutzer wurde gespeichert."
+    );
+  }
+
+  function handleDeleteUser() {
+    const confirmed = confirm(
+      "Benutzer wirklich entfernen?"
     );
 
-    router.push("/wiki");
+    if (!confirmed) {
+      return;
+    }
+
+    clearUser();
+
+    setName("");
+
+    setRole("viewer");
+
+    setStatus(
+      "Benutzer wurde entfernt."
+    );
   }
 
   if (!mounted) {
@@ -65,85 +86,136 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="max-w-xl">
-      <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+    <div className="space-y-8 max-w-4xl">
+      {/* TOP NAV */}
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          dashboard
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          benutzer setup
+        </span>
+      </div>
+
+      {/* BACK */}
+      <div>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Dashboard
+        </Link>
+      </div>
+
+      {/* HEADER */}
+      <div>
         <h1 className="text-4xl font-bold">
           Benutzer Setup
         </h1>
 
-        <p className="text-zinc-500 mt-3">
-          Benutzer und Rolle für das lokale Wiki konfigurieren
+        <p className="text-zinc-500 mt-2">
+          Lege fest, welcher Benutzer gerade mit dem lokalen Demo-System arbeitet.
         </p>
+      </div>
 
-        {/* NAME */}
-        <div className="mt-8">
-          <label className="block mb-2 font-medium">
-            Name
-          </label>
+      {/* FORM */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Benutzer
+        </h2>
 
-          <input
-            type="text"
-            value={name}
-            onChange={(e) =>
-              setName(
-                e.target.value
-              )
-            }
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-            placeholder="Thomas Hörth"
-          />
+        <div className="space-y-6 mt-6">
+          <div>
+            <label className="block mb-2 font-medium">
+              Name
+            </label>
+
+            <input
+              type="text"
+              value={name}
+              onChange={(event) =>
+                setName(
+                  event.target.value
+                )
+              }
+              placeholder="Thomas Hörth"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Rolle
+            </label>
+
+            <select
+              value={role}
+              onChange={(event) =>
+                setRole(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="viewer">
+                Viewer
+              </option>
+
+              <option value="editor">
+                Editor
+              </option>
+
+              <option value="admin">
+                Admin
+              </option>
+            </select>
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Viewer kann lesen und kommentieren. Editor kann zusätzlich bearbeiten. Admin kann zusätzlich löschen und den Papierkorb verwalten.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleSave}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Benutzer speichern
+            </button>
+
+            <button
+              onClick={handleDeleteUser}
+              className="bg-white border border-red-200 text-red-600 px-6 py-4 rounded-2xl hover:bg-red-50 transition"
+            >
+              Benutzer entfernen
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* ROLE */}
-        <div className="mt-6">
-          <label className="block mb-2 font-medium">
-            Rolle
-          </label>
+      {/* CURRENT */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Aktueller Zustand
+        </h2>
 
-          <select
-            value={role}
-            onChange={(e) =>
-              setRole(
-                e.target.value
-              )
-            }
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="viewer">
-              Viewer
-            </option>
-
-            <option value="editor">
-              Editor
-            </option>
-
-            <option value="admin">
-              Admin
-            </option>
-          </select>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Viewer darf lesen, Editor darf erstellen/bearbeiten, Admin darf zusätzlich löschen.
-          </p>
-        </div>
-
-        {/* PREVIEW */}
-        <div className="mt-8 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
-          <p className="text-sm text-zinc-500 mb-3">
-            Vorschau
-          </p>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-              {name
-                ? name.charAt(0)
-                : "?"}
+        {name ? (
+          <div className="mt-6 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+              {name.charAt(0)}
             </div>
 
             <div>
               <p className="font-medium">
-                {name ||
-                  "Kein Name gesetzt"}
+                {name}
               </p>
 
               <p className="text-sm text-zinc-500 capitalize">
@@ -151,27 +223,19 @@ export default function SetupPage() {
               </p>
             </div>
           </div>
-        </div>
-
-        {/* ACTIONS */}
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button
-            onClick={handleSave}
-            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Speichern
-          </button>
-
-          <button
-            onClick={() =>
-              router.push("/wiki")
-            }
-            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Abbrechen
-          </button>
-        </div>
+        ) : (
+          <p className="text-zinc-500 mt-4">
+            Kein Benutzer eingerichtet.
+          </p>
+        )}
       </div>
+
+      {/* STATUS */}
+      {status && (
+        <div className="bg-zinc-900 text-white rounded-2xl p-5">
+          {status}
+        </div>
+      )}
     </div>
   );
 }

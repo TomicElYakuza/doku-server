@@ -39,6 +39,22 @@ export default function Comments({
     setUser(getUser());
 
     loadComments();
+
+    function handleCommentsUpdated() {
+      loadComments();
+    }
+
+    window.addEventListener(
+      "commentsUpdated",
+      handleCommentsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "commentsUpdated",
+        handleCommentsUpdated
+      );
+    };
   }, [slug]);
 
   function loadComments() {
@@ -99,6 +115,14 @@ export default function Comments({
     setText("");
 
     loadComments();
+
+    window.dispatchEvent(
+      new Event("commentsUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("activityUpdated")
+    );
   }
 
   function canDeleteComment(
@@ -156,6 +180,14 @@ export default function Comments({
     });
 
     loadComments();
+
+    window.dispatchEvent(
+      new Event("commentsUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("activityUpdated")
+    );
   }
 
   return (
@@ -212,7 +244,8 @@ export default function Comments({
               <div className="flex items-start justify-between gap-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                    {comment.user?.charAt(0)}
+                    {comment.user?.charAt(0) ||
+                      "?"}
                   </div>
 
                   <div>
@@ -223,6 +256,12 @@ export default function Comments({
                     <p className="text-sm text-zinc-500 mt-1">
                       {comment.createdAt}
                     </p>
+
+                    {comment.role && (
+                      <p className="text-xs text-zinc-400 mt-1 capitalize">
+                        {comment.role}
+                      </p>
+                    )}
                   </div>
                 </div>
 

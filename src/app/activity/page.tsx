@@ -24,10 +24,28 @@ export default function ActivityPage() {
   useEffect(() => {
     setMounted(true);
 
-    setActivities(
-      getActivities()
+    loadActivities();
+
+    function handleActivityUpdated() {
+      loadActivities();
+    }
+
+    window.addEventListener(
+      "activityUpdated",
+      handleActivityUpdated
     );
+
+    return () => {
+      window.removeEventListener(
+        "activityUpdated",
+        handleActivityUpdated
+      );
+    };
   }, []);
+
+  function loadActivities() {
+    setActivities(getActivities());
+  }
 
   if (!mounted) {
     return null;
@@ -60,12 +78,28 @@ export default function ActivityPage() {
       return "Datei hochgeladen";
     }
 
+    if (type === "fileDeleted") {
+      return "Datei gelöscht";
+    }
+
     if (type === "commented") {
       return "Kommentar hinzugefügt";
     }
 
     if (type === "commentDeleted") {
       return "Kommentar gelöscht";
+    }
+
+    if (type === "ticketCreated") {
+      return "Ticket erstellt";
+    }
+
+    if (type === "ticketUpdated") {
+      return "Ticket aktualisiert";
+    }
+
+    if (type === "ticketDeleted") {
+      return "Ticket gelöscht";
     }
 
     return "Aktivität";
@@ -98,12 +132,28 @@ export default function ActivityPage() {
       return "📎";
     }
 
+    if (type === "fileDeleted") {
+      return "🧹";
+    }
+
     if (type === "commented") {
       return "💬";
     }
 
     if (type === "commentDeleted") {
       return "🧹";
+    }
+
+    if (type === "ticketCreated") {
+      return "🎫";
+    }
+
+    if (type === "ticketUpdated") {
+      return "🔄";
+    }
+
+    if (type === "ticketDeleted") {
+      return "🗑️";
     }
 
     return "📌";

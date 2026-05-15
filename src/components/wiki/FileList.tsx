@@ -3,51 +3,110 @@
 import { useEffect, useState } from "react";
 
 import {
-  getFiles,
+  getFilesForPage,
   deleteFile,
 } from "../../lib/fileStorage";
+
+import {
+  saveActivity,
+} from "../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../lib/userStorage";
 
 export default function FileList({
   slug,
   editable = false,
 }: {
   slug: string;
-
   editable?: boolean;
 }) {
   const [files, setFiles] =
     useState<any[]>([]);
 
-  function loadFiles() {
-    const allFiles =
-      getFiles();
-
-    setFiles(
-      allFiles[slug] || []
-    );
-  }
-
   useEffect(() => {
     loadFiles();
 
+    function handleFilesUpdated() {
+      loadFiles();
+    }
+
     window.addEventListener(
       "filesUpdated",
-      loadFiles
+      handleFilesUpdated
     );
 
     return () => {
       window.removeEventListener(
         "filesUpdated",
-        loadFiles
+        handleFilesUpdated
       );
     };
   }, [slug]);
 
-  function handleDelete(
+  function loadFiles() {
+    setFiles(
+      getFilesForPage(slug)
+    );
+  }
+
+  function formatSize(size: number) {
+    if (!size) {
+      return "0 KB";
+    }
+
+    if (size < 1024 * 1024) {
+      return `${Math.round(
+        size / 1024
+      )} KB`;
+    }
+
+    return `${(
+      size /
+      1024 /
+      1024
+    ).toFixed(1)} MB`;
+  }
+
+  function getFileIcon(type: string) {
+    if (type?.startsWith("image/")) {
+      return "🖼️";
+    }
+
+    if (type?.includes("pdf")) {
+      return "📄";
+    }
+
+    if (
+      type?.includes("word") ||
+      type?.includes("document")
+    ) {
+      return "📝";
+    }
+
+    if (
+      type?.includes("excel") ||
+      type?.includes("spreadsheet")
+    ) {
+      return "📊";
+    }
+
+    if (type?.includes("zip")) {
+      return "🗜️";
+    }
+
+    return "📎";
+  }
+
+  function handleDeleteFile(
     index: number
   ) {
+    const file =
+      files[index];
+
     const confirmed = confirm(
-      "Datei wirklich löschen?"
+      "Anhang wirklich löschen?"
     );
 
     if (!confirmed) {
@@ -56,65 +115,104 @@ export default function FileList({
 
     deleteFile(slug, index);
 
-    loadFiles();
+    saveActivity({
+      type: "fileDeleted",
+
+      title:
+        file?.name || slug,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
 
     window.dispatchEvent(
-      new Event("filesUpdated")
+      new Event("activityUpdated")
     );
   }
 
   if (files.length === 0) {
-    return null;
+    return (
+      <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+        <h3 className="font-semibold">
+          Anhänge
+        </h3>
+
+        <p className="text-sm text-zinc-500 mt-2">
+          Keine Anhänge vorhanden.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-3xl p-8 mt-8">
-      <h2 className="text-2xl font-bold mb-6">
+    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+      <h3 className="font-semibold">
         Anhänge
-      </h2>
+      </h3>
 
-      <div className="space-y-3">
+      <div className="mt-4 space-y-3">
         {files.map(
           (
             file: any,
             index: number
           ) => (
             <div
-              key={index}
-              className="flex items-center justify-between p-4 border border-zinc-200 rounded-2xl hover:bg-zinc-50 transition"
+              key={`${file.name}-${index}`}
+              className="bg-white border border-zinc-200 rounded-2xl p-4 flex items-center justify-between gap-4"
             >
-              {/* FILE INFO */}
-              <a
-                href={file.data}
-                download={file.name}
-                className="flex-1"
-              >
-                <p className="font-medium">
-                  {file.name}
-                </p>
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                  {getFileIcon(file.type)}
+                </div>
 
-                <p className="text-sm text-zinc-500 mt-1">
-                  {Math.round(
-                    file.size / 1024
-                  )}{" "}
-                  KB
-                </p>
-              </a>
+                <div className="min-w-0">
+                  <a
+                    href={file.data}
+                    download={file.name}
+                    className="font-medium hover:underline break-all"
+                  >
+                    {file.name}
+                  </a>
 
-              {/* ACTIONS */}
-              <div className="flex items-center gap-4 ml-6">
-                <p className="text-sm text-zinc-500">
-                  {file.uploadedAt}
-                </p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {formatSize(
+                      file.size
+                    )}{" "}
+                    ·{" "}
+                    {file.uploadedAt ||
+                      "Unbekannt"}
+                  </p>
+
+                  {file.uploadedBy && (
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Hochgeladen von{" "}
+                      {file.uploadedBy}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={file.data}
+                  download={file.name}
+                  className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+                >
+                  Download
+                </a>
 
                 {editable && (
                   <button
                     onClick={() =>
-                      handleDelete(
+                      handleDeleteFile(
                         index
                       )
                     }
-                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition text-sm"
                   >
                     Löschen
                   </button>

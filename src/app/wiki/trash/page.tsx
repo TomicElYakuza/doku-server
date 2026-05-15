@@ -21,6 +21,26 @@ import {
   isAdmin,
 } from "../../../lib/permissions";
 
+import {
+  removeFavorite,
+} from "../../../lib/favoritesStorage";
+
+import {
+  removeRecentPage,
+} from "../../../lib/recentStorage";
+
+import {
+  deleteCommentsForPage,
+} from "../../../lib/commentStorage";
+
+import {
+  deleteFilesForPage,
+} from "../../../lib/fileStorage";
+
+import {
+  deleteVersionsForPage,
+} from "../../../lib/versionStorage";
+
 export default function TrashPage() {
   const [mounted, setMounted] =
     useState(false);
@@ -59,6 +79,28 @@ export default function TrashPage() {
 
     window.dispatchEvent(
       new Event("trashUpdated")
+    );
+  }
+
+  function removeRelatedData(
+    slug: string
+  ) {
+    removeFavorite(slug);
+
+    removeRecentPage(slug);
+
+    deleteCommentsForPage(slug);
+
+    deleteFilesForPage(slug);
+
+    deleteVersionsForPage(slug);
+
+    window.dispatchEvent(
+      new Event("favoritesUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("recentUpdated")
     );
   }
 
@@ -176,7 +218,7 @@ export default function TrashPage() {
     }
 
     const confirmed = confirm(
-      "Dokument endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+      "Dokument endgültig löschen? Kommentare, Anhänge und Versionen werden ebenfalls entfernt."
     );
 
     if (!confirmed) {
@@ -190,6 +232,8 @@ export default function TrashPage() {
       );
 
     saveTrash(updatedTrash);
+
+    removeRelatedData(page.slug);
 
     saveActivity({
       type: "deletedForever",

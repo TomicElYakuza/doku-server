@@ -22,79 +22,92 @@ export default function FileUpload({
   const [uploading, setUploading] =
     useState(false);
 
-  async function handleUpload(
-    e: any
+  function handleFileUpload(
+    event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const files =
-      Array.from(
-        e.target.files
-      ) as File[];
+    const selectedFiles =
+      event.target.files;
+
+    if (!selectedFiles || selectedFiles.length === 0) {
+      return;
+    }
 
     setUploading(true);
 
-    for (const file of files) {
-      const reader =
-        new FileReader();
+    Array.from(selectedFiles).forEach(
+      (file) => {
+        const reader =
+          new FileReader();
 
-      reader.onload = () => {
-        saveFile(slug, {
-          name: file.name,
+        reader.onload = () => {
+          const newFile = {
+            name: file.name,
 
-          type: file.type,
+            type: file.type,
 
-          size: file.size,
+            size: file.size,
 
-          uploadedAt:
-            new Date().toLocaleString(),
+            data: reader.result,
 
-          data:
-            reader.result,
-        });
+            uploadedAt:
+              new Date().toLocaleString(),
 
-        saveActivity({
-          type: "uploaded",
+            uploadedBy:
+              getUser()?.name ||
+              "Unbekannt",
+          };
 
-          title: file.name,
+          saveFile(slug, newFile);
 
-          user:
-            getUser()?.name ||
-            "Unbekannt",
+          saveActivity({
+            type: "uploaded",
 
-          createdAt:
-            new Date().toLocaleString(),
-        });
+            title: file.name,
 
-        window.dispatchEvent(
-          new Event(
-            "filesUpdated"
-          )
-        );
-      };
+            user:
+              getUser()?.name ||
+              "Unbekannt",
 
-      reader.readAsDataURL(file);
-    }
+            createdAt:
+              new Date().toLocaleString(),
+          });
+
+          window.dispatchEvent(
+            new Event("activityUpdated")
+          );
+        };
+
+        reader.readAsDataURL(file);
+      }
+    );
 
     setUploading(false);
+
+    event.target.value = "";
   }
 
   return (
     <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-      <h3 className="text-lg font-semibold mb-4">
-        Dateien hochladen
+      <h3 className="font-semibold">
+        Anhänge hochladen
       </h3>
 
-      <input
-        type="file"
-        multiple
-        onChange={handleUpload}
-        className="w-full border border-zinc-200 rounded-xl px-4 py-3 bg-white"
-      />
+      <p className="text-sm text-zinc-500 mt-2">
+        Dateien werden lokal im Browser gespeichert.
+      </p>
 
-      {uploading && (
-        <p className="text-sm text-zinc-500 mt-3">
-          Upload läuft...
-        </p>
-      )}
+      <label className="inline-flex mt-4 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition cursor-pointer">
+        {uploading
+          ? "Wird hochgeladen..."
+          : "Dateien auswählen"}
+
+        <input
+          type="file"
+          multiple
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+      </label>
     </div>
   );
 }

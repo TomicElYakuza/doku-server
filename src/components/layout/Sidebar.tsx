@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 
-import { usePathname } from "next/navigation";
+import {
+  usePathname,
+} from "next/navigation";
 
 const navigation = [
   {
@@ -38,14 +40,19 @@ const navigation = [
 ];
 
 export default function Sidebar() {
-  const pathname = usePathname();
+  const pathname =
+    usePathname();
 
-  function isActive(href: string) {
+  function isActive(
+    href: string
+  ) {
     if (href === "/") {
       return pathname === "/";
     }
 
-    return pathname.startsWith(href);
+    return pathname.startsWith(
+      href
+    );
   }
 
   return (
@@ -53,11 +60,11 @@ export default function Sidebar() {
       {/* LOGO */}
       <div className="mb-10">
         <h1 className="text-2xl font-bold">
-          Intranet
+          Doku Server
         </h1>
 
         <p className="text-zinc-400 text-sm mt-1">
-          Firma
+          Intranet & Wissensbasis
         </p>
       </div>
 
@@ -73,7 +80,9 @@ export default function Sidebar() {
                 : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
             }`}
           >
-            <span>{item.icon}</span>
+            <span>
+              {item.icon}
+            </span>
 
             <span className="font-medium">
               {item.label}
@@ -84,7 +93,9 @@ export default function Sidebar() {
 
       {/* FOOTER */}
       <div className="mt-auto pt-8 text-sm text-zinc-500">
-        <p>Lokales Demo-System</p>
+        <p>
+          Lokales Demo-System
+        </p>
 
         <p className="mt-1">
           Version 1.0

@@ -3,13 +3,40 @@
 import { useEffect, useState } from "react";
 
 import {
-  getUser,
-} from "../../lib/userStorage";
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+import {
+  getFavorites,
+  clearFavorites,
+} from "../../lib/favoritesStorage";
+
+import {
+  getRecentPages,
+  clearRecentPages,
+} from "../../lib/recentStorage";
+
+import {
+  getComments,
+  clearComments,
+} from "../../lib/commentStorage";
+
+import {
+  getFiles,
+  clearFiles,
+} from "../../lib/fileStorage";
+
+import {
+  getVersions,
+  clearVersions,
+} from "../../lib/versionStorage";
+
+import {
+  getActivities,
+  clearActivities,
+} from "../../lib/activityStorage";
 
 export default function SettingsPage() {
-  const [user, setUser] =
-    useState<any>(null);
-
   const [status, setStatus] =
     useState("");
 
@@ -26,91 +53,93 @@ export default function SettingsPage() {
     });
 
   useEffect(() => {
-    setUser(getUser());
-
     loadStats();
   }, []);
 
-  function loadStats() {
-    const pages = JSON.parse(
-      localStorage.getItem("wiki-pages") ||
-        "[]"
-    );
-
+  function getTrashPages() {
     const trash = JSON.parse(
       localStorage.getItem("wiki-trash") ||
         "[]"
     );
 
-    const favorites = JSON.parse(
-      localStorage.getItem("wiki-favorites") ||
-        "[]"
-    );
+    return Array.isArray(trash)
+      ? trash
+      : [];
+  }
 
-    const recent = JSON.parse(
-      localStorage.getItem("wiki-recent") ||
-        "[]"
-    );
-
-    const activities = JSON.parse(
-      localStorage.getItem("wiki-activities") ||
-        "[]"
-    );
-
-    const comments = JSON.parse(
-      localStorage.getItem("wiki-comments") ||
-        "{}"
-    );
-
-    const files = JSON.parse(
-      localStorage.getItem("wiki-files") ||
-        "{}"
-    );
-
-    const versions = JSON.parse(
-      localStorage.getItem("wiki-versions") ||
-        "{}"
-    );
-
-    const commentCount = (
-      Object.values(comments) as any[]
+  function countObjectArrays(
+    data: any
+  ) {
+    return (
+      Object.values(data) as any[]
     ).reduce(
       (
         acc: number,
         current: any
-      ) => acc + current.length,
-      0
-    );
+      ) => {
+        if (Array.isArray(current)) {
+          return acc + current.length;
+        }
 
-    const fileCount = (
-      Object.values(files) as any[]
-    ).reduce(
-      (
-        acc: number,
-        current: any
-      ) => acc + current.length,
+        return acc;
+      },
       0
     );
+  }
 
-    const versionCount = (
-      Object.values(versions) as any[]
-    ).reduce(
-      (
-        acc: number,
-        current: any
-      ) => acc + current.length,
-      0
-    );
+  function loadStats() {
+    const pages =
+      getStoredPages();
+
+    const trash =
+      getTrashPages();
+
+    const favorites =
+      getFavorites();
+
+    const recent =
+      getRecentPages();
+
+    const activities =
+      getActivities();
+
+    const comments =
+      getComments();
+
+    const files =
+      getFiles();
+
+    const versions =
+      getVersions();
 
     setStats({
       pages: pages.length,
+
       trash: trash.length,
-      favorites: favorites.length,
-      recent: recent.length,
-      activities: activities.length,
-      comments: commentCount,
-      files: fileCount,
-      versions: versionCount,
+
+      favorites:
+        favorites.length,
+
+      recent:
+        recent.length,
+
+      activities:
+        activities.length,
+
+      comments:
+        countObjectArrays(
+          comments
+        ),
+
+      files:
+        countObjectArrays(
+          files
+        ),
+
+      versions:
+        countObjectArrays(
+          versions
+        ),
     });
   }
 
@@ -119,22 +148,25 @@ export default function SettingsPage() {
       exportedAt:
         new Date().toLocaleString(),
 
-      user: localStorage.getItem(
-        "wiki-user"
-      ),
+      user:
+        localStorage.getItem(
+          "wiki-user"
+        ),
 
-      pages: localStorage.getItem(
-        "wiki-pages"
-      ),
+      pages:
+        localStorage.getItem(
+          "wiki-pages"
+        ),
 
       pagesInitialized:
         localStorage.getItem(
           "wiki-pages-initialized"
         ),
 
-      trash: localStorage.getItem(
-        "wiki-trash"
-      ),
+      trash:
+        localStorage.getItem(
+          "wiki-trash"
+        ),
 
       favorites:
         localStorage.getItem(
@@ -151,9 +183,10 @@ export default function SettingsPage() {
           "wiki-versions"
         ),
 
-      files: localStorage.getItem(
-        "wiki-files"
-      ),
+      files:
+        localStorage.getItem(
+          "wiki-files"
+        ),
 
       comments:
         localStorage.getItem(
@@ -293,8 +326,6 @@ export default function SettingsPage() {
           );
         }
 
-        setUser(getUser());
-
         loadStats();
 
         window.dispatchEvent(
@@ -303,6 +334,34 @@ export default function SettingsPage() {
 
         window.dispatchEvent(
           new Event("trashUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("favoritesUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("recentUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("commentsUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("filesUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("versionsUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("activityUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("userUpdated")
         );
 
         setStatus(
@@ -339,29 +398,17 @@ export default function SettingsPage() {
       "wiki-trash"
     );
 
-    localStorage.removeItem(
-      "wiki-favorites"
-    );
+    clearFavorites();
 
-    localStorage.removeItem(
-      "wiki-recent"
-    );
+    clearRecentPages();
 
-    localStorage.removeItem(
-      "wiki-versions"
-    );
+    clearVersions();
 
-    localStorage.removeItem(
-      "wiki-files"
-    );
+    clearFiles();
 
-    localStorage.removeItem(
-      "wiki-comments"
-    );
+    clearComments();
 
-    localStorage.removeItem(
-      "wiki-activities"
-    );
+    clearActivities();
 
     loadStats();
 
@@ -403,31 +450,17 @@ export default function SettingsPage() {
       "wiki-trash"
     );
 
-    localStorage.removeItem(
-      "wiki-favorites"
-    );
+    clearFavorites();
 
-    localStorage.removeItem(
-      "wiki-recent"
-    );
+    clearRecentPages();
 
-    localStorage.removeItem(
-      "wiki-versions"
-    );
+    clearVersions();
 
-    localStorage.removeItem(
-      "wiki-files"
-    );
+    clearFiles();
 
-    localStorage.removeItem(
-      "wiki-comments"
-    );
+    clearComments();
 
-    localStorage.removeItem(
-      "wiki-activities"
-    );
-
-    setUser(null);
+    clearActivities();
 
     loadStats();
 
@@ -457,55 +490,8 @@ export default function SettingsPage() {
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Verwaltung für Benutzer, Backup und lokale Wiki-Daten
+          Backup, lokale Daten und Zurücksetzen
         </p>
-      </div>
-
-      {/* USER CARD */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Benutzer
-        </h2>
-
-        {user ? (
-          <div className="mt-6 flex items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                {user.name?.charAt(0)}
-              </div>
-
-              <div>
-                <p className="font-medium">
-                  {user.name}
-                </p>
-
-                <p className="text-sm text-zinc-500 capitalize">
-                  {user.role}
-                </p>
-              </div>
-            </div>
-
-            <a
-              href="/setup"
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Benutzer bearbeiten
-            </a>
-          </div>
-        ) : (
-          <div className="mt-6">
-            <p className="text-zinc-500">
-              Kein Benutzer eingerichtet.
-            </p>
-
-            <a
-              href="/setup"
-              className="inline-flex mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Benutzer einrichten
-            </a>
-          </div>
-        )}
       </div>
 
       {/* STATS */}
@@ -608,7 +594,7 @@ export default function SettingsPage() {
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Papierkorb.
+          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Benutzer, Papierkorb, Versionen, Anhängen und Kommentaren.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-4">

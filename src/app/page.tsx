@@ -8,18 +8,11 @@ import {
 
 import {
   getStoredPages,
-  savePages,
 } from "../lib/wikiStorage";
-
-import {
-  getUser,
-} from "../lib/userStorage";
 
 import {
   canCreate,
 } from "../lib/permissions";
-
-import { wikiPages } from "../data/wiki";
 
 export default function HomePage() {
   const [activities, setActivities] =
@@ -28,8 +21,8 @@ export default function HomePage() {
   const [pages, setPages] =
     useState<any[]>([]);
 
-  const [user, setUser] =
-    useState<any>(null);
+  const [trashPages, setTrashPages] =
+    useState<any[]>([]);
 
   const [mounted, setMounted] =
     useState(false);
@@ -37,22 +30,77 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true);
 
-    const storedPages =
-      getStoredPages();
+    setPages(getStoredPages());
 
-    if (storedPages.length > 0) {
-      setPages(storedPages);
-    } else {
-      savePages(wikiPages);
+    const trashData =
+      localStorage.getItem(
+        "wiki-trash"
+      );
 
-      setPages(wikiPages);
-    }
+    setTrashPages(
+      trashData
+        ? JSON.parse(trashData)
+        : []
+    );
 
     setActivities(
       getActivities()
     );
 
-    setUser(getUser());
+    function handleWikiPagesUpdated() {
+      setPages(getStoredPages());
+    }
+
+    function handleTrashUpdated() {
+      const trashData =
+        localStorage.getItem(
+          "wiki-trash"
+        );
+
+      setTrashPages(
+        trashData
+          ? JSON.parse(trashData)
+          : []
+      );
+    }
+
+    function handleActivityUpdated() {
+      setActivities(
+        getActivities()
+      );
+    }
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    window.addEventListener(
+      "trashUpdated",
+      handleTrashUpdated
+    );
+
+    window.addEventListener(
+      "activityUpdated",
+      handleActivityUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+
+      window.removeEventListener(
+        "trashUpdated",
+        handleTrashUpdated
+      );
+
+      window.removeEventListener(
+        "activityUpdated",
+        handleActivityUpdated
+      );
+    };
   }, []);
 
   if (!mounted) {
@@ -71,19 +119,43 @@ export default function HomePage() {
     }
 
     if (type === "deleted") {
-      return "Dokument gelöscht";
+      return "Dokument in Papierkorb verschoben";
+    }
+
+    if (type === "deletedForever") {
+      return "Dokument endgültig gelöscht";
     }
 
     if (type === "restored") {
-      return "Version wiederhergestellt";
+      return "Version oder Dokument wiederhergestellt";
     }
 
     if (type === "uploaded") {
       return "Datei hochgeladen";
     }
 
+    if (type === "fileDeleted") {
+      return "Datei gelöscht";
+    }
+
     if (type === "commented") {
       return "Kommentar hinzugefügt";
+    }
+
+    if (type === "commentDeleted") {
+      return "Kommentar gelöscht";
+    }
+
+    if (type === "ticketCreated") {
+      return "Ticket erstellt";
+    }
+
+    if (type === "ticketUpdated") {
+      return "Ticket aktualisiert";
+    }
+
+    if (type === "ticketDeleted") {
+      return "Ticket gelöscht";
     }
 
     return "Aktivität";
@@ -104,6 +176,10 @@ export default function HomePage() {
       return "🗑️";
     }
 
+    if (type === "deletedForever") {
+      return "❌";
+    }
+
     if (type === "restored") {
       return "♻️";
     }
@@ -112,8 +188,28 @@ export default function HomePage() {
       return "📎";
     }
 
+    if (type === "fileDeleted") {
+      return "🧹";
+    }
+
     if (type === "commented") {
       return "💬";
+    }
+
+    if (type === "commentDeleted") {
+      return "🧹";
+    }
+
+    if (type === "ticketCreated") {
+      return "🎫";
+    }
+
+    if (type === "ticketUpdated") {
+      return "🔄";
+    }
+
+    if (type === "ticketDeleted") {
+      return "🗑️";
     }
 
     return "📌";
@@ -121,10 +217,12 @@ export default function HomePage() {
 
   const departments = [
     ...new Set(
-      pages.map(
-        (page: any) =>
-          page.category
-      )
+      pages
+        .map(
+          (page: any) =>
+            page.category
+        )
+        .filter(Boolean)
     ),
   ];
 
@@ -140,46 +238,22 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       {/* HEADER */}
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Willkommen zurück
-          </h1>
+      <div>
+        <h1 className="text-4xl font-bold">
+          Willkommen zurück
+        </h1>
 
-          <p className="text-zinc-500 mt-2">
-            Firmen Intranet Übersicht
-          </p>
-        </div>
-
-        {user ? (
-          <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-              {user.name?.charAt(0)}
-            </div>
-
-            <div>
-              <p className="font-medium">
-                {user.name}
-              </p>
-
-              <p className="text-sm text-zinc-500 capitalize">
-                {user.role}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <a
-            href="/setup"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Benutzer einrichten
-          </a>
-        )}
+        <p className="text-zinc-500 mt-2">
+          Firmen Intranet Übersicht
+        </p>
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <a
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
@@ -187,7 +261,7 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {pages.length}
           </h2>
-        </div>
+        </a>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
@@ -209,7 +283,23 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <a
+          href="/wiki/trash"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Papierkorb
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {trashPages.length}
+          </h2>
+        </a>
+
+        <a
+          href="/activity"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Aktivitäten
           </p>
@@ -217,7 +307,7 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {activities.length}
           </h2>
-        </div>
+        </a>
       </div>
 
       {/* QUICK ACTIONS */}
@@ -242,6 +332,20 @@ export default function HomePage() {
               Dokument erstellen
             </a>
           )}
+
+          <a
+            href="/wiki/trash"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
+          >
+            Papierkorb öffnen
+          </a>
+
+          <a
+            href="/activity"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Aktivitäten öffnen
+          </a>
 
           <a
             href="/setup"
@@ -295,9 +399,18 @@ export default function HomePage() {
 
       {/* ACTIVITIES */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Letzte Aktivitäten
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold">
+            Letzte Aktivitäten
+          </h2>
+
+          <a
+            href="/activity"
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Alle anzeigen
+          </a>
+        </div>
 
         <div className="mt-6 space-y-4">
           {activities.length === 0 && (
@@ -306,45 +419,47 @@ export default function HomePage() {
             </p>
           )}
 
-          {activities.map(
-            (
-              activity: any,
-              index: number
-            ) => (
-              <div
-                key={index}
-                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
-                    {getActivityIcon(
-                      activity.type
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="font-medium">
-                      {activity.user}
-                    </p>
-
-                    <p className="text-zinc-500 text-sm mt-1">
-                      {getActivityLabel(
+          {activities
+            .slice(0, 8)
+            .map(
+              (
+                activity: any,
+                index: number
+              ) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                      {getActivityIcon(
                         activity.type
                       )}
-                    </p>
+                    </div>
 
-                    <p className="mt-2">
-                      {activity.title}
-                    </p>
+                    <div>
+                      <p className="font-medium">
+                        {activity.user}
+                      </p>
+
+                      <p className="text-zinc-500 text-sm mt-1">
+                        {getActivityLabel(
+                          activity.type
+                        )}
+                      </p>
+
+                      <p className="mt-2">
+                        {activity.title}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <p className="text-sm text-zinc-500">
-                  {activity.createdAt}
-                </p>
-              </div>
-            )
-          )}
+                  <p className="text-sm text-zinc-500">
+                    {activity.createdAt}
+                  </p>
+                </div>
+              )
+            )}
         </div>
       </div>
     </div>
