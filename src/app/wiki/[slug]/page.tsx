@@ -10,6 +10,8 @@ import ReactMarkdown from "react-markdown";
 
 import TableOfContents from "../../../components/wiki/TableOfContents";
 
+import FileList from "../../../components/wiki/FileList";
+
 import { wikiPages } from "../../../data/wiki";
 
 import {
@@ -117,7 +119,9 @@ export default function WikiDetailPage() {
           </Link>
         </div>
 
+        {/* MAIN CARD */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          {/* HEADER */}
           <div className="flex items-start justify-between gap-6 mb-10">
             <div>
               <span className="inline-block bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full mb-4">
@@ -148,7 +152,8 @@ export default function WikiDetailPage() {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            {/* ACTIONS */}
+            <div className="flex gap-3 flex-wrap justify-end">
               {/* EDIT */}
               <a
                 href={`/wiki/edit/${page.slug}`}
@@ -222,7 +227,7 @@ export default function WikiDetailPage() {
           </div>
 
           {/* META */}
-          <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10">
+          <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10 flex-wrap">
             <p>
               Autor: {page.author}
             </p>
@@ -243,6 +248,11 @@ export default function WikiDetailPage() {
               {page.content}
             </ReactMarkdown>
           </article>
+
+          {/* FILES */}
+          <div className="mt-10">
+            <FileList slug={slug} />
+          </div>
         </div>
       </div>
 

@@ -15,6 +15,10 @@ import {
   getUser,
 } from "../../../lib/userStorage";
 
+import {
+  saveActivity,
+} from "../../../lib/activitiyStorage";
+
 export default function CreateWikiPage() {
   const router = useRouter();
 
@@ -73,6 +77,19 @@ Dokumentation hier schreiben...
     ];
 
     savePages(updatedPages);
+
+    saveActivity({
+      type: "created",
+
+      title,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
 
     router.push("/wiki");
   }

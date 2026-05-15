@@ -18,6 +18,10 @@ import {
   saveVersion,
 } from "../../../../lib/versionStorage";
 
+import FileUpload from "../../../../components/wiki/FileUpload";
+
+import FileList from "../../../../components/wiki/FileList";
+
 export default function EditWikiPage() {
   const params = useParams();
 
@@ -210,6 +214,15 @@ export default function EditWikiPage() {
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
             />
           </div>
+
+          {/* FILE UPLOAD */}
+          <FileUpload slug={slug} />
+
+          {/* FILE LIST */}
+          <FileList
+            slug={slug}
+            editable={true}
+          />
 
           {/* SAVE */}
           <button

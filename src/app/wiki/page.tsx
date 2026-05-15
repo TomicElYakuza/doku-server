@@ -19,6 +19,10 @@ import {
   getUser,
 } from "../../lib/userStorage";
 
+import {
+  getVersions,
+} from "../../lib/versionStorage";
+
 export default function WikiPage() {
   const [search, setSearch] =
     useState("");
@@ -29,7 +33,12 @@ export default function WikiPage() {
   const [user, setUser] =
     useState<any>(null);
 
+  const [mounted, setMounted] =
+    useState(false);
+
   useEffect(() => {
+    setMounted(true);
+
     const stored = getStoredPages();
 
     if (stored.length > 0) {
@@ -42,6 +51,10 @@ export default function WikiPage() {
 
     setUser(getUser());
   }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   const filteredPages = pages.filter(
     (page: any) => {
@@ -72,6 +85,35 @@ export default function WikiPage() {
         )
       );
     }
+  );
+
+  const departments = [
+    ...new Set(
+      pages.map(
+        (page: any) => page.category
+      )
+    ),
+  ];
+
+  const tags = [
+    ...new Set(
+      pages.flatMap(
+        (page: any) =>
+          page.tags || []
+      )
+    ),
+  ];
+
+  const versions = getVersions();
+
+  const versionCount = (
+    Object.values(
+      versions
+    ) as any[]
+  ).reduce(
+    (acc, current) =>
+      acc + current.length,
+    0
   );
 
   return (
@@ -118,6 +160,49 @@ export default function WikiPage() {
             </Link>
           </div>
         )}
+      </div>
+
+      {/* STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Dokumente
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {pages.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Abteilungen
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {departments.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Tags
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {tags.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Versionen
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {versionCount}
+          </h2>
+        </div>
       </div>
 
       {/* SEARCH */}
