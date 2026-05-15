@@ -38,14 +38,41 @@ export function saveVersions(
     return;
   }
 
+  const safeVersions =
+    versions &&
+    typeof versions === "object" &&
+    !Array.isArray(versions)
+      ? versions
+      : {};
+
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(versions)
+    JSON.stringify(safeVersions)
   );
 
   window.dispatchEvent(
     new Event("versionsUpdated")
   );
+}
+
+export function getVersionsForPage(
+  slug: string
+) {
+  if (!slug) {
+    return [];
+  }
+
+  const versions =
+    getVersions();
+
+  const pageVersions =
+    versions[slug];
+
+  if (!Array.isArray(pageVersions)) {
+    return [];
+  }
+
+  return pageVersions;
 }
 
 export function saveVersion(
@@ -56,7 +83,7 @@ export function saveVersion(
     return;
   }
 
-  if (!slug) {
+  if (!slug || !version) {
     return;
   }
 
@@ -64,10 +91,28 @@ export function saveVersion(
     getVersions();
 
   const currentVersions =
-    versions[slug] || [];
+    getVersionsForPage(slug);
 
   const newVersion = {
-    ...version,
+    title:
+      version.title || "Ohne Titel",
+
+    category:
+      version.category || "Allgemein",
+
+    description:
+      version.description || "",
+
+    tags:
+      Array.isArray(version.tags)
+        ? version.tags
+        : [],
+
+    content:
+      version.content || "",
+
+    updatedAt:
+      version.updatedAt || "",
 
     savedAt:
       version.savedAt ||
@@ -90,6 +135,10 @@ export function deleteVersionsForPage(
   slug: string
 ) {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!slug) {
     return;
   }
 

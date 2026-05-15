@@ -19,7 +19,7 @@ export function getFavorites() {
       return [];
     }
 
-    return parsed;
+    return parsed.filter(Boolean);
   } catch {
     return [];
   }
@@ -32,13 +32,22 @@ export function saveFavorites(
     return;
   }
 
+  const safeFavorites =
+    Array.isArray(favorites)
+      ? favorites.filter(Boolean)
+      : [];
+
   const uniqueFavorites = [
-    ...new Set(favorites),
+    ...new Set(safeFavorites),
   ];
 
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify(uniqueFavorites)
+  );
+
+  window.dispatchEvent(
+    new Event("favoritesUpdated")
   );
 }
 
@@ -73,6 +82,10 @@ export function removeFavorite(
     return;
   }
 
+  if (!slug) {
+    return;
+  }
+
   const favorites =
     getFavorites();
 
@@ -90,5 +103,11 @@ export function clearFavorites() {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("favoritesUpdated")
+  );
 }

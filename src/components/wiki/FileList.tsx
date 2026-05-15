@@ -128,10 +128,6 @@ export default function FileList({
       createdAt:
         new Date().toLocaleString(),
     });
-
-    window.dispatchEvent(
-      new Event("activityUpdated")
-    );
   }
 
   if (files.length === 0) {
@@ -161,22 +157,35 @@ export default function FileList({
             index: number
           ) => (
             <div
-              key={`${file.name}-${index}`}
+              key={`${file.name || "file"}-${index}`}
               className="bg-white border border-zinc-200 rounded-2xl p-4 flex items-center justify-between gap-4"
             >
               <div className="flex items-center gap-4 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
-                  {getFileIcon(file.type)}
+                <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
+                  {getFileIcon(
+                    file.type
+                  )}
                 </div>
 
                 <div className="min-w-0">
-                  <a
-                    href={file.data}
-                    download={file.name}
-                    className="font-medium hover:underline break-all"
-                  >
-                    {file.name}
-                  </a>
+                  {file.data ? (
+                    <a
+                      href={file.data}
+                      download={
+                        file.name ||
+                        "download"
+                      }
+                      className="font-medium hover:underline break-all"
+                    >
+                      {file.name ||
+                        "Unbenannte Datei"}
+                    </a>
+                  ) : (
+                    <p className="font-medium break-all">
+                      {file.name ||
+                        "Unbenannte Datei"}
+                    </p>
+                  )}
 
                   <p className="text-sm text-zinc-500 mt-1">
                     {formatSize(
@@ -197,13 +206,18 @@ export default function FileList({
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={file.data}
-                  download={file.name}
-                  className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
-                >
-                  Download
-                </a>
+                {file.data && (
+                  <a
+                    href={file.data}
+                    download={
+                      file.name ||
+                      "download"
+                    }
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+                  >
+                    Download
+                  </a>
+                )}
 
                 {editable && (
                   <button

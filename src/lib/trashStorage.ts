@@ -8,53 +8,103 @@ export function getTrashPages() {
   const data =
     localStorage.getItem(STORAGE_KEY);
 
-  return data ? JSON.parse(data) : [];
+  if (!data) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(data);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed;
+  } catch {
+    return [];
+  }
 }
 
-export function saveTrashPage(page: any) {
+export function saveTrashPages(
+  pages: any[]
+) {
   if (typeof window === "undefined") {
     return;
   }
 
-  const trashPages =
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(pages)
+  );
+
+  window.dispatchEvent(
+    new Event("trashUpdated")
+  );
+}
+
+export function addTrashPage(
+  page: any
+) {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const currentTrash =
     getTrashPages();
 
   const trashPage = {
     ...page,
+
     deletedAt:
+      page.deletedAt ||
       new Date().toLocaleString(),
   };
 
   const updatedTrash = [
     trashPage,
-    ...trashPages.filter(
+
+    ...currentTrash.filter(
       (item: any) =>
         item.slug !== page.slug
     ),
   ];
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedTrash)
-  );
+  saveTrashPages(updatedTrash);
+
+  return updatedTrash;
 }
 
-export function removeTrashPage(slug: string) {
+export function removeTrashPage(
+  slug: string
+) {
   if (typeof window === "undefined") {
-    return;
+    return [];
   }
 
-  const trashPages =
+  const currentTrash =
     getTrashPages();
 
   const updatedTrash =
-    trashPages.filter(
+    currentTrash.filter(
       (page: any) =>
         page.slug !== slug
     );
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedTrash)
+  saveTrashPages(updatedTrash);
+
+  return updatedTrash;
+}
+
+export function clearTrashPages() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("trashUpdated")
   );
 }

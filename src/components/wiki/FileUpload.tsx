@@ -32,56 +32,92 @@ export default function FileUpload({
       return;
     }
 
+    if (!slug) {
+      alert(
+        "Dateien können erst hochgeladen werden, wenn ein gültiger Slug vorhanden ist."
+      );
+
+      return;
+    }
+
     setUploading(true);
 
-    Array.from(selectedFiles).forEach(
-      (file) => {
-        const reader =
-          new FileReader();
+    const filesArray =
+      Array.from(selectedFiles);
 
-        reader.onload = () => {
-          const newFile = {
-            name: file.name,
+    let finishedFiles = 0;
 
-            type: file.type,
+    filesArray.forEach((file) => {
+      const reader =
+        new FileReader();
 
-            size: file.size,
+      reader.onload = () => {
+        const currentUser =
+          getUser();
 
-            data: reader.result,
+        const newFile = {
+          name:
+            file.name,
 
-            uploadedAt:
-              new Date().toLocaleString(),
+          type:
+            file.type,
 
-            uploadedBy:
-              getUser()?.name ||
-              "Unbekannt",
-          };
+          size:
+            file.size,
 
-          saveFile(slug, newFile);
+          data:
+            reader.result,
 
-          saveActivity({
-            type: "uploaded",
+          uploadedAt:
+            new Date().toLocaleString(),
 
-            title: file.name,
-
-            user:
-              getUser()?.name ||
-              "Unbekannt",
-
-            createdAt:
-              new Date().toLocaleString(),
-          });
-
-          window.dispatchEvent(
-            new Event("activityUpdated")
-          );
+          uploadedBy:
+            currentUser?.name ||
+            "Unbekannt",
         };
 
-        reader.readAsDataURL(file);
-      }
-    );
+        saveFile(
+          slug,
+          newFile
+        );
 
-    setUploading(false);
+        saveActivity({
+          type: "uploaded",
+
+          title:
+            file.name,
+
+          user:
+            currentUser?.name ||
+            "Unbekannt",
+
+          createdAt:
+            new Date().toLocaleString(),
+        });
+
+        finishedFiles += 1;
+
+        if (
+          finishedFiles ===
+          filesArray.length
+        ) {
+          setUploading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        finishedFiles += 1;
+
+        if (
+          finishedFiles ===
+          filesArray.length
+        ) {
+          setUploading(false);
+        }
+      };
+
+      reader.readAsDataURL(file);
+    });
 
     event.target.value = "";
   }
@@ -96,7 +132,11 @@ export default function FileUpload({
         Dateien werden lokal im Browser gespeichert.
       </p>
 
-      <label className="inline-flex mt-4 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition cursor-pointer">
+      <label className={`inline-flex mt-4 border border-zinc-200 px-5 py-3 rounded-2xl transition cursor-pointer ${
+        uploading
+          ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+          : "bg-white hover:bg-zinc-100"
+      }`}>
         {uploading
           ? "Wird hochgeladen..."
           : "Dateien auswählen"}
@@ -104,6 +144,7 @@ export default function FileUpload({
         <input
           type="file"
           multiple
+          disabled={uploading}
           onChange={handleFileUpload}
           className="hidden"
         />

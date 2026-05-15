@@ -13,7 +13,11 @@ import {
 export default function TagPage() {
   const params = useParams();
 
-  const tag = params.tag as string;
+  const tagParam =
+    params.tag as string;
+
+  const decodedTag =
+    decodeURIComponent(tagParam);
 
   const [mounted, setMounted] =
     useState(false);
@@ -30,11 +34,11 @@ export default function TagPage() {
     const filteredPages =
       allPages.filter(
         (page: any) =>
-          page.tags?.includes(tag)
+          page.tags?.includes(decodedTag)
       );
 
     setPages(filteredPages);
-  }, [tag]);
+  }, [decodedTag]);
 
   if (!mounted) {
     return null;
@@ -42,6 +46,7 @@ export default function TagPage() {
 
   return (
     <div className="space-y-6">
+      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -63,10 +68,11 @@ export default function TagPage() {
         </span>
 
         <span className="text-zinc-900">
-          #{tag}
+          #{decodedTag}
         </span>
       </div>
 
+      {/* BACK BUTTON */}
       <div>
         <Link
           href="/wiki"
@@ -76,13 +82,14 @@ export default function TagPage() {
         </Link>
       </div>
 
+      {/* HEADER */}
       <div>
         <p className="text-zinc-500">
           Tag Suche
         </p>
 
         <h1 className="text-4xl font-bold mt-2">
-          #{tag}
+          #{decodedTag}
         </h1>
 
         <p className="text-zinc-500 mt-3">
@@ -90,6 +97,7 @@ export default function TagPage() {
         </p>
       </div>
 
+      {/* EMPTY */}
       {pages.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
@@ -103,7 +111,7 @@ export default function TagPage() {
           <p className="text-zinc-500 mt-3">
             Es gibt aktuell kein Dokument mit dem Tag{" "}
             <span className="font-mono text-zinc-900">
-              #{tag}
+              #{decodedTag}
             </span>
             .
           </p>
@@ -117,49 +125,64 @@ export default function TagPage() {
         </div>
       )}
 
+      {/* DOCUMENTS */}
       <div className="grid gap-4">
         {pages.map(
           (page: any) => (
-            <Link
+            <div
               key={page.slug}
-              href={`/wiki/${page.slug}`}
               className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-500">
+                <Link
+                  href={`/wiki/department/${encodeURIComponent(
+                    page.category
+                  )}`}
+                  className="text-sm text-zinc-500 hover:text-zinc-900 transition"
+                >
                   {page.category}
-                </p>
+                </Link>
 
                 <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
                   Dokument
                 </span>
               </div>
 
-              <h2 className="text-xl font-semibold mt-3">
-                {page.title}
-              </h2>
+              <Link
+                href={`/wiki/${page.slug}`}
+                className="block mt-3"
+              >
+                <h2 className="text-xl font-semibold hover:underline">
+                  {page.title}
+                </h2>
+              </Link>
 
               <p className="text-zinc-600 mt-2">
                 {page.description}
               </p>
 
+              {/* TAGS */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {page.tags?.map(
                   (pageTag: string) => (
-                    <span
+                    <Link
                       key={pageTag}
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        pageTag === tag
+                      href={`/wiki/tag/${encodeURIComponent(
+                        pageTag
+                      )}`}
+                      className={`text-xs px-2 py-1 rounded-full transition ${
+                        pageTag === decodedTag
                           ? "bg-zinc-900 text-white"
-                          : "bg-zinc-100 text-zinc-700"
+                          : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
                       }`}
                     >
                       #{pageTag}
-                    </span>
+                    </Link>
                   )
                 )}
               </div>
 
+              {/* META */}
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
                 <p className="text-sm text-zinc-500">
                   {page.author}
@@ -169,7 +192,7 @@ export default function TagPage() {
                   {page.updatedAt}
                 </p>
               </div>
-            </Link>
+            </div>
           )
         )}
       </div>

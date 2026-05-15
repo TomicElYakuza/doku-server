@@ -29,16 +29,21 @@ export function getFiles() {
   }
 }
 
-export function saveFiles(
-  files: any
-) {
+export function saveFiles(files: any) {
   if (typeof window === "undefined") {
     return;
   }
 
+  const safeFiles =
+    files &&
+    typeof files === "object" &&
+    !Array.isArray(files)
+      ? files
+      : {};
+
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(files)
+    JSON.stringify(safeFiles)
   );
 
   window.dispatchEvent(
@@ -53,9 +58,17 @@ export function getFilesForPage(
     return [];
   }
 
-  const files = getFiles();
+  const files =
+    getFiles();
 
-  return files[slug] || [];
+  const pageFiles =
+    files[slug];
+
+  if (!Array.isArray(pageFiles)) {
+    return [];
+  }
+
+  return pageFiles;
 }
 
 export function saveFile(
@@ -66,7 +79,7 @@ export function saveFile(
     return;
   }
 
-  if (!slug) {
+  if (!slug || !file) {
     return;
   }
 
@@ -74,20 +87,38 @@ export function saveFile(
     getFiles();
 
   const currentFiles =
-    files[slug] || [];
+    getFilesForPage(slug);
+
+  const newFile = {
+    name:
+      file.name ||
+      "Unbenannte Datei",
+
+    type:
+      file.type ||
+      "application/octet-stream",
+
+    size:
+      file.size || 0,
+
+    data:
+      file.data || "",
+
+    uploadedAt:
+      file.uploadedAt ||
+      new Date().toLocaleString(),
+
+    uploadedBy:
+      file.uploadedBy ||
+      "Unbekannt",
+  };
 
   const updatedFiles = {
     ...files,
 
     [slug]: [
       ...currentFiles,
-      {
-        ...file,
-
-        uploadedAt:
-          file.uploadedAt ||
-          new Date().toLocaleString(),
-      },
+      newFile,
     ],
   };
 
@@ -102,11 +133,15 @@ export function deleteFile(
     return;
   }
 
+  if (!slug) {
+    return;
+  }
+
   const files =
     getFiles();
 
   const currentFiles =
-    files[slug] || [];
+    getFilesForPage(slug);
 
   const updatedSlugFiles =
     currentFiles.filter(
@@ -132,6 +167,10 @@ export function deleteFilesForPage(
   slug: string
 ) {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!slug) {
     return;
   }
 

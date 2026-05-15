@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 
 import {
   getStoredPages,
+  resetWikiPages,
 } from "../../lib/wikiStorage";
+
+import {
+  getTrashPages,
+  clearTrashPages,
+} from "../../lib/trashStorage";
 
 import {
   getFavorites,
@@ -36,6 +42,10 @@ import {
   clearActivities,
 } from "../../lib/activityStorage";
 
+import {
+  clearUser,
+} from "../../lib/userStorage";
+
 export default function SettingsPage() {
   const [status, setStatus] =
     useState("");
@@ -54,22 +64,95 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadStats();
-  }, []);
 
-  function getTrashPages() {
-    const trash = JSON.parse(
-      localStorage.getItem("wiki-trash") ||
-        "[]"
+    function handleDataUpdated() {
+      loadStats();
+    }
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleDataUpdated
     );
 
-    return Array.isArray(trash)
-      ? trash
-      : [];
-  }
+    window.addEventListener(
+      "trashUpdated",
+      handleDataUpdated
+    );
 
-  function countObjectArrays(
-    data: any
-  ) {
+    window.addEventListener(
+      "favoritesUpdated",
+      handleDataUpdated
+    );
+
+    window.addEventListener(
+      "recentUpdated",
+      handleDataUpdated
+    );
+
+    window.addEventListener(
+      "commentsUpdated",
+      handleDataUpdated
+    );
+
+    window.addEventListener(
+      "filesUpdated",
+      handleDataUpdated
+    );
+
+    window.addEventListener(
+      "versionsUpdated",
+      handleDataUpdated
+    );
+
+    window.addEventListener(
+      "activityUpdated",
+      handleDataUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "trashUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "favoritesUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "recentUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "commentsUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "filesUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "versionsUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "activityUpdated",
+        handleDataUpdated
+      );
+    };
+  }, []);
+
+  function countObjectArrays(data: any) {
     return (
       Object.values(data) as any[]
     ).reduce(
@@ -251,6 +334,17 @@ export default function SettingsPage() {
           reader.result as string
         );
 
+        if (
+          !backup ||
+          typeof backup !== "object"
+        ) {
+          setStatus(
+            "Ungültige Backup-Datei."
+          );
+
+          return;
+        }
+
         if (backup.user) {
           localStorage.setItem(
             "wiki-user",
@@ -386,17 +480,9 @@ export default function SettingsPage() {
       return;
     }
 
-    localStorage.removeItem(
-      "wiki-pages"
-    );
+    resetWikiPages();
 
-    localStorage.removeItem(
-      "wiki-pages-initialized"
-    );
-
-    localStorage.removeItem(
-      "wiki-trash"
-    );
+    clearTrashPages();
 
     clearFavorites();
 
@@ -411,14 +497,6 @@ export default function SettingsPage() {
     clearActivities();
 
     loadStats();
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("trashUpdated")
-    );
 
     setStatus(
       "Wiki-Daten wurden gelöscht. Beim nächsten Öffnen wird das Wiki wieder initialisiert."
@@ -434,21 +512,11 @@ export default function SettingsPage() {
       return;
     }
 
-    localStorage.removeItem(
-      "wiki-user"
-    );
+    clearUser();
 
-    localStorage.removeItem(
-      "wiki-pages"
-    );
+    resetWikiPages();
 
-    localStorage.removeItem(
-      "wiki-pages-initialized"
-    );
-
-    localStorage.removeItem(
-      "wiki-trash"
-    );
+    clearTrashPages();
 
     clearFavorites();
 
@@ -464,20 +532,44 @@ export default function SettingsPage() {
 
     loadStats();
 
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("trashUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("userUpdated")
-    );
-
     setStatus(
       "Alle lokalen Daten wurden gelöscht."
+    );
+  }
+
+  function clearOnlyTrash() {
+    const confirmed = confirm(
+      "Papierkorb wirklich vollständig leeren?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearTrashPages();
+
+    loadStats();
+
+    setStatus(
+      "Papierkorb wurde geleert."
+    );
+  }
+
+  function clearOnlyActivities() {
+    const confirmed = confirm(
+      "Aktivitäten wirklich löschen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearActivities();
+
+    loadStats();
+
+    setStatus(
+      "Aktivitäten wurden gelöscht."
     );
   }
 
@@ -615,6 +707,33 @@ export default function SettingsPage() {
               className="hidden"
             />
           </label>
+        </div>
+      </div>
+
+      {/* SINGLE ACTIONS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Einzelne Bereiche löschen
+        </h2>
+
+        <p className="text-zinc-500 mt-2">
+          Lösche gezielt einzelne lokale Bereiche.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-4">
+          <button
+            onClick={clearOnlyTrash}
+            className="bg-white border border-red-200 text-red-600 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
+          >
+            Papierkorb leeren
+          </button>
+
+          <button
+            onClick={clearOnlyActivities}
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Aktivitäten löschen
+          </button>
         </div>
       </div>
 

@@ -10,6 +10,11 @@ import {
 } from "../../../lib/wikiStorage";
 
 import {
+  getTrashPages,
+  removeTrashPage,
+} from "../../../lib/trashStorage";
+
+import {
   saveActivity,
 } from "../../../lib/activityStorage";
 
@@ -52,33 +57,27 @@ export default function TrashPage() {
     setMounted(true);
 
     loadTrash();
+
+    function handleTrashUpdated() {
+      loadTrash();
+    }
+
+    window.addEventListener(
+      "trashUpdated",
+      handleTrashUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "trashUpdated",
+        handleTrashUpdated
+      );
+    };
   }, []);
 
   function loadTrash() {
-    const data =
-      localStorage.getItem(
-        "wiki-trash"
-      );
-
-    const pages = data
-      ? JSON.parse(data)
-      : [];
-
-    setTrashPages(pages);
-  }
-
-  function saveTrash(
-    pages: any[]
-  ) {
-    localStorage.setItem(
-      "wiki-trash",
-      JSON.stringify(pages)
-    );
-
-    setTrashPages(pages);
-
-    window.dispatchEvent(
-      new Event("trashUpdated")
+    setTrashPages(
+      getTrashPages()
     );
   }
 
@@ -94,19 +93,9 @@ export default function TrashPage() {
     deleteFilesForPage(slug);
 
     deleteVersionsForPage(slug);
-
-    window.dispatchEvent(
-      new Event("favoritesUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("recentUpdated")
-    );
   }
 
-  function restorePage(
-    page: any
-  ) {
+  function restorePage(page: any) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente wiederherstellen."
@@ -159,30 +148,20 @@ export default function TrashPage() {
         new Date().toLocaleDateString(),
 
       tags:
-        page.tags || [],
+        Array.isArray(page.tags)
+          ? page.tags
+          : [],
 
       content:
         page.content || "",
     };
 
-    const updatedWikiPages = [
+    savePages([
       ...currentPages,
       restoredPage,
-    ];
+    ]);
 
-    savePages(updatedWikiPages);
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
-
-    const updatedTrash =
-      trashPages.filter(
-        (item: any) =>
-          item.slug !== page.slug
-      );
-
-    saveTrash(updatedTrash);
+    removeTrashPage(page.slug);
 
     saveActivity({
       type: "restored",
@@ -206,9 +185,7 @@ export default function TrashPage() {
       `/wiki/${page.slug}`;
   }
 
-  function deleteForever(
-    page: any
-  ) {
+  function deleteForever(page: any) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente endgültig löschen."
@@ -225,13 +202,7 @@ export default function TrashPage() {
       return;
     }
 
-    const updatedTrash =
-      trashPages.filter(
-        (item: any) =>
-          item.slug !== page.slug
-      );
-
-    saveTrash(updatedTrash);
+    removeTrashPage(page.slug);
 
     removeRelatedData(page.slug);
 
@@ -347,33 +318,40 @@ export default function TrashPage() {
               <div className="flex items-start justify-between gap-6">
                 <div>
                   <p className="text-sm text-zinc-500">
-                    {page.category}
+                    {page.category ||
+                      "Allgemein"}
                   </p>
 
                   <h2 className="text-2xl font-bold mt-2">
-                    {page.title}
+                    {page.title ||
+                      "Ohne Titel"}
                   </h2>
 
                   <p className="text-zinc-600 mt-2">
-                    {page.description}
+                    {page.description ||
+                      "Keine Beschreibung"}
                   </p>
 
                   <div className="flex flex-wrap gap-2 mt-4">
-                    {page.tags?.map(
-                      (tag: string) => (
-                        <span
-                          key={tag}
-                          className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                        >
-                          #{tag}
-                        </span>
-                      )
-                    )}
+                    {Array.isArray(
+                      page.tags
+                    ) &&
+                      page.tags.map(
+                        (tag: string) => (
+                          <span
+                            key={tag}
+                            className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                          >
+                            #{tag}
+                          </span>
+                        )
+                      )}
                   </div>
 
                   <p className="text-sm text-zinc-500 mt-4">
                     Gelöscht am:{" "}
-                    {page.deletedAt}
+                    {page.deletedAt ||
+                      "Unbekannt"}
                   </p>
                 </div>
 

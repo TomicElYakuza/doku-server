@@ -1,10 +1,8 @@
 import { wikiPages } from "../data/wiki";
 
-const STORAGE_KEY =
-  "wiki-pages";
+const STORAGE_KEY = "wiki-pages";
 
-const INIT_KEY =
-  "wiki-pages-initialized";
+const INIT_KEY = "wiki-pages-initialized";
 
 export function getStoredPages() {
   if (typeof window === "undefined") {
@@ -36,7 +34,13 @@ export function getStoredPages() {
   }
 
   try {
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed;
   } catch {
     return [];
   }
@@ -58,6 +62,24 @@ export function savePages(
     INIT_KEY,
     "true"
   );
+
+  window.dispatchEvent(
+    new Event("wikiPagesUpdated")
+  );
+}
+
+export function clearPages() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("wikiPagesUpdated")
+  );
 }
 
 export function resetWikiInitialization() {
@@ -65,5 +87,29 @@ export function resetWikiInitialization() {
     return;
   }
 
-  localStorage.removeItem(INIT_KEY);
+  localStorage.removeItem(
+    INIT_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("wikiPagesUpdated")
+  );
+}
+
+export function resetWikiPages() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  localStorage.removeItem(
+    INIT_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("wikiPagesUpdated")
+  );
 }

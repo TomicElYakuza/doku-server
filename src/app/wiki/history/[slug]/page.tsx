@@ -23,8 +23,6 @@ import {
   getUser,
 } from "../../../../lib/userStorage";
 
-import { wikiPages } from "../../../../data/wiki";
-
 export default function HistoryPage() {
   const params = useParams();
 
@@ -42,32 +40,69 @@ export default function HistoryPage() {
   const [pageTitle, setPageTitle] =
     useState("");
 
+  const [pageCategory, setPageCategory] =
+    useState("");
+
   const [versions, setVersions] =
     useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
 
-    const storedPages = getStoredPages();
+    loadData();
 
-    const allPages =
-      storedPages.length > 0
-        ? storedPages
-        : wikiPages;
+    function handleVersionsUpdated() {
+      loadData();
+    }
 
-    const page = allPages.find(
-      (item: any) =>
-        item.slug === slug
+    function handleWikiPagesUpdated() {
+      loadData();
+    }
+
+    window.addEventListener(
+      "versionsUpdated",
+      handleVersionsUpdated
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "versionsUpdated",
+        handleVersionsUpdated
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+    };
+  }, [slug]);
+
+  function loadData() {
+    const pages =
+      getStoredPages();
+
+    const page =
+      pages.find(
+        (item: any) =>
+          item.slug === slug
+      );
+
+    const allVersions =
+      getVersions();
+
+    setVersions(
+      allVersions[slug] || []
     );
 
     if (!page) {
       setPageFound(false);
 
       setPageChecked(true);
-
-      setVersions(
-        getVersions()[slug] || []
-      );
 
       return;
     }
@@ -76,12 +111,10 @@ export default function HistoryPage() {
 
     setPageTitle(page.title);
 
-    setVersions(
-      getVersions()[slug] || []
-    );
+    setPageCategory(page.category || "");
 
     setPageChecked(true);
-  }, [slug]);
+  }
 
   function restoreVersion(
     version: any
@@ -94,12 +127,14 @@ export default function HistoryPage() {
       return;
     }
 
-    const pages = getStoredPages();
+    const pages =
+      getStoredPages();
 
-    const pageExists = pages.some(
-      (page: any) =>
-        page.slug === slug
-    );
+    const pageExists =
+      pages.some(
+        (page: any) =>
+          page.slug === slug
+      );
 
     if (!pageExists) {
       alert(
@@ -109,8 +144,8 @@ export default function HistoryPage() {
       return;
     }
 
-    const updatedPages = pages.map(
-      (page: any) => {
+    const updatedPages =
+      pages.map((page: any) => {
         if (page.slug !== slug) {
           return page;
         }
@@ -118,10 +153,12 @@ export default function HistoryPage() {
         return {
           ...page,
 
-          title: version.title,
+          title:
+            version.title || page.title,
 
           category:
-            version.category,
+            version.category ||
+            page.category,
 
           description:
             version.description || "",
@@ -135,14 +172,9 @@ export default function HistoryPage() {
           updatedAt:
             new Date().toLocaleDateString(),
         };
-      }
-    );
+      });
 
     savePages(updatedPages);
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
 
     saveActivity({
       type: "restored",
@@ -237,6 +269,10 @@ export default function HistoryPage() {
     );
   }
 
+  const reversedVersions = [
+    ...versions,
+  ].reverse();
+
   return (
     <div className="space-y-6">
       {/* TOP NAV */}
@@ -251,6 +287,23 @@ export default function HistoryPage() {
         <span className="text-zinc-400">
           /
         </span>
+
+        {pageCategory ? (
+          <>
+            <Link
+              href={`/wiki/department/${encodeURIComponent(
+                pageCategory
+              )}`}
+              className="text-zinc-500 hover:text-zinc-900 transition"
+            >
+              {pageCategory}
+            </Link>
+
+            <span className="text-zinc-400">
+              /
+            </span>
+          </>
+        ) : null}
 
         <Link
           href={`/wiki/${slug}`}
@@ -278,6 +331,7 @@ export default function HistoryPage() {
         </Link>
       </div>
 
+      {/* HEADER */}
       <div>
         <p className="text-zinc-500">
           Versionshistorie
@@ -292,34 +346,40 @@ export default function HistoryPage() {
         </p>
       </div>
 
+      {/* EMPTY */}
       {versions.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-2xl p-6">
-          Noch keine Versionen vorhanden.
+          <p className="text-zinc-500">
+            Noch keine Versionen vorhanden.
+          </p>
         </div>
       )}
 
+      {/* LIST */}
       <div className="grid gap-4">
-        {[...versions]
-          .reverse()
-          .map(
-            (
-              version: any,
-              index: number
-            ) => (
+        {reversedVersions.map(
+          (
+            version: any,
+            index: number
+          ) => {
+            const versionNumber =
+              versions.length - index;
+
+            return (
               <div
-                key={index}
+                key={`${version.savedAt}-${index}`}
                 className="bg-white border border-zinc-200 rounded-2xl p-6"
               >
                 <div className="flex items-center justify-between gap-6">
                   <div>
                     <h2 className="text-xl font-semibold">
                       Version{" "}
-                      {versions.length -
-                        index}
+                      {versionNumber}
                     </h2>
 
                     <p className="text-sm text-zinc-500 mt-1">
-                      {version.savedAt}
+                      {version.savedAt ||
+                        "Unbekannt"}
                     </p>
                   </div>
 
@@ -342,7 +402,8 @@ export default function HistoryPage() {
                     </p>
 
                     <p className="font-medium">
-                      {version.title}
+                      {version.title ||
+                        "Ohne Titel"}
                     </p>
                   </div>
 
@@ -352,7 +413,8 @@ export default function HistoryPage() {
                     </p>
 
                     <p className="font-medium">
-                      {version.category}
+                      {version.category ||
+                        "Keine Kategorie"}
                     </p>
                   </div>
 
@@ -379,12 +441,15 @@ export default function HistoryPage() {
                           (
                             tag: string
                           ) => (
-                            <span
+                            <Link
                               key={tag}
-                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                              href={`/wiki/tag/${encodeURIComponent(
+                                tag
+                              )}`}
+                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
                             >
                               #{tag}
-                            </span>
+                            </Link>
                           )
                         )
                       ) : (
@@ -401,13 +466,15 @@ export default function HistoryPage() {
                     </p>
 
                     <div className="bg-zinc-50 rounded-2xl p-4 text-sm text-zinc-700 max-h-48 overflow-hidden whitespace-pre-wrap">
-                      {version.content}
+                      {version.content ||
+                        "Kein Inhalt"}
                     </div>
                   </div>
                 </div>
               </div>
-            )
-          )}
+            );
+          }
+        )}
       </div>
     </div>
   );

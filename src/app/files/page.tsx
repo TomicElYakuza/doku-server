@@ -2,35 +2,71 @@
 
 import { useEffect, useState } from "react";
 
-export default function FilesPage() {
+import {
+  getFilesForPage,
+  deleteFile,
+} from "../../lib/fileStorage";
+
+import {
+  saveActivity,
+} from "../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../lib/userStorage";
+
+export default function FileList({
+  slug,
+  editable = false,
+}: {
+  slug: string;
+  editable?: boolean;
+}) {
   const [files, setFiles] =
     useState<any[]>([]);
 
   useEffect(() => {
-    const data =
-      localStorage.getItem(
-        "wiki-files"
-      );
+    loadFiles();
 
-    const storedFiles = data
-      ? JSON.parse(data)
-      : {};
+    function handleFilesUpdated() {
+      loadFiles();
+    }
 
-    const allFiles = Object.entries(
-      storedFiles
-    ).flatMap(
-      ([slug, fileList]: any) =>
-        fileList.map((file: any) => ({
-          ...file,
-          slug,
-        }))
+    window.addEventListener(
+      "filesUpdated",
+      handleFilesUpdated
     );
 
-    setFiles(allFiles);
-  }, []);
+    return () => {
+      window.removeEventListener(
+        "filesUpdated",
+        handleFilesUpdated
+      );
+    };
+  }, [slug]);
+
+  function loadFiles() {
+    setFiles(
+      getFilesForPage(slug)
+    );
+  }
 
   function formatSize(size: number) {
-    return `${Math.round(size / 1024)} KB`;
+    if (!size) {
+      return "0 KB";
+    }
+
+    if (size < 1024 * 1024) {
+      return `${Math.round(
+        size / 1024
+      )} KB`;
+    }
+
+    return `${(
+      size /
+      1024 /
+      1024
+    ).toFixed(1)} MB`;
   }
 
   function getFileIcon(type: string) {
@@ -42,131 +78,163 @@ export default function FilesPage() {
       return "📄";
     }
 
-    if (type?.includes("word")) {
+    if (
+      type?.includes("word") ||
+      type?.includes("document")
+    ) {
       return "📝";
+    }
+
+    if (
+      type?.includes("excel") ||
+      type?.includes("spreadsheet")
+    ) {
+      return "📊";
+    }
+
+    if (type?.includes("zip")) {
+      return "🗜️";
     }
 
     return "📎";
   }
 
-  const imageCount = files.filter(
-    (file) =>
-      file.type?.startsWith("image/")
-  ).length;
+  function handleDeleteFile(
+    index: number
+  ) {
+    const file =
+      files[index];
 
-  const totalSize = files.reduce(
-    (sum, file) =>
-      sum + (file.size || 0),
-    0
-  );
+    const confirmed = confirm(
+      "Anhang wirklich löschen?"
+    );
 
-  return (
-    <div className="space-y-8">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Dateien
-        </h1>
+    if (!confirmed) {
+      return;
+    }
 
-        <p className="text-zinc-500 mt-2">
-          Alle Anhänge aus dem Wiki gesammelt an einem Ort
+    deleteFile(slug, index);
+
+    saveActivity({
+      type: "fileDeleted",
+
+      title:
+        file?.name || slug,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+        <h3 className="font-semibold">
+          Anhänge
+        </h3>
+
+        <p className="text-sm text-zinc-500 mt-2">
+          Keine Anhänge vorhanden.
         </p>
       </div>
+    );
+  }
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Dateien gesamt
-          </p>
+  return (
+    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+      <h3 className="font-semibold">
+        Anhänge
+      </h3>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {files.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Bilder
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {imageCount}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Speichergröße
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {formatSize(totalSize)}
-          </h2>
-        </div>
-      </div>
-
-      {/* FILE LIST */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Anhänge
-        </h2>
-
-        <div className="mt-6 space-y-4">
-          {files.length === 0 && (
-            <p className="text-zinc-500">
-              Noch keine Dateien vorhanden.
-            </p>
-          )}
-
-          {files.map(
-            (
-              file: any,
-              index: number
-            ) => (
-              <div
-                key={`${file.slug}-${index}`}
-                className="flex items-center justify-between border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
-                    {getFileIcon(file.type)}
-                  </div>
-
-                  <div>
-                    <a
-                      href={file.data}
-                      download={file.name}
-                      className="font-semibold hover:underline"
-                    >
-                      {file.name}
-                    </a>
-
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {formatSize(file.size)} ·{" "}
-                      {file.uploadedAt}
-                    </p>
-
-                    <a
-                      href={`/wiki/${file.slug}`}
-                      className="text-sm text-blue-600 hover:underline mt-1 inline-block"
-                    >
-                      Zugehöriges Dokument öffnen
-                    </a>
-                  </div>
+      <div className="mt-4 space-y-3">
+        {files.map(
+          (
+            file: any,
+            index: number
+          ) => (
+            <div
+              key={`${file.name || "file"}-${index}`}
+              className="bg-white border border-zinc-200 rounded-2xl p-4 flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
+                  {getFileIcon(
+                    file.type
+                  )}
                 </div>
 
-                <a
-                  href={file.data}
-                  download={file.name}
-                  className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                >
-                  Download
-                </a>
+                <div className="min-w-0">
+                  {file.data ? (
+                    <a
+                      href={file.data}
+                      download={
+                        file.name ||
+                        "download"
+                      }
+                      className="font-medium hover:underline break-all"
+                    >
+                      {file.name ||
+                        "Unbenannte Datei"}
+                    </a>
+                  ) : (
+                    <p className="font-medium break-all">
+                      {file.name ||
+                        "Unbenannte Datei"}
+                    </p>
+                  )}
+
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {formatSize(
+                      file.size
+                    )}{" "}
+                    ·{" "}
+                    {file.uploadedAt ||
+                      "Unbekannt"}
+                  </p>
+
+                  {file.uploadedBy && (
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Hochgeladen von{" "}
+                      {file.uploadedBy}
+                    </p>
+                  )}
+                </div>
               </div>
-            )
-          )}
-        </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {file.data && (
+                  <a
+                    href={file.data}
+                    download={
+                      file.name ||
+                      "download"
+                    }
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+                  >
+                    Download
+                  </a>
+                )}
+
+                {editable && (
+                  <button
+                    onClick={() =>
+                      handleDeleteFile(
+                        index
+                      )
+                    }
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition text-sm"
+                  >
+                    Löschen
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   );

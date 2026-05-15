@@ -36,14 +36,41 @@ export function saveComments(
     return;
   }
 
+  const safeComments =
+    comments &&
+    typeof comments === "object" &&
+    !Array.isArray(comments)
+      ? comments
+      : {};
+
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(comments)
+    JSON.stringify(safeComments)
   );
 
   window.dispatchEvent(
     new Event("commentsUpdated")
   );
+}
+
+export function getCommentsForPage(
+  slug: string
+) {
+  if (!slug) {
+    return [];
+  }
+
+  const comments =
+    getComments();
+
+  const pageComments =
+    comments[slug];
+
+  if (!Array.isArray(pageComments)) {
+    return [];
+  }
+
+  return pageComments;
 }
 
 export function saveComment(
@@ -54,7 +81,7 @@ export function saveComment(
     return;
   }
 
-  if (!slug) {
+  if (!slug || !comment) {
     return;
   }
 
@@ -62,20 +89,29 @@ export function saveComment(
     getComments();
 
   const currentComments =
-    comments[slug] || [];
+    getCommentsForPage(slug);
+
+  const newComment = {
+    text:
+      comment.text || "",
+
+    user:
+      comment.user || "Unbekannt",
+
+    role:
+      comment.role || "viewer",
+
+    createdAt:
+      comment.createdAt ||
+      new Date().toLocaleString(),
+  };
 
   const updatedComments = {
     ...comments,
 
     [slug]: [
       ...currentComments,
-      {
-        ...comment,
-
-        createdAt:
-          comment.createdAt ||
-          new Date().toLocaleString(),
-      },
+      newComment,
     ],
   };
 
@@ -90,16 +126,22 @@ export function deleteComment(
     return;
   }
 
+  if (!slug) {
+    return;
+  }
+
   const comments =
     getComments();
 
   const currentComments =
-    comments[slug] || [];
+    getCommentsForPage(slug);
 
   const updatedSlugComments =
     currentComments.filter(
-      (_comment: any, commentIndex: number) =>
-        commentIndex !== index
+      (
+        _comment: any,
+        commentIndex: number
+      ) => commentIndex !== index
     );
 
   const updatedComments = {
@@ -120,6 +162,10 @@ export function deleteCommentsForPage(
   slug: string
 ) {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!slug) {
     return;
   }
 

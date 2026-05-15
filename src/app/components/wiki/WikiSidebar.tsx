@@ -4,24 +4,33 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
-import { usePathname } from "next/navigation";
+import {
+  usePathname,
+} from "next/navigation";
 
-import { wikiPages } from "@/data/wiki";
+import {
+  getStoredPages,
+} from "../../../lib/wikiStorage";
 
 import {
   getFavorites,
-} from "@/lib/favoritesStorage";
+} from "../../../lib/favoritesStorage";
 
 import {
   getRecentPages,
-} from "@/lib/recentStorage";
+} from "../../../lib/recentStorage";
+
+import {
+  getTrashPages,
+} from "../../../lib/trashStorage";
 
 import {
   isAdmin,
-} from "@/lib/permissions";
+} from "../../../lib/permissions";
 
 export default function WikiSidebar() {
-  const pathname = usePathname();
+  const pathname =
+    usePathname();
 
   const [favorites, setFavorites] =
     useState<string[]>([]);
@@ -35,54 +44,137 @@ export default function WikiSidebar() {
   const [recentPages, setRecentPages] =
     useState<any[]>([]);
 
+  const [trashCount, setTrashCount] =
+    useState(0);
+
   const [departmentsOpen, setDepartmentsOpen] =
     useState(false);
 
   const [admin, setAdmin] =
     useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-
-    setAdmin(isAdmin());
-
-    const storedPages = JSON.parse(
-      localStorage.getItem("wiki-pages") ||
-        "[]"
-    );
-
+  function loadPages() {
     const allPages =
-      storedPages.length > 0
-        ? storedPages
-        : wikiPages;
+      getStoredPages();
 
     setPages(allPages);
 
+    loadRecentPages(allPages);
+  }
+
+  function loadFavorites() {
+    setFavorites(getFavorites());
+  }
+
+  function loadRecentPages(
+    allPages = getStoredPages()
+  ) {
     const recentSlugs =
       getRecentPages();
 
-    const recent = allPages.filter(
-      (page: any) =>
-        recentSlugs.includes(page.slug)
-    );
+    const recent =
+      recentSlugs
+        .map((slug: string) =>
+          allPages.find(
+            (page: any) =>
+              page.slug === slug
+          )
+        )
+        .filter(Boolean);
 
     setRecentPages(recent);
+  }
 
-    function loadFavorites() {
-      setFavorites(getFavorites());
-    }
+  function loadTrashCount() {
+    setTrashCount(
+      getTrashPages().length
+    );
+  }
+
+  function loadAdminStatus() {
+    setAdmin(isAdmin());
+  }
+
+  useEffect(() => {
+    setMounted(true);
+
+    loadAdminStatus();
+
+    loadPages();
 
     loadFavorites();
 
+    loadTrashCount();
+
+    function handleFavoritesUpdated() {
+      loadFavorites();
+    }
+
+    function handleRecentUpdated() {
+      loadRecentPages();
+    }
+
+    function handleTrashUpdated() {
+      loadTrashCount();
+    }
+
+    function handleWikiPagesUpdated() {
+      loadPages();
+    }
+
+    function handleUserUpdated() {
+      loadAdminStatus();
+    }
+
     window.addEventListener(
       "favoritesUpdated",
-      loadFavorites
+      handleFavoritesUpdated
+    );
+
+    window.addEventListener(
+      "recentUpdated",
+      handleRecentUpdated
+    );
+
+    window.addEventListener(
+      "trashUpdated",
+      handleTrashUpdated
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    window.addEventListener(
+      "userUpdated",
+      handleUserUpdated
     );
 
     return () => {
       window.removeEventListener(
         "favoritesUpdated",
-        loadFavorites
+        handleFavoritesUpdated
+      );
+
+      window.removeEventListener(
+        "recentUpdated",
+        handleRecentUpdated
+      );
+
+      window.removeEventListener(
+        "trashUpdated",
+        handleTrashUpdated
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+
+      window.removeEventListener(
+        "userUpdated",
+        handleUserUpdated
       );
     };
   }, []);
@@ -93,13 +185,16 @@ export default function WikiSidebar() {
 
   const departments: string[] = [
     ...new Set(
-      pages.map(
-        (page: any) => page.category
-      )
+      pages
+        .map(
+          (page: any) =>
+            page.category
+        )
+        .filter(Boolean)
     ),
   ];
 
-  const allTags = [
+  const allTags: string[] = [
     ...new Set(
       pages.flatMap(
         (page: any) =>
@@ -108,10 +203,13 @@ export default function WikiSidebar() {
     ),
   ];
 
-  const favoritePages = pages.filter(
-    (page: any) =>
-      favorites.includes(page.slug)
-  );
+  const favoritePages =
+    pages.filter(
+      (page: any) =>
+        favorites.includes(
+          page.slug
+        )
+    );
 
   return (
     <aside className="w-72 bg-white border border-zinc-200 rounded-3xl p-6 sticky top-6 h-fit">
@@ -147,7 +245,7 @@ export default function WikiSidebar() {
         </div>
       )}
 
-      {/* RECENT */}
+      {/* ZULETZT GEÖFFNET */}
       {recentPages.length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-blue-600 uppercase mb-3">
@@ -160,7 +258,12 @@ export default function WikiSidebar() {
                 <Link
                   key={page.slug}
                   href={`/wiki/${page.slug}`}
-                  className="p-3 rounded-xl hover:bg-blue-50 transition"
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/${page.slug}`
+                      ? "bg-blue-600 text-white"
+                      : "hover:bg-blue-50"
+                  }`}
                 >
                   🕒 {page.title}
                 </Link>
@@ -193,12 +296,27 @@ export default function WikiSidebar() {
 
         {departmentsOpen && (
           <div className="flex flex-col gap-2">
+            {departments.length === 0 && (
+              <p className="text-sm text-zinc-400 px-3">
+                Keine Abteilungen
+              </p>
+            )}
+
             {departments.map(
               (department: string) => (
                 <Link
                   key={department}
-                  href={`/wiki/department/${department}`}
-                  className="p-3 rounded-xl bg-zinc-50 hover:bg-zinc-100 transition"
+                  href={`/wiki/department/${encodeURIComponent(
+                    department
+                  )}`}
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/department/${encodeURIComponent(
+                      department
+                    )}`
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-50 hover:bg-zinc-100"
+                  }`}
                 >
                   {department}
                 </Link>
@@ -216,15 +334,26 @@ export default function WikiSidebar() {
           </h3>
 
           <div className="flex flex-wrap gap-2">
-            {allTags.map((tag: any) => (
-              <a
-                key={tag}
-                href={`/wiki/tag/${tag}`}
-                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm px-3 py-1 rounded-full transition"
-              >
-                #{tag}
-              </a>
-            ))}
+            {allTags.map(
+              (tag: string) => (
+                <Link
+                  key={tag}
+                  href={`/wiki/tag/${encodeURIComponent(
+                    tag
+                  )}`}
+                  className={`text-sm px-3 py-1 rounded-full transition ${
+                    pathname ===
+                    `/wiki/tag/${encodeURIComponent(
+                      tag
+                    )}`
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+                  }`}
+                >
+                  #{tag}
+                </Link>
+              )
+            )}
           </div>
         </div>
       )}
@@ -238,13 +367,25 @@ export default function WikiSidebar() {
 
           <Link
             href="/wiki/trash"
-            className={`block p-3 rounded-xl transition ${
+            className={`flex items-center justify-between p-3 rounded-xl transition ${
               pathname === "/wiki/trash"
                 ? "bg-red-600 text-white"
                 : "hover:bg-red-50 text-red-600"
             }`}
           >
-            🗑️ Papierkorb
+            <span>
+              🗑️ Papierkorb
+            </span>
+
+            <span
+              className={`text-xs px-2 py-1 rounded-full ${
+                pathname === "/wiki/trash"
+                  ? "bg-white text-red-600"
+                  : "bg-red-100 text-red-600"
+              }`}
+            >
+              {trashCount}
+            </span>
           </Link>
         </div>
       )}

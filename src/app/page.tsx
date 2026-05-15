@@ -11,6 +11,10 @@ import {
 } from "../lib/wikiStorage";
 
 import {
+  getTrashPages,
+} from "../lib/trashStorage";
+
+import {
   canCreate,
 } from "../lib/permissions";
 
@@ -32,42 +36,20 @@ export default function HomePage() {
 
     setPages(getStoredPages());
 
-    const trashData =
-      localStorage.getItem(
-        "wiki-trash"
-      );
+    setTrashPages(getTrashPages());
 
-    setTrashPages(
-      trashData
-        ? JSON.parse(trashData)
-        : []
-    );
-
-    setActivities(
-      getActivities()
-    );
+    setActivities(getActivities());
 
     function handleWikiPagesUpdated() {
       setPages(getStoredPages());
     }
 
     function handleTrashUpdated() {
-      const trashData =
-        localStorage.getItem(
-          "wiki-trash"
-        );
-
-      setTrashPages(
-        trashData
-          ? JSON.parse(trashData)
-          : []
-      );
+      setTrashPages(getTrashPages());
     }
 
     function handleActivityUpdated() {
-      setActivities(
-        getActivities()
-      );
+      setActivities(getActivities());
     }
 
     window.addEventListener(
@@ -107,9 +89,7 @@ export default function HomePage() {
     return null;
   }
 
-  function getActivityLabel(
-    type: string
-  ) {
+  function getActivityLabel(type: string) {
     if (type === "created") {
       return "Dokument erstellt";
     }
@@ -161,9 +141,7 @@ export default function HomePage() {
     return "Aktivität";
   }
 
-  function getActivityIcon(
-    type: string
-  ) {
+  function getActivityIcon(type: string) {
     if (type === "created") {
       return "📝";
     }
@@ -215,6 +193,34 @@ export default function HomePage() {
     return "📌";
   }
 
+  function parseDate(value: string) {
+    if (!value) {
+      return 0;
+    }
+
+    const parts =
+      value.split(".");
+
+    if (parts.length >= 3) {
+      const day =
+        Number(parts[0]);
+
+      const month =
+        Number(parts[1]) - 1;
+
+      const year =
+        Number(parts[2]);
+
+      return new Date(
+        year,
+        month,
+        day
+      ).getTime();
+    }
+
+    return new Date(value).getTime();
+  }
+
   const departments = [
     ...new Set(
       pages
@@ -234,6 +240,16 @@ export default function HomePage() {
       )
     ),
   ];
+
+  const latestPages = [
+    ...pages,
+  ]
+    .sort(
+      (a: any, b: any) =>
+        parseDate(b.updatedAt) -
+        parseDate(a.updatedAt)
+    )
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -356,44 +372,42 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* RECENT DOCUMENTS */}
+      {/* LATEST DOCUMENTS */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Dokumente
+          Neueste Dokumente
         </h2>
 
         <div className="mt-6 grid gap-4">
-          {pages.length === 0 && (
+          {latestPages.length === 0 && (
             <p className="text-zinc-500">
               Noch keine Dokumente vorhanden.
             </p>
           )}
 
-          {pages
-            .slice(0, 5)
-            .map((page: any) => (
-              <a
-                key={page.slug}
-                href={`/wiki/${page.slug}`}
-                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">
-                      {page.title}
-                    </p>
+          {latestPages.map((page: any) => (
+            <a
+              key={page.slug}
+              href={`/wiki/${page.slug}`}
+              className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+            >
+              <div className="flex items-center justify-between gap-6">
+                <div>
+                  <p className="font-semibold">
+                    {page.title}
+                  </p>
 
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {page.category}
-                    </p>
-                  </div>
-
-                  <p className="text-sm text-zinc-500">
-                    {page.updatedAt}
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {page.category}
                   </p>
                 </div>
-              </a>
-            ))}
+
+                <p className="text-sm text-zinc-500">
+                  {page.updatedAt}
+                </p>
+              </div>
+            </a>
+          ))}
         </div>
       </div>
 

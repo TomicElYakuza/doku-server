@@ -35,7 +35,12 @@ export default function Comments({
   const [user, setUser] =
     useState<any>(null);
 
+  const [mounted, setMounted] =
+    useState(false);
+
   useEffect(() => {
+    setMounted(true);
+
     setUser(getUser());
 
     loadComments();
@@ -44,15 +49,29 @@ export default function Comments({
       loadComments();
     }
 
+    function handleUserUpdated() {
+      setUser(getUser());
+    }
+
     window.addEventListener(
       "commentsUpdated",
       handleCommentsUpdated
+    );
+
+    window.addEventListener(
+      "userUpdated",
+      handleUserUpdated
     );
 
     return () => {
       window.removeEventListener(
         "commentsUpdated",
         handleCommentsUpdated
+      );
+
+      window.removeEventListener(
+        "userUpdated",
+        handleUserUpdated
       );
     };
   }, [slug]);
@@ -61,9 +80,16 @@ export default function Comments({
     const allComments =
       getComments();
 
-    setComments(
-      allComments[slug] || []
-    );
+    const pageComments =
+      allComments[slug];
+
+    if (!Array.isArray(pageComments)) {
+      setComments([]);
+
+      return;
+    }
+
+    setComments(pageComments);
   }
 
   function handleAddComment() {
@@ -76,6 +102,10 @@ export default function Comments({
     }
 
     if (!text.trim()) {
+      alert(
+        "Bitte einen Kommentar eingeben."
+      );
+
       return;
     }
 
@@ -83,7 +113,8 @@ export default function Comments({
       getUser();
 
     const comment = {
-      text,
+      text:
+        text.trim(),
 
       user:
         currentUser?.name ||
@@ -97,12 +128,16 @@ export default function Comments({
         new Date().toLocaleString(),
     };
 
-    saveComment(slug, comment);
+    saveComment(
+      slug,
+      comment
+    );
 
     saveActivity({
       type: "commented",
 
-      title: slug,
+      title:
+        slug,
 
       user:
         currentUser?.name ||
@@ -113,16 +148,6 @@ export default function Comments({
     });
 
     setText("");
-
-    loadComments();
-
-    window.dispatchEvent(
-      new Event("commentsUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("activityUpdated")
-    );
   }
 
   function canDeleteComment(
@@ -144,6 +169,10 @@ export default function Comments({
     const comment =
       comments[index];
 
+    if (!comment) {
+      return;
+    }
+
     if (
       !canDeleteComment(
         comment
@@ -164,12 +193,16 @@ export default function Comments({
       return;
     }
 
-    deleteComment(slug, index);
+    deleteComment(
+      slug,
+      index
+    );
 
     saveActivity({
       type: "commentDeleted",
 
-      title: slug,
+      title:
+        slug,
 
       user:
         getUser()?.name ||
@@ -178,16 +211,10 @@ export default function Comments({
       createdAt:
         new Date().toLocaleString(),
     });
+  }
 
-    loadComments();
-
-    window.dispatchEvent(
-      new Event("commentsUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("activityUpdated")
-    );
+  if (!mounted) {
+    return null;
   }
 
   return (
@@ -201,13 +228,13 @@ export default function Comments({
       </p>
 
       {/* COMMENT FORM */}
-      {canComment() && (
+      {canComment() ? (
         <div className="mt-6">
           <textarea
             value={text}
-            onChange={(e) =>
+            onChange={(event) =>
               setText(
-                e.target.value
+                event.target.value
               )
             }
             rows={4}
@@ -221,6 +248,12 @@ export default function Comments({
           >
             Kommentar speichern
           </button>
+        </div>
+      ) : (
+        <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
+          <p className="text-sm text-zinc-500">
+            Du hast keine Berechtigung zum Kommentieren.
+          </p>
         </div>
       )}
 
@@ -238,23 +271,25 @@ export default function Comments({
             index: number
           ) => (
             <div
-              key={index}
+              key={`${comment.createdAt || "comment"}-${index}`}
               className="border border-zinc-200 rounded-2xl p-5"
             >
               <div className="flex items-start justify-between gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold shrink-0">
                     {comment.user?.charAt(0) ||
                       "?"}
                   </div>
 
-                  <div>
-                    <p className="font-semibold">
-                      {comment.user}
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">
+                      {comment.user ||
+                        "Unbekannt"}
                     </p>
 
                     <p className="text-sm text-zinc-500 mt-1">
-                      {comment.createdAt}
+                      {comment.createdAt ||
+                        "Unbekannt"}
                     </p>
 
                     {comment.role && (
@@ -274,15 +309,16 @@ export default function Comments({
                         index
                       )
                     }
-                    className="text-sm text-red-600 hover:text-red-500"
+                    className="text-sm text-red-600 hover:text-red-500 shrink-0"
                   >
                     Löschen
                   </button>
                 )}
               </div>
 
-              <p className="mt-4 text-zinc-700 whitespace-pre-wrap">
-                {comment.text}
+              <p className="mt-4 text-zinc-700 whitespace-pre-wrap break-words">
+                {comment.text ||
+                  "Kein Text"}
               </p>
             </div>
           )

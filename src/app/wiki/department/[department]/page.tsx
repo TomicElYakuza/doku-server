@@ -13,8 +13,13 @@ import {
 export default function DepartmentPage() {
   const params = useParams();
 
-  const department =
+  const departmentParam =
     params.department as string;
+
+  const decodedDepartment =
+    decodeURIComponent(
+      departmentParam
+    );
 
   const [mounted, setMounted] =
     useState(false);
@@ -28,11 +33,6 @@ export default function DepartmentPage() {
     const allPages =
       getStoredPages();
 
-    const decodedDepartment =
-      decodeURIComponent(
-        department
-      );
-
     const filteredPages =
       allPages.filter(
         (page: any) =>
@@ -41,17 +41,15 @@ export default function DepartmentPage() {
       );
 
     setPages(filteredPages);
-  }, [department]);
+  }, [decodedDepartment]);
 
   if (!mounted) {
     return null;
   }
 
-  const decodedDepartment =
-    decodeURIComponent(department);
-
   return (
     <div className="space-y-6">
+      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -77,6 +75,7 @@ export default function DepartmentPage() {
         </span>
       </div>
 
+      {/* BACK BUTTON */}
       <div>
         <Link
           href="/wiki"
@@ -86,6 +85,7 @@ export default function DepartmentPage() {
         </Link>
       </div>
 
+      {/* HEADER */}
       <div>
         <p className="text-zinc-500">
           Abteilung
@@ -100,6 +100,7 @@ export default function DepartmentPage() {
         </p>
       </div>
 
+      {/* EMPTY */}
       {pages.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
           <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
@@ -127,12 +128,12 @@ export default function DepartmentPage() {
         </div>
       )}
 
+      {/* DOCUMENTS */}
       <div className="grid gap-4">
         {pages.map(
           (page: any) => (
-            <Link
+            <div
               key={page.slug}
-              href={`/wiki/${page.slug}`}
               className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
             >
               <div className="flex items-center justify-between">
@@ -145,20 +146,28 @@ export default function DepartmentPage() {
                 </span>
               </div>
 
-              <h2 className="text-xl font-semibold mt-3">
-                {page.title}
-              </h2>
+              <Link
+                href={`/wiki/${page.slug}`}
+                className="block mt-3"
+              >
+                <h2 className="text-xl font-semibold hover:underline">
+                  {page.title}
+                </h2>
+              </Link>
 
               <p className="text-zinc-600 mt-2">
                 {page.description}
               </p>
 
+              {/* TAGS */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {page.tags?.map(
                   (tag: string) => (
                     <Link
                       key={tag}
-                      href={`/wiki/tag/${tag}`}
+                      href={`/wiki/tag/${encodeURIComponent(
+                        tag
+                      )}`}
                       className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
                     >
                       #{tag}
@@ -167,6 +176,7 @@ export default function DepartmentPage() {
                 )}
               </div>
 
+              {/* META */}
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
                 <p className="text-sm text-zinc-500">
                   {page.author}
@@ -176,7 +186,7 @@ export default function DepartmentPage() {
                   {page.updatedAt}
                 </p>
               </div>
-            </Link>
+            </div>
           )
         )}
       </div>

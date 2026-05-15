@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
 
-import { useRouter } from "next/navigation";
+import {
+  useRouter,
+} from "next/navigation";
 
 import ReactMarkdown from "react-markdown";
-
-import FileUpload from "../../../components/wiki/FileUpload";
-
-import FileList from "../../../components/wiki/FileList";
 
 import {
   getStoredPages,
@@ -18,25 +16,23 @@ import {
 } from "../../../lib/wikiStorage";
 
 import {
-  getUser,
-} from "../../../lib/userStorage";
-
-import {
   saveActivity,
 } from "../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../lib/userStorage";
 
 import {
   canCreate,
 } from "../../../lib/permissions";
 
+import FileUpload from "../../../components/wiki/FileUpload";
+
+import FileList from "../../../components/wiki/FileList";
+
 export default function CreateWikiPage() {
   const router = useRouter();
-
-  const [mounted, setMounted] =
-    useState(false);
-
-  const [allowed, setAllowed] =
-    useState(false);
 
   const [title, setTitle] =
     useState("");
@@ -47,58 +43,73 @@ export default function CreateWikiPage() {
   const [description, setDescription] =
     useState("");
 
+  const [content, setContent] =
+    useState("");
+
   const [tags, setTags] =
     useState("");
 
-  const [content, setContent] =
-    useState(`# Neue Dokumentation
+  const [createdSlug, setCreatedSlug] =
+    useState("");
 
-## Einleitung
-
-Dokumentation hier schreiben...
-`);
-
-  useEffect(() => {
-    setMounted(true);
-
-    setAllowed(canCreate());
-  }, []);
-
-  const slug = title
-    .toLowerCase()
-    .trim()
-    .replaceAll(" ", "-")
-    .replace(/[^\w-]/g, "");
+  function createSlug(value: string) {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
 
   function handleCreate() {
-    if (!allowed) {
+    if (!canCreate()) {
       alert(
-        "Du hast keine Berechtigung, Dokumente zu erstellen."
+        "Du hast keine Berechtigung, eine Seite zu erstellen."
       );
 
       return;
     }
 
     if (!title.trim()) {
-      alert("Bitte einen Titel eingeben.");
+      alert(
+        "Bitte einen Titel eingeben."
+      );
 
       return;
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie eingeben.");
+      alert(
+        "Bitte eine Kategorie / Abteilung eingeben."
+      );
 
       return;
     }
 
-    const pages = getStoredPages();
+    const pages =
+      getStoredPages();
 
-    const pageExists = pages.some(
-      (page: any) =>
-        page.slug === slug
-    );
+    const slug =
+      createSlug(title);
 
-    if (pageExists) {
+    if (!slug) {
+      alert(
+        "Aus dem Titel konnte kein gültiger Slug erstellt werden."
+      );
+
+      return;
+    }
+
+    const exists =
+      pages.some(
+        (page: any) =>
+          page.slug === slug
+      );
+
+    if (exists) {
       alert(
         "Eine Seite mit diesem Titel existiert bereits."
       );
@@ -106,17 +117,23 @@ Dokumentation hier schreiben...
       return;
     }
 
+    const user =
+      getUser();
+
     const newPage = {
       slug,
 
-      title,
+      title:
+        title.trim(),
 
-      category,
+      category:
+        category.trim(),
 
-      description,
+      description:
+        description.trim(),
 
       author:
-        getUser()?.name ||
+        user?.name ||
         "Unbekannt",
 
       updatedAt:
@@ -129,41 +146,37 @@ Dokumentation hier schreiben...
         )
         .filter(Boolean),
 
-      content,
+      content:
+        content.trim(),
     };
 
-    const updatedPages = [
-      ...pages,
+    savePages([
       newPage,
-    ];
-
-    savePages(updatedPages);
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
+      ...pages,
+    ]);
 
     saveActivity({
       type: "created",
 
-      title,
+      title:
+        newPage.title,
 
       user:
-        getUser()?.name ||
+        user?.name ||
         "Unbekannt",
 
       createdAt:
         new Date().toLocaleString(),
     });
 
-    router.push(`/wiki/${slug}`);
+    setCreatedSlug(slug);
+
+    router.push(
+      `/wiki/${slug}`
+    );
   }
 
-  if (!mounted) {
-    return null;
-  }
-
-  if (!allowed) {
+  if (!canCreate()) {
     return (
       <div className="max-w-2xl">
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
@@ -186,6 +199,12 @@ Dokumentation hier schreiben...
     );
   }
 
+  const previewSlug =
+    createSlug(title);
+
+  const uploadSlug =
+    createdSlug || previewSlug;
+
   return (
     <div className="space-y-6">
       {/* TOP NAV */}
@@ -202,7 +221,7 @@ Dokumentation hier schreiben...
         </span>
 
         <span className="text-zinc-900">
-          neue seite
+          erstellen
         </span>
       </div>
 
@@ -225,7 +244,7 @@ Dokumentation hier schreiben...
             </h1>
 
             <p className="text-zinc-500 mt-2">
-              Dokument erstellen
+              Erstelle ein neues Dokument
             </p>
           </div>
 
@@ -239,18 +258,21 @@ Dokumentation hier schreiben...
               <input
                 type="text"
                 value={title}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTitle(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="VPN Einrichtung"
+                placeholder="z. B. VPN einrichten"
               />
 
-              {slug && (
+              {previewSlug && (
                 <p className="text-sm text-zinc-500 mt-2">
-                  URL: /wiki/{slug}
+                  Slug:{" "}
+                  <span className="font-mono">
+                    {previewSlug}
+                  </span>
                 </p>
               )}
             </div>
@@ -264,13 +286,13 @@ Dokumentation hier schreiben...
               <input
                 type="text"
                 value={category}
-                onChange={(e) =>
+                onChange={(event) =>
                   setCategory(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="IT"
+                placeholder="z. B. IT"
               />
             </div>
 
@@ -283,9 +305,9 @@ Dokumentation hier schreiben...
               <input
                 type="text"
                 value={description}
-                onChange={(e) =>
+                onChange={(event) =>
                   setDescription(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -296,18 +318,19 @@ Dokumentation hier schreiben...
             {/* INHALT */}
             <div>
               <label className="block mb-2 font-medium">
-                Inhalt (Markdown)
+                Inhalt
               </label>
 
               <textarea
                 value={content}
-                onChange={(e) =>
+                onChange={(event) =>
                   setContent(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 rows={20}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
+                placeholder="# Überschrift&#10;&#10;Inhalt der Wiki-Seite..."
               />
             </div>
 
@@ -320,9 +343,9 @@ Dokumentation hier schreiben...
               <input
                 type="text"
                 value={tags}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTags(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -335,21 +358,23 @@ Dokumentation hier schreiben...
             </div>
 
             {/* FILES */}
-            {slug && (
-              <div className="space-y-4">
-                <FileUpload slug={slug} />
+            {uploadSlug ? (
+              <>
+                <FileUpload slug={uploadSlug} />
 
                 <FileList
-                  slug={slug}
+                  slug={uploadSlug}
                   editable={true}
                 />
-              </div>
-            )}
-
-            {!slug && (
+              </>
+            ) : (
               <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-                <p className="text-zinc-500">
-                  Dateien können hochgeladen werden, sobald ein Titel vergeben wurde.
+                <h3 className="font-semibold">
+                  Anhänge
+                </h3>
+
+                <p className="text-sm text-zinc-500 mt-2">
+                  Gib zuerst einen Titel ein, damit Dateien einem Slug zugeordnet werden können.
                 </p>
               </div>
             )}
@@ -360,7 +385,7 @@ Dokumentation hier schreiben...
                 onClick={handleCreate}
                 className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
               >
-                Dokument erstellen
+                Seite erstellen
               </button>
 
               <Link
@@ -387,7 +412,8 @@ Dokumentation hier schreiben...
 
           <article className="prose prose-zinc max-w-none">
             <ReactMarkdown>
-              {content}
+              {content ||
+                "Noch kein Inhalt vorhanden."}
             </ReactMarkdown>
           </article>
         </div>

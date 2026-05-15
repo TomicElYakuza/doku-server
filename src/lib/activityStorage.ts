@@ -27,6 +27,33 @@ export function getActivities() {
   }
 }
 
+export function saveActivities(
+  activities: any[]
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const safeActivities =
+    Array.isArray(activities)
+      ? activities
+      : [];
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      safeActivities.slice(
+        0,
+        MAX_ACTIVITIES
+      )
+    )
+  );
+
+  window.dispatchEvent(
+    new Event("activityUpdated")
+  );
+}
+
 export function saveActivity(
   activity: any
 ) {
@@ -34,11 +61,22 @@ export function saveActivity(
     return;
   }
 
+  if (!activity) {
+    return;
+  }
+
   const activities =
     getActivities();
 
   const newActivity = {
-    ...activity,
+    type:
+      activity.type || "unknown",
+
+    title:
+      activity.title || "Ohne Titel",
+
+    user:
+      activity.user || "Unbekannt",
 
     createdAt:
       activity.createdAt ||
@@ -48,15 +86,13 @@ export function saveActivity(
   const updatedActivities = [
     newActivity,
     ...activities,
-  ].slice(0, MAX_ACTIVITIES);
-
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedActivities)
+  ].slice(
+    0,
+    MAX_ACTIVITIES
   );
 
-  window.dispatchEvent(
-    new Event("activityUpdated")
+  saveActivities(
+    updatedActivities
   );
 }
 
@@ -65,7 +101,9 @@ export function clearActivities() {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
 
   window.dispatchEvent(
     new Event("activityUpdated")

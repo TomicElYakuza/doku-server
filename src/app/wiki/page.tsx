@@ -24,6 +24,14 @@ import {
   getFavorites,
 } from "../../lib/favoritesStorage";
 
+import {
+  getComments,
+} from "../../lib/commentStorage";
+
+import {
+  getFiles,
+} from "../../lib/fileStorage";
+
 export default function WikiPage() {
   const [search, setSearch] =
     useState("");
@@ -76,21 +84,9 @@ export default function WikiPage() {
   }
 
   function loadMetaData() {
-    setComments(
-      JSON.parse(
-        localStorage.getItem(
-          "wiki-comments"
-        ) || "{}"
-      )
-    );
+    setComments(getComments());
 
-    setFiles(
-      JSON.parse(
-        localStorage.getItem(
-          "wiki-files"
-        ) || "{}"
-      )
-    );
+    setFiles(getFiles());
 
     setVersions(getVersions());
   }
@@ -271,7 +267,13 @@ export default function WikiPage() {
     (
       acc: number,
       current: any
-    ) => acc + current.length,
+    ) => {
+      if (Array.isArray(current)) {
+        return acc + current.length;
+      }
+
+      return acc;
+    },
     0
   );
 
@@ -450,7 +452,7 @@ export default function WikiPage() {
         </div>
       </div>
 
-      {/* FILTER CARD */}
+      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-semibold">
@@ -522,9 +524,9 @@ export default function WikiPage() {
             type="text"
             placeholder="Dokumente, Tags, Autoren oder Inhalte suchen..."
             value={search}
-            onChange={(e) =>
+            onChange={(event) =>
               setSearch(
-                e.target.value
+                event.target.value
               )
             }
             className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -532,9 +534,9 @@ export default function WikiPage() {
 
           <select
             value={departmentFilter}
-            onChange={(e) =>
+            onChange={(event) =>
               setDepartmentFilter(
-                e.target.value
+                event.target.value
               )
             }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -557,9 +559,9 @@ export default function WikiPage() {
 
           <select
             value={tagFilter}
-            onChange={(e) =>
+            onChange={(event) =>
               setTagFilter(
-                e.target.value
+                event.target.value
               )
             }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -580,9 +582,9 @@ export default function WikiPage() {
 
           <select
             value={sortBy}
-            onChange={(e) =>
+            onChange={(event) =>
               setSortBy(
-                e.target.value
+                event.target.value
               )
             }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -638,15 +640,19 @@ export default function WikiPage() {
         <div className="grid gap-4">
           {sortedPages.map(
             (page: any) => (
-              <Link
+              <div
                 key={page.slug}
-                href={`/wiki/${page.slug}`}
                 className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-zinc-500">
+                  <Link
+                    href={`/wiki/department/${encodeURIComponent(
+                      page.category
+                    )}`}
+                    className="text-sm text-zinc-500 hover:text-zinc-900 transition"
+                  >
                     {page.category}
-                  </p>
+                  </Link>
 
                   <div className="flex items-center gap-2">
                     {favorites.includes(
@@ -663,9 +669,14 @@ export default function WikiPage() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-semibold mt-3">
-                  {page.title}
-                </h2>
+                <Link
+                  href={`/wiki/${page.slug}`}
+                  className="block mt-3"
+                >
+                  <h2 className="text-xl font-semibold hover:underline">
+                    {page.title}
+                  </h2>
+                </Link>
 
                 <p className="text-zinc-600 mt-2">
                   {page.description}
@@ -674,12 +685,15 @@ export default function WikiPage() {
                 <div className="flex flex-wrap gap-2 mt-4">
                   {page.tags?.map(
                     (tag: string) => (
-                      <span
+                      <Link
                         key={tag}
-                        className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                        href={`/wiki/tag/${encodeURIComponent(
+                          tag
+                        )}`}
+                        className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
                       >
                         #{tag}
-                      </span>
+                      </Link>
                     )
                   )}
                 </div>
@@ -731,7 +745,7 @@ export default function WikiPage() {
                     {page.updatedAt}
                   </p>
                 </div>
-              </Link>
+              </div>
             )
           )}
         </div>
@@ -798,7 +812,14 @@ export default function WikiPage() {
                     </td>
 
                     <td className="px-5 py-4 text-zinc-600">
-                      {page.category}
+                      <Link
+                        href={`/wiki/department/${encodeURIComponent(
+                          page.category
+                        )}`}
+                        className="hover:underline"
+                      >
+                        {page.category}
+                      </Link>
                     </td>
 
                     <td className="px-5 py-4">
@@ -807,12 +828,15 @@ export default function WikiPage() {
                           (
                             tag: string
                           ) => (
-                            <span
+                            <Link
                               key={tag}
-                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                              href={`/wiki/tag/${encodeURIComponent(
+                                tag
+                              )}`}
+                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
                             >
                               #{tag}
-                            </span>
+                            </Link>
                           )
                         )}
                       </div>

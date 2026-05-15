@@ -21,10 +21,38 @@ export function getRecentPages() {
       return [];
     }
 
-    return parsed.slice(0, MAX_RECENT);
+    return parsed
+      .filter(Boolean)
+      .slice(0, MAX_RECENT);
   } catch {
     return [];
   }
+}
+
+export function saveRecentPages(
+  slugs: string[]
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const safeSlugs =
+    Array.isArray(slugs)
+      ? slugs.filter(Boolean)
+      : [];
+
+  const uniqueSlugs = [
+    ...new Set(safeSlugs),
+  ].slice(0, MAX_RECENT);
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(uniqueSlugs)
+  );
+
+  window.dispatchEvent(
+    new Event("recentUpdated")
+  );
 }
 
 export function saveRecentPage(
@@ -43,22 +71,24 @@ export function saveRecentPage(
 
   const updatedRecent = [
     slug,
+
     ...recentPages.filter(
       (item: string) =>
         item !== slug
     ),
   ].slice(0, MAX_RECENT);
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedRecent)
-  );
+  saveRecentPages(updatedRecent);
 }
 
 export function removeRecentPage(
   slug: string
 ) {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!slug) {
     return;
   }
 
@@ -71,10 +101,7 @@ export function removeRecentPage(
         item !== slug
     );
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(updatedRecent)
-  );
+  saveRecentPages(updatedRecent);
 }
 
 export function clearRecentPages() {
@@ -82,5 +109,11 @@ export function clearRecentPages() {
     return;
   }
 
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("recentUpdated")
+  );
 }

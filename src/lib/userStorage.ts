@@ -13,7 +13,17 @@ export function getUser() {
   }
 
   try {
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -24,9 +34,29 @@ export function saveUser(user: any) {
     return;
   }
 
+  if (
+    !user ||
+    typeof user !== "object" ||
+    Array.isArray(user)
+  ) {
+    return;
+  }
+
+  const safeUser = {
+    name:
+      user.name || "Unbekannt",
+
+    role:
+      user.role || "viewer",
+
+    updatedAt:
+      user.updatedAt ||
+      new Date().toLocaleString(),
+  };
+
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(user)
+    JSON.stringify(safeUser)
   );
 
   window.dispatchEvent(

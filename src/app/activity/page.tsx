@@ -51,9 +51,7 @@ export default function ActivityPage() {
     return null;
   }
 
-  function getActivityLabel(
-    type: string
-  ) {
+  function getActivityLabel(type: string) {
     if (type === "created") {
       return "Dokument erstellt";
     }
@@ -105,9 +103,7 @@ export default function ActivityPage() {
     return "Aktivität";
   }
 
-  function getActivityIcon(
-    type: string
-  ) {
+  function getActivityIcon(type: string) {
     if (type === "created") {
       return "📝";
     }
@@ -161,10 +157,12 @@ export default function ActivityPage() {
 
   const activityTypes = [
     ...new Set(
-      activities.map(
-        (activity: any) =>
-          activity.type
-      )
+      activities
+        .map(
+          (activity: any) =>
+            activity.type
+        )
+        .filter(Boolean)
     ),
   ];
 
@@ -174,6 +172,11 @@ export default function ActivityPage() {
         const query =
           search.toLowerCase();
 
+        const label =
+          getActivityLabel(
+            activity.type
+          );
+
         const matchesSearch =
           activity.title
             ?.toLowerCase()
@@ -181,9 +184,10 @@ export default function ActivityPage() {
           activity.user
             ?.toLowerCase()
             .includes(query) ||
-          getActivityLabel(
-            activity.type
-          )
+          activity.createdAt
+            ?.toLowerCase()
+            .includes(query) ||
+          label
             .toLowerCase()
             .includes(query);
 
@@ -288,11 +292,11 @@ export default function ActivityPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Nach Benutzer, Titel oder Aktion suchen..."
+            placeholder="Nach Benutzer, Titel, Datum oder Aktion suchen..."
             value={search}
-            onChange={(e) =>
+            onChange={(event) =>
               setSearch(
-                e.target.value
+                event.target.value
               )
             }
             className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -300,9 +304,9 @@ export default function ActivityPage() {
 
           <select
             value={typeFilter}
-            onChange={(e) =>
+            onChange={(event) =>
               setTypeFilter(
-                e.target.value
+                event.target.value
               )
             }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -361,19 +365,20 @@ export default function ActivityPage() {
               index: number
             ) => (
               <div
-                key={index}
-                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
+                key={`${activity.createdAt}-${activity.type}-${index}`}
+                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0 gap-6"
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
                     {getActivityIcon(
                       activity.type
                     )}
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">
-                      {activity.user}
+                      {activity.user ||
+                        "Unbekannt"}
                     </p>
 
                     <p className="text-zinc-500 text-sm mt-1">
@@ -382,14 +387,16 @@ export default function ActivityPage() {
                       )}
                     </p>
 
-                    <p className="mt-2 font-medium">
-                      {activity.title}
+                    <p className="mt-2 font-medium break-words">
+                      {activity.title ||
+                        "Ohne Titel"}
                     </p>
                   </div>
                 </div>
 
                 <p className="text-sm text-zinc-500 whitespace-nowrap">
-                  {activity.createdAt}
+                  {activity.createdAt ||
+                    "Unbekannt"}
                 </p>
               </div>
             )

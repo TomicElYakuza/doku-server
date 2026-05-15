@@ -73,14 +73,19 @@ export default function EditWikiPage() {
   useEffect(() => {
     setMounted(true);
 
-    setAllowed(canEdit());
+    const editAllowed =
+      canEdit();
 
-    const pages = getStoredPages();
+    setAllowed(editAllowed);
 
-    const page = pages.find(
-      (page: any) =>
-        page.slug === slug
-    );
+    const pages =
+      getStoredPages();
+
+    const page =
+      pages.find(
+        (page: any) =>
+          page.slug === slug
+      );
 
     if (!page) {
       setPageFound(false);
@@ -92,15 +97,15 @@ export default function EditWikiPage() {
 
     setPageFound(true);
 
-    setTitle(page.title);
+    setTitle(page.title || "");
 
-    setCategory(page.category);
+    setCategory(page.category || "");
 
     setDescription(
       page.description || ""
     );
 
-    setContent(page.content);
+    setContent(page.content || "");
 
     setTags(
       page.tags?.join(", ") || ""
@@ -118,21 +123,42 @@ export default function EditWikiPage() {
       return;
     }
 
-    const pages = getStoredPages();
+    if (!title.trim()) {
+      alert(
+        "Bitte einen Titel eingeben."
+      );
 
-    const existingPage = pages.find(
-      (page: any) =>
-        page.slug === slug
-    );
+      return;
+    }
+
+    if (!category.trim()) {
+      alert(
+        "Bitte eine Kategorie / Abteilung eingeben."
+      );
+
+      return;
+    }
+
+    const pages =
+      getStoredPages();
+
+    const existingPage =
+      pages.find(
+        (page: any) =>
+          page.slug === slug
+      );
 
     if (!existingPage) {
-      alert("Dokument nicht gefunden.");
+      alert(
+        "Dokument nicht gefunden."
+      );
 
       return;
     }
 
     saveVersion(slug, {
-      title: existingPage.title,
+      title:
+        existingPage.title,
 
       category:
         existingPage.category,
@@ -140,10 +166,11 @@ export default function EditWikiPage() {
       description:
         existingPage.description,
 
-      tags: existingPage.tags,
+      tags:
+        existingPage.tags || [],
 
       content:
-        existingPage.content,
+        existingPage.content || "",
 
       updatedAt:
         existingPage.updatedAt,
@@ -152,8 +179,8 @@ export default function EditWikiPage() {
         new Date().toLocaleString(),
     });
 
-    const updatedPages = pages.map(
-      (page: any) => {
+    const updatedPages =
+      pages.map((page: any) => {
         if (page.slug !== slug) {
           return page;
         }
@@ -161,11 +188,14 @@ export default function EditWikiPage() {
         return {
           ...page,
 
-          title,
+          title:
+            title.trim(),
 
-          category,
+          category:
+            category.trim(),
 
-          description,
+          description:
+            description.trim(),
 
           tags: tags
             .split(",")
@@ -174,24 +204,21 @@ export default function EditWikiPage() {
             )
             .filter(Boolean),
 
-          content,
+          content:
+            content.trim(),
 
           updatedAt:
             new Date().toLocaleDateString(),
         };
-      }
-    );
+      });
 
     savePages(updatedPages);
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
 
     saveActivity({
       type: "edited",
 
-      title,
+      title:
+        title.trim(),
 
       user:
         getUser()?.name ||
@@ -201,7 +228,9 @@ export default function EditWikiPage() {
         new Date().toLocaleString(),
     });
 
-    router.push(`/wiki/${slug}`);
+    router.push(
+      `/wiki/${slug}`
+    );
   }
 
   if (!mounted || !pageChecked) {
@@ -353,9 +382,9 @@ export default function EditWikiPage() {
               <input
                 type="text"
                 value={title}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTitle(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -371,9 +400,9 @@ export default function EditWikiPage() {
               <input
                 type="text"
                 value={category}
-                onChange={(e) =>
+                onChange={(event) =>
                   setCategory(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -389,9 +418,9 @@ export default function EditWikiPage() {
               <input
                 type="text"
                 value={description}
-                onChange={(e) =>
+                onChange={(event) =>
                   setDescription(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -399,7 +428,7 @@ export default function EditWikiPage() {
               />
             </div>
 
-            {/* CONTENT */}
+            {/* INHALT */}
             <div>
               <label className="block mb-2 font-medium">
                 Inhalt
@@ -407,9 +436,9 @@ export default function EditWikiPage() {
 
               <textarea
                 value={content}
-                onChange={(e) =>
+                onChange={(event) =>
                   setContent(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 rows={20}
@@ -426,9 +455,9 @@ export default function EditWikiPage() {
               <input
                 type="text"
                 value={tags}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTags(
-                    e.target.value
+                    event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
@@ -440,10 +469,9 @@ export default function EditWikiPage() {
               </p>
             </div>
 
-            {/* FILE UPLOAD */}
+            {/* FILES */}
             <FileUpload slug={slug} />
 
-            {/* FILE LIST */}
             <FileList
               slug={slug}
               editable={true}
@@ -482,7 +510,8 @@ export default function EditWikiPage() {
 
           <article className="prose prose-zinc max-w-none">
             <ReactMarkdown>
-              {content}
+              {content ||
+                "Noch kein Inhalt vorhanden."}
             </ReactMarkdown>
           </article>
         </div>

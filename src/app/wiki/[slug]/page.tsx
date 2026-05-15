@@ -20,6 +20,10 @@ import {
 } from "../../../lib/wikiStorage";
 
 import {
+  addTrashPage,
+} from "../../../lib/trashStorage";
+
+import {
   getFavorites,
   saveFavorites,
   removeFavorite,
@@ -63,15 +67,54 @@ export default function WikiDetailPage() {
   useEffect(() => {
     setMounted(true);
 
-    setFavorites(getFavorites());
+    loadPage();
 
+    loadFavorites();
+
+    function handleFavoritesUpdated() {
+      loadFavorites();
+    }
+
+    function handleWikiPagesUpdated() {
+      loadPage();
+    }
+
+    window.addEventListener(
+      "favoritesUpdated",
+      handleFavoritesUpdated
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "favoritesUpdated",
+        handleFavoritesUpdated
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+    };
+  }, [slug]);
+
+  function loadFavorites() {
+    setFavorites(getFavorites());
+  }
+
+  function loadPage() {
     const allPages =
       getStoredPages();
 
-    const foundPage = allPages.find(
-      (item: any) =>
-        item.slug === slug
-    );
+    const foundPage =
+      allPages.find(
+        (item: any) =>
+          item.slug === slug
+      );
 
     setPage(foundPage || null);
 
@@ -79,19 +122,16 @@ export default function WikiDetailPage() {
 
     if (foundPage) {
       saveRecentPage(slug);
-
-      window.dispatchEvent(
-        new Event("recentUpdated")
-      );
     }
-  }, [slug]);
+  }
 
   function toggleFavorite() {
     let updated = [...favorites];
 
     if (updated.includes(slug)) {
       updated = updated.filter(
-        (fav) => fav !== slug
+        (favoriteSlug) =>
+          favoriteSlug !== slug
       );
     } else {
       updated.push(slug);
@@ -100,10 +140,6 @@ export default function WikiDetailPage() {
     setFavorites(updated);
 
     saveFavorites(updated);
-
-    window.dispatchEvent(
-      new Event("favoritesUpdated")
-    );
   }
 
   function handleDeleteDocument() {
@@ -148,32 +184,7 @@ export default function WikiDetailPage() {
       return;
     }
 
-    const currentTrash = JSON.parse(
-      localStorage.getItem("wiki-trash") ||
-        "[]"
-    );
-
-    const trashPage = {
-      ...pageToDelete,
-
-      deletedAt:
-        new Date().toLocaleString(),
-    };
-
-    const updatedTrash = [
-      trashPage,
-
-      ...currentTrash.filter(
-        (item: any) =>
-          item.slug !==
-          pageToDelete.slug
-      ),
-    ];
-
-    localStorage.setItem(
-      "wiki-trash",
-      JSON.stringify(updatedTrash)
-    );
+    addTrashPage(pageToDelete);
 
     const updatedPages =
       allPages.filter(
@@ -190,22 +201,6 @@ export default function WikiDetailPage() {
 
     removeRecentPage(
       pageToDelete.slug
-    );
-
-    window.dispatchEvent(
-      new Event("trashUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("favoritesUpdated")
-    );
-
-    window.dispatchEvent(
-      new Event("recentUpdated")
     );
 
     saveActivity({
@@ -304,7 +299,9 @@ export default function WikiDetailPage() {
           </span>
 
           <Link
-            href={`/wiki/department/${page.category}`}
+            href={`/wiki/department/${encodeURIComponent(
+              page.category
+            )}`}
             className="text-zinc-500 hover:text-zinc-900 transition"
           >
             {page.category}
@@ -344,7 +341,9 @@ export default function WikiDetailPage() {
                   (tag: string) => (
                     <Link
                       key={tag}
-                      href={`/wiki/tag/${tag}`}
+                      href={`/wiki/tag/${encodeURIComponent(
+                        tag
+                      )}`}
                       className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
                     >
                       #{tag}
