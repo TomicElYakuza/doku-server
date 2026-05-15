@@ -1,0 +1,295 @@
+"use client";
+
+import Link from "next/link";
+
+import { useEffect, useState } from "react";
+
+import {
+  getStoredPages,
+  savePages,
+} from "../../../lib/wikiStorage";
+
+import {
+  saveActivity,
+} from "../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../lib/userStorage";
+
+import {
+  isAdmin,
+} from "../../../lib/permissions";
+
+export default function TrashPage() {
+  const [mounted, setMounted] =
+    useState(false);
+
+  const [trashPages, setTrashPages] =
+    useState<any[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+
+    loadTrash();
+  }, []);
+
+  function loadTrash() {
+    const data =
+      localStorage.getItem(
+        "wiki-trash"
+      );
+
+    const pages = data
+      ? JSON.parse(data)
+      : [];
+
+    setTrashPages(pages);
+  }
+
+  function saveTrash(
+    pages: any[]
+  ) {
+    localStorage.setItem(
+      "wiki-trash",
+      JSON.stringify(pages)
+    );
+
+    setTrashPages(pages);
+  }
+
+  function restorePage(page: any) {
+    if (!isAdmin()) {
+      alert(
+        "Nur Admins dürfen Dokumente wiederherstellen."
+      );
+
+      return;
+    }
+
+    const confirmed = confirm(
+      "Dokument wirklich wiederherstellen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const pages = getStoredPages();
+
+    const pageExists = pages.some(
+      (item: any) =>
+        item.slug === page.slug
+    );
+
+    if (pageExists) {
+      alert(
+        "Ein Dokument mit diesem Slug existiert bereits."
+      );
+
+      return;
+    }
+
+    const restoredPage = {
+      ...page,
+      updatedAt:
+        new Date().toLocaleDateString(),
+    };
+
+    delete restoredPage.deletedAt;
+
+    savePages([
+      ...pages,
+      restoredPage,
+    ]);
+
+    const updatedTrash =
+      trashPages.filter(
+        (item: any) =>
+          item.slug !== page.slug
+      );
+
+    saveTrash(updatedTrash);
+
+    saveActivity({
+      type: "restored",
+      title: page.title,
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+      createdAt:
+        new Date().toLocaleString(),
+    });
+  }
+
+  function deleteForever(page: any) {
+    if (!isAdmin()) {
+      alert(
+        "Nur Admins dürfen Dokumente endgültig löschen."
+      );
+
+      return;
+    }
+
+    const confirmed = confirm(
+      "Dokument endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const updatedTrash =
+      trashPages.filter(
+        (item: any) =>
+          item.slug !== page.slug
+      );
+
+    saveTrash(updatedTrash);
+
+    saveActivity({
+      type: "deletedForever",
+      title: page.title,
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+      createdAt:
+        new Date().toLocaleString(),
+    });
+  }
+
+  if (!mounted) {
+    return null;
+  }
+
+  if (!isAdmin()) {
+    return (
+      <div className="max-w-2xl">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Keine Berechtigung
+          </h1>
+
+          <p className="text-zinc-500 mt-3">
+            Nur Admins dürfen den Papierkorb öffnen.
+          </p>
+
+          <Link
+            href="/wiki"
+            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            ← Zurück zum Wiki
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* TOP NAV */}
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/wiki"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          wiki
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          papierkorb
+        </span>
+      </div>
+
+      {/* BACK */}
+      <div>
+        <Link
+          href="/wiki"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zur Übersicht
+        </Link>
+      </div>
+
+      {/* HEADER */}
+      <div>
+        <h1 className="text-4xl font-bold">
+          Papierkorb
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Gelöschte Dokumente wiederherstellen oder endgültig entfernen
+        </p>
+
+        <p className="text-sm text-zinc-400 mt-2">
+          Einträge im Papierkorb:{" "}
+          {trashPages.length}
+        </p>
+      </div>
+
+      {trashPages.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8">
+          <p className="text-zinc-500">
+            Der Papierkorb ist leer.
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        {trashPages.map(
+          (page: any) => (
+            <div
+              key={page.slug}
+              className="bg-white border border-zinc-200 rounded-3xl p-6"
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <p className="text-sm text-zinc-500">
+                    {page.category}
+                  </p>
+
+                  <h2 className="text-2xl font-bold mt-2">
+                    {page.title}
+                  </h2>
+
+                  <p className="text-zinc-600 mt-2">
+                    {page.description}
+                  </p>
+
+                  <p className="text-sm text-zinc-500 mt-4">
+                    Gelöscht am:{" "}
+                    {page.deletedAt}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3 justify-end">
+                  <button
+                    onClick={() =>
+                      restorePage(page)
+                    }
+                    className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
+                  >
+                    Wiederherstellen
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      deleteForever(page)
+                    }
+                    className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
+                  >
+                    Endgültig löschen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}

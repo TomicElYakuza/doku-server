@@ -2,32 +2,33 @@
 
 import { useEffect, useState } from "react";
 
-import Link from "next/link";
-
-import { wikiPages } from "../../data/wiki";
+import {
+  getActivities,
+} from "@/lib/activityStorage";
 
 import {
   getStoredPages,
   savePages,
-} from "../../lib/wikiStorage";
-
-import {
-  canCreate,
-} from "../../lib/permissions";
+} from "@/lib/wikiStorage";
 
 import {
   getUser,
-} from "../../lib/userStorage";
+} from "@/lib/userStorage";
 
 import {
-  getVersions,
-} from "../../lib/versionStorage";
+  canCreate,
+} from "@/lib/permissions";
 
-export default function WikiPage() {
-  const [search, setSearch] =
-    useState("");
+import { wikiPages } from "@/data/wiki";
+
+export default function HomePage() {
+  const [activities, setActivities] =
+    useState<any[]>([]);
 
   const [pages, setPages] =
+    useState<any[]>([]);
+
+  const [trashPages, setTrashPages] =
     useState<any[]>([]);
 
   const [user, setUser] =
@@ -39,15 +40,31 @@ export default function WikiPage() {
   useEffect(() => {
     setMounted(true);
 
-    const stored = getStoredPages();
+    const storedPages =
+      getStoredPages();
 
-    if (stored.length > 0) {
-      setPages(stored);
+    if (storedPages.length > 0) {
+      setPages(storedPages);
     } else {
       savePages(wikiPages);
 
       setPages(wikiPages);
     }
+
+    const trashData =
+      localStorage.getItem(
+        "wiki-trash"
+      );
+
+    setTrashPages(
+      trashData
+        ? JSON.parse(trashData)
+        : []
+    );
+
+    setActivities(
+      getActivities()
+    );
 
     setUser(getUser());
   }, []);
@@ -56,41 +73,87 @@ export default function WikiPage() {
     return null;
   }
 
-  const filteredPages = pages.filter(
-    (page: any) => {
-      const query =
-        search.toLowerCase();
-
-      return (
-        page.title
-          ?.toLowerCase()
-          .includes(query) ||
-
-        page.description
-          ?.toLowerCase()
-          .includes(query) ||
-
-        page.category
-          ?.toLowerCase()
-          .includes(query) ||
-
-        page.content
-          ?.toLowerCase()
-          .includes(query) ||
-
-        page.tags?.some((tag: string) =>
-          tag
-            .toLowerCase()
-            .includes(query)
-        )
-      );
+  function getActivityLabel(
+    type: string
+  ) {
+    if (type === "created") {
+      return "Dokument erstellt";
     }
-  );
+
+    if (type === "edited") {
+      return "Dokument bearbeitet";
+    }
+
+    if (type === "deleted") {
+      return "Dokument in Papierkorb verschoben";
+    }
+
+    if (type === "deletedForever") {
+      return "Dokument endgültig gelöscht";
+    }
+
+    if (type === "restored") {
+      return "Version oder Dokument wiederhergestellt";
+    }
+
+    if (type === "uploaded") {
+      return "Datei hochgeladen";
+    }
+
+    if (type === "commented") {
+      return "Kommentar hinzugefügt";
+    }
+
+    if (type === "commentDeleted") {
+      return "Kommentar gelöscht";
+    }
+
+    return "Aktivität";
+  }
+
+  function getActivityIcon(
+    type: string
+  ) {
+    if (type === "created") {
+      return "📝";
+    }
+
+    if (type === "edited") {
+      return "✏️";
+    }
+
+    if (type === "deleted") {
+      return "🗑️";
+    }
+
+    if (type === "deletedForever") {
+      return "❌";
+    }
+
+    if (type === "restored") {
+      return "♻️";
+    }
+
+    if (type === "uploaded") {
+      return "📎";
+    }
+
+    if (type === "commented") {
+      return "💬";
+    }
+
+    if (type === "commentDeleted") {
+      return "🧹";
+    }
+
+    return "📌";
+  }
 
   const departments = [
     ...new Set(
       pages.map(
-        (page: any) => page.category
+        (page: any) =>
+          page.category
       )
     ),
   ];
@@ -104,172 +167,238 @@ export default function WikiPage() {
     ),
   ];
 
-  const versions = getVersions();
-
-  const versionCount = (
-    Object.values(
-      versions
-    ) as any[]
-  ).reduce(
-    (acc, current) =>
-      acc + current.length,
-    0
-  );
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold">
-            Wiki
+          <h1 className="text-4xl font-bold">
+            Willkommen zurück
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Unternehmensdokumentation
+            Firmen Intranet Übersicht
           </p>
-
-          {/* USER */}
-          {user && (
-            <div className="mt-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                {user.name?.charAt(0)}
-              </div>
-
-              <div>
-                <p className="font-medium">
-                  {user.name}
-                </p>
-
-                <p className="text-sm text-zinc-500 capitalize">
-                  {user.role}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* CREATE */}
-        {canCreate() && (
-          <div>
-            <Link
-              href="/wiki/create"
-              className="inline-flex bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Neue Seite
-            </Link>
+        {user ? (
+          <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+              {user.name?.charAt(0)}
+            </div>
+
+            <div>
+              <p className="font-medium">
+                {user.name}
+              </p>
+
+              <p className="text-sm text-zinc-500 capitalize">
+                {user.role}
+              </p>
+            </div>
           </div>
+        ) : (
+          <a
+            href="/setup"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Benutzer einrichten
+          </a>
         )}
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+      {/* DASHBOARD CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <a
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {pages.length}
           </h2>
-        </div>
+        </a>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Abteilungen
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {departments.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Tags
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {tags.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <a
+          href="/wiki/trash"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Versionen
+            Papierkorb
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {versionCount}
+          <h2 className="text-4xl font-bold mt-3">
+            {trashPages.length}
+          </h2>
+        </a>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Aktivitäten
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {activities.length}
           </h2>
         </div>
       </div>
 
-      {/* SEARCH */}
-      <input
-        type="text"
-        placeholder="Dokumente, Tags oder Inhalte suchen..."
-        value={search}
-        onChange={(e) =>
-          setSearch(e.target.value)
-        }
-        className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-      />
+      {/* QUICK ACTIONS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Schnellzugriff
+        </h2>
 
-      {/* RESULTS */}
-      <div className="grid gap-4">
-        {filteredPages.map(
-          (page: any) => (
-            <Link
-              key={page.slug}
-              href={`/wiki/${page.slug}`}
-              className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+        <div className="flex flex-wrap gap-4 mt-6">
+          <a
+            href="/wiki"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Wiki öffnen
+          </a>
+
+          {canCreate() && (
+            <a
+              href="/wiki/create"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              <div className="flex items-center justify-between">
+              Dokument erstellen
+            </a>
+          )}
+
+          <a
+            href="/wiki/trash"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
+          >
+            Papierkorb öffnen
+          </a>
+
+          <a
+            href="/setup"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Benutzer Setup
+          </a>
+        </div>
+      </div>
+
+      {/* RECENT DOCUMENTS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Dokumente
+        </h2>
+
+        <div className="mt-6 grid gap-4">
+          {pages.length === 0 && (
+            <p className="text-zinc-500">
+              Noch keine Dokumente vorhanden.
+            </p>
+          )}
+
+          {pages
+            .slice(0, 5)
+            .map((page: any) => (
+              <a
+                key={page.slug}
+                href={`/wiki/${page.slug}`}
+                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">
+                      {page.title}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {page.category}
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-zinc-500">
+                    {page.updatedAt}
+                  </p>
+                </div>
+              </a>
+            ))}
+        </div>
+      </div>
+
+      {/* ACTIVITIES */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Letzte Aktivitäten
+        </h2>
+
+        <div className="mt-6 space-y-4">
+          {activities.length === 0 && (
+            <p className="text-zinc-500">
+              Noch keine Aktivitäten
+            </p>
+          )}
+
+          {activities.map(
+            (
+              activity: any,
+              index: number
+            ) => (
+              <div
+                key={index}
+                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                    {getActivityIcon(
+                      activity.type
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="font-medium">
+                      {activity.user}
+                    </p>
+
+                    <p className="text-zinc-500 text-sm mt-1">
+                      {getActivityLabel(
+                        activity.type
+                      )}
+                    </p>
+
+                    <p className="mt-2">
+                      {activity.title}
+                    </p>
+                  </div>
+                </div>
+
                 <p className="text-sm text-zinc-500">
-                  {page.category}
-                </p>
-
-                <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                  Dokument
-                </span>
-              </div>
-
-              <h2 className="text-xl font-semibold mt-3">
-                {page.title}
-              </h2>
-
-              <p className="text-zinc-600 mt-2">
-                {page.description}
-              </p>
-
-              {/* TAGS */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {page.tags?.map(
-                  (tag: string) => (
-                    <span
-                      key={tag}
-                      className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                    >
-                      #{tag}
-                    </span>
-                  )
-                )}
-              </div>
-
-              {/* META */}
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                <p className="text-sm text-zinc-500">
-                  {page.author}
-                </p>
-
-                <p className="text-sm text-zinc-500">
-                  {page.updatedAt}
+                  {activity.createdAt}
                 </p>
               </div>
-            </Link>
-          )
-        )}
+            )
+          )}
+        </div>
       </div>
     </div>
   );

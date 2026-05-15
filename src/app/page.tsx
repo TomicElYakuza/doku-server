@@ -6,13 +6,58 @@ import {
   getActivities,
 } from "../lib/activityStorage";
 
+import {
+  getStoredPages,
+  savePages,
+} from "../lib/wikiStorage";
+
+import {
+  getUser,
+} from "../lib/userStorage";
+
+import {
+  canCreate,
+} from "../lib/permissions";
+
+import { wikiPages } from "../data/wiki";
+
 export default function HomePage() {
   const [activities, setActivities] =
     useState<any[]>([]);
 
+  const [pages, setPages] =
+    useState<any[]>([]);
+
+  const [user, setUser] =
+    useState<any>(null);
+
+  const [mounted, setMounted] =
+    useState(false);
+
   useEffect(() => {
-    setActivities(getActivities());
+    setMounted(true);
+
+    const storedPages =
+      getStoredPages();
+
+    if (storedPages.length > 0) {
+      setPages(storedPages);
+    } else {
+      savePages(wikiPages);
+
+      setPages(wikiPages);
+    }
+
+    setActivities(
+      getActivities()
+    );
+
+    setUser(getUser());
   }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   function getActivityLabel(
     type: string
@@ -35,6 +80,10 @@ export default function HomePage() {
 
     if (type === "uploaded") {
       return "Datei hochgeladen";
+    }
+
+    if (type === "commented") {
+      return "Kommentar hinzugefügt";
     }
 
     return "Aktivität";
@@ -63,51 +112,110 @@ export default function HomePage() {
       return "📎";
     }
 
+    if (type === "commented") {
+      return "💬";
+    }
+
     return "📌";
   }
+
+  const departments = [
+    ...new Set(
+      pages.map(
+        (page: any) =>
+          page.category
+      )
+    ),
+  ];
+
+  const tags = [
+    ...new Set(
+      pages.flatMap(
+        (page: any) =>
+          page.tags || []
+      )
+    ),
+  ];
 
   return (
     <div className="space-y-8">
       {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Willkommen zurück
-        </h1>
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold">
+            Willkommen zurück
+          </h1>
 
-        <p className="text-zinc-500 mt-2">
-          Firmen Intranet Übersicht
-        </p>
+          <p className="text-zinc-500 mt-2">
+            Firmen Intranet Übersicht
+          </p>
+        </div>
+
+        {user ? (
+          <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+              {user.name?.charAt(0)}
+            </div>
+
+            <div>
+              <p className="font-medium">
+                {user.name}
+              </p>
+
+              <p className="text-sm text-zinc-500 capitalize">
+                {user.role}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <a
+            href="/setup"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Benutzer einrichten
+          </a>
+        )}
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Offene Tickets
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            12
-          </h2>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            248
+            {pages.length}
           </h2>
         </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            Benutzer
+            Abteilungen
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            36
+            {departments.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Tags
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {tags.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Aktivitäten
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {activities.length}
           </h2>
         </div>
       </div>
@@ -126,12 +234,14 @@ export default function HomePage() {
             Wiki öffnen
           </a>
 
-          <a
-            href="/wiki/create"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Dokument erstellen
-          </a>
+          {canCreate() && (
+            <a
+              href="/wiki/create"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Dokument erstellen
+            </a>
+          )}
 
           <a
             href="/setup"
@@ -139,6 +249,47 @@ export default function HomePage() {
           >
             Benutzer Setup
           </a>
+        </div>
+      </div>
+
+      {/* RECENT DOCUMENTS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Dokumente
+        </h2>
+
+        <div className="mt-6 grid gap-4">
+          {pages.length === 0 && (
+            <p className="text-zinc-500">
+              Noch keine Dokumente vorhanden.
+            </p>
+          )}
+
+          {pages
+            .slice(0, 5)
+            .map((page: any) => (
+              <a
+                key={page.slug}
+                href={`/wiki/${page.slug}`}
+                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">
+                      {page.title}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {page.category}
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-zinc-500">
+                    {page.updatedAt}
+                  </p>
+                </div>
+              </a>
+            ))}
         </div>
       </div>
 

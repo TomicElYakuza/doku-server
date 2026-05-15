@@ -16,6 +16,10 @@ import {
   getRecentPages,
 } from "@/lib/recentStorage";
 
+import {
+  isAdmin,
+} from "@/lib/permissions";
+
 export default function WikiSidebar() {
   const pathname = usePathname();
 
@@ -34,8 +38,13 @@ export default function WikiSidebar() {
   const [departmentsOpen, setDepartmentsOpen] =
     useState(false);
 
+  const [admin, setAdmin] =
+    useState(false);
+
   useEffect(() => {
     setMounted(true);
+
+    setAdmin(isAdmin());
 
     const storedPages = JSON.parse(
       localStorage.getItem("wiki-pages") ||
@@ -201,7 +210,7 @@ export default function WikiSidebar() {
 
       {/* TAGS */}
       {allTags.length > 0 && (
-        <div>
+        <div className="mb-8">
           <h3 className="text-sm font-semibold text-zinc-500 uppercase mb-3">
             Tags
           </h3>
@@ -217,6 +226,26 @@ export default function WikiSidebar() {
               </a>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ADMIN */}
+      {admin && (
+        <div>
+          <h3 className="text-sm font-semibold text-red-600 uppercase mb-3">
+            Admin
+          </h3>
+
+          <Link
+            href="/wiki/trash"
+            className={`block p-3 rounded-xl transition ${
+              pathname === "/wiki/trash"
+                ? "bg-red-600 text-white"
+                : "hover:bg-red-50 text-red-600"
+            }`}
+          >
+            🗑️ Papierkorb
+          </Link>
         </div>
       )}
     </aside>

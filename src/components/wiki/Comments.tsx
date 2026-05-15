@@ -16,6 +16,11 @@ import {
   saveActivity,
 } from "../../lib/activityStorage";
 
+import {
+  isAdmin,
+  canComment,
+} from "../../lib/permissions";
+
 export default function Comments({
   slug,
 }: {
@@ -27,6 +32,15 @@ export default function Comments({
   const [text, setText] =
     useState("");
 
+  const [user, setUser] =
+    useState<any>(null);
+
+  useEffect(() => {
+    setUser(getUser());
+
+    loadComments();
+  }, [slug]);
+
   function loadComments() {
     const allComments =
       getComments();
@@ -36,23 +50,32 @@ export default function Comments({
     );
   }
 
-  useEffect(() => {
-    loadComments();
-  }, [slug]);
-
   function handleAddComment() {
+    if (!canComment()) {
+      alert(
+        "Du hast keine Berechtigung zum Kommentieren."
+      );
+
+      return;
+    }
+
     if (!text.trim()) {
       return;
     }
 
-    const user =
-      getUser()?.name ||
-      "Unbekannt";
+    const currentUser =
+      getUser();
 
     const comment = {
       text,
 
-      user,
+      user:
+        currentUser?.name ||
+        "Unbekannt",
+
+      role:
+        currentUser?.role ||
+        "viewer",
 
       createdAt:
         new Date().toLocaleString(),
@@ -65,7 +88,9 @@ export default function Comments({
 
       title: slug,
 
-      user,
+      user:
+        currentUser?.name ||
+        "Unbekannt",
 
       createdAt:
         new Date().toLocaleString(),
@@ -76,9 +101,37 @@ export default function Comments({
     loadComments();
   }
 
+  function canDeleteComment(
+    comment: any
+  ) {
+    if (isAdmin()) {
+      return true;
+    }
+
+    return (
+      user?.name &&
+      comment.user === user.name
+    );
+  }
+
   function handleDeleteComment(
     index: number
   ) {
+    const comment =
+      comments[index];
+
+    if (
+      !canDeleteComment(
+        comment
+      )
+    ) {
+      alert(
+        "Du darfst diesen Kommentar nicht löschen."
+      );
+
+      return;
+    }
+
     const confirmed = confirm(
       "Kommentar wirklich löschen?"
     );
@@ -88,6 +141,19 @@ export default function Comments({
     }
 
     deleteComment(slug, index);
+
+    saveActivity({
+      type: "commentDeleted",
+
+      title: slug,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
 
     loadComments();
   }
@@ -102,25 +168,31 @@ export default function Comments({
         Fragen, Hinweise oder Ergänzungen zum Dokument
       </p>
 
-      <div className="mt-6">
-        <textarea
-          value={text}
-          onChange={(e) =>
-            setText(e.target.value)
-          }
-          rows={4}
-          placeholder="Kommentar schreiben..."
-          className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-        />
+      {/* COMMENT FORM */}
+      {canComment() && (
+        <div className="mt-6">
+          <textarea
+            value={text}
+            onChange={(e) =>
+              setText(
+                e.target.value
+              )
+            }
+            rows={4}
+            placeholder="Kommentar schreiben..."
+            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+          />
 
-        <button
-          onClick={handleAddComment}
-          className="mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Kommentar speichern
-        </button>
-      </div>
+          <button
+            onClick={handleAddComment}
+            className="mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Kommentar speichern
+          </button>
+        </div>
+      )}
 
+      {/* COMMENT LIST */}
       <div className="mt-8 space-y-4">
         {comments.length === 0 && (
           <p className="text-zinc-500">
@@ -138,26 +210,36 @@ export default function Comments({
               className="border border-zinc-200 rounded-2xl p-5"
             >
               <div className="flex items-start justify-between gap-6">
-                <div>
-                  <p className="font-semibold">
-                    {comment.user}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
+                    {comment.user?.charAt(0)}
+                  </div>
 
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {comment.createdAt}
-                  </p>
+                  <div>
+                    <p className="font-semibold">
+                      {comment.user}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {comment.createdAt}
+                    </p>
+                  </div>
                 </div>
 
-                <button
-                  onClick={() =>
-                    handleDeleteComment(
-                      index
-                    )
-                  }
-                  className="text-sm text-red-600 hover:text-red-500"
-                >
-                  Löschen
-                </button>
+                {canDeleteComment(
+                  comment
+                ) && (
+                  <button
+                    onClick={() =>
+                      handleDeleteComment(
+                        index
+                      )
+                    }
+                    className="text-sm text-red-600 hover:text-red-500"
+                  >
+                    Löschen
+                  </button>
+                )}
               </div>
 
               <p className="mt-4 text-zinc-700 whitespace-pre-wrap">

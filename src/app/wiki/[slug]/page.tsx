@@ -38,6 +38,10 @@ import {
   canDelete,
 } from "../../../lib/permissions";
 
+import {
+  saveTrashPage,
+} from "../../../lib/trashStorage";
+
 export default function WikiDetailPage() {
   const params = useParams();
 
@@ -68,8 +72,8 @@ export default function WikiDetailPage() {
         : wikiPages;
 
     const foundPage = allPages.find(
-      (page: any) =>
-        page.slug === slug
+      (item: any) =>
+        item.slug === slug
     );
 
     setPage(foundPage);
@@ -110,43 +114,59 @@ export default function WikiDetailPage() {
       return;
     }
 
+    if (!page) {
+      alert("Dokument wurde nicht gefunden.");
+
+      return;
+    }
+
     const confirmed = confirm(
-      "Dokument wirklich löschen?"
+      "Dokument wirklich in den Papierkorb verschieben?"
     );
 
     if (!confirmed) {
       return;
     }
 
-    const data =
-      localStorage.getItem(
-        "wiki-pages"
+    const storedPages = JSON.parse(
+      localStorage.getItem("wiki-pages") ||
+        "[]"
+    );
+
+    const allPages =
+      storedPages.length > 0
+        ? storedPages
+        : wikiPages;
+
+    const pageToDelete =
+      allPages.find(
+        (item: any) =>
+          item.slug === page.slug
       );
 
-    if (!data) {
+    if (!pageToDelete) {
+      alert("Dokument wurde nicht gefunden.");
+
       return;
     }
 
-    const pages =
-      JSON.parse(data);
+    saveTrashPage(pageToDelete);
 
     const updatedPages =
-      pages.filter(
-        (p: any) =>
-          p.slug !== page.slug
+      allPages.filter(
+        (item: any) =>
+          item.slug !== page.slug
       );
 
     localStorage.setItem(
       "wiki-pages",
-      JSON.stringify(
-        updatedPages
-      )
+      JSON.stringify(updatedPages)
     );
 
     saveActivity({
       type: "deleted",
 
-      title: page.title,
+      title: pageToDelete.title,
 
       user:
         getUser()?.name ||
@@ -156,8 +176,12 @@ export default function WikiDetailPage() {
         new Date().toLocaleString(),
     });
 
+    alert(
+      "Dokument wurde in den Papierkorb verschoben."
+    );
+
     window.location.href =
-      "/wiki";
+      "/wiki/trash";
   }
 
   if (!mounted || !page) {
