@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 
 import { usePathname } from "next/navigation";
 
-import { wikiPages } from "../../data/wiki";
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
 
 import {
   getFavorites,
@@ -44,19 +46,9 @@ export default function WikiSidebar() {
   const [admin, setAdmin] =
     useState(false);
 
-  function getAllPages() {
-    const storedPages = JSON.parse(
-      localStorage.getItem("wiki-pages") ||
-        "[]"
-    );
-
-    return storedPages.length > 0
-      ? storedPages
-      : wikiPages;
-  }
-
   function loadPages() {
-    const allPages = getAllPages();
+    const allPages =
+      getStoredPages();
 
     setPages(allPages);
 
@@ -68,7 +60,7 @@ export default function WikiSidebar() {
   }
 
   function loadRecentPages(
-    allPages = getAllPages()
+    allPages = getStoredPages()
   ) {
     const recentSlugs =
       getRecentPages();
@@ -105,45 +97,61 @@ export default function WikiSidebar() {
 
     loadTrashCount();
 
+    function handleFavoritesUpdated() {
+      loadFavorites();
+    }
+
+    function handleRecentUpdated() {
+      loadRecentPages();
+    }
+
+    function handleTrashUpdated() {
+      loadTrashCount();
+    }
+
+    function handleWikiPagesUpdated() {
+      loadPages();
+    }
+
     window.addEventListener(
       "favoritesUpdated",
-      loadFavorites
+      handleFavoritesUpdated
     );
 
     window.addEventListener(
       "recentUpdated",
-      () => loadRecentPages()
+      handleRecentUpdated
     );
 
     window.addEventListener(
       "trashUpdated",
-      loadTrashCount
+      handleTrashUpdated
     );
 
     window.addEventListener(
       "wikiPagesUpdated",
-      loadPages
+      handleWikiPagesUpdated
     );
 
     return () => {
       window.removeEventListener(
         "favoritesUpdated",
-        loadFavorites
+        handleFavoritesUpdated
       );
 
       window.removeEventListener(
         "recentUpdated",
-        () => loadRecentPages()
+        handleRecentUpdated
       );
 
       window.removeEventListener(
         "trashUpdated",
-        loadTrashCount
+        handleTrashUpdated
       );
 
       window.removeEventListener(
         "wikiPagesUpdated",
-        loadPages
+        handleWikiPagesUpdated
       );
     };
   }, []);
@@ -260,6 +268,12 @@ export default function WikiSidebar() {
 
         {departmentsOpen && (
           <div className="flex flex-col gap-2">
+            {departments.length === 0 && (
+              <p className="text-sm text-zinc-400 px-3">
+                Keine Abteilungen
+              </p>
+            )}
+
             {departments.map(
               (department: string) => (
                 <Link
@@ -289,7 +303,7 @@ export default function WikiSidebar() {
 
           <div className="flex flex-wrap gap-2">
             {allTags.map((tag: string) => (
-              <a
+              <Link
                 key={tag}
                 href={`/wiki/tag/${tag}`}
                 className={`text-sm px-3 py-1 rounded-full transition ${
@@ -300,7 +314,7 @@ export default function WikiSidebar() {
                 }`}
               >
                 #{tag}
-              </a>
+              </Link>
             ))}
           </div>
         </div>

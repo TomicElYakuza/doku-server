@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 
+import { useEffect, useState } from "react";
+
 import { useParams } from "next/navigation";
 
-import { wikiPages } from "../../../../data/wiki";
+import {
+  getStoredPages,
+} from "../../../../lib/wikiStorage";
 
 export default function DepartmentPage() {
   const params = useParams();
@@ -12,28 +16,42 @@ export default function DepartmentPage() {
   const department =
     params.department as string;
 
-  const storedPages =
-    typeof window !== "undefined"
-      ? JSON.parse(
-          localStorage.getItem("wiki-pages") ||
-            "[]"
-        )
-      : [];
+  const [mounted, setMounted] =
+    useState(false);
 
-  const allPages =
-    storedPages.length > 0
-      ? storedPages
-      : wikiPages;
+  const [pages, setPages] =
+    useState<any[]>([]);
 
-  const filteredPages =
-    allPages.filter(
-      (page: any) =>
-        page.category === department
-    );
+  useEffect(() => {
+    setMounted(true);
+
+    const allPages =
+      getStoredPages();
+
+    const decodedDepartment =
+      decodeURIComponent(
+        department
+      );
+
+    const filteredPages =
+      allPages.filter(
+        (page: any) =>
+          page.category ===
+          decodedDepartment
+      );
+
+    setPages(filteredPages);
+  }, [department]);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const decodedDepartment =
+    decodeURIComponent(department);
 
   return (
     <div className="space-y-6">
-      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -47,11 +65,18 @@ export default function DepartmentPage() {
         </span>
 
         <span className="text-zinc-900">
-          {department}
+          abteilung
+        </span>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          {decodedDepartment}
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <Link
           href="/wiki"
@@ -61,24 +86,49 @@ export default function DepartmentPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
       <div>
         <p className="text-zinc-500">
           Abteilung
         </p>
 
         <h1 className="text-4xl font-bold mt-2">
-          {department}
+          {decodedDepartment}
         </h1>
 
         <p className="text-zinc-500 mt-3">
-          {filteredPages.length} Dokumente
+          {pages.length} Dokumente gefunden
         </p>
       </div>
 
-      {/* DOCUMENTS */}
+      {pages.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
+            🔎
+          </div>
+
+          <h2 className="text-2xl font-bold">
+            Keine Dokumente gefunden
+          </h2>
+
+          <p className="text-zinc-500 mt-3">
+            Es gibt aktuell kein Dokument in der Abteilung{" "}
+            <span className="font-mono text-zinc-900">
+              {decodedDepartment}
+            </span>
+            .
+          </p>
+
+          <Link
+            href="/wiki"
+            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Zurück zur Wiki-Übersicht
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-4">
-        {filteredPages.map(
+        {pages.map(
           (page: any) => (
             <Link
               key={page.slug}
@@ -103,21 +153,20 @@ export default function DepartmentPage() {
                 {page.description}
               </p>
 
-              {/* TAGS */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {page.tags?.map(
                   (tag: string) => (
-                    <span
+                    <Link
                       key={tag}
-                      className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                      href={`/wiki/tag/${tag}`}
+                      className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
                     >
                       #{tag}
-                    </span>
+                    </Link>
                   )
                 )}
               </div>
 
-              {/* META */}
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
                 <p className="text-sm text-zinc-500">
                   {page.author}

@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
+  getStoredPages,
+  savePages,
+} from "../../../lib/wikiStorage";
+
+import {
   saveActivity,
 } from "../../../lib/activityStorage";
 
@@ -42,30 +47,6 @@ export default function TrashPage() {
     setTrashPages(pages);
   }
 
-  function getCurrentWikiPages() {
-    const data =
-      localStorage.getItem(
-        "wiki-pages"
-      );
-
-    return data
-      ? JSON.parse(data)
-      : [];
-  }
-
-  function saveWikiPages(
-    pages: any[]
-  ) {
-    localStorage.setItem(
-      "wiki-pages",
-      JSON.stringify(pages)
-    );
-
-    window.dispatchEvent(
-      new Event("wikiPagesUpdated")
-    );
-  }
-
   function saveTrash(
     pages: any[]
   ) {
@@ -101,7 +82,7 @@ export default function TrashPage() {
     }
 
     const currentPages =
-      getCurrentWikiPages();
+      getStoredPages();
 
     const pageExists =
       currentPages.some(
@@ -120,9 +101,11 @@ export default function TrashPage() {
     const restoredPage = {
       slug: page.slug,
 
-      title: page.title,
+      title:
+        page.title || "Ohne Titel",
 
-      category: page.category,
+      category:
+        page.category || "Allgemein",
 
       description:
         page.description || "",
@@ -133,7 +116,8 @@ export default function TrashPage() {
       updatedAt:
         new Date().toLocaleDateString(),
 
-      tags: page.tags || [],
+      tags:
+        page.tags || [],
 
       content:
         page.content || "",
@@ -144,7 +128,11 @@ export default function TrashPage() {
       restoredPage,
     ];
 
-    saveWikiPages(updatedWikiPages);
+    savePages(updatedWikiPages);
+
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
 
     const updatedTrash =
       trashPages.filter(
@@ -157,7 +145,8 @@ export default function TrashPage() {
     saveActivity({
       type: "restored",
 
-      title: page.title,
+      title:
+        restoredPage.title,
 
       user:
         getUser()?.name ||
@@ -205,7 +194,8 @@ export default function TrashPage() {
     saveActivity({
       type: "deletedForever",
 
-      title: page.title,
+      title:
+        page.title || page.slug,
 
       user:
         getUser()?.name ||
@@ -293,6 +283,7 @@ export default function TrashPage() {
         </p>
       </div>
 
+      {/* EMPTY */}
       {trashPages.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8">
           <p className="text-zinc-500">
@@ -301,6 +292,7 @@ export default function TrashPage() {
         </div>
       )}
 
+      {/* LIST */}
       <div className="grid gap-4">
         {trashPages.map(
           (page: any) => (

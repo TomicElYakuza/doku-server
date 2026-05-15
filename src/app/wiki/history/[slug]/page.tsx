@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { useEffect, useState } from "react";
+
 import { useParams } from "next/navigation";
 
 import {
@@ -21,13 +23,65 @@ import {
   getUser,
 } from "../../../../lib/userStorage";
 
+import { wikiPages } from "../../../../data/wiki";
+
 export default function HistoryPage() {
   const params = useParams();
 
   const slug = params.slug as string;
 
-  const versions =
-    getVersions()[slug] || [];
+  const [mounted, setMounted] =
+    useState(false);
+
+  const [pageChecked, setPageChecked] =
+    useState(false);
+
+  const [pageFound, setPageFound] =
+    useState(false);
+
+  const [pageTitle, setPageTitle] =
+    useState("");
+
+  const [versions, setVersions] =
+    useState<any[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+
+    const storedPages = getStoredPages();
+
+    const allPages =
+      storedPages.length > 0
+        ? storedPages
+        : wikiPages;
+
+    const page = allPages.find(
+      (item: any) =>
+        item.slug === slug
+    );
+
+    if (!page) {
+      setPageFound(false);
+
+      setPageChecked(true);
+
+      setVersions(
+        getVersions()[slug] || []
+      );
+
+      return;
+    }
+
+    setPageFound(true);
+
+    setPageTitle(page.title);
+
+    setVersions(
+      getVersions()[slug] || []
+    );
+
+    setPageChecked(true);
+  }, [slug]);
 
   function restoreVersion(
     version: any
@@ -41,6 +95,19 @@ export default function HistoryPage() {
     }
 
     const pages = getStoredPages();
+
+    const pageExists = pages.some(
+      (page: any) =>
+        page.slug === slug
+    );
+
+    if (!pageExists) {
+      alert(
+        "Dokument existiert nicht mehr und kann deshalb nicht aus der Historie wiederhergestellt werden."
+      );
+
+      return;
+    }
 
     const updatedPages = pages.map(
       (page: any) => {
@@ -57,12 +124,13 @@ export default function HistoryPage() {
             version.category,
 
           description:
-            version.description,
+            version.description || "",
 
-          tags: version.tags,
+          tags:
+            version.tags || [],
 
           content:
-            version.content,
+            version.content || "",
 
           updatedAt:
             new Date().toLocaleDateString(),
@@ -72,10 +140,15 @@ export default function HistoryPage() {
 
     savePages(updatedPages);
 
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
+
     saveActivity({
       type: "restored",
 
-      title: version.title,
+      title:
+        version.title || slug,
 
       user:
         getUser()?.name ||
@@ -86,11 +159,82 @@ export default function HistoryPage() {
     });
 
     alert(
-      "Version wiederhergestellt"
+      "Version wurde wiederhergestellt."
     );
 
     window.location.href =
       `/wiki/${slug}`;
+  }
+
+  if (!mounted || !pageChecked) {
+    return null;
+  }
+
+  if (!pageFound) {
+    return (
+      <div className="max-w-3xl">
+        {/* TOP NAV */}
+        <div className="flex items-center gap-3 mb-6 text-sm">
+          <Link
+            href="/wiki"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            wiki
+          </Link>
+
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <span className="text-zinc-900">
+            historie
+          </span>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
+            🔎
+          </div>
+
+          <h1 className="text-4xl font-bold">
+            Dokument nicht gefunden
+          </h1>
+
+          <p className="text-zinc-500 mt-3">
+            Die Historie für{" "}
+            <span className="font-mono text-zinc-900">
+              {slug}
+            </span>{" "}
+            kann nicht geöffnet werden, weil das Dokument nicht existiert oder gelöscht wurde.
+          </p>
+
+          {versions.length > 0 && (
+            <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
+              <p className="text-yellow-800">
+                Für dieses Dokument sind noch{" "}
+                {versions.length} alte Versionen gespeichert, aber das aktive Dokument existiert nicht mehr.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3 mt-8">
+            <Link
+              href="/wiki"
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Zurück zur Wiki-Übersicht
+            </Link>
+
+            <Link
+              href="/wiki/trash"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Papierkorb öffnen
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -112,7 +256,7 @@ export default function HistoryPage() {
           href={`/wiki/${slug}`}
           className="text-zinc-500 hover:text-zinc-900 transition"
         >
-          {slug}
+          {pageTitle || slug}
         </Link>
 
         <span className="text-zinc-400">
@@ -140,7 +284,7 @@ export default function HistoryPage() {
         </p>
 
         <h1 className="text-4xl font-bold mt-2">
-          {slug}
+          {pageTitle || slug}
         </h1>
 
         <p className="text-zinc-500 mt-3">
@@ -166,7 +310,7 @@ export default function HistoryPage() {
                 key={index}
                 className="bg-white border border-zinc-200 rounded-2xl p-6"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-6">
                   <div>
                     <h2 className="text-xl font-semibold">
                       Version{" "}
@@ -218,7 +362,8 @@ export default function HistoryPage() {
                     </p>
 
                     <p className="font-medium">
-                      {version.description}
+                      {version.description ||
+                        "Keine Beschreibung"}
                     </p>
                   </div>
 
@@ -228,17 +373,24 @@ export default function HistoryPage() {
                     </p>
 
                     <div className="flex flex-wrap gap-2">
-                      {version.tags?.map(
-                        (
-                          tag: string
-                        ) => (
-                          <span
-                            key={tag}
-                            className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                          >
-                            #{tag}
-                          </span>
+                      {version.tags?.length >
+                      0 ? (
+                        version.tags.map(
+                          (
+                            tag: string
+                          ) => (
+                            <span
+                              key={tag}
+                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                            >
+                              #{tag}
+                            </span>
+                          )
                         )
+                      ) : (
+                        <p className="text-sm text-zinc-400">
+                          Keine Tags
+                        </p>
                       )}
                     </div>
                   </div>

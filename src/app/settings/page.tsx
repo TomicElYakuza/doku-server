@@ -127,6 +127,11 @@ export default function SettingsPage() {
         "wiki-pages"
       ),
 
+      pagesInitialized:
+        localStorage.getItem(
+          "wiki-pages-initialized"
+        ),
+
       trash: localStorage.getItem(
         "wiki-trash"
       ),
@@ -227,6 +232,18 @@ export default function SettingsPage() {
           );
         }
 
+        if (backup.pagesInitialized) {
+          localStorage.setItem(
+            "wiki-pages-initialized",
+            backup.pagesInitialized
+          );
+        } else if (backup.pages) {
+          localStorage.setItem(
+            "wiki-pages-initialized",
+            "true"
+          );
+        }
+
         if (backup.trash) {
           localStorage.setItem(
             "wiki-trash",
@@ -280,6 +297,14 @@ export default function SettingsPage() {
 
         loadStats();
 
+        window.dispatchEvent(
+          new Event("wikiPagesUpdated")
+        );
+
+        window.dispatchEvent(
+          new Event("trashUpdated")
+        );
+
         setStatus(
           "Backup wurde importiert. Seite bitte neu laden."
         );
@@ -304,6 +329,10 @@ export default function SettingsPage() {
 
     localStorage.removeItem(
       "wiki-pages"
+    );
+
+    localStorage.removeItem(
+      "wiki-pages-initialized"
     );
 
     localStorage.removeItem(
@@ -336,8 +365,16 @@ export default function SettingsPage() {
 
     loadStats();
 
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
+
     setStatus(
-      "Wiki-Daten wurden gelöscht. Seite bitte neu laden."
+      "Wiki-Daten wurden gelöscht. Beim nächsten Öffnen wird das Wiki wieder initialisiert."
     );
   }
 
@@ -356,6 +393,10 @@ export default function SettingsPage() {
 
     localStorage.removeItem(
       "wiki-pages"
+    );
+
+    localStorage.removeItem(
+      "wiki-pages-initialized"
     );
 
     localStorage.removeItem(
@@ -389,6 +430,18 @@ export default function SettingsPage() {
     setUser(null);
 
     loadStats();
+
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
+
+    window.dispatchEvent(
+      new Event("userUpdated")
+    );
 
     setStatus(
       "Alle lokalen Daten wurden gelöscht."

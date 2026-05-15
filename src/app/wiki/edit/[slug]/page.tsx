@@ -49,6 +49,12 @@ export default function EditWikiPage() {
   const [allowed, setAllowed] =
     useState(false);
 
+  const [pageChecked, setPageChecked] =
+    useState(false);
+
+  const [pageFound, setPageFound] =
+    useState(false);
+
   const [title, setTitle] =
     useState("");
 
@@ -77,8 +83,14 @@ export default function EditWikiPage() {
     );
 
     if (!page) {
+      setPageFound(false);
+
+      setPageChecked(true);
+
       return;
     }
+
+    setPageFound(true);
 
     setTitle(page.title);
 
@@ -93,6 +105,8 @@ export default function EditWikiPage() {
     setTags(
       page.tags?.join(", ") || ""
     );
+
+    setPageChecked(true);
   }, [slug]);
 
   function handleSave() {
@@ -190,7 +204,7 @@ export default function EditWikiPage() {
     router.push(`/wiki/${slug}`);
   }
 
-  if (!mounted) {
+  if (!mounted || !pageChecked) {
     return null;
   }
 
@@ -212,6 +226,64 @@ export default function EditWikiPage() {
           >
             ← Zurück zum Dokument
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!pageFound) {
+    return (
+      <div className="max-w-3xl">
+        {/* TOP NAV */}
+        <div className="flex items-center gap-3 mb-6 text-sm">
+          <Link
+            href="/wiki"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            wiki
+          </Link>
+
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <span className="text-zinc-900">
+            bearbeiten
+          </span>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
+            🔎
+          </div>
+
+          <h1 className="text-4xl font-bold">
+            Dokument nicht gefunden
+          </h1>
+
+          <p className="text-zinc-500 mt-3">
+            Die Seite mit dem Slug{" "}
+            <span className="font-mono text-zinc-900">
+              {slug}
+            </span>{" "}
+            kann nicht bearbeitet werden, weil sie nicht existiert oder gelöscht wurde.
+          </p>
+
+          <div className="flex flex-wrap gap-3 mt-8">
+            <Link
+              href="/wiki"
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Zurück zur Wiki-Übersicht
+            </Link>
+
+            <Link
+              href="/wiki/trash"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Papierkorb öffnen
+            </Link>
+          </div>
         </div>
       </div>
     );

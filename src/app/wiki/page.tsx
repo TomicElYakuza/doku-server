@@ -4,11 +4,8 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { wikiPages } from "../../data/wiki";
-
 import {
   getStoredPages,
-  savePages,
 } from "../../lib/wikiStorage";
 
 import {
@@ -70,23 +67,15 @@ export default function WikiPage() {
   const [favorites, setFavorites] =
     useState<string[]>([]);
 
-  useEffect(() => {
-    setMounted(true);
+  function loadPages() {
+    setPages(getStoredPages());
+  }
 
-    const stored = getStoredPages();
-
-    if (stored.length > 0) {
-      setPages(stored);
-    } else {
-      savePages(wikiPages);
-
-      setPages(wikiPages);
-    }
-
-    setUser(getUser());
-
+  function loadFavorites() {
     setFavorites(getFavorites());
+  }
 
+  function loadMetaData() {
     setComments(
       JSON.parse(
         localStorage.getItem(
@@ -104,20 +93,74 @@ export default function WikiPage() {
     );
 
     setVersions(getVersions());
+  }
 
-    function loadFavorites() {
-      setFavorites(getFavorites());
+  useEffect(() => {
+    setMounted(true);
+
+    loadPages();
+
+    setUser(getUser());
+
+    loadFavorites();
+
+    loadMetaData();
+
+    function handleWikiPagesUpdated() {
+      loadPages();
+    }
+
+    function handleFavoritesUpdated() {
+      loadFavorites();
+    }
+
+    function handleFilesUpdated() {
+      loadMetaData();
+    }
+
+    function handleUserUpdated() {
+      setUser(getUser());
     }
 
     window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    window.addEventListener(
       "favoritesUpdated",
-      loadFavorites
+      handleFavoritesUpdated
+    );
+
+    window.addEventListener(
+      "filesUpdated",
+      handleFilesUpdated
+    );
+
+    window.addEventListener(
+      "userUpdated",
+      handleUserUpdated
     );
 
     return () => {
       window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+
+      window.removeEventListener(
         "favoritesUpdated",
-        loadFavorites
+        handleFavoritesUpdated
+      );
+
+      window.removeEventListener(
+        "filesUpdated",
+        handleFilesUpdated
+      );
+
+      window.removeEventListener(
+        "userUpdated",
+        handleUserUpdated
       );
     };
   }, []);
@@ -135,12 +178,14 @@ export default function WikiPage() {
       value.split(".");
 
     if (parts.length >= 3) {
-      const day = Number(parts[0]);
+      const day =
+        Number(parts[0]);
 
       const month =
         Number(parts[1]) - 1;
 
-      const year = Number(parts[2]);
+      const year =
+        Number(parts[2]);
 
       return new Date(
         year,
@@ -158,7 +203,9 @@ export default function WikiPage() {
     return comments[slug]?.length || 0;
   }
 
-  function getFileCount(slug: string) {
+  function getFileCount(
+    slug: string
+  ) {
     return files[slug]?.length || 0;
   }
 
@@ -170,10 +217,12 @@ export default function WikiPage() {
 
   const departments: string[] = [
     ...new Set(
-      pages.map(
-        (page: any) =>
-          page.category
-      )
+      pages
+        .map(
+          (page: any) =>
+            page.category
+        )
+        .filter(Boolean)
     ),
   ];
 
@@ -198,8 +247,8 @@ export default function WikiPage() {
     0
   );
 
-  const filteredPages = pages.filter(
-    (page: any) => {
+  const filteredPages =
+    pages.filter((page: any) => {
       const query =
         search.toLowerCase();
 
@@ -219,10 +268,11 @@ export default function WikiPage() {
         page.author
           ?.toLowerCase()
           .includes(query) ||
-        page.tags?.some((tag: string) =>
-          tag
-            .toLowerCase()
-            .includes(query)
+        page.tags?.some(
+          (tag: string) =>
+            tag
+              .toLowerCase()
+              .includes(query)
         );
 
       const matchesDepartment =
@@ -253,8 +303,7 @@ export default function WikiPage() {
         matchesMine &&
         matchesFavorite
       );
-    }
-  );
+    });
 
   const sortedPages = [
     ...filteredPages,
@@ -745,7 +794,9 @@ export default function WikiPage() {
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap gap-2">
                         {page.tags?.map(
-                          (tag: string) => (
+                          (
+                            tag: string
+                          ) => (
                             <span
                               key={tag}
                               className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
