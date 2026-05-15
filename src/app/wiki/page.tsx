@@ -12,7 +12,7 @@ import {
 } from "../../lib/wikiStorage";
 
 import {
-  canEdit,
+  canCreate,
 } from "../../lib/permissions";
 
 import {
@@ -150,7 +150,7 @@ export default function WikiPage() {
         </div>
 
         {/* CREATE */}
-        {canEdit() && (
+        {canCreate() && (
           <div>
             <Link
               href="/wiki/create"

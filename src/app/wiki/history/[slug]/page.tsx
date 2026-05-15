@@ -13,6 +13,14 @@ import {
   savePages,
 } from "../../../../lib/wikiStorage";
 
+import {
+  saveActivity,
+} from "../../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../../lib/userStorage";
+
 export default function HistoryPage() {
   const params = useParams();
 
@@ -48,6 +56,9 @@ export default function HistoryPage() {
           category:
             version.category,
 
+          description:
+            version.description,
+
           tags: version.tags,
 
           content:
@@ -61,11 +72,25 @@ export default function HistoryPage() {
 
     savePages(updatedPages);
 
+    saveActivity({
+      type: "restored",
+
+      title: version.title,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+
     alert(
       "Version wiederhergestellt"
     );
 
-    window.location.href = `/wiki/${slug}`;
+    window.location.href =
+      `/wiki/${slug}`;
   }
 
   return (
@@ -184,6 +209,16 @@ export default function HistoryPage() {
 
                     <p className="font-medium">
                       {version.category}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-zinc-500">
+                      Beschreibung
+                    </p>
+
+                    <p className="font-medium">
+                      {version.description}
                     </p>
                   </div>
 

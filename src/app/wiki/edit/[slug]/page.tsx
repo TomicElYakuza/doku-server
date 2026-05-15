@@ -18,6 +18,14 @@ import {
   saveVersion,
 } from "../../../../lib/versionStorage";
 
+import {
+  saveActivity,
+} from "../../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../../lib/userStorage";
+
 import FileUpload from "../../../../components/wiki/FileUpload";
 
 import FileList from "../../../../components/wiki/FileList";
@@ -33,6 +41,9 @@ export default function EditWikiPage() {
     useState("");
 
   const [category, setCategory] =
+    useState("");
+
+  const [description, setDescription] =
     useState("");
 
   const [tags, setTags] =
@@ -57,6 +68,10 @@ export default function EditWikiPage() {
 
     setCategory(page.category);
 
+    setDescription(
+      page.description || ""
+    );
+
     setContent(page.content);
 
     setTags(
@@ -72,12 +87,20 @@ export default function EditWikiPage() {
         page.slug === slug
     );
 
-    /* VERSION SPEICHERN */
+    if (!existingPage) {
+      alert("Dokument nicht gefunden.");
+
+      return;
+    }
+
     saveVersion(slug, {
       title: existingPage.title,
 
       category:
         existingPage.category,
+
+      description:
+        existingPage.description,
 
       tags: existingPage.tags,
 
@@ -91,7 +114,6 @@ export default function EditWikiPage() {
         new Date().toLocaleString(),
     });
 
-    /* PAGE UPDATEN */
     const updatedPages = pages.map(
       (page: any) => {
         if (page.slug !== slug) {
@@ -105,11 +127,14 @@ export default function EditWikiPage() {
 
           category,
 
+          description,
+
           tags: tags
             .split(",")
             .map((tag) =>
               tag.trim()
-            ),
+            )
+            .filter(Boolean),
 
           content,
 
@@ -120,6 +145,19 @@ export default function EditWikiPage() {
     );
 
     savePages(updatedPages);
+
+    saveActivity({
+      type: "edited",
+
+      title,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
 
     router.push(`/wiki/${slug}`);
   }
@@ -160,7 +198,7 @@ export default function EditWikiPage() {
           {/* KATEGORIE */}
           <div>
             <label className="block mb-2 font-medium">
-              Kategorie
+              Kategorie / Abteilung
             </label>
 
             <input
@@ -175,26 +213,23 @@ export default function EditWikiPage() {
             />
           </div>
 
-          {/* TAGS */}
+          {/* BESCHREIBUNG */}
           <div>
             <label className="block mb-2 font-medium">
-              Tags
+              Beschreibung
             </label>
 
             <input
               type="text"
-              value={tags}
+              value={description}
               onChange={(e) =>
-                setTags(
+                setDescription(
                   e.target.value
                 )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Kurze Zusammenfassung des Dokuments"
             />
-
-            <p className="text-sm text-zinc-500 mt-2">
-              Mit Komma trennen
-            </p>
           </div>
 
           {/* CONTENT */}
@@ -213,6 +248,29 @@ export default function EditWikiPage() {
               rows={20}
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
             />
+          </div>
+
+          {/* TAGS */}
+          <div>
+            <label className="block mb-2 font-medium">
+              Tags
+            </label>
+
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) =>
+                setTags(
+                  e.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="vpn, remote, it"
+            />
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Mit Komma trennen
+            </p>
           </div>
 
           {/* FILE UPLOAD */}
@@ -235,11 +293,15 @@ export default function EditWikiPage() {
       </div>
 
       {/* PREVIEW */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
         <div className="mb-8">
           <h2 className="text-3xl font-bold">
             Live Vorschau
           </h2>
+
+          <p className="text-zinc-500 mt-2">
+            Markdown Darstellung
+          </p>
         </div>
 
         <article className="prose prose-zinc max-w-none">

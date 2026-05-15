@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 
 import ReactMarkdown from "react-markdown";
 
+import FileUpload from "../../../components/wiki/FileUpload";
+
+import FileList from "../../../components/wiki/FileList";
+
 import {
   getStoredPages,
   savePages,
@@ -17,7 +21,7 @@ import {
 
 import {
   saveActivity,
-} from "../../../lib/activitiyStorage";
+} from "../../../lib/activityStorage";
 
 export default function CreateWikiPage() {
   const router = useRouter();
@@ -26,6 +30,9 @@ export default function CreateWikiPage() {
     useState("");
 
   const [category, setCategory] =
+    useState("");
+
+  const [description, setDescription] =
     useState("");
 
   const [tags, setTags] =
@@ -39,12 +46,39 @@ export default function CreateWikiPage() {
 Dokumentation hier schreiben...
 `);
 
+  const slug = title
+    .toLowerCase()
+    .trim()
+    .replaceAll(" ", "-")
+    .replace(/[^\w-]/g, "");
+
   function handleCreate() {
+    if (!title.trim()) {
+      alert("Bitte einen Titel eingeben.");
+
+      return;
+    }
+
+    if (!category.trim()) {
+      alert("Bitte eine Kategorie eingeben.");
+
+      return;
+    }
+
     const pages = getStoredPages();
 
-    const slug = title
-      .toLowerCase()
-      .replaceAll(" ", "-");
+    const pageExists = pages.some(
+      (page: any) =>
+        page.slug === slug
+    );
+
+    if (pageExists) {
+      alert(
+        "Eine Seite mit diesem Titel existiert bereits."
+      );
+
+      return;
+    }
 
     const newPage = {
       slug,
@@ -53,7 +87,7 @@ Dokumentation hier schreiben...
 
       category,
 
-      description: "",
+      description,
 
       author:
         getUser()?.name ||
@@ -66,7 +100,8 @@ Dokumentation hier schreiben...
         .split(",")
         .map((tag) =>
           tag.trim()
-        ),
+        )
+        .filter(Boolean),
 
       content,
     };
@@ -91,7 +126,7 @@ Dokumentation hier schreiben...
         new Date().toLocaleString(),
     });
 
-    router.push("/wiki");
+    router.push(`/wiki/${slug}`);
   }
 
   return (
@@ -126,12 +161,18 @@ Dokumentation hier schreiben...
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
               placeholder="VPN Einrichtung"
             />
+
+            {slug && (
+              <p className="text-sm text-zinc-500 mt-2">
+                URL: /wiki/{slug}
+              </p>
+            )}
           </div>
 
           {/* KATEGORIE */}
           <div>
             <label className="block mb-2 font-medium">
-              Kategorie
+              Kategorie / Abteilung
             </label>
 
             <input
@@ -144,6 +185,43 @@ Dokumentation hier schreiben...
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
               placeholder="IT"
+            />
+          </div>
+
+          {/* BESCHREIBUNG */}
+          <div>
+            <label className="block mb-2 font-medium">
+              Beschreibung
+            </label>
+
+            <input
+              type="text"
+              value={description}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Kurze Zusammenfassung des Dokuments"
+            />
+          </div>
+
+          {/* INHALT */}
+          <div>
+            <label className="block mb-2 font-medium">
+              Inhalt (Markdown)
+            </label>
+
+            <textarea
+              value={content}
+              onChange={(e) =>
+                setContent(
+                  e.target.value
+                )
+              }
+              rows={20}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
             />
           </div>
 
@@ -170,40 +248,25 @@ Dokumentation hier schreiben...
             </p>
           </div>
 
-          {/* INHALT */}
-          <div>
-            <label className="block mb-2 font-medium">
-              Inhalt (Markdown)
-            </label>
+          {/* FILES */}
+          {slug && (
+            <div className="space-y-4">
+              <FileUpload slug={slug} />
 
-            <textarea
-              value={content}
-              onChange={(e) =>
-                setContent(
-                  e.target.value
-                )
-              }
-              rows={20}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
-            />
-          </div>
+              <FileList
+                slug={slug}
+                editable={true}
+              />
+            </div>
+          )}
 
-          {/* DATEI UPLOAD */}
-          <div>
-            <label className="block mb-2 font-medium">
-              Dateien hochladen
-            </label>
-
-            <input
-              type="file"
-              multiple
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 bg-white"
-            />
-
-            <p className="text-sm text-zinc-500 mt-2">
-              Bilder, PDFs oder Dokumente
-            </p>
-          </div>
+          {!slug && (
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+              <p className="text-zinc-500">
+                Dateien können hochgeladen werden, sobald ein Titel vergeben wurde.
+              </p>
+            </div>
+          )}
 
           {/* BUTTON */}
           <button
@@ -216,7 +279,7 @@ Dokumentation hier schreiben...
       </div>
 
       {/* PREVIEW */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
         <div className="mb-8">
           <h2 className="text-3xl font-bold">
             Live Vorschau

@@ -12,6 +12,8 @@ import TableOfContents from "../../../components/wiki/TableOfContents";
 
 import FileList from "../../../components/wiki/FileList";
 
+import Comments from "../../../components/wiki/Comments";
+
 import { wikiPages } from "../../../data/wiki";
 
 import {
@@ -22,6 +24,19 @@ import {
 import {
   saveRecentPage,
 } from "../../../lib/recentStorage";
+
+import {
+  saveActivity,
+} from "../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../lib/userStorage";
+
+import {
+  canEdit,
+  canDelete,
+} from "../../../lib/permissions";
 
 export default function WikiDetailPage() {
   const params = useParams();
@@ -34,7 +49,12 @@ export default function WikiDetailPage() {
   const [page, setPage] =
     useState<any>(null);
 
+  const [mounted, setMounted] =
+    useState(false);
+
   useEffect(() => {
+    setMounted(true);
+
     setFavorites(getFavorites());
 
     const storedPages = JSON.parse(
@@ -81,7 +101,66 @@ export default function WikiDetailPage() {
     );
   }
 
-  if (!page) {
+  function handleDeleteDocument() {
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, dieses Dokument zu löschen."
+      );
+
+      return;
+    }
+
+    const confirmed = confirm(
+      "Dokument wirklich löschen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const data =
+      localStorage.getItem(
+        "wiki-pages"
+      );
+
+    if (!data) {
+      return;
+    }
+
+    const pages =
+      JSON.parse(data);
+
+    const updatedPages =
+      pages.filter(
+        (p: any) =>
+          p.slug !== page.slug
+      );
+
+    localStorage.setItem(
+      "wiki-pages",
+      JSON.stringify(
+        updatedPages
+      )
+    );
+
+    saveActivity({
+      type: "deleted",
+
+      title: page.title,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+
+    window.location.href =
+      "/wiki";
+  }
+
+  if (!mounted || !page) {
     return null;
   }
 
@@ -154,15 +233,15 @@ export default function WikiDetailPage() {
 
             {/* ACTIONS */}
             <div className="flex gap-3 flex-wrap justify-end">
-              {/* EDIT */}
-              <a
-                href={`/wiki/edit/${page.slug}`}
-                className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-700 transition"
-              >
-                Bearbeiten
-              </a>
+              {canEdit() && (
+                <a
+                  href={`/wiki/edit/${page.slug}`}
+                  className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-700 transition"
+                >
+                  Bearbeiten
+                </a>
+              )}
 
-              {/* HISTORY */}
               <a
                 href={`/wiki/history/${page.slug}`}
                 className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
@@ -170,51 +249,15 @@ export default function WikiDetailPage() {
                 Historie
               </a>
 
-              {/* DELETE */}
-              <button
-                onClick={() => {
-                  const confirmed = confirm(
-                    "Dokument wirklich löschen?"
-                  );
+              {canDelete() && (
+                <button
+                  onClick={handleDeleteDocument}
+                  className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
+                >
+                  Löschen
+                </button>
+              )}
 
-                  if (!confirmed) {
-                    return;
-                  }
-
-                  const data =
-                    localStorage.getItem(
-                      "wiki-pages"
-                    );
-
-                  if (!data) {
-                    return;
-                  }
-
-                  const pages =
-                    JSON.parse(data);
-
-                  const updatedPages =
-                    pages.filter(
-                      (p: any) =>
-                        p.slug !== page.slug
-                    );
-
-                  localStorage.setItem(
-                    "wiki-pages",
-                    JSON.stringify(
-                      updatedPages
-                    )
-                  );
-
-                  window.location.href =
-                    "/wiki";
-                }}
-                className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
-              >
-                Löschen
-              </button>
-
-              {/* FAVORITE */}
               <button
                 onClick={toggleFavorite}
                 className="bg-yellow-500 text-white px-5 py-3 rounded-xl hover:bg-yellow-400 transition"
@@ -254,6 +297,9 @@ export default function WikiDetailPage() {
             <FileList slug={slug} />
           </div>
         </div>
+
+        {/* COMMENTS */}
+        <Comments slug={slug} />
       </div>
 
       {/* TOC */}

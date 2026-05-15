@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import {
   getActivities,
-} from "../lib/activitiyStorage";
+} from "../lib/activityStorage";
 
 export default function HomePage() {
   const [activities, setActivities] =
@@ -13,6 +13,58 @@ export default function HomePage() {
   useEffect(() => {
     setActivities(getActivities());
   }, []);
+
+  function getActivityLabel(
+    type: string
+  ) {
+    if (type === "created") {
+      return "Dokument erstellt";
+    }
+
+    if (type === "edited") {
+      return "Dokument bearbeitet";
+    }
+
+    if (type === "deleted") {
+      return "Dokument gelöscht";
+    }
+
+    if (type === "restored") {
+      return "Version wiederhergestellt";
+    }
+
+    if (type === "uploaded") {
+      return "Datei hochgeladen";
+    }
+
+    return "Aktivität";
+  }
+
+  function getActivityIcon(
+    type: string
+  ) {
+    if (type === "created") {
+      return "📝";
+    }
+
+    if (type === "edited") {
+      return "✏️";
+    }
+
+    if (type === "deleted") {
+      return "🗑️";
+    }
+
+    if (type === "restored") {
+      return "♻️";
+    }
+
+    if (type === "uploaded") {
+      return "📎";
+    }
+
+    return "📌";
+  }
 
   return (
     <div className="space-y-8">
@@ -110,23 +162,30 @@ export default function HomePage() {
             ) => (
               <div
                 key={index}
-                className="flex items-center justify-between border-b border-zinc-100 pb-4"
+                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
               >
-                <div>
-                  <p className="font-medium">
-                    {activity.user}
-                  </p>
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                    {getActivityIcon(
+                      activity.type
+                    )}
+                  </div>
 
-                  <p className="text-zinc-500 text-sm mt-1">
-                    {activity.type ===
-                    "created"
-                      ? "Dokument erstellt"
-                      : "Aktivität"}
-                  </p>
+                  <div>
+                    <p className="font-medium">
+                      {activity.user}
+                    </p>
 
-                  <p className="mt-2">
-                    {activity.title}
-                  </p>
+                    <p className="text-zinc-500 text-sm mt-1">
+                      {getActivityLabel(
+                        activity.type
+                      )}
+                    </p>
+
+                    <p className="mt-2">
+                      {activity.title}
+                    </p>
+                  </div>
                 </div>
 
                 <p className="text-sm text-zinc-500">

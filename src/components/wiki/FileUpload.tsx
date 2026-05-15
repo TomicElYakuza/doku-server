@@ -6,6 +6,14 @@ import {
   saveFile,
 } from "../../lib/fileStorage";
 
+import {
+  saveActivity,
+} from "../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../lib/userStorage";
+
 export default function FileUpload({
   slug,
 }: {
@@ -41,6 +49,19 @@ export default function FileUpload({
 
           data:
             reader.result,
+        });
+
+        saveActivity({
+          type: "uploaded",
+
+          title: file.name,
+
+          user:
+            getUser()?.name ||
+            "Unbekannt",
+
+          createdAt:
+            new Date().toLocaleString(),
         });
 
         window.dispatchEvent(
