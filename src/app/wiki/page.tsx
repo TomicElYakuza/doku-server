@@ -23,6 +23,10 @@ import {
   getVersions,
 } from "../../lib/versionStorage";
 
+import {
+  getFavorites,
+} from "../../lib/favoritesStorage";
+
 export default function WikiPage() {
   const [search, setSearch] =
     useState("");
@@ -38,6 +42,12 @@ export default function WikiPage() {
 
   const [viewMode, setViewMode] =
     useState<"cards" | "table">("cards");
+
+  const [onlyMine, setOnlyMine] =
+    useState(false);
+
+  const [onlyFavorites, setOnlyFavorites] =
+    useState(false);
 
   const [pages, setPages] =
     useState<any[]>([]);
@@ -57,6 +67,9 @@ export default function WikiPage() {
   const [versions, setVersions] =
     useState<any>({});
 
+  const [favorites, setFavorites] =
+    useState<string[]>([]);
+
   useEffect(() => {
     setMounted(true);
 
@@ -71,6 +84,8 @@ export default function WikiPage() {
     }
 
     setUser(getUser());
+
+    setFavorites(getFavorites());
 
     setComments(
       JSON.parse(
@@ -89,15 +104,29 @@ export default function WikiPage() {
     );
 
     setVersions(getVersions());
+
+    function loadFavorites() {
+      setFavorites(getFavorites());
+    }
+
+    window.addEventListener(
+      "favoritesUpdated",
+      loadFavorites
+    );
+
+    return () => {
+      window.removeEventListener(
+        "favoritesUpdated",
+        loadFavorites
+      );
+    };
   }, []);
 
   if (!mounted) {
     return null;
   }
 
-  function parseDate(
-    value: string
-  ) {
+  function parseDate(value: string) {
     if (!value) {
       return 0;
     }
@@ -106,14 +135,12 @@ export default function WikiPage() {
       value.split(".");
 
     if (parts.length >= 3) {
-      const day =
-        Number(parts[0]);
+      const day = Number(parts[0]);
 
       const month =
         Number(parts[1]) - 1;
 
-      const year =
-        Number(parts[2]);
+      const year = Number(parts[2]);
 
       return new Date(
         year,
@@ -131,9 +158,7 @@ export default function WikiPage() {
     return comments[slug]?.length || 0;
   }
 
-  function getFileCount(
-    slug: string
-  ) {
+  function getFileCount(slug: string) {
     return files[slug]?.length || 0;
   }
 
@@ -182,23 +207,18 @@ export default function WikiPage() {
         page.title
           ?.toLowerCase()
           .includes(query) ||
-
         page.description
           ?.toLowerCase()
           .includes(query) ||
-
         page.category
           ?.toLowerCase()
           .includes(query) ||
-
         page.content
           ?.toLowerCase()
           .includes(query) ||
-
         page.author
           ?.toLowerCase()
           .includes(query) ||
-
         page.tags?.some((tag: string) =>
           tag
             .toLowerCase()
@@ -216,10 +236,22 @@ export default function WikiPage() {
           tagFilter
         );
 
+      const matchesMine =
+        !onlyMine ||
+        page.author === user?.name;
+
+      const matchesFavorite =
+        !onlyFavorites ||
+        favorites.includes(
+          page.slug
+        );
+
       return (
         matchesSearch &&
         matchesDepartment &&
-        matchesTag
+        matchesTag &&
+        matchesMine &&
+        matchesFavorite
       );
     }
   );
@@ -266,6 +298,10 @@ export default function WikiPage() {
     setTagFilter("");
 
     setSortBy("updated-desc");
+
+    setOnlyMine(false);
+
+    setOnlyFavorites(false);
   }
 
   return (
@@ -389,6 +425,37 @@ export default function WikiPage() {
               Tabelle
             </button>
           </div>
+        </div>
+
+        {/* QUICK FILTERS */}
+        <div className="flex flex-wrap gap-3 mt-5">
+          <button
+            onClick={() =>
+              setOnlyMine(!onlyMine)
+            }
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              onlyMine
+                ? "bg-zinc-900 text-white"
+                : "bg-zinc-100 hover:bg-zinc-200"
+            }`}
+          >
+            Meine Dokumente
+          </button>
+
+          <button
+            onClick={() =>
+              setOnlyFavorites(
+                !onlyFavorites
+              )
+            }
+            className={`px-4 py-2 rounded-xl text-sm transition ${
+              onlyFavorites
+                ? "bg-yellow-500 text-white"
+                : "bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
+            }`}
+          >
+            Favoriten
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-5">
@@ -522,9 +589,19 @@ export default function WikiPage() {
                     {page.category}
                   </p>
 
-                  <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                    Dokument
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {favorites.includes(
+                      page.slug
+                    ) && (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
+                        Favorit
+                      </span>
+                    )}
+
+                    <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                      Dokument
+                    </span>
+                  </div>
                 </div>
 
                 <h2 className="text-xl font-semibold mt-3">
@@ -651,6 +728,14 @@ export default function WikiPage() {
                       <p className="text-zinc-500 mt-1">
                         {page.description}
                       </p>
+
+                      {favorites.includes(
+                        page.slug
+                      ) && (
+                        <span className="inline-block mt-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                          Favorit
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-5 py-4 text-zinc-600">
