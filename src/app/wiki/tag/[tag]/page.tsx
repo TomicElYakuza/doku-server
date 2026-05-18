@@ -28,6 +28,26 @@ export default function TagPage() {
   useEffect(() => {
     setMounted(true);
 
+    loadPages();
+
+    function handleWikiPagesUpdated() {
+      loadPages();
+    }
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+    };
+  }, [decodedTag]);
+
+  function loadPages() {
     const allPages =
       getStoredPages();
 
@@ -38,11 +58,23 @@ export default function TagPage() {
       );
 
     setPages(filteredPages);
-  }, [decodedTag]);
+  }
 
   if (!mounted) {
     return null;
   }
+
+  const companies: string[] =
+    Array.from(
+      new Set(
+        pages
+          .map(
+            (page: any) =>
+              page.company || "Intern"
+          )
+          .filter(Boolean)
+      )
+    );
 
   return (
     <div className="space-y-6">
@@ -93,7 +125,8 @@ export default function TagPage() {
         </h1>
 
         <p className="text-zinc-500 mt-3">
-          {pages.length} Dokumente gefunden
+          {pages.length} Dokumente gefunden ·{" "}
+          {companies.length} Firmen
         </p>
       </div>
 
@@ -128,70 +161,86 @@ export default function TagPage() {
       {/* DOCUMENTS */}
       <div className="grid gap-4">
         {pages.map(
-          (page: any) => (
-            <div
-              key={page.slug}
-              className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
-            >
-              <div className="flex items-center justify-between">
+          (page: any) => {
+            const company =
+              page.company || "Intern";
+
+            return (
+              <div
+                key={page.slug}
+                className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/wiki/company/${encodeURIComponent(
+                        company
+                      )}`}
+                      className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-100 transition"
+                    >
+                      {company}
+                    </Link>
+
+                    <Link
+                      href={`/wiki/department/${encodeURIComponent(
+                        page.category
+                      )}`}
+                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                    >
+                      {page.category}
+                    </Link>
+                  </div>
+
+                  <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                    Dokument
+                  </span>
+                </div>
+
                 <Link
-                  href={`/wiki/department/${encodeURIComponent(
-                    page.category
-                  )}`}
-                  className="text-sm text-zinc-500 hover:text-zinc-900 transition"
+                  href={`/wiki/${page.slug}`}
+                  className="block mt-3"
                 >
-                  {page.category}
+                  <h2 className="text-xl font-semibold hover:underline">
+                    {page.title}
+                  </h2>
                 </Link>
 
-                <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                  Dokument
-                </span>
-              </div>
-
-              <Link
-                href={`/wiki/${page.slug}`}
-                className="block mt-3"
-              >
-                <h2 className="text-xl font-semibold hover:underline">
-                  {page.title}
-                </h2>
-              </Link>
-
-              <p className="text-zinc-600 mt-2">
-                {page.description}
-              </p>
-
-              <div className="flex flex-wrap gap-2 mt-4">
-                {page.tags?.map(
-                  (pageTag: string) => (
-                    <Link
-                      key={pageTag}
-                      href={`/wiki/tag/${encodeURIComponent(
-                        pageTag
-                      )}`}
-                      className={`text-xs px-2 py-1 rounded-full transition ${
-                        pageTag === decodedTag
-                          ? "bg-zinc-900 text-white"
-                          : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                      }`}
-                    >
-                      #{pageTag}
-                    </Link>
-                  )
-                )}
-              </div>
-
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                <p className="text-sm text-zinc-500">
-                  {page.author}
+                <p className="text-zinc-600 mt-2">
+                  {page.description}
                 </p>
 
-                <p className="text-sm text-zinc-500">
-                  {page.updatedAt}
-                </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {page.tags?.map(
+                    (pageTag: string) => (
+                      <Link
+                        key={pageTag}
+                        href={`/wiki/tag/${encodeURIComponent(
+                          pageTag
+                        )}`}
+                        className={`text-xs px-2 py-1 rounded-full transition ${
+                          pageTag === decodedTag
+                            ? "bg-zinc-900 text-white"
+                            : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                        }`}
+                      >
+                        #{pageTag}
+                      </Link>
+                    )
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
+                  <p className="text-sm text-zinc-500">
+                    {page.author}
+                  </p>
+
+                  <p className="text-sm text-zinc-500">
+                    {page.updatedAt}
+                  </p>
+                </div>
               </div>
-            </div>
-          )
+            );
+          }
         )}
       </div>
     </div>

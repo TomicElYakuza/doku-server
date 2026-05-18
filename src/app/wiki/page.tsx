@@ -36,6 +36,9 @@ export default function WikiPage() {
   const [search, setSearch] =
     useState("");
 
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
   const [departmentFilter, setDepartmentFilter] =
     useState("");
 
@@ -233,6 +236,17 @@ export default function WikiPage() {
     return versions[slug]?.length || 0;
   }
 
+  const companies: string[] = [
+    ...new Set(
+      pages
+        .map(
+          (page: any) =>
+            page.company || "Intern"
+        )
+        .filter(Boolean)
+    ),
+  ];
+
   const departments: string[] = [
     ...new Set(
       pages
@@ -276,11 +290,17 @@ export default function WikiPage() {
       const query =
         search.toLowerCase();
 
+      const pageCompany =
+        page.company || "Intern";
+
       const matchesSearch =
         page.title
           ?.toLowerCase()
           .includes(query) ||
         page.description
+          ?.toLowerCase()
+          .includes(query) ||
+        pageCompany
           ?.toLowerCase()
           .includes(query) ||
         page.category
@@ -298,6 +318,11 @@ export default function WikiPage() {
               .toLowerCase()
               .includes(query)
         );
+
+      const matchesCompany =
+        !companyFilter ||
+        pageCompany ===
+          companyFilter;
 
       const matchesDepartment =
         !departmentFilter ||
@@ -322,6 +347,7 @@ export default function WikiPage() {
 
       return (
         matchesSearch &&
+        matchesCompany &&
         matchesDepartment &&
         matchesTag &&
         matchesMine &&
@@ -341,6 +367,12 @@ export default function WikiPage() {
     if (sortBy === "title-desc") {
       return b.title.localeCompare(
         a.title
+      );
+    }
+
+    if (sortBy === "company-asc") {
+      return (a.company || "Intern").localeCompare(
+        b.company || "Intern"
       );
     }
 
@@ -365,6 +397,8 @@ export default function WikiPage() {
 
   function resetFilters() {
     setSearch("");
+
+    setCompanyFilter("");
 
     setDepartmentFilter("");
 
@@ -404,7 +438,7 @@ export default function WikiPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Dokumente
@@ -412,6 +446,16 @@ export default function WikiPage() {
 
           <h2 className="text-3xl font-bold mt-2">
             {pages.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Firmen
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {companies.length}
           </h2>
         </div>
 
@@ -513,10 +557,10 @@ export default function WikiPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-5">
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Dokumente, Tags, Autoren oder Inhalte suchen..."
+            placeholder="Dokumente, Firmen, Abteilungen, Tags, Autoren oder Inhalte suchen..."
             value={search}
             onChange={(event) =>
               setSearch(
@@ -525,6 +569,31 @@ export default function WikiPage() {
             }
             className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (company) => (
+                <option
+                  key={company}
+                  value={company}
+                >
+                  {company}
+                </option>
+              )
+            )}
+          </select>
 
           <select
             value={departmentFilter}
@@ -599,6 +668,10 @@ export default function WikiPage() {
               Titel Z-A
             </option>
 
+            <option value="company-asc">
+              Firma A-Z
+            </option>
+
             <option value="category-asc">
               Abteilung A-Z
             </option>
@@ -638,15 +711,21 @@ export default function WikiPage() {
                 key={page.slug}
                 className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
               >
-                <div className="flex items-center justify-between">
-                  <Link
-                    href={`/wiki/department/${encodeURIComponent(
-                      page.category
-                    )}`}
-                    className="text-sm text-zinc-500 hover:text-zinc-900 transition"
-                  >
-                    {page.category}
-                  </Link>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                      {page.company || "Intern"}
+                    </span>
+
+                    <Link
+                      href={`/wiki/department/${encodeURIComponent(
+                        page.category
+                      )}`}
+                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                    >
+                      {page.category}
+                    </Link>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     {favorites.includes(
@@ -756,6 +835,10 @@ export default function WikiPage() {
                 </th>
 
                 <th className="text-left px-5 py-4 font-semibold">
+                  Firma
+                </th>
+
+                <th className="text-left px-5 py-4 font-semibold">
                   Abteilung
                 </th>
 
@@ -803,6 +886,10 @@ export default function WikiPage() {
                           Favorit
                         </span>
                       )}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {page.company || "Intern"}
                     </td>
 
                     <td className="px-5 py-4 text-zinc-600">

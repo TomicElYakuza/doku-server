@@ -4,6 +4,36 @@ const STORAGE_KEY = "wiki-pages";
 
 const INIT_KEY = "wiki-pages-initialized";
 
+function normalizePage(page: any) {
+  return {
+    ...page,
+
+    company:
+      page.company ||
+      "Intern",
+
+    category:
+      page.category ||
+      "Allgemein",
+
+    tags:
+      Array.isArray(page.tags)
+        ? page.tags
+        : [],
+  };
+}
+
+function normalizePages(pages: any[]) {
+  if (!Array.isArray(pages)) {
+    return [];
+  }
+
+  return pages.map(
+    (page) =>
+      normalizePage(page)
+  );
+}
+
 export function getStoredPages() {
   if (typeof window === "undefined") {
     return [];
@@ -16,9 +46,14 @@ export function getStoredPages() {
     localStorage.getItem(STORAGE_KEY);
 
   if (!initialized) {
+    const normalizedInitialPages =
+      normalizePages(wikiPages);
+
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(wikiPages)
+      JSON.stringify(
+        normalizedInitialPages
+      )
     );
 
     localStorage.setItem(
@@ -26,7 +61,7 @@ export function getStoredPages() {
       "true"
     );
 
-    return wikiPages;
+    return normalizedInitialPages;
   }
 
   if (!data) {
@@ -41,7 +76,10 @@ export function getStoredPages() {
       return [];
     }
 
-    return parsed;
+    const normalizedPages =
+      normalizePages(parsed);
+
+    return normalizedPages;
   } catch {
     return [];
   }
@@ -55,9 +93,11 @@ export function savePages(
   }
 
   const safePages =
-    Array.isArray(pages)
-      ? pages
-      : [];
+    normalizePages(
+      Array.isArray(pages)
+        ? pages
+        : []
+    );
 
   localStorage.setItem(
     STORAGE_KEY,

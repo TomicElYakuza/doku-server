@@ -15,6 +15,10 @@ import {
 } from "../lib/trashStorage";
 
 import {
+  getTickets,
+} from "../lib/ticketStorage";
+
+import {
   canCreate,
 } from "../lib/permissions";
 
@@ -26,6 +30,9 @@ export default function HomePage() {
     useState<any[]>([]);
 
   const [trashPages, setTrashPages] =
+    useState<any[]>([]);
+
+  const [tickets, setTickets] =
     useState<any[]>([]);
 
   const [mounted, setMounted] =
@@ -40,6 +47,8 @@ export default function HomePage() {
 
     setActivities(getActivities());
 
+    setTickets(getTickets());
+
     function handleWikiPagesUpdated() {
       setPages(getStoredPages());
     }
@@ -50,6 +59,10 @@ export default function HomePage() {
 
     function handleActivityUpdated() {
       setActivities(getActivities());
+    }
+
+    function handleTicketsUpdated() {
+      setTickets(getTickets());
     }
 
     window.addEventListener(
@@ -67,6 +80,11 @@ export default function HomePage() {
       handleActivityUpdated
     );
 
+    window.addEventListener(
+      "ticketsUpdated",
+      handleTicketsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "wikiPagesUpdated",
@@ -81,6 +99,11 @@ export default function HomePage() {
       window.removeEventListener(
         "activityUpdated",
         handleActivityUpdated
+      );
+
+      window.removeEventListener(
+        "ticketsUpdated",
+        handleTicketsUpdated
       );
     };
   }, []);
@@ -251,6 +274,22 @@ export default function HomePage() {
     )
     .slice(0, 5);
 
+  const openTickets =
+    tickets.filter(
+      (ticket: any) =>
+        ticket.status === "open"
+    );
+
+  const urgentTickets =
+    tickets.filter(
+      (ticket: any) =>
+        ticket.priority === "urgent"
+    );
+
+  const latestTickets = [
+    ...tickets,
+  ].slice(0, 5);
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -265,7 +304,7 @@ export default function HomePage() {
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
         <a
           href="/wiki"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -300,6 +339,19 @@ export default function HomePage() {
         </div>
 
         <a
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-blue-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Tickets
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {tickets.length}
+          </h2>
+        </a>
+
+        <a
           href="/wiki/trash"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
         >
@@ -326,6 +378,35 @@ export default function HomePage() {
         </a>
       </div>
 
+      {/* TICKET STATUS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <a
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Offene Tickets
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {openTickets.length}
+          </h2>
+        </a>
+
+        <a
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Dringende Tickets
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {urgentTickets.length}
+          </h2>
+        </a>
+      </div>
+
       {/* QUICK ACTIONS */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h2 className="text-2xl font-semibold">
@@ -341,13 +422,29 @@ export default function HomePage() {
           </a>
 
           {canCreate() && (
-            <a
-              href="/wiki/create"
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Dokument erstellen
-            </a>
+            <>
+              <a
+                href="/wiki/create"
+                className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Dokument erstellen
+              </a>
+
+              <a
+                href="/tickets"
+                className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
+              >
+                Ticket erstellen
+              </a>
+            </>
           )}
+
+          <a
+            href="/tickets"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
+          >
+            Tickets öffnen
+          </a>
 
           <a
             href="/wiki/trash"
@@ -404,6 +501,55 @@ export default function HomePage() {
 
                 <p className="text-sm text-zinc-500">
                   {page.updatedAt}
+                </p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* LATEST TICKETS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold">
+            Letzte Tickets
+          </h2>
+
+          <a
+            href="/tickets"
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Alle anzeigen
+          </a>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          {latestTickets.length === 0 && (
+            <p className="text-zinc-500">
+              Noch keine Tickets vorhanden.
+            </p>
+          )}
+
+          {latestTickets.map((ticket: any) => (
+            <a
+              key={ticket.id}
+              href="/tickets"
+              className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+            >
+              <div className="flex items-center justify-between gap-6">
+                <div>
+                  <p className="font-semibold">
+                    {ticket.title}
+                  </p>
+
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {ticket.category} ·{" "}
+                    {ticket.status}
+                  </p>
+                </div>
+
+                <p className="text-sm text-zinc-500">
+                  {ticket.updatedAt}
                 </p>
               </div>
             </a>

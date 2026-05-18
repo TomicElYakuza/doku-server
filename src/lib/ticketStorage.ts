@@ -16,6 +16,7 @@ export type Ticket = {
   id: string;
   title: string;
   description: string;
+  company: string;
   status: TicketStatus;
   priority: TicketPriority;
   category: string;
@@ -25,7 +26,57 @@ export type Ticket = {
   updatedAt: string;
 };
 
-export function getTickets() {
+function normalizeTicket(ticket: any): Ticket {
+  return {
+    id:
+      ticket.id || "",
+
+    title:
+      ticket.title || "Ohne Titel",
+
+    description:
+      ticket.description || "",
+
+    company:
+      ticket.company || "Intern",
+
+    status:
+      ticket.status || "open",
+
+    priority:
+      ticket.priority || "medium",
+
+    category:
+      ticket.category || "Allgemein",
+
+    createdBy:
+      ticket.createdBy || "Unbekannt",
+
+    assignedTo:
+      ticket.assignedTo || "",
+
+    createdAt:
+      ticket.createdAt || "",
+
+    updatedAt:
+      ticket.updatedAt || "",
+  };
+}
+
+function normalizeTickets(
+  tickets: any[]
+): Ticket[] {
+  if (!Array.isArray(tickets)) {
+    return [];
+  }
+
+  return tickets.map(
+    (ticket) =>
+      normalizeTicket(ticket)
+  );
+}
+
+export function getTickets(): Ticket[] {
   if (typeof window === "undefined") {
     return [];
   }
@@ -45,7 +96,7 @@ export function getTickets() {
       return [];
     }
 
-    return parsed;
+    return normalizeTickets(parsed);
   } catch {
     return [];
   }
@@ -59,9 +110,11 @@ export function saveTickets(
   }
 
   const safeTickets =
-    Array.isArray(tickets)
-      ? tickets
-      : [];
+    normalizeTickets(
+      Array.isArray(tickets)
+        ? tickets
+        : []
+    );
 
   localStorage.setItem(
     STORAGE_KEY,
@@ -73,12 +126,25 @@ export function saveTickets(
   );
 }
 
+function createId() {
+  if (
+    typeof crypto !== "undefined" &&
+    "randomUUID" in crypto
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
 export function createTicket(
   ticket: Omit<
     Ticket,
     "id" | "createdAt" | "updatedAt"
   >
-) {
+): Ticket | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -91,14 +157,16 @@ export function createTicket(
 
   const newTicket: Ticket = {
     id:
-      crypto.randomUUID?.() ||
-      `${Date.now()}`,
+      createId(),
 
     title:
       ticket.title || "Ohne Titel",
 
     description:
       ticket.description || "",
+
+    company:
+      ticket.company || "Intern",
 
     status:
       ticket.status || "open",
@@ -133,7 +201,7 @@ export function createTicket(
 export function updateTicket(
   id: string,
   updates: Partial<Ticket>
-) {
+): Ticket | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -149,21 +217,30 @@ export function updateTicket(
     null;
 
   const updatedTickets =
-    tickets.map((ticket: Ticket) => {
+    tickets.map((ticket) => {
       if (ticket.id !== id) {
         return ticket;
       }
 
-      updatedTicket = {
+      const nextTicket: Ticket = {
         ...ticket,
         ...updates,
-        id: ticket.id,
-        createdAt: ticket.createdAt,
+        id:
+          ticket.id,
+        createdAt:
+          ticket.createdAt,
+        company:
+          updates.company ||
+          ticket.company ||
+          "Intern",
         updatedAt:
           new Date().toLocaleString(),
       };
 
-      return updatedTicket;
+      updatedTicket =
+        nextTicket;
+
+      return nextTicket;
     });
 
   saveTickets(updatedTickets);
@@ -187,7 +264,7 @@ export function deleteTicket(
 
   const updatedTickets =
     tickets.filter(
-      (ticket: Ticket) =>
+      (ticket) =>
         ticket.id !== id
     );
 

@@ -1,78 +1,396 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 
+import {
+  createTicket,
+  deleteTicket,
+  getPriorityLabel,
+  getStatusLabel,
+  getTickets,
+  updateTicket,
+} from "../../lib/ticketStorage";
+
+import type {
+  Ticket,
+  TicketPriority,
+  TicketStatus,
+} from "../../lib/ticketStorage";
+
+import {
+  getUser,
+} from "../../lib/userStorage";
+
+import {
+  canCreate,
+  canEdit,
+  canDelete,
+} from "../../lib/permissions";
+
+import {
+  saveActivity,
+} from "../../lib/activityStorage";
+
 export default function TicketsPage() {
+  const [mounted, setMounted] =
+    useState(false);
+
   const [tickets, setTickets] =
-    useState<any[]>([]);
+    useState<Ticket[]>([]);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [statusFilter, setStatusFilter] =
+    useState("");
+
+  const [priorityFilter, setPriorityFilter] =
+    useState("");
+
+  const [showCreateForm, setShowCreateForm] =
+    useState(false);
+
+  const [editingId, setEditingId] =
+    useState("");
+
+  const [title, setTitle] =
+    useState("");
+
+  const [description, setDescription] =
+    useState("");
+
+  const [category, setCategory] =
+    useState("Support");
+
+  const [assignedTo, setAssignedTo] =
+    useState("");
+
+  const [status, setStatus] =
+    useState<TicketStatus>("open");
+
+  const [priority, setPriority] =
+    useState<TicketPriority>("medium");
 
   useEffect(() => {
-    const demoTickets = [
-      {
-        id: "T-1001",
-        title: "VPN funktioniert nicht",
-        status: "offen",
-        priority: "hoch",
-        department: "IT",
-        createdAt: "15.05.2026",
-      },
-      {
-        id: "T-1002",
-        title: "Neuen Benutzer anlegen",
-        status: "in bearbeitung",
-        priority: "mittel",
-        department: "IT",
-        createdAt: "14.05.2026",
-      },
-      {
-        id: "T-1003",
-        title: "Drucker im Büro offline",
-        status: "geschlossen",
-        priority: "niedrig",
-        department: "Office",
-        createdAt: "12.05.2026",
-      },
-    ];
+    setMounted(true);
 
-    setTickets(demoTickets);
+    loadTickets();
+
+    function handleTicketsUpdated() {
+      loadTickets();
+    }
+
+    window.addEventListener(
+      "ticketsUpdated",
+      handleTicketsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ticketsUpdated",
+        handleTicketsUpdated
+      );
+    };
   }, []);
 
-  function getStatusClass(status: string) {
-    if (status === "offen") {
+  function loadTickets() {
+    setTickets(getTickets());
+  }
+
+  function resetForm() {
+    setEditingId("");
+
+    setTitle("");
+
+    setDescription("");
+
+    setCategory("Support");
+
+    setAssignedTo("");
+
+    setStatus("open");
+
+    setPriority("medium");
+
+    setShowCreateForm(false);
+  }
+
+  function handleCreateTicket() {
+    if (!canCreate()) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu erstellen."
+      );
+
+      return;
+    }
+
+    if (!title.trim()) {
+      alert(
+        "Bitte einen Titel eingeben."
+      );
+
+      return;
+    }
+
+    const user =
+      getUser();
+
+    const ticket =
+      createTicket({
+        title:
+          title.trim(),
+
+        description:
+          description.trim(),
+
+        category:
+          category.trim() ||
+          "Allgemein",
+
+        assignedTo:
+          assignedTo.trim(),
+
+        status,
+
+        priority,
+
+        createdBy:
+          user?.name ||
+          "Unbekannt",
+      });
+
+    if (ticket) {
+      saveActivity({
+        type: "ticketCreated",
+
+        title:
+          ticket.title,
+
+        user:
+          user?.name ||
+          "Unbekannt",
+
+        createdAt:
+          new Date().toLocaleString(),
+      });
+    }
+
+    resetForm();
+  }
+
+  function startEdit(ticket: Ticket) {
+    setEditingId(ticket.id);
+
+    setTitle(ticket.title);
+
+    setDescription(ticket.description);
+
+    setCategory(ticket.category);
+
+    setAssignedTo(ticket.assignedTo);
+
+    setStatus(ticket.status);
+
+    setPriority(ticket.priority);
+
+    setShowCreateForm(true);
+  }
+
+  function handleUpdateTicket() {
+    if (!canEdit()) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu bearbeiten."
+      );
+
+      return;
+    }
+
+    if (!editingId) {
+      return;
+    }
+
+    if (!title.trim()) {
+      alert(
+        "Bitte einen Titel eingeben."
+      );
+
+      return;
+    }
+
+    const updated =
+      updateTicket(editingId, {
+        title:
+          title.trim(),
+
+        description:
+          description.trim(),
+
+        category:
+          category.trim() ||
+          "Allgemein",
+
+        assignedTo:
+          assignedTo.trim(),
+
+        status,
+
+        priority,
+      });
+
+    if (updated) {
+      saveActivity({
+        type: "ticketUpdated",
+
+        title:
+          updated.title,
+
+        user:
+          getUser()?.name ||
+          "Unbekannt",
+
+        createdAt:
+          new Date().toLocaleString(),
+      });
+    }
+
+    resetForm();
+  }
+
+  function handleDeleteTicket(
+    ticket: Ticket
+  ) {
+    if (!canDelete()) {
+      alert(
+        "Nur Admins dürfen Tickets löschen."
+      );
+
+      return;
+    }
+
+    const confirmed = confirm(
+      "Ticket wirklich löschen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    deleteTicket(ticket.id);
+
+    saveActivity({
+      type: "ticketDeleted",
+
+      title:
+        ticket.title,
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+  }
+
+  function getPriorityClass(
+    value: string
+  ) {
+    if (value === "urgent") {
       return "bg-red-100 text-red-700";
     }
 
-    if (status === "in bearbeitung") {
+    if (value === "high") {
+      return "bg-orange-100 text-orange-700";
+    }
+
+    if (value === "medium") {
       return "bg-yellow-100 text-yellow-700";
     }
 
-    if (status === "geschlossen") {
+    return "bg-green-100 text-green-700";
+  }
+
+  function getStatusClass(
+    value: string
+  ) {
+    if (value === "open") {
+      return "bg-blue-100 text-blue-700";
+    }
+
+    if (value === "in-progress") {
+      return "bg-purple-100 text-purple-700";
+    }
+
+    if (value === "done") {
       return "bg-green-100 text-green-700";
     }
 
     return "bg-zinc-100 text-zinc-700";
   }
 
-  function getPriorityClass(priority: string) {
-    if (priority === "hoch") {
-      return "bg-red-100 text-red-700";
-    }
+  const filteredTickets =
+    tickets.filter((ticket) => {
+      const query =
+        search.toLowerCase();
 
-    if (priority === "mittel") {
-      return "bg-yellow-100 text-yellow-700";
-    }
+      const matchesSearch =
+        ticket.title
+          ?.toLowerCase()
+          .includes(query) ||
+        ticket.description
+          ?.toLowerCase()
+          .includes(query) ||
+        ticket.category
+          ?.toLowerCase()
+          .includes(query) ||
+        ticket.createdBy
+          ?.toLowerCase()
+          .includes(query) ||
+        ticket.assignedTo
+          ?.toLowerCase()
+          .includes(query);
 
-    if (priority === "niedrig") {
-      return "bg-green-100 text-green-700";
-    }
+      const matchesStatus =
+        !statusFilter ||
+        ticket.status ===
+          statusFilter;
 
-    return "bg-zinc-100 text-zinc-700";
+      const matchesPriority =
+        !priorityFilter ||
+        ticket.priority ===
+          priorityFilter;
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority
+      );
+    });
+
+  const openCount =
+    tickets.filter(
+      (ticket) =>
+        ticket.status === "open"
+    ).length;
+
+  const inProgressCount =
+    tickets.filter(
+      (ticket) =>
+        ticket.status ===
+        "in-progress"
+    ).length;
+
+  const doneCount =
+    tickets.filter(
+      (ticket) =>
+        ticket.status === "done"
+    ).length;
+
+  if (!mounted) {
+    return null;
   }
-
-  const openTickets = tickets.filter(
-    (ticket) =>
-      ticket.status !== "geschlossen"
-  );
 
   return (
     <div className="space-y-8">
@@ -84,17 +402,24 @@ export default function TicketsPage() {
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Übersicht über Support- und interne Aufgaben
+            Supportfälle, Aufgaben und interne Anfragen verwalten
           </p>
         </div>
 
-        <button className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition">
-          Neues Ticket
-        </button>
+        {canCreate() && (
+          <button
+            onClick={() =>
+              setShowCreateForm(true)
+            }
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Neues Ticket
+          </button>
+        )}
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Tickets gesamt
@@ -111,103 +436,407 @@ export default function TicketsPage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {openTickets.length}
+            {openCount}
           </h2>
         </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            Geschlossen
+            In Bearbeitung
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {
-              tickets.filter(
-                (ticket) =>
-                  ticket.status ===
-                  "geschlossen"
-              ).length
-            }
+            {inProgressCount}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Erledigt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {doneCount}
           </h2>
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 border-b border-zinc-200">
-            <tr>
-              <th className="text-left px-5 py-4 font-semibold">
-                Ticket
-              </th>
+      {/* FORM */}
+      {showCreateForm && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold">
+            {editingId
+              ? "Ticket bearbeiten"
+              : "Neues Ticket erstellen"}
+          </h2>
 
-              <th className="text-left px-5 py-4 font-semibold">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
                 Titel
-              </th>
+              </label>
 
-              <th className="text-left px-5 py-4 font-semibold">
+              <input
+                type="text"
+                value={title}
+                onChange={(event) =>
+                  setTitle(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Kurzer Titel des Tickets"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
+                Beschreibung
+              </label>
+
+              <textarea
+                value={description}
+                onChange={(event) =>
+                  setDescription(
+                    event.target.value
+                  )
+                }
+                rows={5}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                placeholder="Was ist passiert oder was soll erledigt werden?"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Kategorie
+              </label>
+
+              <input
+                type="text"
+                value={category}
+                onChange={(event) =>
+                  setCategory(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Support, IT, HR..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Zugewiesen an
+              </label>
+
+              <input
+                type="text"
+                value={assignedTo}
+                onChange={(event) =>
+                  setAssignedTo(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Name oder leer lassen"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
                 Status
-              </th>
+              </label>
 
-              <th className="text-left px-5 py-4 font-semibold">
-                Priorität
-              </th>
-
-              <th className="text-left px-5 py-4 font-semibold">
-                Abteilung
-              </th>
-
-              <th className="text-left px-5 py-4 font-semibold">
-                Erstellt
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {tickets.map((ticket) => (
-              <tr
-                key={ticket.id}
-                className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition"
+              <select
+                value={status}
+                onChange={(event) =>
+                  setStatus(
+                    event.target
+                      .value as TicketStatus
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <td className="px-5 py-4 font-medium">
-                  {ticket.id}
-                </td>
+                <option value="open">
+                  Offen
+                </option>
 
-                <td className="px-5 py-4">
-                  {ticket.title}
-                </td>
+                <option value="in-progress">
+                  In Bearbeitung
+                </option>
 
-                <td className="px-5 py-4">
+                <option value="done">
+                  Erledigt
+                </option>
+
+                <option value="closed">
+                  Geschlossen
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Priorität
+              </label>
+
+              <select
+                value={priority}
+                onChange={(event) =>
+                  setPriority(
+                    event.target
+                      .value as TicketPriority
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="low">
+                  Niedrig
+                </option>
+
+                <option value="medium">
+                  Mittel
+                </option>
+
+                <option value="high">
+                  Hoch
+                </option>
+
+                <option value="urgent">
+                  Dringend
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              onClick={
+                editingId
+                  ? handleUpdateTicket
+                  : handleCreateTicket
+              }
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              {editingId
+                ? "Änderungen speichern"
+                : "Ticket erstellen"}
+            </button>
+
+            <button
+              onClick={resetForm}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FILTER */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Suche & Filter
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Tickets suchen..."
+            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          />
+
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Status
+            </option>
+
+            <option value="open">
+              Offen
+            </option>
+
+            <option value="in-progress">
+              In Bearbeitung
+            </option>
+
+            <option value="done">
+              Erledigt
+            </option>
+
+            <option value="closed">
+              Geschlossen
+            </option>
+          </select>
+
+          <select
+            value={priorityFilter}
+            onChange={(event) =>
+              setPriorityFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Prioritäten
+            </option>
+
+            <option value="low">
+              Niedrig
+            </option>
+
+            <option value="medium">
+              Mittel
+            </option>
+
+            <option value="high">
+              Hoch
+            </option>
+
+            <option value="urgent">
+              Dringend
+            </option>
+          </select>
+        </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredTickets.length} von{" "}
+          {tickets.length} Tickets gefunden
+        </p>
+      </div>
+
+      {/* TICKETS */}
+      <div className="grid gap-4">
+        {filteredTickets.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <p className="text-zinc-500">
+              Keine Tickets gefunden.
+            </p>
+          </div>
+        )}
+
+        {filteredTickets.map((ticket) => (
+          <div
+            key={ticket.id}
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs ${getStatusClass(
+                    className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
                       ticket.status
                     )}`}
                   >
-                    {ticket.status}
+                    {getStatusLabel(
+                      ticket.status
+                    )}
                   </span>
-                </td>
 
-                <td className="px-5 py-4">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs ${getPriorityClass(
+                    className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
                       ticket.priority
                     )}`}
                   >
-                    {ticket.priority}
+                    {getPriorityLabel(
+                      ticket.priority
+                    )}
                   </span>
-                </td>
 
-                <td className="px-5 py-4 text-zinc-600">
-                  {ticket.department}
-                </td>
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    {ticket.category}
+                  </span>
+                </div>
 
-                <td className="px-5 py-4 text-zinc-600">
-                  {ticket.createdAt}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <Link
+                  href={`/tickets/${ticket.id}`}
+                  className="block mt-4"
+                >
+                  <h2 className="text-2xl font-bold hover:underline">
+                    {ticket.title}
+                  </h2>
+                </Link>
+
+                <p className="text-zinc-600 mt-2 whitespace-pre-wrap">
+                  {ticket.description ||
+                    "Keine Beschreibung"}
+                </p>
+
+                <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
+                  <p>
+                    Erstellt von:{" "}
+                    {ticket.createdBy}
+                  </p>
+
+                  {ticket.assignedTo && (
+                    <p>
+                      Zugewiesen an:{" "}
+                      {ticket.assignedTo}
+                    </p>
+                  )}
+
+                  <p>
+                    Erstellt:{" "}
+                    {ticket.createdAt}
+                  </p>
+
+                  <p>
+                    Aktualisiert:{" "}
+                    {ticket.updatedAt}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                <Link
+                  href={`/tickets/${ticket.id}`}
+                  className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                >
+                  Öffnen
+                </Link>
+
+                {canEdit() && (
+                  <button
+                    onClick={() =>
+                      startEdit(ticket)
+                    }
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                  >
+                    Bearbeiten
+                  </button>
+                )}
+
+                {canDelete() && (
+                  <button
+                    onClick={() =>
+                      handleDeleteTicket(
+                        ticket
+                      )
+                    }
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                  >
+                    Löschen
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -43,6 +43,11 @@ import {
 } from "../../lib/activityStorage";
 
 import {
+  getTickets,
+  clearTickets,
+} from "../../lib/ticketStorage";
+
+import {
   clearUser,
 } from "../../lib/userStorage";
 
@@ -60,6 +65,7 @@ export default function SettingsPage() {
       comments: 0,
       files: 0,
       versions: 0,
+      tickets: 0,
     });
 
   useEffect(() => {
@@ -109,6 +115,11 @@ export default function SettingsPage() {
       handleDataUpdated
     );
 
+    window.addEventListener(
+      "ticketsUpdated",
+      handleDataUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "wikiPagesUpdated",
@@ -147,6 +158,11 @@ export default function SettingsPage() {
 
       window.removeEventListener(
         "activityUpdated",
+        handleDataUpdated
+      );
+
+      window.removeEventListener(
+        "ticketsUpdated",
         handleDataUpdated
       );
     };
@@ -195,6 +211,9 @@ export default function SettingsPage() {
     const versions =
       getVersions();
 
+    const tickets =
+      getTickets();
+
     setStats({
       pages: pages.length,
 
@@ -223,6 +242,9 @@ export default function SettingsPage() {
         countObjectArrays(
           versions
         ),
+
+      tickets:
+        tickets.length,
     });
   }
 
@@ -279,6 +301,11 @@ export default function SettingsPage() {
       activities:
         localStorage.getItem(
           "wiki-activities"
+        ),
+
+      tickets:
+        localStorage.getItem(
+          "wiki-tickets"
         ),
     };
 
@@ -420,6 +447,13 @@ export default function SettingsPage() {
           );
         }
 
+        if (backup.tickets) {
+          localStorage.setItem(
+            "wiki-tickets",
+            backup.tickets
+          );
+        }
+
         loadStats();
 
         window.dispatchEvent(
@@ -455,6 +489,10 @@ export default function SettingsPage() {
         );
 
         window.dispatchEvent(
+          new Event("ticketsUpdated")
+        );
+
+        window.dispatchEvent(
           new Event("userUpdated")
         );
 
@@ -473,7 +511,7 @@ export default function SettingsPage() {
 
   function resetWikiData() {
     const confirmed = confirm(
-      "Wirklich alle lokalen Wiki-Daten löschen?"
+      "Wirklich alle lokalen Wiki-Daten inklusive Tickets löschen?"
     );
 
     if (!confirmed) {
@@ -496,10 +534,12 @@ export default function SettingsPage() {
 
     clearActivities();
 
+    clearTickets();
+
     loadStats();
 
     setStatus(
-      "Wiki-Daten wurden gelöscht. Beim nächsten Öffnen wird das Wiki wieder initialisiert."
+      "Wiki-Daten und Tickets wurden gelöscht. Beim nächsten Öffnen wird das Wiki wieder initialisiert."
     );
   }
 
@@ -529,6 +569,8 @@ export default function SettingsPage() {
     clearComments();
 
     clearActivities();
+
+    clearTickets();
 
     loadStats();
 
@@ -570,6 +612,24 @@ export default function SettingsPage() {
 
     setStatus(
       "Aktivitäten wurden gelöscht."
+    );
+  }
+
+  function clearOnlyTickets() {
+    const confirmed = confirm(
+      "Tickets wirklich löschen?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearTickets();
+
+    loadStats();
+
+    setStatus(
+      "Tickets wurden gelöscht."
     );
   }
 
@@ -676,6 +736,16 @@ export default function SettingsPage() {
               {stats.activities}
             </p>
           </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Tickets
+            </p>
+
+            <p className="text-3xl font-bold mt-2">
+              {stats.tickets}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -686,7 +756,7 @@ export default function SettingsPage() {
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Benutzer, Papierkorb, Versionen, Anhängen und Kommentaren.
+          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Benutzer, Papierkorb, Versionen, Anhängen, Kommentaren und Tickets.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-4">
@@ -734,6 +804,13 @@ export default function SettingsPage() {
           >
             Aktivitäten löschen
           </button>
+
+          <button
+            onClick={clearOnlyTickets}
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Tickets löschen
+          </button>
         </div>
       </div>
 
@@ -752,7 +829,7 @@ export default function SettingsPage() {
             onClick={resetWikiData}
             className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
           >
-            Nur Wiki-Daten löschen
+            Wiki-Daten & Tickets löschen
           </button>
 
           <button

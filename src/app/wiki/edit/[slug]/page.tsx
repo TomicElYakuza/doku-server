@@ -58,6 +58,9 @@ export default function EditWikiPage() {
   const [title, setTitle] =
     useState("");
 
+  const [company, setCompany] =
+    useState("Intern");
+
   const [category, setCategory] =
     useState("");
 
@@ -99,6 +102,10 @@ export default function EditWikiPage() {
 
     setTitle(page.title || "");
 
+    setCompany(
+      page.company || "Intern"
+    );
+
     setCategory(page.category || "");
 
     setDescription(
@@ -126,6 +133,14 @@ export default function EditWikiPage() {
     if (!title.trim()) {
       alert(
         "Bitte einen Titel eingeben."
+      );
+
+      return;
+    }
+
+    if (!company.trim()) {
+      alert(
+        "Bitte eine Firma eingeben."
       );
 
       return;
@@ -160,6 +175,9 @@ export default function EditWikiPage() {
       title:
         existingPage.title,
 
+      company:
+        existingPage.company || "Intern",
+
       category:
         existingPage.category,
 
@@ -190,6 +208,10 @@ export default function EditWikiPage() {
 
           title:
             title.trim(),
+
+          company:
+            company.trim() ||
+            "Intern",
 
           category:
             category.trim(),
@@ -263,7 +285,6 @@ export default function EditWikiPage() {
   if (!pageFound) {
     return (
       <div className="max-w-3xl">
-        {/* TOP NAV */}
         <div className="flex items-center gap-3 mb-6 text-sm">
           <Link
             href="/wiki"
@@ -391,6 +412,25 @@ export default function EditWikiPage() {
               />
             </div>
 
+            {/* FIRMA */}
+            <div>
+              <label className="block mb-2 font-medium">
+                Firma
+              </label>
+
+              <input
+                type="text"
+                value={company}
+                onChange={(event) =>
+                  setCompany(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="z. B. Intern, Muster GmbH, Kunde A"
+              />
+            </div>
+
             {/* KATEGORIE */}
             <div>
               <label className="block mb-2 font-medium">
@@ -506,6 +546,18 @@ export default function EditWikiPage() {
             <p className="text-zinc-500 mt-2">
               Markdown Darstellung
             </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-6">
+            <span className="bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full">
+              {company || "Intern"}
+            </span>
+
+            {category && (
+              <span className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full">
+                {category}
+              </span>
+            )}
           </div>
 
           <article className="prose prose-zinc max-w-none">

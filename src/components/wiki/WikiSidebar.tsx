@@ -4,26 +4,33 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
-import { usePathname } from "next/navigation";
+import {
+  usePathname,
+} from "next/navigation";
 
 import {
   getStoredPages,
-} from "../../lib/wikiStorage";
+} from "@/lib/wikiStorage";
 
 import {
   getFavorites,
-} from "../../lib/favoritesStorage";
+} from "@/lib/favoritesStorage";
 
 import {
   getRecentPages,
-} from "../../lib/recentStorage";
+} from "@/lib/recentStorage";
+
+import {
+  getTrashPages,
+} from "@/lib/trashStorage";
 
 import {
   isAdmin,
-} from "../../lib/permissions";
+} from "@/lib/permissions";
 
 export default function WikiSidebar() {
-  const pathname = usePathname();
+  const pathname =
+    usePathname();
 
   const [favorites, setFavorites] =
     useState<string[]>([]);
@@ -39,6 +46,9 @@ export default function WikiSidebar() {
 
   const [trashCount, setTrashCount] =
     useState(0);
+
+  const [companiesOpen, setCompaniesOpen] =
+    useState(false);
 
   const [departmentsOpen, setDepartmentsOpen] =
     useState(false);
@@ -65,31 +75,33 @@ export default function WikiSidebar() {
     const recentSlugs =
       getRecentPages();
 
-    const recent = recentSlugs
-      .map((slug) =>
-        allPages.find(
-          (page: any) =>
-            page.slug === slug
+    const recent =
+      recentSlugs
+        .map((slug: string) =>
+          allPages.find(
+            (page: any) =>
+              page.slug === slug
+          )
         )
-      )
-      .filter(Boolean);
+        .filter(Boolean);
 
     setRecentPages(recent);
   }
 
   function loadTrashCount() {
-    const trash = JSON.parse(
-      localStorage.getItem("wiki-trash") ||
-        "[]"
+    setTrashCount(
+      getTrashPages().length
     );
+  }
 
-    setTrashCount(trash.length);
+  function loadAdminStatus() {
+    setAdmin(isAdmin());
   }
 
   useEffect(() => {
     setMounted(true);
 
-    setAdmin(isAdmin());
+    loadAdminStatus();
 
     loadPages();
 
@@ -113,6 +125,10 @@ export default function WikiSidebar() {
       loadPages();
     }
 
+    function handleUserUpdated() {
+      loadAdminStatus();
+    }
+
     window.addEventListener(
       "favoritesUpdated",
       handleFavoritesUpdated
@@ -131,6 +147,11 @@ export default function WikiSidebar() {
     window.addEventListener(
       "wikiPagesUpdated",
       handleWikiPagesUpdated
+    );
+
+    window.addEventListener(
+      "userUpdated",
+      handleUserUpdated
     );
 
     return () => {
@@ -153,6 +174,11 @@ export default function WikiSidebar() {
         "wikiPagesUpdated",
         handleWikiPagesUpdated
       );
+
+      window.removeEventListener(
+        "userUpdated",
+        handleUserUpdated
+      );
     };
   }, []);
 
@@ -160,12 +186,25 @@ export default function WikiSidebar() {
     return null;
   }
 
+  const companies: string[] = [
+    ...new Set(
+      pages
+        .map(
+          (page: any) =>
+            page.company || "Intern"
+        )
+        .filter(Boolean)
+    ),
+  ];
+
   const departments: string[] = [
     ...new Set(
-      pages.map(
-        (page: any) =>
-          page.category
-      )
+      pages
+        .map(
+          (page: any) =>
+            page.category
+        )
+        .filter(Boolean)
     ),
   ];
 
@@ -178,10 +217,13 @@ export default function WikiSidebar() {
     ),
   ];
 
-  const favoritePages = pages.filter(
-    (page: any) =>
-      favorites.includes(page.slug)
-  );
+  const favoritePages =
+    pages.filter(
+      (page: any) =>
+        favorites.includes(
+          page.slug
+        )
+    );
 
   return (
     <aside className="w-72 bg-white border border-zinc-200 rounded-3xl p-6 sticky top-6 h-fit">
@@ -217,7 +259,7 @@ export default function WikiSidebar() {
         </div>
       )}
 
-      {/* RECENT */}
+      {/* ZULETZT GEÖFFNET */}
       {recentPages.length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-blue-600 uppercase mb-3">
@@ -244,6 +286,59 @@ export default function WikiSidebar() {
           </div>
         </div>
       )}
+
+      {/* FIRMEN */}
+      <div className="mb-8">
+        <button
+          onClick={() =>
+            setCompaniesOpen(
+              !companiesOpen
+            )
+          }
+          className="w-full flex items-center justify-between mb-3"
+        >
+          <h3 className="text-sm font-semibold text-blue-600 uppercase">
+            Firmen
+          </h3>
+
+          <span className="text-zinc-500">
+            {companiesOpen
+              ? "−"
+              : "+"}
+          </span>
+        </button>
+
+        {companiesOpen && (
+          <div className="flex flex-col gap-2">
+            {companies.length === 0 && (
+              <p className="text-sm text-zinc-400 px-3">
+                Keine Firmen
+              </p>
+            )}
+
+            {companies.map(
+              (company: string) => (
+                <Link
+                  key={company}
+                  href={`/wiki/company/${encodeURIComponent(
+                    company
+                  )}`}
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/company/${encodeURIComponent(
+                      company
+                    )}`
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  }`}
+                >
+                  {company}
+                </Link>
+              )
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ABTEILUNGEN */}
       <div className="mb-8">
@@ -278,10 +373,14 @@ export default function WikiSidebar() {
               (department: string) => (
                 <Link
                   key={department}
-                  href={`/wiki/department/${department}`}
+                  href={`/wiki/department/${encodeURIComponent(
+                    department
+                  )}`}
                   className={`p-3 rounded-xl transition ${
                     pathname ===
-                    `/wiki/department/${department}`
+                    `/wiki/department/${encodeURIComponent(
+                      department
+                    )}`
                       ? "bg-zinc-900 text-white"
                       : "bg-zinc-50 hover:bg-zinc-100"
                   }`}
@@ -302,20 +401,26 @@ export default function WikiSidebar() {
           </h3>
 
           <div className="flex flex-wrap gap-2">
-            {allTags.map((tag: string) => (
-              <Link
-                key={tag}
-                href={`/wiki/tag/${tag}`}
-                className={`text-sm px-3 py-1 rounded-full transition ${
-                  pathname ===
-                  `/wiki/tag/${tag}`
-                    ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
-                }`}
-              >
-                #{tag}
-              </Link>
-            ))}
+            {allTags.map(
+              (tag: string) => (
+                <Link
+                  key={tag}
+                  href={`/wiki/tag/${encodeURIComponent(
+                    tag
+                  )}`}
+                  className={`text-sm px-3 py-1 rounded-full transition ${
+                    pathname ===
+                    `/wiki/tag/${encodeURIComponent(
+                      tag
+                    )}`
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+                  }`}
+                >
+                  #{tag}
+                </Link>
+              )
+            )}
           </div>
         </div>
       )}

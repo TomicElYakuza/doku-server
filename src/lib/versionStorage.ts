@@ -98,6 +98,9 @@ export function saveVersion(
     title:
       version.title || "Ohne Titel",
 
+    company:
+      version.company || "Intern",
+
     category:
       version.category || "Allgemein",
 

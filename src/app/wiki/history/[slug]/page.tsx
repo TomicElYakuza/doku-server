@@ -40,6 +40,9 @@ export default function HistoryPage() {
   const [pageTitle, setPageTitle] =
     useState("");
 
+  const [pageCompany, setPageCompany] =
+    useState("Intern");
+
   const [pageCategory, setPageCategory] =
     useState("");
 
@@ -111,6 +114,10 @@ export default function HistoryPage() {
 
     setPageTitle(page.title);
 
+    setPageCompany(
+      page.company || "Intern"
+    );
+
     setPageCategory(
       page.category || ""
     );
@@ -157,6 +164,11 @@ export default function HistoryPage() {
 
           title:
             version.title || page.title,
+
+          company:
+            version.company ||
+            page.company ||
+            "Intern",
 
           category:
             version.category ||
@@ -292,6 +304,14 @@ export default function HistoryPage() {
           /
         </span>
 
+        <span className="text-zinc-500">
+          {pageCompany}
+        </span>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
         {pageCategory ? (
           <>
             <Link
@@ -369,6 +389,10 @@ export default function HistoryPage() {
             const versionNumber =
               versions.length - index;
 
+            const versionCompany =
+              version.company ||
+              "Intern";
+
             return (
               <div
                 key={`${version.savedAt}-${index}`}
@@ -408,6 +432,16 @@ export default function HistoryPage() {
                     <p className="font-medium">
                       {version.title ||
                         "Ohne Titel"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-zinc-500">
+                      Firma
+                    </p>
+
+                    <p className="font-medium">
+                      {versionCompany}
                     </p>
                   </div>
 

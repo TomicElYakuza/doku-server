@@ -3,8 +3,17 @@
 import Link from "next/link";
 
 import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
   usePathname,
 } from "next/navigation";
+
+import {
+  getTickets,
+} from "../../lib/ticketStorage";
 
 const navigation = [
   {
@@ -43,6 +52,50 @@ export default function Sidebar() {
   const pathname =
     usePathname();
 
+  const [mounted, setMounted] =
+    useState(false);
+
+  const [openTicketCount, setOpenTicketCount] =
+    useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+
+    loadTicketCount();
+
+    function handleTicketsUpdated() {
+      loadTicketCount();
+    }
+
+    window.addEventListener(
+      "ticketsUpdated",
+      handleTicketsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ticketsUpdated",
+        handleTicketsUpdated
+      );
+    };
+  }, []);
+
+  function loadTicketCount() {
+    const tickets =
+      getTickets();
+
+    const openTickets =
+      tickets.filter(
+        (ticket: any) =>
+          ticket.status === "open" ||
+          ticket.status === "in-progress"
+      );
+
+    setOpenTicketCount(
+      openTickets.length
+    );
+  }
+
   function isActive(
     href: string
   ) {
@@ -74,19 +127,35 @@ export default function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition ${
+            className={`flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition ${
               isActive(item.href)
                 ? "bg-white text-zinc-950"
                 : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
             }`}
           >
-            <span>
-              {item.icon}
+            <span className="flex items-center gap-3">
+              <span>
+                {item.icon}
+              </span>
+
+              <span className="font-medium">
+                {item.label}
+              </span>
             </span>
 
-            <span className="font-medium">
-              {item.label}
-            </span>
+            {mounted &&
+              item.href === "/tickets" &&
+              openTicketCount > 0 && (
+                <span
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    isActive(item.href)
+                      ? "bg-zinc-950 text-white"
+                      : "bg-white/10 text-white"
+                  }`}
+                >
+                  {openTicketCount}
+                </span>
+              )}
           </Link>
         ))}
       </nav>

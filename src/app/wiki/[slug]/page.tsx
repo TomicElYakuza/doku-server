@@ -282,6 +282,9 @@ export default function WikiDetailPage() {
     );
   }
 
+  const company =
+    page.company || "Intern";
+
   return (
     <div className="flex gap-6">
       <div className="flex-1 max-w-5xl">
@@ -293,6 +296,14 @@ export default function WikiDetailPage() {
           >
             wiki
           </Link>
+
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <span className="text-zinc-500">
+            {company}
+          </span>
 
           <span className="text-zinc-400">
             /
@@ -323,9 +334,20 @@ export default function WikiDetailPage() {
           {/* HEADER */}
           <div className="flex items-start justify-between gap-6 mb-10">
             <div>
-              <span className="inline-block bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full mb-4">
-                {page.category}
-              </span>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="inline-block bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full">
+                  {company}
+                </span>
+
+                <Link
+                  href={`/wiki/department/${encodeURIComponent(
+                    page.category
+                  )}`}
+                  className="inline-block bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                >
+                  {page.category}
+                </Link>
+              </div>
 
               <h1 className="text-5xl font-bold">
                 {page.title}
@@ -393,6 +415,10 @@ export default function WikiDetailPage() {
 
           {/* META */}
           <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10 flex-wrap">
+            <p>
+              Firma: {company}
+            </p>
+
             <p>
               Autor: {page.author}
             </p>
