@@ -28,6 +28,12 @@ import type {
 } from "../../lib/ticketTemplateStorage";
 
 import {
+  deleteAllTicketComments,
+  getTicketComments,
+  getTicketCommentCount,
+} from "../../lib/ticketCommentStorage";
+
+import {
   getUser,
 } from "../../lib/userStorage";
 
@@ -51,7 +57,13 @@ export default function TicketsPage() {
   const [templates, setTemplates] =
     useState<TicketTemplate[]>([]);
 
+  const [comments, setComments] =
+    useState<Record<string, any[]>>({});
+
   const [selectedTemplateId, setSelectedTemplateId] =
+    useState("");
+
+  const [pendingTemplateId, setPendingTemplateId] =
     useState("");
 
   const [search, setSearch] =
@@ -102,12 +114,18 @@ export default function TicketsPage() {
 
     loadTemplates();
 
+    loadComments();
+
     function handleTicketsUpdated() {
       loadTickets();
     }
 
     function handleTicketTemplatesUpdated() {
       loadTemplates();
+    }
+
+    function handleTicketCommentsUpdated() {
+      loadComments();
     }
 
     window.addEventListener(
@@ -120,6 +138,11 @@ export default function TicketsPage() {
       handleTicketTemplatesUpdated
     );
 
+    window.addEventListener(
+      "ticketCommentsUpdated",
+      handleTicketCommentsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "ticketsUpdated",
@@ -130,8 +153,41 @@ export default function TicketsPage() {
         "ticketTemplatesUpdated",
         handleTicketTemplatesUpdated
       );
+
+      window.removeEventListener(
+        "ticketCommentsUpdated",
+        handleTicketCommentsUpdated
+      );
     };
   }, []);
+
+  useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
+    if (!pendingTemplateId) {
+      return;
+    }
+
+    if (templates.length === 0) {
+      return;
+    }
+
+    setShowCreateForm(true);
+
+    setEditingId("");
+
+    applyTemplate(
+      pendingTemplateId
+    );
+
+    setPendingTemplateId("");
+  }, [
+    mounted,
+    templates,
+    pendingTemplateId,
+  ]);
 
   function applyUrlFilters() {
     if (typeof window === "undefined") {
@@ -158,6 +214,10 @@ export default function TicketsPage() {
     setPriorityFilter(
       params.get("priority") || ""
     );
+
+    setPendingTemplateId(
+      params.get("template") || ""
+    );
   }
 
   function updateUrlFilters(
@@ -174,7 +234,10 @@ export default function TicketsPage() {
       new URLSearchParams();
 
     if (nextSearch) {
-      params.set("q", nextSearch);
+      params.set(
+        "q",
+        nextSearch
+      );
     }
 
     if (nextCompany) {
@@ -213,6 +276,35 @@ export default function TicketsPage() {
     );
   }
 
+  function clearTemplateFromUrl() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    params.delete(
+      "template"
+    );
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/tickets?${query}`
+        : "/tickets";
+
+    window.history.replaceState(
+      null,
+      "",
+      nextUrl
+    );
+  }
+
   function loadTickets() {
     setTickets(
       getTickets()
@@ -225,26 +317,46 @@ export default function TicketsPage() {
     );
   }
 
+  function loadComments() {
+    setComments(
+      getTicketComments()
+    );
+  }
+
   function resetForm() {
     setEditingId("");
 
     setSelectedTemplateId("");
 
+    setPendingTemplateId("");
+
     setTitle("");
 
     setDescription("");
 
-    setCompany("Intern");
+    setCompany(
+      "Intern"
+    );
 
-    setCategory("Support");
+    setCategory(
+      "Support"
+    );
 
     setAssignedTo("");
 
-    setStatus("open");
+    setStatus(
+      "open"
+    );
 
-    setPriority("medium");
+    setPriority(
+      "medium"
+    );
 
-    setShowCreateForm(false);
+    setShowCreateForm(
+      false
+    );
+
+    clearTemplateFromUrl();
   }
 
   function resetFilters() {
@@ -281,7 +393,9 @@ export default function TicketsPage() {
       return;
     }
 
-    setTitle(template.title);
+    setTitle(
+      template.title
+    );
 
     setDescription(
       template.description
@@ -289,32 +403,38 @@ export default function TicketsPage() {
 
     setCompany(
       template.company ||
-      "Intern"
+        "Intern"
     );
 
     setCategory(
       template.category ||
-      "Support"
+        "Support"
     );
 
     setAssignedTo(
-      template.assignedTo || ""
+      template.assignedTo ||
+        ""
     );
 
     setStatus(
-      template.status || "open"
+      template.status ||
+        "open"
     );
 
     setPriority(
       template.priority ||
-      "medium"
+        "medium"
     );
+
+    clearTemplateFromUrl();
   }
 
   function openCreateForm() {
     resetForm();
 
-    setShowCreateForm(true);
+    setShowCreateForm(
+      true
+    );
   }
 
   function handleCreateTicket() {
@@ -375,7 +495,8 @@ export default function TicketsPage() {
 
     if (ticket) {
       saveActivity({
-        type: "ticketCreated",
+        type:
+          "ticketCreated",
 
         title:
           ticket.title,
@@ -396,30 +517,51 @@ export default function TicketsPage() {
     resetForm();
   }
 
-  function startEdit(ticket: Ticket) {
-    setEditingId(ticket.id);
+  function startEdit(
+    ticket: Ticket
+  ) {
+    setEditingId(
+      ticket.id
+    );
 
     setSelectedTemplateId("");
 
-    setTitle(ticket.title);
+    setPendingTemplateId("");
+
+    setTitle(
+      ticket.title
+    );
 
     setDescription(
       ticket.description
     );
 
     setCompany(
-      ticket.company || "Intern"
+      ticket.company ||
+        "Intern"
     );
 
-    setCategory(ticket.category);
+    setCategory(
+      ticket.category
+    );
 
-    setAssignedTo(ticket.assignedTo);
+    setAssignedTo(
+      ticket.assignedTo
+    );
 
-    setStatus(ticket.status);
+    setStatus(
+      ticket.status
+    );
 
-    setPriority(ticket.priority);
+    setPriority(
+      ticket.priority
+    );
 
-    setShowCreateForm(true);
+    setShowCreateForm(
+      true
+    );
+
+    clearTemplateFromUrl();
 
     window.scrollTo({
       top: 0,
@@ -457,32 +599,36 @@ export default function TicketsPage() {
     }
 
     const updated =
-      updateTicket(editingId, {
-        title:
-          title.trim(),
+      updateTicket(
+        editingId,
+        {
+          title:
+            title.trim(),
 
-        description:
-          description.trim(),
+          description:
+            description.trim(),
 
-        company:
-          company.trim() ||
-          "Intern",
+          company:
+            company.trim() ||
+            "Intern",
 
-        category:
-          category.trim() ||
-          "Allgemein",
+          category:
+            category.trim() ||
+            "Allgemein",
 
-        assignedTo:
-          assignedTo.trim(),
+          assignedTo:
+            assignedTo.trim(),
 
-        status,
+          status,
 
-        priority,
-      });
+          priority,
+        }
+      );
 
     if (updated) {
       saveActivity({
-        type: "ticketUpdated",
+        type:
+          "ticketUpdated",
 
         title:
           updated.title,
@@ -516,17 +662,24 @@ export default function TicketsPage() {
 
     const confirmed =
       confirm(
-        "Ticket wirklich löschen?"
+        "Ticket wirklich löschen? Die Kommentare zu diesem Ticket werden ebenfalls gelöscht."
       );
 
     if (!confirmed) {
       return;
     }
 
-    deleteTicket(ticket.id);
+    deleteTicket(
+      ticket.id
+    );
+
+    deleteAllTicketComments(
+      ticket.id
+    );
 
     saveActivity({
-      type: "ticketDeleted",
+      type:
+        "ticketDeleted",
 
       title:
         ticket.title,
@@ -542,6 +695,8 @@ export default function TicketsPage() {
       createdAt:
         new Date().toLocaleString(),
     });
+
+    loadComments();
   }
 
   function getPriorityClass(
@@ -580,73 +735,101 @@ export default function TicketsPage() {
     return "bg-zinc-100 text-zinc-700";
   }
 
+  function getLocalCommentCount(
+    ticketId: string
+  ) {
+    if (comments[ticketId]) {
+      return comments[ticketId].length;
+    }
+
+    return getTicketCommentCount(
+      ticketId
+    );
+  }
+
   const companies: string[] =
     Array.from(
       new Set(
         tickets
           .map(
             (ticket) =>
-              ticket.company || "Intern"
+              ticket.company ||
+              "Intern"
           )
           .filter(Boolean)
       )
     );
 
   const filteredTickets =
-    tickets.filter((ticket) => {
-      const query =
-        search.toLowerCase();
+    tickets.filter(
+      (ticket) => {
+        const query =
+          search.toLowerCase();
 
-      const ticketCompany =
-        ticket.company || "Intern";
+        const ticketCompany =
+          ticket.company ||
+          "Intern";
 
-      const matchesSearch =
-        ticket.title
-          ?.toLowerCase()
-          .includes(query) ||
-        ticket.description
-          ?.toLowerCase()
-          .includes(query) ||
-        ticketCompany
-          ?.toLowerCase()
-          .includes(query) ||
-        ticket.category
-          ?.toLowerCase()
-          .includes(query) ||
-        ticket.createdBy
-          ?.toLowerCase()
-          .includes(query) ||
-        ticket.assignedTo
-          ?.toLowerCase()
-          .includes(query);
+        const commentCount =
+          getLocalCommentCount(
+            ticket.id
+          );
 
-      const matchesCompany =
-        !companyFilter ||
-        ticketCompany ===
-          companyFilter;
+        const matchesSearch =
+          ticket.title
+            ?.toLowerCase()
+            .includes(query) ||
+          ticket.description
+            ?.toLowerCase()
+            .includes(query) ||
+          ticketCompany
+            ?.toLowerCase()
+            .includes(query) ||
+          ticket.category
+            ?.toLowerCase()
+            .includes(query) ||
+          ticket.createdBy
+            ?.toLowerCase()
+            .includes(query) ||
+          ticket.assignedTo
+            ?.toLowerCase()
+            .includes(query) ||
+          `${commentCount} kommentare`.includes(
+            query
+          ) ||
+          `${commentCount} kommentar`.includes(
+            query
+          );
 
-      const matchesStatus =
-        !statusFilter ||
-        ticket.status ===
-          statusFilter;
+        const matchesCompany =
+          !companyFilter ||
+          ticketCompany ===
+            companyFilter;
 
-      const matchesPriority =
-        !priorityFilter ||
-        ticket.priority ===
-          priorityFilter;
+        const matchesStatus =
+          !statusFilter ||
+          ticket.status ===
+            statusFilter;
 
-      return (
-        matchesSearch &&
-        matchesCompany &&
-        matchesStatus &&
-        matchesPriority
-      );
-    });
+        const matchesPriority =
+          !priorityFilter ||
+          ticket.priority ===
+            priorityFilter;
+
+        return (
+          matchesSearch &&
+          matchesCompany &&
+          matchesStatus &&
+          matchesPriority
+        );
+      }
+    );
 
   const openCount =
     tickets.filter(
       (ticket) =>
-        ticket.status === "open"
+        ticket.status ===
+        "open"
     ).length;
 
   const inProgressCount =
@@ -659,8 +842,26 @@ export default function TicketsPage() {
   const doneCount =
     tickets.filter(
       (ticket) =>
-        ticket.status === "done"
+        ticket.status ===
+        "done"
     ).length;
+
+  const totalCommentCount =
+    Object.values(
+      comments
+    ).reduce(
+      (
+        sum: number,
+        ticketComments: any[]
+      ) =>
+        sum +
+        (Array.isArray(
+          ticketComments
+        )
+          ? ticketComments.length
+          : 0),
+      0
+    );
 
   if (!mounted) {
     return null;
@@ -680,18 +881,27 @@ export default function TicketsPage() {
           </p>
         </div>
 
-        {canCreate() && (
-          <button
-            onClick={openCreateForm}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+        <div className="flex flex-wrap gap-3 justify-end">
+          <Link
+            href="/tickets/templates"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            Neues Ticket
-          </button>
-        )}
+            Ticket-Vorlagen
+          </Link>
+
+          {canCreate() && (
+            <button
+              onClick={openCreateForm}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Neues Ticket
+            </button>
+          )}
+        </div>
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Tickets gesamt
@@ -733,7 +943,9 @@ export default function TicketsPage() {
 
         <button
           onClick={() => {
-            setStatusFilter("open");
+            setStatusFilter(
+              "open"
+            );
 
             updateUrlFilters(
               search,
@@ -779,7 +991,9 @@ export default function TicketsPage() {
 
         <button
           onClick={() => {
-            setStatusFilter("done");
+            setStatusFilter(
+              "done"
+            );
 
             updateUrlFilters(
               search,
@@ -798,6 +1012,16 @@ export default function TicketsPage() {
             {doneCount}
           </h2>
         </button>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Kommentare
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {totalCommentCount}
+          </h2>
+        </div>
       </div>
 
       {/* FORM */}
@@ -1042,7 +1266,9 @@ export default function TicketsPage() {
               const value =
                 event.target.value;
 
-              setSearch(value);
+              setSearch(
+                value
+              );
 
               updateUrlFilters(
                 value,
@@ -1051,7 +1277,7 @@ export default function TicketsPage() {
                 priorityFilter
               );
             }}
-            placeholder="Tickets, Firmen, Kategorien oder Personen suchen..."
+            placeholder="Tickets, Firmen, Kategorien, Kommentare oder Personen suchen..."
             className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
@@ -1061,7 +1287,9 @@ export default function TicketsPage() {
               const value =
                 event.target.value;
 
-              setCompanyFilter(value);
+              setCompanyFilter(
+                value
+              );
 
               updateUrlFilters(
                 search,
@@ -1094,7 +1322,9 @@ export default function TicketsPage() {
               const value =
                 event.target.value;
 
-              setStatusFilter(value);
+              setStatusFilter(
+                value
+              );
 
               updateUrlFilters(
                 search,
@@ -1132,7 +1362,9 @@ export default function TicketsPage() {
               const value =
                 event.target.value;
 
-              setPriorityFilter(value);
+              setPriorityFilter(
+                value
+              );
 
               updateUrlFilters(
                 search,
@@ -1190,147 +1422,164 @@ export default function TicketsPage() {
           </div>
         )}
 
-        {filteredTickets.map((ticket) => {
-          const ticketCompany =
-            ticket.company || "Intern";
+        {filteredTickets.map(
+          (ticket) => {
+            const ticketCompany =
+              ticket.company ||
+              "Intern";
 
-          return (
-            <div
-              key={ticket.id}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-6">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => {
-                        setCompanyFilter(
-                          ticketCompany
-                        );
+            const commentCount =
+              getLocalCommentCount(
+                ticket.id
+              );
 
-                        updateUrlFilters(
-                          search,
-                          ticketCompany,
-                          statusFilter,
-                          priorityFilter
-                        );
-                      }}
-                      className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                    >
-                      {ticketCompany}
-                    </button>
+            return (
+              <div
+                key={ticket.id}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          setCompanyFilter(
+                            ticketCompany
+                          );
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
-                        ticket.status
+                          updateUrlFilters(
+                            search,
+                            ticketCompany,
+                            statusFilter,
+                            priorityFilter
+                          );
+                        }}
+                        className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                      >
+                        {ticketCompany}
+                      </button>
+
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
+                          ticket.status
+                        )}`}
+                      >
+                        {getStatusLabel(
+                          ticket.status
+                        )}
+                      </span>
+
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
+                          ticket.priority
+                        )}`}
+                      >
+                        {getPriorityLabel(
+                          ticket.priority
+                        )}
+                      </span>
+
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {ticket.category}
+                      </span>
+
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        💬 {commentCount}
+                      </span>
+                    </div>
+
+                    <Link
+                      href={`/tickets/${encodeURIComponent(
+                        ticket.id
                       )}`}
+                      className="block mt-4"
                     >
-                      {getStatusLabel(
-                        ticket.status
-                      )}
-                    </span>
+                      <h2 className="text-2xl font-bold hover:underline">
+                        {ticket.title}
+                      </h2>
+                    </Link>
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
-                        ticket.priority
-                      )}`}
-                    >
-                      {getPriorityLabel(
-                        ticket.priority
-                      )}
-                    </span>
+                    <p className="text-zinc-600 mt-2 whitespace-pre-wrap">
+                      {ticket.description ||
+                        "Keine Beschreibung"}
+                    </p>
 
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {ticket.category}
-                    </span>
+                    <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
+                      <p>
+                        Firma:{" "}
+                        <span className="text-indigo-700">
+                          {ticketCompany}
+                        </span>
+                      </p>
+
+                      <p>
+                        Kommentare:{" "}
+                        {commentCount}
+                      </p>
+
+                      <p>
+                        Erstellt von:{" "}
+                        {ticket.createdBy}
+                      </p>
+
+                      {ticket.assignedTo && (
+                        <p>
+                          Zugewiesen an:{" "}
+                          {ticket.assignedTo}
+                        </p>
+                      )}
+
+                      <p>
+                        Erstellt:{" "}
+                        {ticket.createdAt}
+                      </p>
+
+                      <p>
+                        Aktualisiert:{" "}
+                        {ticket.updatedAt}
+                      </p>
+                    </div>
                   </div>
 
-                  <Link
-                    href={`/tickets/${encodeURIComponent(
-                      ticket.id
-                    )}`}
-                    className="block mt-4"
-                  >
-                    <h2 className="text-2xl font-bold hover:underline">
-                      {ticket.title}
-                    </h2>
-                  </Link>
+                  <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                    <Link
+                      href={`/tickets/${encodeURIComponent(
+                        ticket.id
+                      )}`}
+                      className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                    >
+                      Öffnen
+                    </Link>
 
-                  <p className="text-zinc-600 mt-2 whitespace-pre-wrap">
-                    {ticket.description ||
-                      "Keine Beschreibung"}
-                  </p>
-
-                  <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                    <p>
-                      Firma:{" "}
-                      <span className="text-indigo-700">
-                        {ticketCompany}
-                      </span>
-                    </p>
-
-                    <p>
-                      Erstellt von:{" "}
-                      {ticket.createdBy}
-                    </p>
-
-                    {ticket.assignedTo && (
-                      <p>
-                        Zugewiesen an:{" "}
-                        {ticket.assignedTo}
-                      </p>
+                    {canEdit() && (
+                      <button
+                        onClick={() =>
+                          startEdit(ticket)
+                        }
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                      >
+                        Bearbeiten
+                      </button>
                     )}
 
-                    <p>
-                      Erstellt:{" "}
-                      {ticket.createdAt}
-                    </p>
-
-                    <p>
-                      Aktualisiert:{" "}
-                      {ticket.updatedAt}
-                    </p>
+                    {canDelete() && (
+                      <button
+                        onClick={() =>
+                          handleDeleteTicket(
+                            ticket
+                          )
+                        }
+                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                      >
+                        Löschen
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                  <Link
-                    href={`/tickets/${encodeURIComponent(
-                      ticket.id
-                    )}`}
-                    className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                  >
-                    Öffnen
-                  </Link>
-
-                  {canEdit() && (
-                    <button
-                      onClick={() =>
-                        startEdit(ticket)
-                      }
-                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                    >
-                      Bearbeiten
-                    </button>
-                  )}
-
-                  {canDelete() && (
-                    <button
-                      onClick={() =>
-                        handleDeleteTicket(
-                          ticket
-                        )
-                      }
-                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                    >
-                      Löschen
-                    </button>
-                  )}
-                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          }
+        )}
       </div>
     </div>
   );

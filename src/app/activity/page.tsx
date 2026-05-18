@@ -192,6 +192,30 @@ export default function ActivityPage() {
       return "Ticket gelöscht";
     }
 
+    if (type === "ticketCommented") {
+      return "Ticket-Kommentar hinzugefügt";
+    }
+
+    if (type === "ticketCommentDeleted") {
+      return "Ticket-Kommentar gelöscht";
+    }
+
+    if (type === "ticketTemplateCreated") {
+      return "Ticket-Vorlage erstellt";
+    }
+
+    if (type === "ticketTemplateUpdated") {
+      return "Ticket-Vorlage aktualisiert";
+    }
+
+    if (type === "ticketTemplateDeleted") {
+      return "Ticket-Vorlage gelöscht";
+    }
+
+    if (type === "ticketTemplateReset") {
+      return "Ticket-Vorlagen zurückgesetzt";
+    }
+
     return "Aktivität";
   }
 
@@ -242,6 +266,30 @@ export default function ActivityPage() {
 
     if (type === "ticketDeleted") {
       return "🗑️";
+    }
+
+    if (type === "ticketCommented") {
+      return "💬";
+    }
+
+    if (type === "ticketCommentDeleted") {
+      return "🧹";
+    }
+
+    if (type === "ticketTemplateCreated") {
+      return "🧩";
+    }
+
+    if (type === "ticketTemplateUpdated") {
+      return "🔧";
+    }
+
+    if (type === "ticketTemplateDeleted") {
+      return "🗑️";
+    }
+
+    if (type === "ticketTemplateReset") {
+      return "♻️";
     }
 
     return "📌";
@@ -375,7 +423,7 @@ export default function ActivityPage() {
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Verlauf aller Änderungen, Kommentare, Uploads, Tickets und Löschaktionen
+          Verlauf aller Änderungen, Kommentare, Uploads, Tickets, Vorlagen und Löschaktionen
         </p>
       </div>
 

@@ -22,6 +22,15 @@ import {
 } from "../lib/ticketStorage";
 
 import {
+  getTicketTemplates,
+} from "../lib/ticketTemplateStorage";
+
+import {
+  getTicketComments,
+  getTicketCommentCount,
+} from "../lib/ticketCommentStorage";
+
+import {
   canCreate,
 } from "../lib/permissions";
 
@@ -37,6 +46,12 @@ export default function HomePage() {
 
   const [tickets, setTickets] =
     useState<any[]>([]);
+
+  const [ticketTemplates, setTicketTemplates] =
+    useState<any[]>([]);
+
+  const [ticketComments, setTicketComments] =
+    useState<Record<string, any[]>>({});
 
   const [mounted, setMounted] =
     useState(false);
@@ -58,6 +73,14 @@ export default function HomePage() {
 
     setTickets(
       getTickets()
+    );
+
+    setTicketTemplates(
+      getTicketTemplates()
+    );
+
+    setTicketComments(
+      getTicketComments()
     );
 
     function handleWikiPagesUpdated() {
@@ -84,6 +107,18 @@ export default function HomePage() {
       );
     }
 
+    function handleTicketTemplatesUpdated() {
+      setTicketTemplates(
+        getTicketTemplates()
+      );
+    }
+
+    function handleTicketCommentsUpdated() {
+      setTicketComments(
+        getTicketComments()
+      );
+    }
+
     window.addEventListener(
       "wikiPagesUpdated",
       handleWikiPagesUpdated
@@ -102,6 +137,16 @@ export default function HomePage() {
     window.addEventListener(
       "ticketsUpdated",
       handleTicketsUpdated
+    );
+
+    window.addEventListener(
+      "ticketTemplatesUpdated",
+      handleTicketTemplatesUpdated
+    );
+
+    window.addEventListener(
+      "ticketCommentsUpdated",
+      handleTicketCommentsUpdated
     );
 
     return () => {
@@ -123,6 +168,16 @@ export default function HomePage() {
       window.removeEventListener(
         "ticketsUpdated",
         handleTicketsUpdated
+      );
+
+      window.removeEventListener(
+        "ticketTemplatesUpdated",
+        handleTicketTemplatesUpdated
+      );
+
+      window.removeEventListener(
+        "ticketCommentsUpdated",
+        handleTicketCommentsUpdated
       );
     };
   }, []);
@@ -180,6 +235,30 @@ export default function HomePage() {
       return "Ticket gelöscht";
     }
 
+    if (type === "ticketCommented") {
+      return "Ticket-Kommentar hinzugefügt";
+    }
+
+    if (type === "ticketCommentDeleted") {
+      return "Ticket-Kommentar gelöscht";
+    }
+
+    if (type === "ticketTemplateCreated") {
+      return "Ticket-Vorlage erstellt";
+    }
+
+    if (type === "ticketTemplateUpdated") {
+      return "Ticket-Vorlage aktualisiert";
+    }
+
+    if (type === "ticketTemplateDeleted") {
+      return "Ticket-Vorlage gelöscht";
+    }
+
+    if (type === "ticketTemplateReset") {
+      return "Ticket-Vorlagen zurückgesetzt";
+    }
+
     return "Aktivität";
   }
 
@@ -232,6 +311,30 @@ export default function HomePage() {
       return "🗑️";
     }
 
+    if (type === "ticketCommented") {
+      return "💬";
+    }
+
+    if (type === "ticketCommentDeleted") {
+      return "🧹";
+    }
+
+    if (type === "ticketTemplateCreated") {
+      return "🧩";
+    }
+
+    if (type === "ticketTemplateUpdated") {
+      return "🔧";
+    }
+
+    if (type === "ticketTemplateDeleted") {
+      return "🗑️";
+    }
+
+    if (type === "ticketTemplateReset") {
+      return "♻️";
+    }
+
     return "📌";
   }
 
@@ -263,6 +366,18 @@ export default function HomePage() {
     return new Date(
       value
     ).getTime();
+  }
+
+  function getLocalCommentCount(
+    ticketId: string
+  ) {
+    if (ticketComments[ticketId]) {
+      return ticketComments[ticketId].length;
+    }
+
+    return getTicketCommentCount(
+      ticketId
+    );
   }
 
   const companies = [
@@ -339,6 +454,23 @@ export default function HomePage() {
     5
   );
 
+  const totalCommentCount =
+    Object.values(
+      ticketComments
+    ).reduce(
+      (
+        sum: number,
+        comments: any[]
+      ) =>
+        sum +
+        (Array.isArray(
+          comments
+        )
+          ? comments.length
+          : 0),
+      0
+    );
+
   return (
     <div className="space-y-8">
       {/* HEADER */}
@@ -353,7 +485,7 @@ export default function HomePage() {
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-9 gap-6">
         <Link
           href="/wiki"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -416,6 +548,32 @@ export default function HomePage() {
 
           <h2 className="text-4xl font-bold mt-3">
             {tickets.length}
+          </h2>
+        </Link>
+
+        <Link
+          href="/tickets/templates"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-indigo-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Vorlagen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {ticketTemplates.length}
+          </h2>
+        </Link>
+
+        <Link
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Kommentare
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {totalCommentCount}
           </h2>
         </Link>
 
@@ -528,6 +686,13 @@ export default function HomePage() {
           </Link>
 
           <Link
+            href="/tickets/templates"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-indigo-50 transition"
+          >
+            Ticket-Vorlagen
+          </Link>
+
+          <Link
             href="/tickets?status=open"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
           >
@@ -637,36 +802,46 @@ export default function HomePage() {
           )}
 
           {latestTickets.map(
-            (ticket: any) => (
-              <Link
-                key={ticket.id}
-                href={`/tickets/${encodeURIComponent(
+            (ticket: any) => {
+              const commentCount =
+                getLocalCommentCount(
                   ticket.id
-                )}`}
-                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-              >
-                <div className="flex items-center justify-between gap-6">
-                  <div>
-                    <p className="font-semibold">
-                      {ticket.title}
-                    </p>
+                );
 
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {ticket.company ||
-                        "Intern"}{" "}
-                      · {ticket.category} ·{" "}
-                      {getStatusLabel(
-                        ticket.status
-                      )}
+              return (
+                <Link
+                  key={ticket.id}
+                  href={`/tickets/${encodeURIComponent(
+                    ticket.id
+                  )}`}
+                  className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                >
+                  <div className="flex items-center justify-between gap-6">
+                    <div>
+                      <p className="font-semibold">
+                        {ticket.title}
+                      </p>
+
+                      <p className="text-sm text-zinc-500 mt-1">
+                        <span className="text-indigo-700">
+                          {ticket.company ||
+                            "Intern"}
+                        </span>{" "}
+                        · {ticket.category} ·{" "}
+                        {getStatusLabel(
+                          ticket.status
+                        )}{" "}
+                        · 💬 {commentCount}
+                      </p>
+                    </div>
+
+                    <p className="text-sm text-zinc-500">
+                      {ticket.updatedAt}
                     </p>
                   </div>
-
-                  <p className="text-sm text-zinc-500">
-                    {ticket.updatedAt}
-                  </p>
-                </div>
-              </Link>
-            )
+                </Link>
+              );
+            }
           )}
         </div>
       </div>

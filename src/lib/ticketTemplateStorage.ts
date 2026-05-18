@@ -204,7 +204,20 @@ function dispatchTemplatesUpdated() {
   );
 }
 
-export function getTicketTemplates() {
+function createId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+export function getTicketTemplates(): TicketTemplate[] {
   if (typeof window === "undefined") {
     return defaultTemplates;
   }
@@ -286,8 +299,7 @@ export function createTicketTemplate(
     ...template,
 
     id:
-      crypto.randomUUID?.() ||
-      `${Date.now()}`,
+      createId(),
   };
 
   saveTicketTemplates([
@@ -301,7 +313,7 @@ export function createTicketTemplate(
 export function updateTicketTemplate(
   id: string,
   updates: Partial<TicketTemplate>
-) {
+): TicketTemplate | null {
   const templates =
     getTicketTemplates();
 
@@ -309,14 +321,14 @@ export function updateTicketTemplate(
     | TicketTemplate
     | null = null;
 
-  const updatedTemplates =
+  const updatedTemplates: TicketTemplate[] =
     templates.map(
       (template) => {
         if (template.id !== id) {
           return template;
         }
 
-        updatedTemplate = {
+        const nextTemplate: TicketTemplate = {
           ...template,
           ...updates,
 
@@ -324,7 +336,10 @@ export function updateTicketTemplate(
             template.id,
         };
 
-        return updatedTemplate;
+        updatedTemplate =
+          nextTemplate;
+
+        return nextTemplate;
       }
     );
 

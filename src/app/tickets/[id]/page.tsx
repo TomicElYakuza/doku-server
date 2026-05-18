@@ -27,6 +27,27 @@ import type {
 } from "../../../lib/ticketStorage";
 
 import {
+  createTicketTemplate,
+  getTicketTemplates,
+} from "../../../lib/ticketTemplateStorage";
+
+import type {
+  TicketTemplate,
+} from "../../../lib/ticketTemplateStorage";
+
+import {
+  addTicketComment,
+  deleteAllTicketComments,
+  deleteTicketComment,
+  getTicketCommentsByTicketId,
+} from "../../../lib/ticketCommentStorage";
+
+import type {
+  TicketComment,
+} from "../../../lib/ticketCommentStorage";
+
+import {
+  canCreate,
   canDelete,
   canEdit,
 } from "../../../lib/permissions";
@@ -54,6 +75,18 @@ export default function TicketDetailPage() {
 
   const [ticket, setTicket] =
     useState<Ticket | null>(null);
+
+  const [templates, setTemplates] =
+    useState<TicketTemplate[]>([]);
+
+  const [comments, setComments] =
+    useState<TicketComment[]>([]);
+
+  const [newComment, setNewComment] =
+    useState("");
+
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState("");
 
   const [checked, setChecked] =
     useState(false);
@@ -87,8 +120,20 @@ export default function TicketDetailPage() {
 
     loadTicket();
 
+    loadTemplates();
+
+    loadComments();
+
     function handleTicketsUpdated() {
       loadTicket();
+    }
+
+    function handleTicketTemplatesUpdated() {
+      loadTemplates();
+    }
+
+    function handleTicketCommentsUpdated() {
+      loadComments();
     }
 
     window.addEventListener(
@@ -96,13 +141,47 @@ export default function TicketDetailPage() {
       handleTicketsUpdated
     );
 
+    window.addEventListener(
+      "ticketTemplatesUpdated",
+      handleTicketTemplatesUpdated
+    );
+
+    window.addEventListener(
+      "ticketCommentsUpdated",
+      handleTicketCommentsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "ticketsUpdated",
         handleTicketsUpdated
       );
+
+      window.removeEventListener(
+        "ticketTemplatesUpdated",
+        handleTicketTemplatesUpdated
+      );
+
+      window.removeEventListener(
+        "ticketCommentsUpdated",
+        handleTicketCommentsUpdated
+      );
     };
   }, [id]);
+
+  function loadTemplates() {
+    setTemplates(
+      getTicketTemplates()
+    );
+  }
+
+  function loadComments() {
+    setComments(
+      getTicketCommentsByTicketId(
+        id
+      )
+    );
+  }
 
   function loadTicket() {
     const tickets =
@@ -151,6 +230,57 @@ export default function TicketDetailPage() {
     setChecked(true);
   }
 
+  function applyTemplate(
+    templateId: string
+  ) {
+    setSelectedTemplateId(
+      templateId
+    );
+
+    const template =
+      templates.find(
+        (item) =>
+          item.id === templateId
+      );
+
+    if (!template) {
+      return;
+    }
+
+    setTitle(
+      template.title
+    );
+
+    setDescription(
+      template.description
+    );
+
+    setCompany(
+      template.company ||
+        "Intern"
+    );
+
+    setCategory(
+      template.category ||
+        "Support"
+    );
+
+    setAssignedTo(
+      template.assignedTo ||
+        ""
+    );
+
+    setStatus(
+      template.status ||
+        "open"
+    );
+
+    setPriority(
+      template.priority ||
+        "medium"
+    );
+  }
+
   function getPriorityClass(
     value: string
   ) {
@@ -192,7 +322,11 @@ export default function TicketDetailPage() {
       return;
     }
 
-    setTitle(ticket.title || "");
+    setSelectedTemplateId("");
+
+    setTitle(
+      ticket.title || ""
+    );
 
     setDescription(
       ticket.description || ""
@@ -226,7 +360,11 @@ export default function TicketDetailPage() {
       return;
     }
 
-    setTitle(ticket.title || "");
+    setSelectedTemplateId("");
+
+    setTitle(
+      ticket.title || ""
+    );
 
     setDescription(
       ticket.description || ""
@@ -329,6 +467,8 @@ export default function TicketDetailPage() {
 
       setTicket(updated);
 
+      setSelectedTemplateId("");
+
       setEditing(false);
     }
   }
@@ -381,6 +521,179 @@ export default function TicketDetailPage() {
     }
   }
 
+  function handleCreateTemplateFromTicket() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!canCreate()) {
+      alert(
+        "Du hast keine Berechtigung, Templates zu erstellen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        "Aus diesem Ticket eine Vorlage erstellen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const created =
+      createTicketTemplate({
+        title:
+          ticket.title,
+
+        description:
+          ticket.description,
+
+        company:
+          ticket.company ||
+          "Intern",
+
+        category:
+          ticket.category ||
+          "Allgemein",
+
+        assignedTo:
+          ticket.assignedTo ||
+          "",
+
+        status:
+          ticket.status ||
+          "open",
+
+        priority:
+          ticket.priority ||
+          "medium",
+      });
+
+    saveActivity({
+      type: "ticketTemplateCreated",
+
+      title:
+        created.title,
+
+      company:
+        created.company ||
+        "Intern",
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+
+    alert(
+      "Ticket-Vorlage wurde erstellt."
+    );
+  }
+
+  function handleAddComment() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!newComment.trim()) {
+      alert(
+        "Bitte einen Kommentar eingeben."
+      );
+
+      return;
+    }
+
+    const user =
+      getUser();
+
+    const comment =
+      addTicketComment(
+        ticket.id,
+        newComment,
+        user?.name ||
+          "Unbekannt"
+      );
+
+    if (comment) {
+      saveActivity({
+        type: "ticketCommented",
+
+        title:
+          ticket.title,
+
+        company:
+          ticket.company ||
+          "Intern",
+
+        user:
+          user?.name ||
+          "Unbekannt",
+
+        createdAt:
+          new Date().toLocaleString(),
+      });
+
+      setNewComment("");
+
+      loadComments();
+    }
+  }
+
+  function handleDeleteComment(
+    comment: TicketComment
+  ) {
+    if (!ticket) {
+      return;
+    }
+
+    if (!canDelete()) {
+      alert(
+        "Nur Admins dürfen Kommentare löschen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        "Kommentar wirklich löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    deleteTicketComment(
+      ticket.id,
+      comment.id
+    );
+
+    saveActivity({
+      type: "ticketCommentDeleted",
+
+      title:
+        ticket.title,
+
+      company:
+        ticket.company ||
+        "Intern",
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
+
+    loadComments();
+  }
+
   function handleDelete() {
     if (!ticket) {
       return;
@@ -396,14 +709,20 @@ export default function TicketDetailPage() {
 
     const confirmed =
       confirm(
-        "Ticket wirklich löschen?"
+        "Ticket wirklich löschen? Die Kommentare zu diesem Ticket werden ebenfalls gelöscht."
       );
 
     if (!confirmed) {
       return;
     }
 
-    deleteTicket(ticket.id);
+    deleteTicket(
+      ticket.id
+    );
+
+    deleteAllTicketComments(
+      ticket.id
+    );
 
     saveActivity({
       type: "ticketDeleted",
@@ -557,6 +876,10 @@ export default function TicketDetailPage() {
                 <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                   {ticket.category}
                 </span>
+
+                <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                  💬 {comments.length}
+                </span>
               </div>
 
               <h1 className="text-4xl font-bold mt-5">
@@ -570,6 +893,15 @@ export default function TicketDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-3 justify-end shrink-0">
+              {canCreate() && (
+                <button
+                  onClick={handleCreateTemplateFromTicket}
+                  className="bg-indigo-600 text-white px-5 py-3 rounded-xl hover:bg-indigo-500 transition"
+                >
+                  Als Vorlage speichern
+                </button>
+              )}
+
               {canEdit() && (
                 <button
                   onClick={startEditing}
@@ -614,6 +946,16 @@ export default function TicketDetailPage() {
 
               <p className="font-semibold mt-1">
                 {ticket.category}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Kommentare
+              </p>
+
+              <p className="font-semibold mt-1">
+                {comments.length}
               </p>
             </div>
 
@@ -725,6 +1067,41 @@ export default function TicketDetailPage() {
           <p className="text-zinc-500 mt-2">
             Bearbeite Titel, Beschreibung, Firma, Kategorie, Status und Priorität.
           </p>
+
+          <div className="mt-8">
+            <label className="block mb-2 font-medium">
+              Vorlage übernehmen
+            </label>
+
+            <select
+              value={selectedTemplateId}
+              onChange={(event) =>
+                applyTemplate(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="">
+                Keine Vorlage übernehmen
+              </option>
+
+              {templates.map(
+                (template) => (
+                  <option
+                    key={template.id}
+                    value={template.id}
+                  >
+                    {template.title}
+                  </option>
+                )
+              )}
+            </select>
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Achtung: Das ausgewählte Template überschreibt die aktuellen Formularfelder.
+            </p>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8">
             <div className="md:col-span-2">
@@ -899,6 +1276,95 @@ export default function TicketDetailPage() {
           </div>
         </div>
       )}
+
+      {/* COMMENTS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Kommentare
+            </h2>
+
+            <p className="text-zinc-500 mt-1">
+              {comments.length} Kommentare zu diesem Ticket
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <label className="block mb-2 font-medium">
+            Neuer Kommentar
+          </label>
+
+          <textarea
+            value={newComment}
+            onChange={(event) =>
+              setNewComment(
+                event.target.value
+              )
+            }
+            rows={4}
+            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+            placeholder="Kommentar schreiben..."
+          />
+
+          <button
+            onClick={handleAddComment}
+            className="mt-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Kommentar speichern
+          </button>
+        </div>
+
+        <div className="mt-8 space-y-4">
+          {comments.length === 0 && (
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
+              <p className="text-zinc-500">
+                Noch keine Kommentare vorhanden.
+              </p>
+            </div>
+          )}
+
+          {comments.map(
+            (comment) => (
+              <div
+                key={comment.id}
+                className="border border-zinc-200 rounded-2xl p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold">
+                      {comment.author ||
+                        "Unbekannt"}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {comment.createdAt}
+                    </p>
+                  </div>
+
+                  {canDelete() && (
+                    <button
+                      onClick={() =>
+                        handleDeleteComment(
+                          comment
+                        )
+                      }
+                      className="text-sm bg-red-50 text-red-700 px-3 py-2 rounded-xl hover:bg-red-100 transition"
+                    >
+                      Löschen
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-zinc-700 mt-4 whitespace-pre-wrap">
+                  {comment.text}
+                </p>
+              </div>
+            )
+          )}
+        </div>
+      </div>
     </div>
   );
 }

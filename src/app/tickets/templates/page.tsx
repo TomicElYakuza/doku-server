@@ -30,12 +30,29 @@ import {
   canEdit,
 } from "../../../lib/permissions";
 
+import {
+  saveActivity,
+} from "../../../lib/activityStorage";
+
+import {
+  getUser,
+} from "../../../lib/userStorage";
+
 export default function TicketTemplatesPage() {
   const [mounted, setMounted] =
     useState(false);
 
   const [templates, setTemplates] =
     useState<TicketTemplate[]>([]);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
+  const [categoryFilter, setCategoryFilter] =
+    useState("");
 
   const [showForm, setShowForm] =
     useState(false);
@@ -67,6 +84,8 @@ export default function TicketTemplatesPage() {
   useEffect(() => {
     setMounted(true);
 
+    applyUrlFilters();
+
     loadTemplates();
 
     function handleTemplatesUpdated() {
@@ -85,6 +104,77 @@ export default function TicketTemplatesPage() {
       );
     };
   }, []);
+
+  function applyUrlFilters() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    setSearch(
+      params.get("q") || ""
+    );
+
+    setCompanyFilter(
+      params.get("company") || ""
+    );
+
+    setCategoryFilter(
+      params.get("category") || ""
+    );
+  }
+
+  function updateUrlFilters(
+    nextSearch: string,
+    nextCompany: string,
+    nextCategory: string
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    if (nextSearch) {
+      params.set(
+        "q",
+        nextSearch
+      );
+    }
+
+    if (nextCompany) {
+      params.set(
+        "company",
+        nextCompany
+      );
+    }
+
+    if (nextCategory) {
+      params.set(
+        "category",
+        nextCategory
+      );
+    }
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/tickets/templates?${query}`
+        : "/tickets/templates";
+
+    window.history.replaceState(
+      null,
+      "",
+      nextUrl
+    );
+  }
 
   function loadTemplates() {
     setTemplates(
@@ -110,6 +200,20 @@ export default function TicketTemplatesPage() {
     setStatus("open");
 
     setPriority("medium");
+  }
+
+  function resetFilters() {
+    setSearch("");
+
+    setCompanyFilter("");
+
+    setCategoryFilter("");
+
+    updateUrlFilters(
+      "",
+      "",
+      ""
+    );
   }
 
   function openCreateForm() {
@@ -218,15 +322,60 @@ export default function TicketTemplatesPage() {
       priority,
     };
 
+    const user =
+      getUser();
+
     if (editingId) {
-      updateTicketTemplate(
-        editingId,
-        payload
-      );
+      const updated =
+        updateTicketTemplate(
+          editingId,
+          payload
+        );
+
+      if (updated) {
+        saveActivity({
+          type:
+            "ticketTemplateUpdated",
+
+          title:
+            updated.title,
+
+          company:
+            updated.company ||
+            "Intern",
+
+          user:
+            user?.name ||
+            "Unbekannt",
+
+          createdAt:
+            new Date().toLocaleString(),
+        });
+      }
     } else {
-      createTicketTemplate(
-        payload
-      );
+      const created =
+        createTicketTemplate(
+          payload
+        );
+
+      saveActivity({
+        type:
+          "ticketTemplateCreated",
+
+        title:
+          created.title,
+
+        company:
+          created.company ||
+          "Intern",
+
+        user:
+          user?.name ||
+          "Unbekannt",
+
+        createdAt:
+          new Date().toLocaleString(),
+      });
     }
 
     resetForm();
@@ -255,6 +404,25 @@ export default function TicketTemplatesPage() {
     deleteTicketTemplate(
       template.id
     );
+
+    saveActivity({
+      type:
+        "ticketTemplateDeleted",
+
+      title:
+        template.title,
+
+      company:
+        template.company ||
+        "Intern",
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
   }
 
   function handleResetDefaults() {
@@ -276,6 +444,24 @@ export default function TicketTemplatesPage() {
     }
 
     resetTicketTemplates();
+
+    saveActivity({
+      type:
+        "ticketTemplateReset",
+
+      title:
+        "Ticket-Templates auf Standard zurückgesetzt",
+
+      company:
+        "Intern",
+
+      user:
+        getUser()?.name ||
+        "Unbekannt",
+
+      createdAt:
+        new Date().toLocaleString(),
+    });
 
     resetForm();
   }
@@ -356,6 +542,97 @@ export default function TicketTemplatesPage() {
     return null;
   }
 
+  const companies: string[] =
+    Array.from(
+      new Set(
+        templates
+          .map(
+            (template) =>
+              template.company ||
+              "Intern"
+          )
+          .filter(Boolean)
+      )
+    );
+
+  const categories: string[] =
+    Array.from(
+      new Set(
+        templates
+          .map(
+            (template) =>
+              template.category ||
+              "Allgemein"
+          )
+          .filter(Boolean)
+      )
+    );
+
+  const filteredTemplates =
+    templates.filter(
+      (template) => {
+        const query =
+          search.toLowerCase();
+
+        const templateCompany =
+          template.company ||
+          "Intern";
+
+        const templateCategory =
+          template.category ||
+          "Allgemein";
+
+        const statusLabel =
+          getStatusLabel(
+            template.status
+          );
+
+        const priorityLabel =
+          getPriorityLabel(
+            template.priority
+          );
+
+        const matchesSearch =
+          template.title
+            ?.toLowerCase()
+            .includes(query) ||
+          template.description
+            ?.toLowerCase()
+            .includes(query) ||
+          templateCompany
+            ?.toLowerCase()
+            .includes(query) ||
+          templateCategory
+            ?.toLowerCase()
+            .includes(query) ||
+          template.assignedTo
+            ?.toLowerCase()
+            .includes(query) ||
+          statusLabel
+            .toLowerCase()
+            .includes(query) ||
+          priorityLabel
+            .toLowerCase()
+            .includes(query);
+
+        const matchesCompany =
+          !companyFilter ||
+          templateCompany ===
+            companyFilter;
+
+        const matchesCategory =
+          !categoryFilter ||
+          templateCategory ===
+            categoryFilter;
+
+        return (
+          matchesSearch &&
+          matchesCompany &&
+          matchesCategory
+        );
+      }
+    );
+
   return (
     <div className="space-y-8 max-w-6xl">
       {/* TOP NAV */}
@@ -420,7 +697,7 @@ export default function TicketTemplatesPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Templates gesamt
@@ -431,44 +708,176 @@ export default function TicketTemplatesPage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            if (companies.length > 0) {
+              const firstCompany =
+                companies[0];
+
+              setCompanyFilter(
+                firstCompany
+              );
+
+              updateUrlFilters(
+                search,
+                firstCompany,
+                categoryFilter
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {
-              Array.from(
-                new Set(
-                  templates.map(
-                    (template) =>
-                      template.company ||
-                      "Intern"
-                  )
-                )
-              ).length
-            }
+            {companies.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            if (categories.length > 0) {
+              const firstCategory =
+                categories[0];
+
+              setCategoryFilter(
+                firstCategory
+              );
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                firstCategory
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Kategorien
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {
-              Array.from(
-                new Set(
-                  templates.map(
-                    (template) =>
-                      template.category ||
-                      "Allgemein"
-                  )
-                )
-              ).length
-            }
+            {categories.length}
           </h2>
+        </button>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Gefiltert
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {filteredTemplates.length}
+          </h2>
+        </div>
+      </div>
+
+      {/* FILTER */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Suche & Filter
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setSearch(value);
+
+              updateUrlFilters(
+                value,
+                companyFilter,
+                categoryFilter
+              );
+            }}
+            placeholder="Nach Vorlage, Firma, Kategorie, Status oder Priorität suchen..."
+            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          />
+
+          <select
+            value={companyFilter}
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setCompanyFilter(value);
+
+              updateUrlFilters(
+                search,
+                value,
+                categoryFilter
+              );
+            }}
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (companyName) => (
+                <option
+                  key={companyName}
+                  value={companyName}
+                >
+                  {companyName}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={categoryFilter}
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setCategoryFilter(value);
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                value
+              );
+            }}
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Kategorien
+            </option>
+
+            {categories.map(
+              (categoryName) => (
+                <option
+                  key={categoryName}
+                  value={categoryName}
+                >
+                  {categoryName}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between mt-5">
+          <p className="text-sm text-zinc-500">
+            {filteredTemplates.length} von{" "}
+            {templates.length} Templates gefunden
+          </p>
+
+          <button
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Filter zurücksetzen
+          </button>
         </div>
       </div>
 
@@ -658,15 +1067,15 @@ export default function TicketTemplatesPage() {
 
       {/* LIST */}
       <div className="grid gap-4">
-        {templates.length === 0 && (
+        {filteredTemplates.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <p className="text-zinc-500">
-              Keine Templates vorhanden.
+              Keine Templates gefunden.
             </p>
           </div>
         )}
 
-        {templates.map(
+        {filteredTemplates.map(
           (template) => (
             <div
               key={template.id}
@@ -675,15 +1084,49 @@ export default function TicketTemplatesPage() {
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
-                    <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                    <button
+                      onClick={() => {
+                        const templateCompany =
+                          template.company ||
+                          "Intern";
+
+                        setCompanyFilter(
+                          templateCompany
+                        );
+
+                        updateUrlFilters(
+                          search,
+                          templateCompany,
+                          categoryFilter
+                        );
+                      }}
+                      className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    >
                       {template.company ||
                         "Intern"}
-                    </span>
+                    </button>
 
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    <button
+                      onClick={() => {
+                        const templateCategory =
+                          template.category ||
+                          "Allgemein";
+
+                        setCategoryFilter(
+                          templateCategory
+                        );
+
+                        updateUrlFilters(
+                          search,
+                          companyFilter,
+                          templateCategory
+                        );
+                      }}
+                      className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                    >
                       {template.category ||
                         "Allgemein"}
-                    </span>
+                    </button>
 
                     <span
                       className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
@@ -724,6 +1167,15 @@ export default function TicketTemplatesPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                  <Link
+                    href={`/tickets?template=${encodeURIComponent(
+                      template.id
+                    )}`}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-500 transition"
+                  >
+                    Ticket daraus erstellen
+                  </Link>
+
                   {canEdit() && (
                     <button
                       onClick={() =>
