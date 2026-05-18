@@ -56,7 +56,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-72 bg-zinc-950 text-white min-h-screen p-6 flex flex-col">
+    <aside className="w-72 shrink-0 bg-zinc-950 text-white h-screen p-6 flex flex-col overflow-y-auto">
       {/* LOGO */}
       <div className="mb-10">
         <h1 className="text-2xl font-bold">

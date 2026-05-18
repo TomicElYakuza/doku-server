@@ -42,7 +42,7 @@ export default function Topbar() {
   }, []);
 
   return (
-    <header className="h-20 bg-white border-b border-zinc-200 px-8 flex items-center justify-between">
+    <header className="h-20 shrink-0 bg-white border-b border-zinc-200 px-8 flex items-center justify-between">
       {/* LEFT */}
       <div>
         <p className="text-sm text-zinc-500">

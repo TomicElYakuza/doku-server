@@ -13,7 +13,8 @@ export function getFavorites() {
   }
 
   try {
-    const parsed = JSON.parse(data);
+    const parsed =
+      JSON.parse(data);
 
     if (!Array.isArray(parsed)) {
       return [];

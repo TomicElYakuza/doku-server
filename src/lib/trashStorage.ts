@@ -13,7 +13,8 @@ export function getTrashPages() {
   }
 
   try {
-    const parsed = JSON.parse(data);
+    const parsed =
+      JSON.parse(data);
 
     if (!Array.isArray(parsed)) {
       return [];
@@ -32,9 +33,14 @@ export function saveTrashPages(
     return;
   }
 
+  const safePages =
+    Array.isArray(pages)
+      ? pages
+      : [];
+
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(pages)
+    JSON.stringify(safePages)
   );
 
   window.dispatchEvent(
@@ -47,6 +53,10 @@ export function addTrashPage(
 ) {
   if (typeof window === "undefined") {
     return [];
+  }
+
+  if (!page || !page.slug) {
+    return getTrashPages();
   }
 
   const currentTrash =
@@ -79,6 +89,10 @@ export function removeTrashPage(
 ) {
   if (typeof window === "undefined") {
     return [];
+  }
+
+  if (!slug) {
+    return getTrashPages();
   }
 
   const currentTrash =

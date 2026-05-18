@@ -441,19 +441,20 @@ export default function HomePage() {
                 index: number
               ) => (
                 <div
-                  key={index}
-                  className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0"
+                  key={`${activity.createdAt}-${activity.type}-${index}`}
+                  className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0 gap-6"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
                       {getActivityIcon(
                         activity.type
                       )}
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">
-                        {activity.user}
+                        {activity.user ||
+                          "Unbekannt"}
                       </p>
 
                       <p className="text-zinc-500 text-sm mt-1">
@@ -462,14 +463,16 @@ export default function HomePage() {
                         )}
                       </p>
 
-                      <p className="mt-2">
-                        {activity.title}
+                      <p className="mt-2 break-words">
+                        {activity.title ||
+                          "Ohne Titel"}
                       </p>
                     </div>
                   </div>
 
-                  <p className="text-sm text-zinc-500">
-                    {activity.createdAt}
+                  <p className="text-sm text-zinc-500 whitespace-nowrap">
+                    {activity.createdAt ||
+                      "Unbekannt"}
                   </p>
                 </div>
               )

@@ -132,11 +132,13 @@ export default function FileUpload({
         Dateien werden lokal im Browser gespeichert.
       </p>
 
-      <label className={`inline-flex mt-4 border border-zinc-200 px-5 py-3 rounded-2xl transition cursor-pointer ${
-        uploading
-          ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-          : "bg-white hover:bg-zinc-100"
-      }`}>
+      <label
+        className={`inline-flex mt-4 border border-zinc-200 px-5 py-3 rounded-2xl transition cursor-pointer ${
+          uploading
+            ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+            : "bg-white hover:bg-zinc-100"
+        }`}
+      >
         {uploading
           ? "Wird hochgeladen..."
           : "Dateien auswählen"}

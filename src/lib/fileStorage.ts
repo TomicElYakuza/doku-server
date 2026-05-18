@@ -13,7 +13,8 @@ export function getFiles() {
   }
 
   try {
-    const parsed = JSON.parse(data);
+    const parsed =
+      JSON.parse(data);
 
     if (
       !parsed ||
@@ -145,8 +146,10 @@ export function deleteFile(
 
   const updatedSlugFiles =
     currentFiles.filter(
-      (_file: any, fileIndex: number) =>
-        fileIndex !== index
+      (
+        _file: any,
+        fileIndex: number
+      ) => fileIndex !== index
     );
 
   const updatedFiles = {

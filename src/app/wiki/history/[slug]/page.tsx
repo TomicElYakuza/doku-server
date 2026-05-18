@@ -111,7 +111,9 @@ export default function HistoryPage() {
 
     setPageTitle(page.title);
 
-    setPageCategory(page.category || "");
+    setPageCategory(
+      page.category || ""
+    );
 
     setPageChecked(true);
   }
@@ -164,7 +166,9 @@ export default function HistoryPage() {
             version.description || "",
 
           tags:
-            version.tags || [],
+            Array.isArray(version.tags)
+              ? version.tags
+              : [],
 
           content:
             version.content || "",

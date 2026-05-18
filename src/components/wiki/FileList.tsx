@@ -113,7 +113,10 @@ export default function FileList({
       return;
     }
 
-    deleteFile(slug, index);
+    deleteFile(
+      slug,
+      index
+    );
 
     saveActivity({
       type: "fileDeleted",

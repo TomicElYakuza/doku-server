@@ -221,21 +221,15 @@ export default function WikiPage() {
     return new Date(value).getTime();
   }
 
-  function getCommentCount(
-    slug: string
-  ) {
+  function getCommentCount(slug: string) {
     return comments[slug]?.length || 0;
   }
 
-  function getFileCount(
-    slug: string
-  ) {
+  function getFileCount(slug: string) {
     return files[slug]?.length || 0;
   }
 
-  function getVersionCount(
-    slug: string
-  ) {
+  function getVersionCount(slug: string) {
     return versions[slug]?.length || 0;
   }
 

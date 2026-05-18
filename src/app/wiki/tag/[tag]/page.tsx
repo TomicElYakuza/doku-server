@@ -161,7 +161,6 @@ export default function TagPage() {
                 {page.description}
               </p>
 
-              {/* TAGS */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {page.tags?.map(
                   (pageTag: string) => (
@@ -182,7 +181,6 @@ export default function TagPage() {
                 )}
               </div>
 
-              {/* META */}
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
                 <p className="text-sm text-zinc-500">
                   {page.author}

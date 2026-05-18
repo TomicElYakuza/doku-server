@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import Link from "next/link";
 
@@ -34,6 +37,12 @@ import FileList from "../../../components/wiki/FileList";
 export default function CreateWikiPage() {
   const router = useRouter();
 
+  const [mounted, setMounted] =
+    useState(false);
+
+  const [allowed, setAllowed] =
+    useState(false);
+
   const [title, setTitle] =
     useState("");
 
@@ -52,6 +61,12 @@ export default function CreateWikiPage() {
   const [createdSlug, setCreatedSlug] =
     useState("");
 
+  useEffect(() => {
+    setMounted(true);
+
+    setAllowed(canCreate());
+  }, []);
+
   function createSlug(value: string) {
     return value
       .toLowerCase()
@@ -65,7 +80,7 @@ export default function CreateWikiPage() {
   }
 
   function handleCreate() {
-    if (!canCreate()) {
+    if (!allowed) {
       alert(
         "Du hast keine Berechtigung, eine Seite zu erstellen."
       );
@@ -176,7 +191,11 @@ export default function CreateWikiPage() {
     );
   }
 
-  if (!canCreate()) {
+  if (!mounted) {
+    return null;
+  }
+
+  if (!allowed) {
     return (
       <div className="max-w-2xl">
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">

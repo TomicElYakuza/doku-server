@@ -12,21 +12,12 @@ Grundlegendes zum Intranet:
 -	Einstellungen machen
 	-	Dark Mode
 	-	Sprache eventuell
-	-	Design mit RGB / CYMK
 -	Login System
 	-	Password Create / Reset
 -	Berechtigungen
--	Abteilungsbereiche, zum Beispiel bei IT Bestandsliste
+-	Nicht nur Abteilungen sondern auch Firmen
 
 Weitere mögliche Features:
 -	Anstehende Projekte
 
 Design etwas responsiver machen
-
-
-
-
-
-
-Albert Froschauer
-Laufwerk Marketing Vertrieb
