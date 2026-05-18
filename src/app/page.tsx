@@ -18,6 +18,7 @@ import {
 
 import {
   getTickets,
+  getStatusLabel,
 } from "../lib/ticketStorage";
 
 import {
@@ -43,28 +44,44 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true);
 
-    setPages(getStoredPages());
+    setPages(
+      getStoredPages()
+    );
 
-    setTrashPages(getTrashPages());
+    setTrashPages(
+      getTrashPages()
+    );
 
-    setActivities(getActivities());
+    setActivities(
+      getActivities()
+    );
 
-    setTickets(getTickets());
+    setTickets(
+      getTickets()
+    );
 
     function handleWikiPagesUpdated() {
-      setPages(getStoredPages());
+      setPages(
+        getStoredPages()
+      );
     }
 
     function handleTrashUpdated() {
-      setTrashPages(getTrashPages());
+      setTrashPages(
+        getTrashPages()
+      );
     }
 
     function handleActivityUpdated() {
-      setActivities(getActivities());
+      setActivities(
+        getActivities()
+      );
     }
 
     function handleTicketsUpdated() {
-      setTickets(getTickets());
+      setTickets(
+        getTickets()
+      );
     }
 
     window.addEventListener(
@@ -132,7 +149,7 @@ export default function HomePage() {
     }
 
     if (type === "restored") {
-      return "Version oder Dokument wiederhergestellt";
+      return "Dokument oder Version wiederhergestellt";
     }
 
     if (type === "uploaded") {
@@ -243,7 +260,9 @@ export default function HomePage() {
       ).getTime();
     }
 
-    return new Date(value).getTime();
+    return new Date(
+      value
+    ).getTime();
   }
 
   const companies = [
@@ -282,15 +301,29 @@ export default function HomePage() {
   ]
     .sort(
       (a: any, b: any) =>
-        parseDate(b.updatedAt) -
-        parseDate(a.updatedAt)
+        parseDate(
+          b.updatedAt
+        ) -
+        parseDate(
+          a.updatedAt
+        )
     )
-    .slice(0, 5);
+    .slice(
+      0,
+      5
+    );
 
   const openTickets =
     tickets.filter(
       (ticket: any) =>
         ticket.status === "open"
+    );
+
+  const inProgressTickets =
+    tickets.filter(
+      (ticket: any) =>
+        ticket.status ===
+        "in-progress"
     );
 
   const urgentTickets =
@@ -301,7 +334,10 @@ export default function HomePage() {
 
   const latestTickets = [
     ...tickets,
-  ].slice(0, 5);
+  ].slice(
+    0,
+    5
+  );
 
   return (
     <div className="space-y-8">
@@ -331,7 +367,10 @@ export default function HomePage() {
           </h2>
         </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-blue-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
@@ -339,9 +378,12 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {companies.length}
           </h2>
-        </div>
+        </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Abteilungen
           </p>
@@ -349,9 +391,12 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {departments.length}
           </h2>
-        </div>
+        </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Tags
           </p>
@@ -359,7 +404,7 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {tags.length}
           </h2>
-        </div>
+        </Link>
 
         <Link
           href="/tickets"
@@ -402,10 +447,10 @@ export default function HomePage() {
       </div>
 
       {/* TICKET STATUS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link
-          href="/tickets"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          href="/tickets?status=open"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-blue-50 transition"
         >
           <p className="text-sm text-zinc-500">
             Offene Tickets
@@ -417,7 +462,20 @@ export default function HomePage() {
         </Link>
 
         <Link
-          href="/tickets"
+          href="/tickets?status=in-progress"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-purple-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            In Bearbeitung
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {inProgressTickets.length}
+          </h2>
+        </Link>
+
+        <Link
+          href="/tickets?priority=urgent"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
         >
           <p className="text-sm text-zinc-500">
@@ -470,6 +528,20 @@ export default function HomePage() {
           </Link>
 
           <Link
+            href="/tickets?status=open"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
+          >
+            Offene Tickets
+          </Link>
+
+          <Link
+            href="/tickets?priority=urgent"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
+          >
+            Dringende Tickets
+          </Link>
+
+          <Link
             href="/wiki/trash"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
           >
@@ -505,30 +577,35 @@ export default function HomePage() {
             </p>
           )}
 
-          {latestPages.map((page: any) => (
-            <Link
-              key={page.slug}
-              href={`/wiki/${page.slug}`}
-              className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-            >
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <p className="font-semibold">
-                    {page.title}
-                  </p>
+          {latestPages.map(
+            (page: any) => (
+              <Link
+                key={page.slug}
+                href={`/wiki/${encodeURIComponent(
+                  page.slug
+                )}`}
+                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+              >
+                <div className="flex items-center justify-between gap-6">
+                  <div>
+                    <p className="font-semibold">
+                      {page.title}
+                    </p>
 
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {(page.company || "Intern")} ·{" "}
-                    {page.category}
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {page.company ||
+                        "Intern"}{" "}
+                      · {page.category}
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-zinc-500">
+                    {page.updatedAt}
                   </p>
                 </div>
-
-                <p className="text-sm text-zinc-500">
-                  {page.updatedAt}
-                </p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          )}
         </div>
       </div>
 
@@ -554,31 +631,38 @@ export default function HomePage() {
             </p>
           )}
 
-          {latestTickets.map((ticket: any) => (
-            <Link
-              key={ticket.id}
-              href={`/tickets/${ticket.id}`}
-              className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-            >
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <p className="font-semibold">
-                    {ticket.title}
-                  </p>
+          {latestTickets.map(
+            (ticket: any) => (
+              <Link
+                key={ticket.id}
+                href={`/tickets/${encodeURIComponent(
+                  ticket.id
+                )}`}
+                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+              >
+                <div className="flex items-center justify-between gap-6">
+                  <div>
+                    <p className="font-semibold">
+                      {ticket.title}
+                    </p>
 
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {(ticket.company || "Intern")} ·{" "}
-                    {ticket.category} ·{" "}
-                    {ticket.status}
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {ticket.company ||
+                        "Intern"}{" "}
+                      · {ticket.category} ·{" "}
+                      {getStatusLabel(
+                        ticket.status
+                      )}
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-zinc-500">
+                    {ticket.updatedAt}
                   </p>
                 </div>
-
-                <p className="text-sm text-zinc-500">
-                  {ticket.updatedAt}
-                </p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          )}
         </div>
       </div>
 
@@ -605,7 +689,10 @@ export default function HomePage() {
           )}
 
           {activities
-            .slice(0, 8)
+            .slice(
+              0,
+              8
+            )
             .map(
               (
                 activity: any,
@@ -628,11 +715,18 @@ export default function HomePage() {
                           "Unbekannt"}
                       </p>
 
-                      <p className="text-zinc-500 text-sm mt-1">
-                        {getActivityLabel(
-                          activity.type
-                        )}
-                      </p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                          {activity.company ||
+                            "Intern"}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full">
+                          {getActivityLabel(
+                            activity.type
+                          )}
+                        </span>
+                      </div>
 
                       <p className="mt-2 break-words">
                         {activity.title ||

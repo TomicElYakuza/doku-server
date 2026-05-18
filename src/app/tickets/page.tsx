@@ -82,6 +82,8 @@ export default function TicketsPage() {
   useEffect(() => {
     setMounted(true);
 
+    applyUrlFilters();
+
     loadTickets();
 
     function handleTicketsUpdated() {
@@ -100,6 +102,90 @@ export default function TicketsPage() {
       );
     };
   }, []);
+
+  function applyUrlFilters() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const query =
+      params.get("q") || "";
+
+    const company =
+      params.get("company") || "";
+
+    const status =
+      params.get("status") || "";
+
+    const priority =
+      params.get("priority") || "";
+
+    setSearch(query);
+
+    setCompanyFilter(company);
+
+    setStatusFilter(status);
+
+    setPriorityFilter(priority);
+  }
+
+  function updateUrlFilters(
+    nextSearch: string,
+    nextCompany: string,
+    nextStatus: string,
+    nextPriority: string
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    if (nextSearch) {
+      params.set("q", nextSearch);
+    }
+
+    if (nextCompany) {
+      params.set(
+        "company",
+        nextCompany
+      );
+    }
+
+    if (nextStatus) {
+      params.set(
+        "status",
+        nextStatus
+      );
+    }
+
+    if (nextPriority) {
+      params.set(
+        "priority",
+        nextPriority
+      );
+    }
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/tickets?${query}`
+        : "/tickets";
+
+    window.history.replaceState(
+      null,
+      "",
+      nextUrl
+    );
+  }
 
   function loadTickets() {
     setTickets(getTickets());
@@ -123,6 +209,23 @@ export default function TicketsPage() {
     setPriority("medium");
 
     setShowCreateForm(false);
+  }
+
+  function resetFilters() {
+    setSearch("");
+
+    setCompanyFilter("");
+
+    setStatusFilter("");
+
+    setPriorityFilter("");
+
+    updateUrlFilters(
+      "",
+      "",
+      "",
+      ""
+    );
   }
 
   function handleCreateTicket() {
@@ -224,6 +327,11 @@ export default function TicketsPage() {
     setPriority(ticket.priority);
 
     setShowCreateForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   function handleUpdateTicket() {
@@ -512,7 +620,19 @@ export default function TicketsPage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            setStatusFilter("open");
+
+            updateUrlFilters(
+              search,
+              companyFilter,
+              "open",
+              priorityFilter
+            );
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Offen
           </p>
@@ -520,9 +640,23 @@ export default function TicketsPage() {
           <h2 className="text-4xl font-bold mt-3">
             {openCount}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            setStatusFilter(
+              "in-progress"
+            );
+
+            updateUrlFilters(
+              search,
+              companyFilter,
+              "in-progress",
+              priorityFilter
+            );
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-purple-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             In Bearbeitung
           </p>
@@ -530,9 +664,21 @@ export default function TicketsPage() {
           <h2 className="text-4xl font-bold mt-3">
             {inProgressCount}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            setStatusFilter("done");
+
+            updateUrlFilters(
+              search,
+              companyFilter,
+              "done",
+              priorityFilter
+            );
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Erledigt
           </p>
@@ -540,7 +686,7 @@ export default function TicketsPage() {
           <h2 className="text-4xl font-bold mt-3">
             {doneCount}
           </h2>
-        </div>
+        </button>
       </div>
 
       {/* FORM */}
@@ -744,22 +890,38 @@ export default function TicketsPage() {
           <input
             type="text"
             value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setSearch(value);
+
+              updateUrlFilters(
+                value,
+                companyFilter,
+                statusFilter,
+                priorityFilter
+              );
+            }}
             placeholder="Tickets, Firmen, Kategorien oder Personen suchen..."
             className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
             value={companyFilter}
-            onChange={(event) =>
-              setCompanyFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setCompanyFilter(value);
+
+              updateUrlFilters(
+                search,
+                value,
+                statusFilter,
+                priorityFilter
+              );
+            }}
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
@@ -780,11 +942,19 @@ export default function TicketsPage() {
 
           <select
             value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setStatusFilter(value);
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                value,
+                priorityFilter
+              );
+            }}
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
@@ -810,11 +980,19 @@ export default function TicketsPage() {
 
           <select
             value={priorityFilter}
-            onChange={(event) =>
-              setPriorityFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setPriorityFilter(value);
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                statusFilter,
+                value
+              );
+            }}
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
@@ -839,10 +1017,19 @@ export default function TicketsPage() {
           </select>
         </div>
 
-        <p className="text-sm text-zinc-500 mt-5">
-          {filteredTickets.length} von{" "}
-          {tickets.length} Tickets gefunden
-        </p>
+        <div className="flex items-center justify-between mt-5">
+          <p className="text-sm text-zinc-500">
+            {filteredTickets.length} von{" "}
+            {tickets.length} Tickets gefunden
+          </p>
+
+          <button
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Filter zurücksetzen
+          </button>
+        </div>
       </div>
 
       {/* TICKETS */}
@@ -867,9 +1054,23 @@ export default function TicketsPage() {
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
-                    <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                    <button
+                      onClick={() => {
+                        setCompanyFilter(
+                          ticketCompany
+                        );
+
+                        updateUrlFilters(
+                          search,
+                          ticketCompany,
+                          statusFilter,
+                          priorityFilter
+                        );
+                      }}
+                      className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-100 transition"
+                    >
                       {ticketCompany}
-                    </span>
+                    </button>
 
                     <span
                       className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
@@ -897,7 +1098,9 @@ export default function TicketsPage() {
                   </div>
 
                   <Link
-                    href={`/tickets/${ticket.id}`}
+                    href={`/tickets/${encodeURIComponent(
+                      ticket.id
+                    )}`}
                     className="block mt-4"
                   >
                     <h2 className="text-2xl font-bold hover:underline">
@@ -942,7 +1145,9 @@ export default function TicketsPage() {
 
                 <div className="flex flex-wrap gap-3 justify-end shrink-0">
                   <Link
-                    href={`/tickets/${ticket.id}`}
+                    href={`/tickets/${encodeURIComponent(
+                      ticket.id
+                    )}`}
                     className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
                   >
                     Öffnen

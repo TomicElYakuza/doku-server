@@ -4,7 +4,10 @@ import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
-import { useParams } from "next/navigation";
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
 
 import {
   getVersions,
@@ -26,7 +29,12 @@ import {
 export default function HistoryPage() {
   const params = useParams();
 
+  const router = useRouter();
+
   const slug = params.slug as string;
+
+  const documentHref =
+    `/wiki/${encodeURIComponent(slug)}`;
 
   const [mounted, setMounted] =
     useState(false);
@@ -125,6 +133,10 @@ export default function HistoryPage() {
     setPageChecked(true);
   }
 
+  function goToDocument() {
+    router.push(documentHref);
+  }
+
   function restoreVersion(
     version: any
   ) {
@@ -215,8 +227,7 @@ export default function HistoryPage() {
       "Version wurde wiederhergestellt."
     );
 
-    window.location.href =
-      `/wiki/${slug}`;
+    router.push(documentHref);
   }
 
   if (!mounted || !pageChecked) {
@@ -337,12 +348,12 @@ export default function HistoryPage() {
           </>
         ) : null}
 
-        <Link
-          href={`/wiki/${slug}`}
+        <button
+          onClick={goToDocument}
           className="text-zinc-500 hover:text-zinc-900 transition"
         >
           {pageTitle || slug}
-        </Link>
+        </button>
 
         <span className="text-zinc-400">
           /
@@ -354,12 +365,12 @@ export default function HistoryPage() {
       </div>
 
       <div>
-        <Link
-          href={`/wiki/${slug}`}
+        <button
+          onClick={goToDocument}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
           ← Zurück zum Dokument
-        </Link>
+        </button>
       </div>
 
       <div>

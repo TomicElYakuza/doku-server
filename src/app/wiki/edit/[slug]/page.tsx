@@ -37,14 +37,14 @@ import FileUpload from "../../../../components/wiki/FileUpload";
 import FileList from "../../../../components/wiki/FileList";
 
 export default function EditWikiPage() {
-  const params = useParams();
+  const params =
+    useParams();
 
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const slug = params.slug as string;
-
-  const documentHref =
-    `/wiki/${encodeURIComponent(slug)}`;
+  const slug =
+    params.slug as string;
 
   const [mounted, setMounted] =
     useState(false);
@@ -57,6 +57,9 @@ export default function EditWikiPage() {
 
   const [pageFound, setPageFound] =
     useState(false);
+
+  const [documentSlug, setDocumentSlug] =
+    useState("");
 
   const [title, setTitle] =
     useState("");
@@ -87,10 +90,14 @@ export default function EditWikiPage() {
     const pages =
       getStoredPages();
 
+    const decodedSlug =
+      decodeURIComponent(slug);
+
     const page =
       pages.find(
         (page: any) =>
-          page.slug === slug
+          page.slug === slug ||
+          page.slug === decodedSlug
       );
 
     if (!page) {
@@ -102,6 +109,8 @@ export default function EditWikiPage() {
     }
 
     setPageFound(true);
+
+    setDocumentSlug(page.slug);
 
     setTitle(page.title || "");
 
@@ -123,6 +132,22 @@ export default function EditWikiPage() {
 
     setPageChecked(true);
   }, [slug]);
+
+  function getDocumentHref() {
+    if (!documentSlug) {
+      return "/wiki";
+    }
+
+    return `/wiki/${documentSlug}`;
+  }
+
+  function goToDocument() {
+    const href =
+      getDocumentHref();
+
+    window.location.href =
+      href;
+  }
 
   function handleSave() {
     if (!allowed) {
@@ -160,10 +185,15 @@ export default function EditWikiPage() {
     const pages =
       getStoredPages();
 
+    const decodedSlug =
+      decodeURIComponent(slug);
+
     const existingPage =
       pages.find(
         (page: any) =>
-          page.slug === slug
+          page.slug === slug ||
+          page.slug === decodedSlug ||
+          page.slug === documentSlug
       );
 
     if (!existingPage) {
@@ -174,7 +204,7 @@ export default function EditWikiPage() {
       return;
     }
 
-    saveVersion(slug, {
+    saveVersion(existingPage.slug, {
       title:
         existingPage.title,
 
@@ -203,7 +233,7 @@ export default function EditWikiPage() {
 
     const updatedPages =
       pages.map((page: any) => {
-        if (page.slug !== slug) {
+        if (page.slug !== existingPage.slug) {
           return page;
         }
 
@@ -258,9 +288,8 @@ export default function EditWikiPage() {
         new Date().toLocaleString(),
     });
 
-    router.push(
-      documentHref
-    );
+    window.location.href =
+      `/wiki/${existingPage.slug}`;
   }
 
   if (!mounted || !pageChecked) {
@@ -279,12 +308,12 @@ export default function EditWikiPage() {
             Du darfst dieses Dokument nicht bearbeiten.
           </p>
 
-          <Link
-            href={documentHref}
+          <button
+            onClick={goToDocument}
             className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             ← Zurück zum Dokument
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -358,12 +387,12 @@ export default function EditWikiPage() {
           /
         </span>
 
-        <Link
-          href={documentHref}
+        <button
+          onClick={goToDocument}
           className="text-zinc-500 hover:text-zinc-900 transition"
         >
-          {slug}
-        </Link>
+          {documentSlug || slug}
+        </button>
 
         <span className="text-zinc-400">
           /
@@ -376,12 +405,12 @@ export default function EditWikiPage() {
 
       {/* BACK BUTTON */}
       <div>
-        <Link
-          href={documentHref}
+        <button
+          onClick={goToDocument}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
           ← Zurück zum Dokument
-        </Link>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -506,10 +535,10 @@ export default function EditWikiPage() {
               </p>
             </div>
 
-            <FileUpload slug={slug} />
+            <FileUpload slug={documentSlug || slug} />
 
             <FileList
-              slug={slug}
+              slug={documentSlug || slug}
               editable={true}
             />
 
@@ -521,12 +550,12 @@ export default function EditWikiPage() {
                 Änderungen speichern
               </button>
 
-              <Link
-                href={documentHref}
+              <button
+                onClick={goToDocument}
                 className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
               >
                 Abbrechen
-              </Link>
+              </button>
             </div>
           </div>
         </div>
