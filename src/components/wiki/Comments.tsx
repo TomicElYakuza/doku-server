@@ -1,47 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  getComments,
-  saveComment,
   deleteComment,
+  getCommentsForPage,
+  saveComment,
 } from "../../lib/commentStorage";
-
-import {
-  getUser,
-} from "../../lib/userStorage";
 
 import {
   saveActivity,
 } from "../../lib/activityStorage";
 
 import {
-  isAdmin,
+  getUser,
+} from "../../lib/userStorage";
+
+import {
   canComment,
+  isAdmin,
 } from "../../lib/permissions";
+
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+type CommentsProps = {
+  slug: string;
+};
 
 export default function Comments({
   slug,
-}: {
-  slug: string;
-}) {
+}: CommentsProps) {
+  const [mounted, setMounted] =
+    useState(false);
+
   const [comments, setComments] =
     useState<any[]>([]);
 
-  const [text, setText] =
+  const [commentText, setCommentText] =
     useState("");
 
-  const [user, setUser] =
-    useState<any>(null);
+  const [allowedToComment, setAllowedToComment] =
+    useState(false);
 
-  const [mounted, setMounted] =
+  const [admin, setAdmin] =
     useState(false);
 
   useEffect(() => {
     setMounted(true);
 
-    setUser(getUser());
+    setAllowedToComment(
+      canComment()
+    );
+
+    setAdmin(isAdmin());
 
     loadComments();
 
@@ -50,7 +66,11 @@ export default function Comments({
     }
 
     function handleUserUpdated() {
-      setUser(getUser());
+      setAllowedToComment(
+        canComment()
+      );
+
+      setAdmin(isAdmin());
     }
 
     window.addEventListener(
@@ -77,31 +97,37 @@ export default function Comments({
   }, [slug]);
 
   function loadComments() {
-    const allComments =
-      getComments();
+    setComments(
+      getCommentsForPage(slug)
+    );
+  }
 
-    const pageComments =
-      allComments[slug];
+  function getCurrentCompany() {
+    const pages =
+      getStoredPages();
 
-    if (!Array.isArray(pageComments)) {
-      setComments([]);
+    const page =
+      pages.find(
+        (item: any) =>
+          item.slug === slug
+      );
 
-      return;
-    }
-
-    setComments(pageComments);
+    return (
+      page?.company ||
+      "Intern"
+    );
   }
 
   function handleAddComment() {
-    if (!canComment()) {
+    if (!allowedToComment) {
       alert(
-        "Du hast keine Berechtigung zum Kommentieren."
+        "Du hast keine Berechtigung zu kommentieren."
       );
 
       return;
     }
 
-    if (!text.trim()) {
+    if (!commentText.trim()) {
       alert(
         "Bitte einen Kommentar eingeben."
       );
@@ -109,77 +135,54 @@ export default function Comments({
       return;
     }
 
-    const currentUser =
+    const user =
       getUser();
 
-    const comment = {
-      text:
-        text.trim(),
+    const text =
+      commentText.trim();
+
+    saveComment(slug, {
+      text,
 
       user:
-        currentUser?.name ||
+        user?.name ||
         "Unbekannt",
 
       role:
-        currentUser?.role ||
+        user?.role ||
         "viewer",
 
       createdAt:
         new Date().toLocaleString(),
-    };
-
-    saveComment(
-      slug,
-      comment
-    );
+    });
 
     saveActivity({
       type: "commented",
 
       title:
-        slug,
+        text,
+
+      company:
+        getCurrentCompany(),
 
       user:
-        currentUser?.name ||
+        user?.name ||
         "Unbekannt",
 
       createdAt:
         new Date().toLocaleString(),
     });
 
-    setText("");
-  }
-
-  function canDeleteComment(
-    comment: any
-  ) {
-    if (isAdmin()) {
-      return true;
-    }
-
-    return (
-      user?.name &&
-      comment.user === user.name
-    );
+    setCommentText("");
   }
 
   function handleDeleteComment(
+    comment: any,
     index: number
   ) {
-    const comment =
-      comments[index];
-
-    if (!comment) {
-      return;
-    }
-
-    if (
-      !canDeleteComment(
-        comment
-      )
-    ) {
+    if (!admin) {
       alert(
-        "Du darfst diesen Kommentar nicht löschen."
+        "Nur Admins dürfen Kommentare löschen."
       );
 
       return;
@@ -202,7 +205,11 @@ export default function Comments({
       type: "commentDeleted",
 
       title:
-        slug,
+        comment?.text ||
+        "Kommentar gelöscht",
+
+      company:
+        getCurrentCompany(),
 
       user:
         getUser()?.name ||
@@ -218,46 +225,46 @@ export default function Comments({
   }
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-3xl p-8 mt-8">
-      <h2 className="text-2xl font-bold">
+    <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm mt-6">
+      <h2 className="text-2xl font-semibold">
         Kommentare
       </h2>
 
       <p className="text-zinc-500 mt-2">
-        Fragen, Hinweise oder Ergänzungen zum Dokument
+        Rückfragen, Hinweise und Ergänzungen zum Dokument.
       </p>
 
-      {/* COMMENT FORM */}
-      {canComment() ? (
+      {allowedToComment && (
         <div className="mt-6">
           <textarea
-            value={text}
+            value={commentText}
             onChange={(event) =>
-              setText(
+              setCommentText(
                 event.target.value
               )
             }
             rows={4}
-            placeholder="Kommentar schreiben..."
             className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+            placeholder="Kommentar schreiben..."
           />
 
           <button
             onClick={handleAddComment}
-            className="mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            className="mt-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             Kommentar speichern
           </button>
         </div>
-      ) : (
+      )}
+
+      {!allowedToComment && (
         <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
-          <p className="text-sm text-zinc-500">
-            Du hast keine Berechtigung zum Kommentieren.
+          <p className="text-zinc-500">
+            Du hast keine Berechtigung, Kommentare zu schreiben.
           </p>
         </div>
       )}
 
-      {/* COMMENT LIST */}
       <div className="mt-8 space-y-4">
         {comments.length === 0 && (
           <p className="text-zinc-500">
@@ -271,54 +278,42 @@ export default function Comments({
             index: number
           ) => (
             <div
-              key={`${comment.createdAt || "comment"}-${index}`}
+              key={`${comment.createdAt}-${index}`}
               className="border border-zinc-200 rounded-2xl p-5"
             >
-              <div className="flex items-start justify-between gap-6">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold shrink-0">
-                    {comment.user?.charAt(0) ||
-                      "?"}
-                  </div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold">
+                    {comment.user ||
+                      "Unbekannt"}
+                  </p>
 
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">
-                      {comment.user ||
-                        "Unbekannt"}
-                    </p>
-
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {comment.createdAt ||
-                        "Unbekannt"}
-                    </p>
-
-                    {comment.role && (
-                      <p className="text-xs text-zinc-400 mt-1 capitalize">
-                        {comment.role}
-                      </p>
-                    )}
-                  </div>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {comment.role ||
+                      "viewer"}{" "}
+                    ·{" "}
+                    {comment.createdAt ||
+                      "Unbekannt"}
+                  </p>
                 </div>
 
-                {canDeleteComment(
-                  comment
-                ) && (
+                {admin && (
                   <button
                     onClick={() =>
                       handleDeleteComment(
+                        comment,
                         index
                       )
                     }
-                    className="text-sm text-red-600 hover:text-red-500 shrink-0"
+                    className="text-sm bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
                   >
                     Löschen
                   </button>
                 )}
               </div>
 
-              <p className="mt-4 text-zinc-700 whitespace-pre-wrap break-words">
-                {comment.text ||
-                  "Kein Text"}
+              <p className="mt-4 whitespace-pre-wrap text-zinc-700">
+                {comment.text}
               </p>
             </div>
           )

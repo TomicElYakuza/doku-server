@@ -43,6 +43,9 @@ export default function EditWikiPage() {
 
   const slug = params.slug as string;
 
+  const documentHref =
+    `/wiki/${encodeURIComponent(slug)}`;
+
   const [mounted, setMounted] =
     useState(false);
 
@@ -176,7 +179,8 @@ export default function EditWikiPage() {
         existingPage.title,
 
       company:
-        existingPage.company || "Intern",
+        existingPage.company ||
+        "Intern",
 
       category:
         existingPage.category,
@@ -242,6 +246,10 @@ export default function EditWikiPage() {
       title:
         title.trim(),
 
+      company:
+        company.trim() ||
+        "Intern",
+
       user:
         getUser()?.name ||
         "Unbekannt",
@@ -251,7 +259,7 @@ export default function EditWikiPage() {
     });
 
     router.push(
-      `/wiki/${slug}`
+      documentHref
     );
   }
 
@@ -272,7 +280,7 @@ export default function EditWikiPage() {
           </p>
 
           <Link
-            href={`/wiki/${slug}`}
+            href={documentHref}
             className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             ← Zurück zum Dokument
@@ -303,10 +311,6 @@ export default function EditWikiPage() {
         </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
-            🔎
-          </div>
-
           <h1 className="text-4xl font-bold">
             Dokument nicht gefunden
           </h1>
@@ -316,7 +320,7 @@ export default function EditWikiPage() {
             <span className="font-mono text-zinc-900">
               {slug}
             </span>{" "}
-            kann nicht bearbeitet werden, weil sie nicht existiert oder gelöscht wurde.
+            kann nicht bearbeitet werden.
           </p>
 
           <div className="flex flex-wrap gap-3 mt-8">
@@ -355,7 +359,7 @@ export default function EditWikiPage() {
         </span>
 
         <Link
-          href={`/wiki/${slug}`}
+          href={documentHref}
           className="text-zinc-500 hover:text-zinc-900 transition"
         >
           {slug}
@@ -373,7 +377,7 @@ export default function EditWikiPage() {
       {/* BACK BUTTON */}
       <div>
         <Link
-          href={`/wiki/${slug}`}
+          href={documentHref}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
           ← Zurück zum Dokument
@@ -394,7 +398,6 @@ export default function EditWikiPage() {
           </div>
 
           <div className="space-y-6">
-            {/* TITEL */}
             <div>
               <label className="block mb-2 font-medium">
                 Titel
@@ -412,7 +415,6 @@ export default function EditWikiPage() {
               />
             </div>
 
-            {/* FIRMA */}
             <div>
               <label className="block mb-2 font-medium">
                 Firma
@@ -431,7 +433,6 @@ export default function EditWikiPage() {
               />
             </div>
 
-            {/* KATEGORIE */}
             <div>
               <label className="block mb-2 font-medium">
                 Kategorie / Abteilung
@@ -449,7 +450,6 @@ export default function EditWikiPage() {
               />
             </div>
 
-            {/* BESCHREIBUNG */}
             <div>
               <label className="block mb-2 font-medium">
                 Beschreibung
@@ -464,11 +464,9 @@ export default function EditWikiPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Kurze Zusammenfassung des Dokuments"
               />
             </div>
 
-            {/* INHALT */}
             <div>
               <label className="block mb-2 font-medium">
                 Inhalt
@@ -486,7 +484,6 @@ export default function EditWikiPage() {
               />
             </div>
 
-            {/* TAGS */}
             <div>
               <label className="block mb-2 font-medium">
                 Tags
@@ -509,7 +506,6 @@ export default function EditWikiPage() {
               </p>
             </div>
 
-            {/* FILES */}
             <FileUpload slug={slug} />
 
             <FileList
@@ -517,7 +513,6 @@ export default function EditWikiPage() {
               editable={true}
             />
 
-            {/* ACTIONS */}
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleSave}
@@ -527,7 +522,7 @@ export default function EditWikiPage() {
               </button>
 
               <Link
-                href={`/wiki/${slug}`}
+                href={documentHref}
                 className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
               >
                 Abbrechen

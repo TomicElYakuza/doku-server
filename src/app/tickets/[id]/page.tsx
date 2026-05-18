@@ -39,11 +39,14 @@ import {
 } from "../../../lib/userStorage";
 
 export default function TicketDetailPage() {
-  const params = useParams();
+  const params =
+    useParams();
 
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const id = params.id as string;
+  const id =
+    params.id as string;
 
   const [mounted, setMounted] =
     useState(false);
@@ -157,6 +160,10 @@ export default function TicketDetailPage() {
         title:
           updated.title,
 
+        company:
+          updated.company ||
+          "Intern",
+
         user:
           getUser()?.name ||
           "Unbekannt",
@@ -195,6 +202,10 @@ export default function TicketDetailPage() {
 
       title:
         ticket.title,
+
+      company:
+        ticket.company ||
+        "Intern",
 
       user:
         getUser()?.name ||

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState,
+} from "react";
 
 import {
   saveFile,
@@ -14,27 +16,49 @@ import {
   getUser,
 } from "../../lib/userStorage";
 
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+type FileUploadProps = {
+  slug: string;
+};
+
 export default function FileUpload({
   slug,
-}: {
-  slug: string;
-}) {
+}: FileUploadProps) {
   const [uploading, setUploading] =
     useState(false);
 
-  function handleFileUpload(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const selectedFiles =
-      event.target.files;
+  function getCurrentCompany() {
+    const pages =
+      getStoredPages();
 
-    if (!selectedFiles || selectedFiles.length === 0) {
+    const page =
+      pages.find(
+        (item: any) =>
+          item.slug === slug
+      );
+
+    return (
+      page?.company ||
+      "Intern"
+    );
+  }
+
+  function handleFileUpload(
+    event: any
+  ) {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
       return;
     }
 
     if (!slug) {
       alert(
-        "Dateien können erst hochgeladen werden, wenn ein gültiger Slug vorhanden ist."
+        "Es wurde kein Dokument-Slug gefunden."
       );
 
       return;
@@ -42,112 +66,88 @@ export default function FileUpload({
 
     setUploading(true);
 
-    const filesArray =
-      Array.from(selectedFiles);
+    const reader =
+      new FileReader();
 
-    let finishedFiles = 0;
+    reader.onload = () => {
+      const user =
+        getUser();
 
-    filesArray.forEach((file) => {
-      const reader =
-        new FileReader();
+      const company =
+        getCurrentCompany();
 
-      reader.onload = () => {
-        const currentUser =
-          getUser();
+      saveFile(slug, {
+        name:
+          file.name,
 
-        const newFile = {
-          name:
-            file.name,
+        type:
+          file.type,
 
-          type:
-            file.type,
+        size:
+          file.size,
 
-          size:
-            file.size,
+        data:
+          reader.result,
 
-          data:
-            reader.result,
+        uploadedAt:
+          new Date().toLocaleString(),
 
-          uploadedAt:
-            new Date().toLocaleString(),
+        uploadedBy:
+          user?.name ||
+          "Unbekannt",
+      });
 
-          uploadedBy:
-            currentUser?.name ||
-            "Unbekannt",
-        };
+      saveActivity({
+        type: "uploaded",
 
-        saveFile(
-          slug,
-          newFile
-        );
+        title:
+          file.name,
 
-        saveActivity({
-          type: "uploaded",
+        company,
 
-          title:
-            file.name,
+        user:
+          user?.name ||
+          "Unbekannt",
 
-          user:
-            currentUser?.name ||
-            "Unbekannt",
+        createdAt:
+          new Date().toLocaleString(),
+      });
 
-          createdAt:
-            new Date().toLocaleString(),
-        });
+      setUploading(false);
 
-        finishedFiles += 1;
+      event.target.value = "";
+    };
 
-        if (
-          finishedFiles ===
-          filesArray.length
-        ) {
-          setUploading(false);
-        }
-      };
+    reader.onerror = () => {
+      setUploading(false);
 
-      reader.onerror = () => {
-        finishedFiles += 1;
+      alert(
+        "Datei konnte nicht gelesen werden."
+      );
+    };
 
-        if (
-          finishedFiles ===
-          filesArray.length
-        ) {
-          setUploading(false);
-        }
-      };
-
-      reader.readAsDataURL(file);
-    });
-
-    event.target.value = "";
+    reader.readAsDataURL(file);
   }
 
   return (
     <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
       <h3 className="font-semibold">
-        Anhänge hochladen
+        Anhänge
       </h3>
 
       <p className="text-sm text-zinc-500 mt-2">
-        Dateien werden lokal im Browser gespeichert.
+        Lade Dateien hoch, die zu diesem Dokument gehören.
       </p>
 
-      <label
-        className={`inline-flex mt-4 border border-zinc-200 px-5 py-3 rounded-2xl transition cursor-pointer ${
-          uploading
-            ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-            : "bg-white hover:bg-zinc-100"
-        }`}
-      >
+      <label className="inline-flex mt-5 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition cursor-pointer">
         {uploading
           ? "Wird hochgeladen..."
-          : "Dateien auswählen"}
+          : "Datei hochladen"}
 
         <input
           type="file"
-          multiple
-          disabled={uploading}
           onChange={handleFileUpload}
+          disabled={uploading}
           className="hidden"
         />
       </label>

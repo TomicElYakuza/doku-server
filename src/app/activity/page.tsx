@@ -1,22 +1,18 @@
 "use client";
 
-import Link from "next/link";
-
 import { useEffect, useState } from "react";
 
-import {
-  getFiles,
-} from "../../lib/fileStorage";
+import Link from "next/link";
 
 import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  getActivities,
+} from "../../lib/activityStorage";
 
-export default function FilesPage() {
+export default function ActivityPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [files, setFiles] =
+  const [activities, setActivities] =
     useState<any[]>([]);
 
   const [search, setSearch] =
@@ -31,248 +27,212 @@ export default function FilesPage() {
   useEffect(() => {
     setMounted(true);
 
-    loadFiles();
+    loadActivities();
 
-    function handleFilesUpdated() {
-      loadFiles();
-    }
-
-    function handleWikiPagesUpdated() {
-      loadFiles();
+    function handleActivityUpdated() {
+      loadActivities();
     }
 
     window.addEventListener(
-      "filesUpdated",
-      handleFilesUpdated
-    );
-
-    window.addEventListener(
-      "wikiPagesUpdated",
-      handleWikiPagesUpdated
+      "activityUpdated",
+      handleActivityUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "filesUpdated",
-        handleFilesUpdated
-      );
-
-      window.removeEventListener(
-        "wikiPagesUpdated",
-        handleWikiPagesUpdated
+        "activityUpdated",
+        handleActivityUpdated
       );
     };
   }, []);
 
-  function loadFiles() {
-    const storedFiles =
-      getFiles();
-
-    const pages =
-      getStoredPages();
-
-    const allFiles =
-      Object.entries(storedFiles).flatMap(
-        ([slug, fileList]: any) => {
-          if (!Array.isArray(fileList)) {
-            return [];
-          }
-
-          const page =
-            pages.find(
-              (item: any) =>
-                item.slug === slug
-            );
-
-          return fileList.map(
-            (
-              file: any,
-              index: number
-            ) => ({
-              ...file,
-
-              slug,
-
-              fileIndex: index,
-
-              pageTitle:
-                page?.title || slug,
-
-              company:
-                page?.company || "Intern",
-
-              category:
-                page?.category || "Allgemein",
-            })
-          );
-        }
-      );
-
-    setFiles(allFiles);
+  function loadActivities() {
+    setActivities(
+      getActivities()
+    );
   }
 
-  function formatSize(size: number) {
-    if (!size) {
-      return "0 KB";
-    }
-
-    if (size < 1024 * 1024) {
-      return `${Math.round(
-        size / 1024
-      )} KB`;
-    }
-
-    return `${(
-      size /
-      1024 /
-      1024
-    ).toFixed(1)} MB`;
+  if (!mounted) {
+    return null;
   }
 
-  function getFileIcon(type: string) {
-    if (type?.startsWith("image/")) {
-      return "🖼️";
+  function getActivityLabel(type: string) {
+    if (type === "created") {
+      return "Dokument erstellt";
     }
 
-    if (type?.includes("pdf")) {
-      return "📄";
+    if (type === "edited") {
+      return "Dokument bearbeitet";
     }
 
-    if (
-      type?.includes("word") ||
-      type?.includes("document")
-    ) {
+    if (type === "deleted") {
+      return "Dokument in Papierkorb verschoben";
+    }
+
+    if (type === "deletedForever") {
+      return "Dokument endgültig gelöscht";
+    }
+
+    if (type === "restored") {
+      return "Dokument oder Version wiederhergestellt";
+    }
+
+    if (type === "uploaded") {
+      return "Datei hochgeladen";
+    }
+
+    if (type === "fileDeleted") {
+      return "Datei gelöscht";
+    }
+
+    if (type === "commented") {
+      return "Kommentar hinzugefügt";
+    }
+
+    if (type === "commentDeleted") {
+      return "Kommentar gelöscht";
+    }
+
+    if (type === "ticketCreated") {
+      return "Ticket erstellt";
+    }
+
+    if (type === "ticketUpdated") {
+      return "Ticket aktualisiert";
+    }
+
+    if (type === "ticketDeleted") {
+      return "Ticket gelöscht";
+    }
+
+    return "Aktivität";
+  }
+
+  function getActivityIcon(type: string) {
+    if (type === "created") {
       return "📝";
     }
 
-    if (
-      type?.includes("excel") ||
-      type?.includes("spreadsheet")
-    ) {
-      return "📊";
+    if (type === "edited") {
+      return "✏️";
     }
 
-    if (type?.includes("zip")) {
-      return "🗜️";
+    if (type === "deleted") {
+      return "🗑️";
     }
 
-    return "📎";
-  }
-
-  function getFileTypeLabel(type: string) {
-    if (type?.startsWith("image/")) {
-      return "Bild";
+    if (type === "deletedForever") {
+      return "❌";
     }
 
-    if (type?.includes("pdf")) {
-      return "PDF";
+    if (type === "restored") {
+      return "♻️";
     }
 
-    if (
-      type?.includes("word") ||
-      type?.includes("document")
-    ) {
-      return "Dokument";
+    if (type === "uploaded") {
+      return "📎";
     }
 
-    if (
-      type?.includes("excel") ||
-      type?.includes("spreadsheet")
-    ) {
-      return "Tabelle";
+    if (type === "fileDeleted") {
+      return "🧹";
     }
 
-    if (type?.includes("zip")) {
-      return "Archiv";
+    if (type === "commented") {
+      return "💬";
     }
 
-    return "Sonstige";
+    if (type === "commentDeleted") {
+      return "🧹";
+    }
+
+    if (type === "ticketCreated") {
+      return "🎫";
+    }
+
+    if (type === "ticketUpdated") {
+      return "🔄";
+    }
+
+    if (type === "ticketDeleted") {
+      return "🗑️";
+    }
+
+    return "📌";
   }
 
   const companies: string[] =
     Array.from(
       new Set(
-        files
+        activities
           .map(
-            (file: any) =>
-              file.company || "Intern"
+            (activity: any) =>
+              activity.company ||
+              "Intern"
           )
           .filter(Boolean)
       )
     );
 
-  const fileTypes: string[] =
+  const activityTypes: string[] =
     Array.from(
       new Set(
-        files.map((file: any) =>
-          getFileTypeLabel(file.type)
-        )
+        activities
+          .map(
+            (activity: any) =>
+              activity.type
+          )
+          .filter(Boolean)
       )
     );
 
-  const filteredFiles =
-    files.filter((file: any) => {
-      const query =
-        search.toLowerCase();
+  const filteredActivities =
+    activities.filter(
+      (activity: any) => {
+        const query =
+          search.toLowerCase();
 
-      const typeLabel =
-        getFileTypeLabel(file.type);
+        const label =
+          getActivityLabel(
+            activity.type
+          );
 
-      const fileCompany =
-        file.company || "Intern";
+        const activityCompany =
+          activity.company ||
+          "Intern";
 
-      const matchesSearch =
-        file.name
-          ?.toLowerCase()
-          .includes(query) ||
-        file.slug
-          ?.toLowerCase()
-          .includes(query) ||
-        file.pageTitle
-          ?.toLowerCase()
-          .includes(query) ||
-        fileCompany
-          ?.toLowerCase()
-          .includes(query) ||
-        file.category
-          ?.toLowerCase()
-          .includes(query) ||
-        file.uploadedBy
-          ?.toLowerCase()
-          .includes(query) ||
-        file.uploadedAt
-          ?.toLowerCase()
-          .includes(query) ||
-        typeLabel
-          .toLowerCase()
-          .includes(query);
+        const matchesSearch =
+          activity.title
+            ?.toLowerCase()
+            .includes(query) ||
+          activity.user
+            ?.toLowerCase()
+            .includes(query) ||
+          activityCompany
+            ?.toLowerCase()
+            .includes(query) ||
+          activity.createdAt
+            ?.toLowerCase()
+            .includes(query) ||
+          label
+            .toLowerCase()
+            .includes(query);
 
-      const matchesCompany =
-        !companyFilter ||
-        fileCompany ===
-          companyFilter;
+        const matchesCompany =
+          !companyFilter ||
+          activityCompany ===
+            companyFilter;
 
-      const matchesType =
-        !typeFilter ||
-        typeLabel === typeFilter;
+        const matchesType =
+          !typeFilter ||
+          activity.type ===
+            typeFilter;
 
-      return (
-        matchesSearch &&
-        matchesCompany &&
-        matchesType
-      );
-    });
-
-  const imageCount =
-    files.filter((file) =>
-      file.type?.startsWith("image/")
-    ).length;
-
-  const totalSize =
-    files.reduce(
-      (sum, file) =>
-        sum + (file.size || 0),
-      0
+        return (
+          matchesSearch &&
+          matchesCompany &&
+          matchesType
+        );
+      }
     );
 
   function resetFilters() {
@@ -283,72 +243,86 @@ export default function FilesPage() {
     setTypeFilter("");
   }
 
-  if (!mounted) {
-    return null;
-  }
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 max-w-6xl">
+      {/* TOP NAV */}
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          dashboard
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          aktivitäten
+        </span>
+      </div>
+
+      {/* BACK */}
+      <div>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Dashboard
+        </Link>
+      </div>
+
       {/* HEADER */}
       <div>
         <h1 className="text-4xl font-bold">
-          Dateien
+          Aktivitäten
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Alle Wiki-Anhänge gesammelt an einem Ort
+          Verlauf aller Änderungen, Kommentare, Uploads, Tickets und Löschaktionen
         </p>
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
-            Dateien gesamt
+            Aktivitäten gesamt
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {files.length}
+          <h2 className="text-3xl font-bold mt-2">
+            {activities.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
+          <h2 className="text-3xl font-bold mt-2">
             {companies.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
-            Bilder
+            Aktivitätstypen
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {imageCount}
+          <h2 className="text-3xl font-bold mt-2">
+            {activityTypes.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
-            Dateitypen
+            Gefiltert
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {fileTypes.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Speichergröße
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {formatSize(totalSize)}
+          <h2 className="text-3xl font-bold mt-2">
+            {filteredActivities.length}
           </h2>
         </div>
       </div>
@@ -362,7 +336,7 @@ export default function FilesPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Nach Datei, Firma, Dokument, Benutzer oder Datum suchen..."
+            placeholder="Nach Firma, Benutzer, Titel, Datum oder Aktion suchen..."
             value={search}
             onChange={(event) =>
               setSearch(
@@ -410,13 +384,15 @@ export default function FilesPage() {
               Alle Typen
             </option>
 
-            {fileTypes.map(
+            {activityTypes.map(
               (type: string) => (
                 <option
                   key={type}
                   value={type}
                 >
-                  {type}
+                  {getActivityLabel(
+                    type
+                  )}
                 </option>
               )
             )}
@@ -425,8 +401,8 @@ export default function FilesPage() {
 
         <div className="flex items-center justify-between mt-5">
           <p className="text-sm text-zinc-500">
-            {filteredFiles.length} von{" "}
-            {files.length} Dateien gefunden
+            {filteredActivities.length} von{" "}
+            {activities.length} Aktivitäten gefunden
           </p>
 
           <button
@@ -438,114 +414,73 @@ export default function FilesPage() {
         </div>
       </div>
 
-      {/* FILE LIST */}
+      {/* LIST */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Anhänge
+          Verlauf
         </h2>
 
         <div className="mt-6 space-y-4">
-          {filteredFiles.length === 0 && (
-            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-              <p className="text-zinc-500">
-                Keine Dateien gefunden.
-              </p>
-
-              <Link
-                href="/wiki"
-                className="inline-flex mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                Wiki öffnen
-              </Link>
-            </div>
+          {filteredActivities.length ===
+            0 && (
+            <p className="text-zinc-500">
+              Keine Aktivitäten gefunden.
+            </p>
           )}
 
-          {filteredFiles.map(
+          {filteredActivities.map(
             (
-              file: any,
+              activity: any,
               index: number
-            ) => (
-              <div
-                key={`${file.slug}-${file.name || "file"}-${file.fileIndex}-${index}`}
-                className="flex items-center justify-between border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition gap-4"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                    {getFileIcon(
-                      file.type
-                    )}
+            ) => {
+              const activityCompany =
+                activity.company ||
+                "Intern";
+
+              return (
+                <div
+                  key={`${activity.createdAt}-${activity.type}-${index}`}
+                  className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0 gap-6"
+                >
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
+                      {getActivityIcon(
+                        activity.type
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                          {activityCompany}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full">
+                          {getActivityLabel(
+                            activity.type
+                          )}
+                        </span>
+                      </div>
+
+                      <p className="font-medium mt-2">
+                        {activity.user ||
+                          "Unbekannt"}
+                      </p>
+
+                      <p className="mt-2 font-medium break-words">
+                        {activity.title ||
+                          "Ohne Titel"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    {file.data ? (
-                      <a
-                        href={file.data}
-                        download={
-                          file.name ||
-                          "download"
-                        }
-                        className="font-semibold hover:underline break-all"
-                      >
-                        {file.name ||
-                          "Unbenannte Datei"}
-                      </a>
-                    ) : (
-                      <p className="font-semibold break-all">
-                        {file.name ||
-                          "Unbenannte Datei"}
-                      </p>
-                    )}
-
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {file.company ||
-                        "Intern"}{" "}
-                      ·{" "}
-                      {file.category ||
-                        "Allgemein"}{" "}
-                      ·{" "}
-                      {getFileTypeLabel(
-                        file.type
-                      )}{" "}
-                      ·{" "}
-                      {formatSize(
-                        file.size
-                      )}{" "}
-                      ·{" "}
-                      {file.uploadedAt ||
-                        "Unbekannt"}
-                    </p>
-
-                    {file.uploadedBy && (
-                      <p className="text-xs text-zinc-400 mt-1">
-                        Hochgeladen von{" "}
-                        {file.uploadedBy}
-                      </p>
-                    )}
-
-                    <Link
-                      href={`/wiki/${file.slug}`}
-                      className="text-sm text-blue-600 hover:underline mt-1 inline-block"
-                    >
-                      {file.pageTitle ||
-                        "Zugehöriges Dokument öffnen"}
-                    </Link>
-                  </div>
+                  <p className="text-sm text-zinc-500 whitespace-nowrap">
+                    {activity.createdAt ||
+                      "Unbekannt"}
+                  </p>
                 </div>
-
-                {file.data && (
-                  <a
-                    href={file.data}
-                    download={
-                      file.name ||
-                      "download"
-                    }
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition shrink-0"
-                  >
-                    Download
-                  </a>
-                )}
-              </div>
-            )
+              );
+            }
           )}
         </div>
       </div>

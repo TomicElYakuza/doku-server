@@ -22,7 +22,24 @@ export function getActivities() {
       return [];
     }
 
-    return parsed;
+    return parsed.map(
+      (activity: any) => ({
+        type:
+          activity.type || "unknown",
+
+        title:
+          activity.title || "Ohne Titel",
+
+        company:
+          activity.company || "Intern",
+
+        user:
+          activity.user || "Unbekannt",
+
+        createdAt:
+          activity.createdAt || "",
+      })
+    );
   } catch {
     return [];
   }
@@ -37,7 +54,25 @@ export function saveActivities(
 
   const safeActivities =
     Array.isArray(activities)
-      ? activities
+      ? activities.map(
+          (activity: any) => ({
+            type:
+              activity.type || "unknown",
+
+            title:
+              activity.title || "Ohne Titel",
+
+            company:
+              activity.company || "Intern",
+
+            user:
+              activity.user || "Unbekannt",
+
+            createdAt:
+              activity.createdAt ||
+              new Date().toLocaleString(),
+          })
+        )
       : [];
 
   localStorage.setItem(
@@ -75,6 +110,9 @@ export function saveActivity(
 
     title:
       activity.title || "Ohne Titel",
+
+    company:
+      activity.company || "Intern",
 
     user:
       activity.user || "Unbekannt",

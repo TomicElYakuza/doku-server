@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  getFilesForPage,
   deleteFile,
+  getFilesForPage,
 } from "../../lib/fileStorage";
 
 import {
@@ -15,17 +18,28 @@ import {
   getUser,
 } from "../../lib/userStorage";
 
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+type FileListProps = {
+  slug: string;
+  editable?: boolean;
+};
+
 export default function FileList({
   slug,
   editable = false,
-}: {
-  slug: string;
-  editable?: boolean;
-}) {
+}: FileListProps) {
   const [files, setFiles] =
     useState<any[]>([]);
 
+  const [mounted, setMounted] =
+    useState(false);
+
   useEffect(() => {
+    setMounted(true);
+
     loadFiles();
 
     function handleFilesUpdated() {
@@ -48,6 +62,22 @@ export default function FileList({
   function loadFiles() {
     setFiles(
       getFilesForPage(slug)
+    );
+  }
+
+  function getCurrentCompany() {
+    const pages =
+      getStoredPages();
+
+    const page =
+      pages.find(
+        (item: any) =>
+          item.slug === slug
+      );
+
+    return (
+      page?.company ||
+      "Intern"
     );
   }
 
@@ -100,18 +130,19 @@ export default function FileList({
   }
 
   function handleDeleteFile(
+    file: any,
     index: number
   ) {
-    const file =
-      files[index];
-
     const confirmed = confirm(
-      "Anhang wirklich löschen?"
+      "Datei wirklich löschen?"
     );
 
     if (!confirmed) {
       return;
     }
+
+    const company =
+      getCurrentCompany();
 
     deleteFile(
       slug,
@@ -122,7 +153,10 @@ export default function FileList({
       type: "fileDeleted",
 
       title:
-        file?.name || slug,
+        file.name ||
+        "Datei gelöscht",
+
+      company,
 
       user:
         getUser()?.name ||
@@ -133,25 +167,21 @@ export default function FileList({
     });
   }
 
-  if (files.length === 0) {
-    return (
-      <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-        <h3 className="font-semibold">
-          Anhänge
-        </h3>
-
-        <p className="text-sm text-zinc-500 mt-2">
-          Keine Anhänge vorhanden.
-        </p>
-      </div>
-    );
+  if (!mounted) {
+    return null;
   }
 
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+    <div className="bg-white border border-zinc-200 rounded-2xl p-6">
       <h3 className="font-semibold">
-        Anhänge
+        Dateien
       </h3>
+
+      {files.length === 0 && (
+        <p className="text-sm text-zinc-500 mt-3">
+          Keine Dateien vorhanden.
+        </p>
+      )}
 
       <div className="mt-4 space-y-3">
         {files.map(
@@ -160,8 +190,8 @@ export default function FileList({
             index: number
           ) => (
             <div
-              key={`${file.name || "file"}-${index}`}
-              className="bg-white border border-zinc-200 rounded-2xl p-4 flex items-center justify-between gap-4"
+              key={`${file.name}-${index}`}
+              className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-11 h-11 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
@@ -216,7 +246,7 @@ export default function FileList({
                       file.name ||
                       "download"
                     }
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
                   >
                     Download
                   </a>
@@ -226,10 +256,11 @@ export default function FileList({
                   <button
                     onClick={() =>
                       handleDeleteFile(
+                        file,
                         index
                       )
                     }
-                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition text-sm"
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                   >
                     Löschen
                   </button>

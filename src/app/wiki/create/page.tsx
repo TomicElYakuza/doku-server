@@ -191,6 +191,10 @@ export default function CreateWikiPage() {
       title:
         newPage.title,
 
+      company:
+        newPage.company ||
+        "Intern",
+
       user:
         user?.name ||
         "Unbekannt",
@@ -241,7 +245,6 @@ export default function CreateWikiPage() {
 
   return (
     <div className="space-y-6">
-      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -259,7 +262,6 @@ export default function CreateWikiPage() {
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <Link
           href="/wiki"
@@ -270,7 +272,6 @@ export default function CreateWikiPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* EDITOR */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <div className="mb-8">
             <h1 className="text-3xl font-bold">
@@ -283,7 +284,6 @@ export default function CreateWikiPage() {
           </div>
 
           <div className="space-y-6">
-            {/* TITEL */}
             <div>
               <label className="block mb-2 font-medium">
                 Titel
@@ -311,7 +311,6 @@ export default function CreateWikiPage() {
               )}
             </div>
 
-            {/* FIRMA */}
             <div>
               <label className="block mb-2 font-medium">
                 Firma
@@ -330,7 +329,6 @@ export default function CreateWikiPage() {
               />
             </div>
 
-            {/* KATEGORIE */}
             <div>
               <label className="block mb-2 font-medium">
                 Kategorie / Abteilung
@@ -349,7 +347,6 @@ export default function CreateWikiPage() {
               />
             </div>
 
-            {/* BESCHREIBUNG */}
             <div>
               <label className="block mb-2 font-medium">
                 Beschreibung
@@ -368,7 +365,6 @@ export default function CreateWikiPage() {
               />
             </div>
 
-            {/* INHALT */}
             <div>
               <label className="block mb-2 font-medium">
                 Inhalt
@@ -387,7 +383,6 @@ export default function CreateWikiPage() {
               />
             </div>
 
-            {/* TAGS */}
             <div>
               <label className="block mb-2 font-medium">
                 Tags
@@ -410,7 +405,6 @@ export default function CreateWikiPage() {
               </p>
             </div>
 
-            {/* FILES */}
             {uploadSlug ? (
               <>
                 <FileUpload slug={uploadSlug} />
@@ -432,7 +426,6 @@ export default function CreateWikiPage() {
               </div>
             )}
 
-            {/* ACTIONS */}
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleCreate}
@@ -451,7 +444,6 @@ export default function CreateWikiPage() {
           </div>
         </div>
 
-        {/* PREVIEW */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
           <div className="mb-8">
             <h2 className="text-3xl font-bold">

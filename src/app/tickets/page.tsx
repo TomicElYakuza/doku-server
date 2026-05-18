@@ -188,6 +188,10 @@ export default function TicketsPage() {
         title:
           ticket.title,
 
+        company:
+          ticket.company ||
+          "Intern",
+
         user:
           user?.name ||
           "Unbekannt",
@@ -282,6 +286,10 @@ export default function TicketsPage() {
         title:
           updated.title,
 
+        company:
+          updated.company ||
+          "Intern",
+
         user:
           getUser()?.name ||
           "Unbekannt",
@@ -320,6 +328,10 @@ export default function TicketsPage() {
 
       title:
         ticket.title,
+
+      company:
+        ticket.company ||
+        "Intern",
 
       user:
         getUser()?.name ||

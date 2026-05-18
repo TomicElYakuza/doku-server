@@ -198,6 +198,11 @@ export default function HistoryPage() {
       title:
         version.title || slug,
 
+      company:
+        version.company ||
+        pageCompany ||
+        "Intern",
+
       user:
         getUser()?.name ||
         "Unbekannt",
@@ -221,7 +226,6 @@ export default function HistoryPage() {
   if (!pageFound) {
     return (
       <div className="max-w-3xl">
-        {/* TOP NAV */}
         <div className="flex items-center gap-3 mb-6 text-sm">
           <Link
             href="/wiki"
@@ -291,7 +295,6 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -304,9 +307,14 @@ export default function HistoryPage() {
           /
         </span>
 
-        <span className="text-zinc-500">
+        <Link
+          href={`/wiki/company/${encodeURIComponent(
+            pageCompany
+          )}`}
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
           {pageCompany}
-        </span>
+        </Link>
 
         <span className="text-zinc-400">
           /
@@ -345,7 +353,6 @@ export default function HistoryPage() {
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <Link
           href={`/wiki/${slug}`}
@@ -355,7 +362,6 @@ export default function HistoryPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
       <div>
         <p className="text-zinc-500">
           Versionshistorie
@@ -370,7 +376,6 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      {/* EMPTY */}
       {versions.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-zinc-500">
@@ -379,7 +384,6 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* LIST */}
       <div className="grid gap-4">
         {reversedVersions.map(
           (
