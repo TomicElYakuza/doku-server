@@ -492,9 +492,14 @@ export default function TicketDetailPage() {
           /
         </span>
 
-        <span className="text-zinc-500">
+        <Link
+          href={`/tickets?company=${encodeURIComponent(
+            ticketCompany
+          )}`}
+          className="text-indigo-600 hover:text-indigo-900 transition"
+        >
           {ticketCompany}
-        </span>
+        </Link>
 
         <span className="text-zinc-400">
           /
@@ -515,15 +520,19 @@ export default function TicketDetailPage() {
         </Link>
       </div>
 
-      {/* VIEW CARD */}
       {!editing && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="flex flex-wrap gap-2">
-                <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                <Link
+                  href={`/tickets?company=${encodeURIComponent(
+                    ticketCompany
+                  )}`}
+                  className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                >
                   {ticketCompany}
-                </span>
+                </Link>
 
                 <span
                   className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
@@ -588,9 +597,14 @@ export default function TicketDetailPage() {
                 Firma
               </p>
 
-              <p className="font-semibold mt-1">
+              <Link
+                href={`/tickets?company=${encodeURIComponent(
+                  ticketCompany
+                )}`}
+                className="font-semibold mt-1 inline-block text-indigo-700 hover:underline"
+              >
                 {ticketCompany}
-              </p>
+              </Link>
             </div>
 
             <div className="bg-zinc-50 rounded-2xl p-5">
@@ -702,7 +716,6 @@ export default function TicketDetailPage() {
         </div>
       )}
 
-      {/* EDIT CARD */}
       {editing && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-3xl font-bold">

@@ -20,6 +20,14 @@ import type {
 } from "../../lib/ticketStorage";
 
 import {
+  getTicketTemplates,
+} from "../../lib/ticketTemplateStorage";
+
+import type {
+  TicketTemplate,
+} from "../../lib/ticketTemplateStorage";
+
+import {
   getUser,
 } from "../../lib/userStorage";
 
@@ -39,6 +47,12 @@ export default function TicketsPage() {
 
   const [tickets, setTickets] =
     useState<Ticket[]>([]);
+
+  const [templates, setTemplates] =
+    useState<TicketTemplate[]>([]);
+
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState("");
 
   const [search, setSearch] =
     useState("");
@@ -86,8 +100,14 @@ export default function TicketsPage() {
 
     loadTickets();
 
+    loadTemplates();
+
     function handleTicketsUpdated() {
       loadTickets();
+    }
+
+    function handleTicketTemplatesUpdated() {
+      loadTemplates();
     }
 
     window.addEventListener(
@@ -95,10 +115,20 @@ export default function TicketsPage() {
       handleTicketsUpdated
     );
 
+    window.addEventListener(
+      "ticketTemplatesUpdated",
+      handleTicketTemplatesUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "ticketsUpdated",
         handleTicketsUpdated
+      );
+
+      window.removeEventListener(
+        "ticketTemplatesUpdated",
+        handleTicketTemplatesUpdated
       );
     };
   }, []);
@@ -113,25 +143,21 @@ export default function TicketsPage() {
         window.location.search
       );
 
-    const query =
-      params.get("q") || "";
+    setSearch(
+      params.get("q") || ""
+    );
 
-    const company =
-      params.get("company") || "";
+    setCompanyFilter(
+      params.get("company") || ""
+    );
 
-    const status =
-      params.get("status") || "";
+    setStatusFilter(
+      params.get("status") || ""
+    );
 
-    const priority =
-      params.get("priority") || "";
-
-    setSearch(query);
-
-    setCompanyFilter(company);
-
-    setStatusFilter(status);
-
-    setPriorityFilter(priority);
+    setPriorityFilter(
+      params.get("priority") || ""
+    );
   }
 
   function updateUrlFilters(
@@ -188,11 +214,21 @@ export default function TicketsPage() {
   }
 
   function loadTickets() {
-    setTickets(getTickets());
+    setTickets(
+      getTickets()
+    );
+  }
+
+  function loadTemplates() {
+    setTemplates(
+      getTicketTemplates()
+    );
   }
 
   function resetForm() {
     setEditingId("");
+
+    setSelectedTemplateId("");
 
     setTitle("");
 
@@ -226,6 +262,59 @@ export default function TicketsPage() {
       "",
       ""
     );
+  }
+
+  function applyTemplate(
+    templateId: string
+  ) {
+    setSelectedTemplateId(
+      templateId
+    );
+
+    const template =
+      templates.find(
+        (item) =>
+          item.id === templateId
+      );
+
+    if (!template) {
+      return;
+    }
+
+    setTitle(template.title);
+
+    setDescription(
+      template.description
+    );
+
+    setCompany(
+      template.company ||
+      "Intern"
+    );
+
+    setCategory(
+      template.category ||
+      "Support"
+    );
+
+    setAssignedTo(
+      template.assignedTo || ""
+    );
+
+    setStatus(
+      template.status || "open"
+    );
+
+    setPriority(
+      template.priority ||
+      "medium"
+    );
+  }
+
+  function openCreateForm() {
+    resetForm();
+
+    setShowCreateForm(true);
   }
 
   function handleCreateTicket() {
@@ -310,9 +399,13 @@ export default function TicketsPage() {
   function startEdit(ticket: Ticket) {
     setEditingId(ticket.id);
 
+    setSelectedTemplateId("");
+
     setTitle(ticket.title);
 
-    setDescription(ticket.description);
+    setDescription(
+      ticket.description
+    );
 
     setCompany(
       ticket.company || "Intern"
@@ -421,9 +514,10 @@ export default function TicketsPage() {
       return;
     }
 
-    const confirmed = confirm(
-      "Ticket wirklich löschen?"
-    );
+    const confirmed =
+      confirm(
+        "Ticket wirklich löschen?"
+      );
 
     if (!confirmed) {
       return;
@@ -588,9 +682,7 @@ export default function TicketsPage() {
 
         {canCreate() && (
           <button
-            onClick={() =>
-              setShowCreateForm(true)
-            }
+            onClick={openCreateForm}
             className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             Neues Ticket
@@ -610,7 +702,26 @@ export default function TicketsPage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            if (companies.length > 0) {
+              const firstCompany =
+                companies[0];
+
+              setCompanyFilter(
+                firstCompany
+              );
+
+              updateUrlFilters(
+                search,
+                firstCompany,
+                statusFilter,
+                priorityFilter
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
@@ -618,7 +729,7 @@ export default function TicketsPage() {
           <h2 className="text-4xl font-bold mt-3">
             {companies.length}
           </h2>
-        </div>
+        </button>
 
         <button
           onClick={() => {
@@ -698,6 +809,43 @@ export default function TicketsPage() {
               : "Neues Ticket erstellen"}
           </h2>
 
+          <p className="text-zinc-500 mt-2">
+            Du kannst ein Template auswählen oder das Ticket manuell ausfüllen.
+          </p>
+
+          {!editingId && (
+            <div className="mt-6">
+              <label className="block mb-2 font-medium">
+                Ticket-Template
+              </label>
+
+              <select
+                value={selectedTemplateId}
+                onChange={(event) =>
+                  applyTemplate(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="">
+                  Kein Template verwenden
+                </option>
+
+                {templates.map(
+                  (template) => (
+                    <option
+                      key={template.id}
+                      value={template.id}
+                    >
+                      {template.title}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
             <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
@@ -729,7 +877,7 @@ export default function TicketsPage() {
                     event.target.value
                   )
                 }
-                rows={5}
+                rows={6}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
                 placeholder="Was ist passiert oder was soll erledigt werden?"
               />
@@ -1067,7 +1215,7 @@ export default function TicketsPage() {
                           priorityFilter
                         );
                       }}
-                      className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-100 transition"
+                      className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
                     >
                       {ticketCompany}
                     </button>
@@ -1116,7 +1264,9 @@ export default function TicketsPage() {
                   <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
                     <p>
                       Firma:{" "}
-                      {ticketCompany}
+                      <span className="text-indigo-700">
+                        {ticketCompany}
+                      </span>
                     </p>
 
                     <p>
