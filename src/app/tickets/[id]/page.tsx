@@ -255,6 +255,9 @@ export default function TicketDetailPage() {
     );
   }
 
+  const company =
+    ticket.company || "Intern";
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* TOP NAV */}
@@ -265,6 +268,14 @@ export default function TicketDetailPage() {
         >
           tickets
         </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-500">
+          {company}
+        </span>
 
         <span className="text-zinc-400">
           /
@@ -290,6 +301,10 @@ export default function TicketDetailPage() {
         <div className="flex items-start justify-between gap-6">
           <div className="min-w-0">
             <div className="flex flex-wrap gap-2">
+              <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                {company}
+              </span>
+
               <span
                 className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
                   ticket.status
@@ -337,6 +352,26 @@ export default function TicketDetailPage() {
 
         {/* META */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 pt-8 border-t border-zinc-100">
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Firma
+            </p>
+
+            <p className="font-semibold mt-1">
+              {company}
+            </p>
+          </div>
+
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Kategorie
+            </p>
+
+            <p className="font-semibold mt-1">
+              {ticket.category}
+            </p>
+          </div>
+
           <div className="bg-zinc-50 rounded-2xl p-5">
             <p className="text-sm text-zinc-500">
               Erstellt von

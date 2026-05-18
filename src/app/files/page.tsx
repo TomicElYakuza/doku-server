@@ -8,6 +8,10 @@ import {
   getFiles,
 } from "../../lib/fileStorage";
 
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
 export default function FilesPage() {
   const [mounted, setMounted] =
     useState(false);
@@ -16,6 +20,9 @@ export default function FilesPage() {
     useState<any[]>([]);
 
   const [search, setSearch] =
+    useState("");
+
+  const [companyFilter, setCompanyFilter] =
     useState("");
 
   const [typeFilter, setTypeFilter] =
@@ -30,15 +37,29 @@ export default function FilesPage() {
       loadFiles();
     }
 
+    function handleWikiPagesUpdated() {
+      loadFiles();
+    }
+
     window.addEventListener(
       "filesUpdated",
       handleFilesUpdated
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
     );
 
     return () => {
       window.removeEventListener(
         "filesUpdated",
         handleFilesUpdated
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
       );
     };
   }, []);
@@ -47,12 +68,21 @@ export default function FilesPage() {
     const storedFiles =
       getFiles();
 
+    const pages =
+      getStoredPages();
+
     const allFiles =
       Object.entries(storedFiles).flatMap(
         ([slug, fileList]: any) => {
           if (!Array.isArray(fileList)) {
             return [];
           }
+
+          const page =
+            pages.find(
+              (item: any) =>
+                item.slug === slug
+            );
 
           return fileList.map(
             (
@@ -64,6 +94,15 @@ export default function FilesPage() {
               slug,
 
               fileIndex: index,
+
+              pageTitle:
+                page?.title || slug,
+
+              company:
+                page?.company || "Intern",
+
+              category:
+                page?.category || "Allgemein",
             })
           );
         }
@@ -150,13 +189,26 @@ export default function FilesPage() {
     return "Sonstige";
   }
 
-  const fileTypes = [
-    ...new Set(
-      files.map((file: any) =>
-        getFileTypeLabel(file.type)
+  const companies: string[] =
+    Array.from(
+      new Set(
+        files
+          .map(
+            (file: any) =>
+              file.company || "Intern"
+          )
+          .filter(Boolean)
       )
-    ),
-  ];
+    );
+
+  const fileTypes: string[] =
+    Array.from(
+      new Set(
+        files.map((file: any) =>
+          getFileTypeLabel(file.type)
+        )
+      )
+    );
 
   const filteredFiles =
     files.filter((file: any) => {
@@ -166,11 +218,23 @@ export default function FilesPage() {
       const typeLabel =
         getFileTypeLabel(file.type);
 
+      const fileCompany =
+        file.company || "Intern";
+
       const matchesSearch =
         file.name
           ?.toLowerCase()
           .includes(query) ||
         file.slug
+          ?.toLowerCase()
+          .includes(query) ||
+        file.pageTitle
+          ?.toLowerCase()
+          .includes(query) ||
+        fileCompany
+          ?.toLowerCase()
+          .includes(query) ||
+        file.category
           ?.toLowerCase()
           .includes(query) ||
         file.uploadedBy
@@ -183,12 +247,18 @@ export default function FilesPage() {
           .toLowerCase()
           .includes(query);
 
+      const matchesCompany =
+        !companyFilter ||
+        fileCompany ===
+          companyFilter;
+
       const matchesType =
         !typeFilter ||
         typeLabel === typeFilter;
 
       return (
         matchesSearch &&
+        matchesCompany &&
         matchesType
       );
     });
@@ -207,6 +277,8 @@ export default function FilesPage() {
 
   function resetFilters() {
     setSearch("");
+
+    setCompanyFilter("");
 
     setTypeFilter("");
   }
@@ -229,7 +301,7 @@ export default function FilesPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Dateien gesamt
@@ -237,6 +309,16 @@ export default function FilesPage() {
 
           <h2 className="text-4xl font-bold mt-3">
             {files.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Firmen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
           </h2>
         </div>
 
@@ -277,10 +359,10 @@ export default function FilesPage() {
           Suche & Filter
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Nach Datei, Dokument, Benutzer oder Datum suchen..."
+            placeholder="Nach Datei, Firma, Dokument, Benutzer oder Datum suchen..."
             value={search}
             onChange={(event) =>
               setSearch(
@@ -289,6 +371,31 @@ export default function FilesPage() {
             }
             className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (company: string) => (
+                <option
+                  key={company}
+                  value={company}
+                >
+                  {company}
+                </option>
+              )
+            )}
+          </select>
 
           <select
             value={typeFilter}
@@ -390,6 +497,12 @@ export default function FilesPage() {
                     )}
 
                     <p className="text-sm text-zinc-500 mt-1">
+                      {file.company ||
+                        "Intern"}{" "}
+                      ·{" "}
+                      {file.category ||
+                        "Allgemein"}{" "}
+                      ·{" "}
                       {getFileTypeLabel(
                         file.type
                       )}{" "}
@@ -413,7 +526,8 @@ export default function FilesPage() {
                       href={`/wiki/${file.slug}`}
                       className="text-sm text-blue-600 hover:underline mt-1 inline-block"
                     >
-                      Zugehöriges Dokument öffnen
+                      {file.pageTitle ||
+                        "Zugehöriges Dokument öffnen"}
                     </Link>
                   </div>
                 </div>

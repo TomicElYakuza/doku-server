@@ -1,4 +1,10 @@
+import {
+  ticketTemplates,
+} from "../data/tickets";
+
 const STORAGE_KEY = "wiki-tickets";
+
+const INIT_KEY = "wiki-tickets-initialized";
 
 export type TicketStatus =
   | "open"
@@ -81,8 +87,32 @@ export function getTickets(): Ticket[] {
     return [];
   }
 
+  const initialized =
+    localStorage.getItem(INIT_KEY);
+
   const data =
     localStorage.getItem(STORAGE_KEY);
+
+  if (!initialized) {
+    const normalizedTemplates =
+      normalizeTickets(
+        ticketTemplates
+      );
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        normalizedTemplates
+      )
+    );
+
+    localStorage.setItem(
+      INIT_KEY,
+      "true"
+    );
+
+    return normalizedTemplates;
+  }
 
   if (!data) {
     return [];
@@ -119,6 +149,11 @@ export function saveTickets(
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify(safeTickets)
+  );
+
+  localStorage.setItem(
+    INIT_KEY,
+    "true"
   );
 
   window.dispatchEvent(
@@ -225,14 +260,18 @@ export function updateTicket(
       const nextTicket: Ticket = {
         ...ticket,
         ...updates,
+
         id:
           ticket.id,
+
         createdAt:
           ticket.createdAt,
+
         company:
           updates.company ||
           ticket.company ||
           "Intern",
+
         updatedAt:
           new Date().toLocaleString(),
       };
@@ -278,6 +317,24 @@ export function clearTickets() {
 
   localStorage.removeItem(
     STORAGE_KEY
+  );
+
+  window.dispatchEvent(
+    new Event("ticketsUpdated")
+  );
+}
+
+export function resetTickets() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  localStorage.removeItem(
+    INIT_KEY
   );
 
   window.dispatchEvent(

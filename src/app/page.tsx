@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 
 import {
@@ -244,6 +246,17 @@ export default function HomePage() {
     return new Date(value).getTime();
   }
 
+  const companies = [
+    ...new Set(
+      pages
+        .map(
+          (page: any) =>
+            page.company || "Intern"
+        )
+        .filter(Boolean)
+    ),
+  ];
+
   const departments = [
     ...new Set(
       pages
@@ -304,8 +317,8 @@ export default function HomePage() {
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-        <a
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-6">
+        <Link
           href="/wiki"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
         >
@@ -316,7 +329,17 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {pages.length}
           </h2>
-        </a>
+        </Link>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Firmen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
+          </h2>
+        </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
@@ -338,7 +361,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <a
+        <Link
           href="/tickets"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-blue-50 transition"
         >
@@ -349,9 +372,9 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {tickets.length}
           </h2>
-        </a>
+        </Link>
 
-        <a
+        <Link
           href="/wiki/trash"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
         >
@@ -362,9 +385,9 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {trashPages.length}
           </h2>
-        </a>
+        </Link>
 
-        <a
+        <Link
           href="/activity"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
         >
@@ -375,12 +398,12 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {activities.length}
           </h2>
-        </a>
+        </Link>
       </div>
 
       {/* TICKET STATUS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <a
+        <Link
           href="/tickets"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
         >
@@ -391,9 +414,9 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {openTickets.length}
           </h2>
-        </a>
+        </Link>
 
-        <a
+        <Link
           href="/tickets"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
         >
@@ -404,7 +427,7 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold mt-3">
             {urgentTickets.length}
           </h2>
-        </a>
+        </Link>
       </div>
 
       {/* QUICK ACTIONS */}
@@ -414,58 +437,58 @@ export default function HomePage() {
         </h2>
 
         <div className="flex flex-wrap gap-4 mt-6">
-          <a
+          <Link
             href="/wiki"
             className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             Wiki öffnen
-          </a>
+          </Link>
 
           {canCreate() && (
             <>
-              <a
+              <Link
                 href="/wiki/create"
                 className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
               >
                 Dokument erstellen
-              </a>
+              </Link>
 
-              <a
+              <Link
                 href="/tickets"
                 className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
               >
                 Ticket erstellen
-              </a>
+              </Link>
             </>
           )}
 
-          <a
+          <Link
             href="/tickets"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
           >
             Tickets öffnen
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/wiki/trash"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
           >
             Papierkorb öffnen
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/activity"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
             Aktivitäten öffnen
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/setup"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
             Benutzer Setup
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -483,7 +506,7 @@ export default function HomePage() {
           )}
 
           {latestPages.map((page: any) => (
-            <a
+            <Link
               key={page.slug}
               href={`/wiki/${page.slug}`}
               className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
@@ -495,6 +518,7 @@ export default function HomePage() {
                   </p>
 
                   <p className="text-sm text-zinc-500 mt-1">
+                    {(page.company || "Intern")} ·{" "}
                     {page.category}
                   </p>
                 </div>
@@ -503,7 +527,7 @@ export default function HomePage() {
                   {page.updatedAt}
                 </p>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -515,12 +539,12 @@ export default function HomePage() {
             Letzte Tickets
           </h2>
 
-          <a
+          <Link
             href="/tickets"
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
             Alle anzeigen
-          </a>
+          </Link>
         </div>
 
         <div className="mt-6 grid gap-4">
@@ -531,9 +555,9 @@ export default function HomePage() {
           )}
 
           {latestTickets.map((ticket: any) => (
-            <a
+            <Link
               key={ticket.id}
-              href="/tickets"
+              href={`/tickets/${ticket.id}`}
               className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
             >
               <div className="flex items-center justify-between gap-6">
@@ -543,6 +567,7 @@ export default function HomePage() {
                   </p>
 
                   <p className="text-sm text-zinc-500 mt-1">
+                    {(ticket.company || "Intern")} ·{" "}
                     {ticket.category} ·{" "}
                     {ticket.status}
                   </p>
@@ -552,7 +577,7 @@ export default function HomePage() {
                   {ticket.updatedAt}
                 </p>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -564,12 +589,12 @@ export default function HomePage() {
             Letzte Aktivitäten
           </h2>
 
-          <a
+          <Link
             href="/activity"
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
             Alle anzeigen
-          </a>
+          </Link>
         </div>
 
         <div className="mt-6 space-y-4">

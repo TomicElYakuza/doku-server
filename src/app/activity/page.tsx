@@ -1,21 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Link from "next/link";
 
-import {
-  getActivities,
-} from "../../lib/activityStorage";
+import { useEffect, useState } from "react";
 
-export default function ActivityPage() {
+import {
+  getFiles,
+} from "../../lib/fileStorage";
+
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+export default function FilesPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [activities, setActivities] =
+  const [files, setFiles] =
     useState<any[]>([]);
 
   const [search, setSearch] =
+    useState("");
+
+  const [companyFilter, setCompanyFilter] =
     useState("");
 
   const [typeFilter, setTypeFilter] =
@@ -24,261 +31,324 @@ export default function ActivityPage() {
   useEffect(() => {
     setMounted(true);
 
-    loadActivities();
+    loadFiles();
 
-    function handleActivityUpdated() {
-      loadActivities();
+    function handleFilesUpdated() {
+      loadFiles();
+    }
+
+    function handleWikiPagesUpdated() {
+      loadFiles();
     }
 
     window.addEventListener(
-      "activityUpdated",
-      handleActivityUpdated
+      "filesUpdated",
+      handleFilesUpdated
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "activityUpdated",
-        handleActivityUpdated
+        "filesUpdated",
+        handleFilesUpdated
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
       );
     };
   }, []);
 
-  function loadActivities() {
-    setActivities(getActivities());
+  function loadFiles() {
+    const storedFiles =
+      getFiles();
+
+    const pages =
+      getStoredPages();
+
+    const allFiles =
+      Object.entries(storedFiles).flatMap(
+        ([slug, fileList]: any) => {
+          if (!Array.isArray(fileList)) {
+            return [];
+          }
+
+          const page =
+            pages.find(
+              (item: any) =>
+                item.slug === slug
+            );
+
+          return fileList.map(
+            (
+              file: any,
+              index: number
+            ) => ({
+              ...file,
+
+              slug,
+
+              fileIndex: index,
+
+              pageTitle:
+                page?.title || slug,
+
+              company:
+                page?.company || "Intern",
+
+              category:
+                page?.category || "Allgemein",
+            })
+          );
+        }
+      );
+
+    setFiles(allFiles);
+  }
+
+  function formatSize(size: number) {
+    if (!size) {
+      return "0 KB";
+    }
+
+    if (size < 1024 * 1024) {
+      return `${Math.round(
+        size / 1024
+      )} KB`;
+    }
+
+    return `${(
+      size /
+      1024 /
+      1024
+    ).toFixed(1)} MB`;
+  }
+
+  function getFileIcon(type: string) {
+    if (type?.startsWith("image/")) {
+      return "🖼️";
+    }
+
+    if (type?.includes("pdf")) {
+      return "📄";
+    }
+
+    if (
+      type?.includes("word") ||
+      type?.includes("document")
+    ) {
+      return "📝";
+    }
+
+    if (
+      type?.includes("excel") ||
+      type?.includes("spreadsheet")
+    ) {
+      return "📊";
+    }
+
+    if (type?.includes("zip")) {
+      return "🗜️";
+    }
+
+    return "📎";
+  }
+
+  function getFileTypeLabel(type: string) {
+    if (type?.startsWith("image/")) {
+      return "Bild";
+    }
+
+    if (type?.includes("pdf")) {
+      return "PDF";
+    }
+
+    if (
+      type?.includes("word") ||
+      type?.includes("document")
+    ) {
+      return "Dokument";
+    }
+
+    if (
+      type?.includes("excel") ||
+      type?.includes("spreadsheet")
+    ) {
+      return "Tabelle";
+    }
+
+    if (type?.includes("zip")) {
+      return "Archiv";
+    }
+
+    return "Sonstige";
+  }
+
+  const companies: string[] =
+    Array.from(
+      new Set(
+        files
+          .map(
+            (file: any) =>
+              file.company || "Intern"
+          )
+          .filter(Boolean)
+      )
+    );
+
+  const fileTypes: string[] =
+    Array.from(
+      new Set(
+        files.map((file: any) =>
+          getFileTypeLabel(file.type)
+        )
+      )
+    );
+
+  const filteredFiles =
+    files.filter((file: any) => {
+      const query =
+        search.toLowerCase();
+
+      const typeLabel =
+        getFileTypeLabel(file.type);
+
+      const fileCompany =
+        file.company || "Intern";
+
+      const matchesSearch =
+        file.name
+          ?.toLowerCase()
+          .includes(query) ||
+        file.slug
+          ?.toLowerCase()
+          .includes(query) ||
+        file.pageTitle
+          ?.toLowerCase()
+          .includes(query) ||
+        fileCompany
+          ?.toLowerCase()
+          .includes(query) ||
+        file.category
+          ?.toLowerCase()
+          .includes(query) ||
+        file.uploadedBy
+          ?.toLowerCase()
+          .includes(query) ||
+        file.uploadedAt
+          ?.toLowerCase()
+          .includes(query) ||
+        typeLabel
+          .toLowerCase()
+          .includes(query);
+
+      const matchesCompany =
+        !companyFilter ||
+        fileCompany ===
+          companyFilter;
+
+      const matchesType =
+        !typeFilter ||
+        typeLabel === typeFilter;
+
+      return (
+        matchesSearch &&
+        matchesCompany &&
+        matchesType
+      );
+    });
+
+  const imageCount =
+    files.filter((file) =>
+      file.type?.startsWith("image/")
+    ).length;
+
+  const totalSize =
+    files.reduce(
+      (sum, file) =>
+        sum + (file.size || 0),
+      0
+    );
+
+  function resetFilters() {
+    setSearch("");
+
+    setCompanyFilter("");
+
+    setTypeFilter("");
   }
 
   if (!mounted) {
     return null;
   }
 
-  function getActivityLabel(type: string) {
-    if (type === "created") {
-      return "Dokument erstellt";
-    }
-
-    if (type === "edited") {
-      return "Dokument bearbeitet";
-    }
-
-    if (type === "deleted") {
-      return "Dokument in Papierkorb verschoben";
-    }
-
-    if (type === "deletedForever") {
-      return "Dokument endgültig gelöscht";
-    }
-
-    if (type === "restored") {
-      return "Dokument oder Version wiederhergestellt";
-    }
-
-    if (type === "uploaded") {
-      return "Datei hochgeladen";
-    }
-
-    if (type === "fileDeleted") {
-      return "Datei gelöscht";
-    }
-
-    if (type === "commented") {
-      return "Kommentar hinzugefügt";
-    }
-
-    if (type === "commentDeleted") {
-      return "Kommentar gelöscht";
-    }
-
-    if (type === "ticketCreated") {
-      return "Ticket erstellt";
-    }
-
-    if (type === "ticketUpdated") {
-      return "Ticket aktualisiert";
-    }
-
-    if (type === "ticketDeleted") {
-      return "Ticket gelöscht";
-    }
-
-    return "Aktivität";
-  }
-
-  function getActivityIcon(type: string) {
-    if (type === "created") {
-      return "📝";
-    }
-
-    if (type === "edited") {
-      return "✏️";
-    }
-
-    if (type === "deleted") {
-      return "🗑️";
-    }
-
-    if (type === "deletedForever") {
-      return "❌";
-    }
-
-    if (type === "restored") {
-      return "♻️";
-    }
-
-    if (type === "uploaded") {
-      return "📎";
-    }
-
-    if (type === "fileDeleted") {
-      return "🧹";
-    }
-
-    if (type === "commented") {
-      return "💬";
-    }
-
-    if (type === "commentDeleted") {
-      return "🧹";
-    }
-
-    if (type === "ticketCreated") {
-      return "🎫";
-    }
-
-    if (type === "ticketUpdated") {
-      return "🔄";
-    }
-
-    if (type === "ticketDeleted") {
-      return "🗑️";
-    }
-
-    return "📌";
-  }
-
-  const activityTypes = [
-    ...new Set(
-      activities
-        .map(
-          (activity: any) =>
-            activity.type
-        )
-        .filter(Boolean)
-    ),
-  ];
-
-  const filteredActivities =
-    activities.filter(
-      (activity: any) => {
-        const query =
-          search.toLowerCase();
-
-        const label =
-          getActivityLabel(
-            activity.type
-          );
-
-        const matchesSearch =
-          activity.title
-            ?.toLowerCase()
-            .includes(query) ||
-          activity.user
-            ?.toLowerCase()
-            .includes(query) ||
-          activity.createdAt
-            ?.toLowerCase()
-            .includes(query) ||
-          label
-            .toLowerCase()
-            .includes(query);
-
-        const matchesType =
-          !typeFilter ||
-          activity.type ===
-            typeFilter;
-
-        return (
-          matchesSearch &&
-          matchesType
-        );
-      }
-    );
-
-  function resetFilters() {
-    setSearch("");
-
-    setTypeFilter("");
-  }
-
   return (
-    <div className="space-y-6 max-w-6xl">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          aktivitäten
-        </span>
-      </div>
-
-      {/* BACK */}
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Dashboard
-        </Link>
-      </div>
-
+    <div className="space-y-8">
       {/* HEADER */}
       <div>
         <h1 className="text-4xl font-bold">
-          Aktivitäten
+          Dateien
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Verlauf aller Änderungen, Kommentare, Uploads und Löschaktionen
+          Alle Wiki-Anhänge gesammelt an einem Ort
         </p>
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            Aktivitäten gesamt
+            Dateien gesamt
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {activities.length}
+          <h2 className="text-4xl font-bold mt-3">
+            {files.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            Aktivitätstypen
+            Firmen
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {activityTypes.length}
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            Gefiltert
+            Bilder
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {filteredActivities.length}
+          <h2 className="text-4xl font-bold mt-3">
+            {imageCount}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Dateitypen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {fileTypes.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Speichergröße
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {formatSize(totalSize)}
           </h2>
         </div>
       </div>
@@ -289,10 +359,10 @@ export default function ActivityPage() {
           Suche & Filter
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Nach Benutzer, Titel, Datum oder Aktion suchen..."
+            placeholder="Nach Datei, Firma, Dokument, Benutzer oder Datum suchen..."
             value={search}
             onChange={(event) =>
               setSearch(
@@ -301,6 +371,31 @@ export default function ActivityPage() {
             }
             className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (company: string) => (
+                <option
+                  key={company}
+                  value={company}
+                >
+                  {company}
+                </option>
+              )
+            )}
+          </select>
 
           <select
             value={typeFilter}
@@ -315,15 +410,13 @@ export default function ActivityPage() {
               Alle Typen
             </option>
 
-            {activityTypes.map(
+            {fileTypes.map(
               (type: string) => (
                 <option
                   key={type}
                   value={type}
                 >
-                  {getActivityLabel(
-                    type
-                  )}
+                  {type}
                 </option>
               )
             )}
@@ -332,8 +425,8 @@ export default function ActivityPage() {
 
         <div className="flex items-center justify-between mt-5">
           <p className="text-sm text-zinc-500">
-            {filteredActivities.length} von{" "}
-            {activities.length} Aktivitäten gefunden
+            {filteredFiles.length} von{" "}
+            {files.length} Dateien gefunden
           </p>
 
           <button
@@ -345,59 +438,112 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {/* LIST */}
+      {/* FILE LIST */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Verlauf
+          Anhänge
         </h2>
 
         <div className="mt-6 space-y-4">
-          {filteredActivities.length ===
-            0 && (
-            <p className="text-zinc-500">
-              Keine Aktivitäten gefunden.
-            </p>
+          {filteredFiles.length === 0 && (
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+              <p className="text-zinc-500">
+                Keine Dateien gefunden.
+              </p>
+
+              <Link
+                href="/wiki"
+                className="inline-flex mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+              >
+                Wiki öffnen
+              </Link>
+            </div>
           )}
 
-          {filteredActivities.map(
+          {filteredFiles.map(
             (
-              activity: any,
+              file: any,
               index: number
             ) => (
               <div
-                key={`${activity.createdAt}-${activity.type}-${index}`}
-                className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0 gap-6"
+                key={`${file.slug}-${file.name || "file"}-${file.fileIndex}-${index}`}
+                className="flex items-center justify-between border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition gap-4"
               >
-                <div className="flex items-start gap-4 min-w-0">
+                <div className="flex items-center gap-4 min-w-0">
                   <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                    {getActivityIcon(
-                      activity.type
+                    {getFileIcon(
+                      file.type
                     )}
                   </div>
 
                   <div className="min-w-0">
-                    <p className="font-medium">
-                      {activity.user ||
+                    {file.data ? (
+                      <a
+                        href={file.data}
+                        download={
+                          file.name ||
+                          "download"
+                        }
+                        className="font-semibold hover:underline break-all"
+                      >
+                        {file.name ||
+                          "Unbenannte Datei"}
+                      </a>
+                    ) : (
+                      <p className="font-semibold break-all">
+                        {file.name ||
+                          "Unbenannte Datei"}
+                      </p>
+                    )}
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {file.company ||
+                        "Intern"}{" "}
+                      ·{" "}
+                      {file.category ||
+                        "Allgemein"}{" "}
+                      ·{" "}
+                      {getFileTypeLabel(
+                        file.type
+                      )}{" "}
+                      ·{" "}
+                      {formatSize(
+                        file.size
+                      )}{" "}
+                      ·{" "}
+                      {file.uploadedAt ||
                         "Unbekannt"}
                     </p>
 
-                    <p className="text-zinc-500 text-sm mt-1">
-                      {getActivityLabel(
-                        activity.type
-                      )}
-                    </p>
+                    {file.uploadedBy && (
+                      <p className="text-xs text-zinc-400 mt-1">
+                        Hochgeladen von{" "}
+                        {file.uploadedBy}
+                      </p>
+                    )}
 
-                    <p className="mt-2 font-medium break-words">
-                      {activity.title ||
-                        "Ohne Titel"}
-                    </p>
+                    <Link
+                      href={`/wiki/${file.slug}`}
+                      className="text-sm text-blue-600 hover:underline mt-1 inline-block"
+                    >
+                      {file.pageTitle ||
+                        "Zugehöriges Dokument öffnen"}
+                    </Link>
                   </div>
                 </div>
 
-                <p className="text-sm text-zinc-500 whitespace-nowrap">
-                  {activity.createdAt ||
-                    "Unbekannt"}
-                </p>
+                {file.data && (
+                  <a
+                    href={file.data}
+                    download={
+                      file.name ||
+                      "download"
+                    }
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition shrink-0"
+                  >
+                    Download
+                  </a>
+                )}
               </div>
             )
           )}

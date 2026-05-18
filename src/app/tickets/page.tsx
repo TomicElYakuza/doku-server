@@ -43,6 +43,9 @@ export default function TicketsPage() {
   const [search, setSearch] =
     useState("");
 
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
   const [statusFilter, setStatusFilter] =
     useState("");
 
@@ -60,6 +63,9 @@ export default function TicketsPage() {
 
   const [description, setDescription] =
     useState("");
+
+  const [company, setCompany] =
+    useState("Intern");
 
   const [category, setCategory] =
     useState("Support");
@@ -106,6 +112,8 @@ export default function TicketsPage() {
 
     setDescription("");
 
+    setCompany("Intern");
+
     setCategory("Support");
 
     setAssignedTo("");
@@ -134,6 +142,14 @@ export default function TicketsPage() {
       return;
     }
 
+    if (!company.trim()) {
+      alert(
+        "Bitte eine Firma eingeben."
+      );
+
+      return;
+    }
+
     const user =
       getUser();
 
@@ -144,6 +160,10 @@ export default function TicketsPage() {
 
         description:
           description.trim(),
+
+        company:
+          company.trim() ||
+          "Intern",
 
         category:
           category.trim() ||
@@ -187,6 +207,10 @@ export default function TicketsPage() {
 
     setDescription(ticket.description);
 
+    setCompany(
+      ticket.company || "Intern"
+    );
+
     setCategory(ticket.category);
 
     setAssignedTo(ticket.assignedTo);
@@ -219,6 +243,14 @@ export default function TicketsPage() {
       return;
     }
 
+    if (!company.trim()) {
+      alert(
+        "Bitte eine Firma eingeben."
+      );
+
+      return;
+    }
+
     const updated =
       updateTicket(editingId, {
         title:
@@ -226,6 +258,10 @@ export default function TicketsPage() {
 
         description:
           description.trim(),
+
+        company:
+          company.trim() ||
+          "Intern",
 
         category:
           category.trim() ||
@@ -330,16 +366,34 @@ export default function TicketsPage() {
     return "bg-zinc-100 text-zinc-700";
   }
 
+  const companies: string[] =
+    Array.from(
+      new Set(
+        tickets
+          .map(
+            (ticket) =>
+              ticket.company || "Intern"
+          )
+          .filter(Boolean)
+      )
+    );
+
   const filteredTickets =
     tickets.filter((ticket) => {
       const query =
         search.toLowerCase();
+
+      const ticketCompany =
+        ticket.company || "Intern";
 
       const matchesSearch =
         ticket.title
           ?.toLowerCase()
           .includes(query) ||
         ticket.description
+          ?.toLowerCase()
+          .includes(query) ||
+        ticketCompany
           ?.toLowerCase()
           .includes(query) ||
         ticket.category
@@ -351,6 +405,11 @@ export default function TicketsPage() {
         ticket.assignedTo
           ?.toLowerCase()
           .includes(query);
+
+      const matchesCompany =
+        !companyFilter ||
+        ticketCompany ===
+          companyFilter;
 
       const matchesStatus =
         !statusFilter ||
@@ -364,6 +423,7 @@ export default function TicketsPage() {
 
       return (
         matchesSearch &&
+        matchesCompany &&
         matchesStatus &&
         matchesPriority
       );
@@ -419,7 +479,7 @@ export default function TicketsPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Tickets gesamt
@@ -427,6 +487,16 @@ export default function TicketsPage() {
 
           <h2 className="text-4xl font-bold mt-3">
             {tickets.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Firmen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
           </h2>
         </div>
 
@@ -504,6 +574,24 @@ export default function TicketsPage() {
                 rows={5}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
                 placeholder="Was ist passiert oder was soll erledigt werden?"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Firma
+              </label>
+
+              <input
+                type="text"
+                value={company}
+                onChange={(event) =>
+                  setCompany(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="z. B. Intern, Muster GmbH, Kunde A"
               />
             </div>
 
@@ -640,7 +728,7 @@ export default function TicketsPage() {
           Suche & Filter
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
           <input
             type="text"
             value={search}
@@ -649,9 +737,34 @@ export default function TicketsPage() {
                 event.target.value
               )
             }
-            placeholder="Tickets suchen..."
+            placeholder="Tickets, Firmen, Kategorien oder Personen suchen..."
             className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (companyName) => (
+                <option
+                  key={companyName}
+                  value={companyName}
+                >
+                  {companyName}
+                </option>
+              )
+            )}
+          </select>
 
           <select
             value={statusFilter}
@@ -730,113 +843,127 @@ export default function TicketsPage() {
           </div>
         )}
 
-        {filteredTickets.map((ticket) => (
-          <div
-            key={ticket.id}
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-          >
-            <div className="flex items-start justify-between gap-6">
-              <div className="min-w-0">
-                <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
-                      ticket.status
-                    )}`}
+        {filteredTickets.map((ticket) => {
+          const ticketCompany =
+            ticket.company || "Intern";
+
+          return (
+            <div
+              key={ticket.id}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                      {ticketCompany}
+                    </span>
+
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
+                        ticket.status
+                      )}`}
+                    >
+                      {getStatusLabel(
+                        ticket.status
+                      )}
+                    </span>
+
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
+                        ticket.priority
+                      )}`}
+                    >
+                      {getPriorityLabel(
+                        ticket.priority
+                      )}
+                    </span>
+
+                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      {ticket.category}
+                    </span>
+                  </div>
+
+                  <Link
+                    href={`/tickets/${ticket.id}`}
+                    className="block mt-4"
                   >
-                    {getStatusLabel(
-                      ticket.status
-                    )}
-                  </span>
+                    <h2 className="text-2xl font-bold hover:underline">
+                      {ticket.title}
+                    </h2>
+                  </Link>
 
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
-                      ticket.priority
-                    )}`}
-                  >
-                    {getPriorityLabel(
-                      ticket.priority
-                    )}
-                  </span>
-
-                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                    {ticket.category}
-                  </span>
-                </div>
-
-                <Link
-                  href={`/tickets/${ticket.id}`}
-                  className="block mt-4"
-                >
-                  <h2 className="text-2xl font-bold hover:underline">
-                    {ticket.title}
-                  </h2>
-                </Link>
-
-                <p className="text-zinc-600 mt-2 whitespace-pre-wrap">
-                  {ticket.description ||
-                    "Keine Beschreibung"}
-                </p>
-
-                <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                  <p>
-                    Erstellt von:{" "}
-                    {ticket.createdBy}
+                  <p className="text-zinc-600 mt-2 whitespace-pre-wrap">
+                    {ticket.description ||
+                      "Keine Beschreibung"}
                   </p>
 
-                  {ticket.assignedTo && (
+                  <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
                     <p>
-                      Zugewiesen an:{" "}
-                      {ticket.assignedTo}
+                      Firma:{" "}
+                      {ticketCompany}
                     </p>
+
+                    <p>
+                      Erstellt von:{" "}
+                      {ticket.createdBy}
+                    </p>
+
+                    {ticket.assignedTo && (
+                      <p>
+                        Zugewiesen an:{" "}
+                        {ticket.assignedTo}
+                      </p>
+                    )}
+
+                    <p>
+                      Erstellt:{" "}
+                      {ticket.createdAt}
+                    </p>
+
+                    <p>
+                      Aktualisiert:{" "}
+                      {ticket.updatedAt}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                  <Link
+                    href={`/tickets/${ticket.id}`}
+                    className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                  >
+                    Öffnen
+                  </Link>
+
+                  {canEdit() && (
+                    <button
+                      onClick={() =>
+                        startEdit(ticket)
+                      }
+                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                    >
+                      Bearbeiten
+                    </button>
                   )}
 
-                  <p>
-                    Erstellt:{" "}
-                    {ticket.createdAt}
-                  </p>
-
-                  <p>
-                    Aktualisiert:{" "}
-                    {ticket.updatedAt}
-                  </p>
+                  {canDelete() && (
+                    <button
+                      onClick={() =>
+                        handleDeleteTicket(
+                          ticket
+                        )
+                      }
+                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                    >
+                      Löschen
+                    </button>
+                  )}
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                <Link
-                  href={`/tickets/${ticket.id}`}
-                  className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                >
-                  Öffnen
-                </Link>
-
-                {canEdit() && (
-                  <button
-                    onClick={() =>
-                      startEdit(ticket)
-                    }
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                  >
-                    Bearbeiten
-                  </button>
-                )}
-
-                {canDelete() && (
-                  <button
-                    onClick={() =>
-                      handleDeleteTicket(
-                        ticket
-                      )
-                    }
-                    className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                  >
-                    Löschen
-                  </button>
-                )}
-              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

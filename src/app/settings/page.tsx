@@ -45,6 +45,7 @@ import {
 import {
   getTickets,
   clearTickets,
+  resetTickets,
 } from "../../lib/ticketStorage";
 
 import {
@@ -307,6 +308,11 @@ export default function SettingsPage() {
         localStorage.getItem(
           "wiki-tickets"
         ),
+
+      ticketsInitialized:
+        localStorage.getItem(
+          "wiki-tickets-initialized"
+        ),
     };
 
     const blob = new Blob(
@@ -454,6 +460,18 @@ export default function SettingsPage() {
           );
         }
 
+        if (backup.ticketsInitialized) {
+          localStorage.setItem(
+            "wiki-tickets-initialized",
+            backup.ticketsInitialized
+          );
+        } else if (backup.tickets) {
+          localStorage.setItem(
+            "wiki-tickets-initialized",
+            "true"
+          );
+        }
+
         loadStats();
 
         window.dispatchEvent(
@@ -572,6 +590,10 @@ export default function SettingsPage() {
 
     clearTickets();
 
+    localStorage.removeItem(
+      "wiki-tickets-initialized"
+    );
+
     loadStats();
 
     setStatus(
@@ -630,6 +652,26 @@ export default function SettingsPage() {
 
     setStatus(
       "Tickets wurden gelöscht."
+    );
+  }
+
+  function reloadTicketTemplates() {
+    const confirmed = confirm(
+      "Ticket-Templates wirklich neu laden? Bestehende Tickets werden dadurch ersetzt."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    resetTickets();
+
+    getTickets();
+
+    loadStats();
+
+    setStatus(
+      "Ticket-Templates wurden neu geladen."
     );
   }
 
@@ -810,6 +852,13 @@ export default function SettingsPage() {
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
             Tickets löschen
+          </button>
+
+          <button
+            onClick={reloadTicketTemplates}
+            className="bg-white border border-blue-200 text-blue-700 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
+          >
+            Ticket-Templates neu laden
           </button>
         </div>
       </div>
