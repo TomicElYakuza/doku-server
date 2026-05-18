@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   useParams,
@@ -27,14 +30,14 @@ import {
 } from "../../../../lib/userStorage";
 
 export default function HistoryPage() {
-  const params = useParams();
+  const params =
+    useParams();
 
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const slug = params.slug as string;
-
-  const documentHref =
-    `/wiki/${encodeURIComponent(slug)}`;
+  const slug =
+    params.slug as string;
 
   const [mounted, setMounted] =
     useState(false);
@@ -52,6 +55,9 @@ export default function HistoryPage() {
     useState("Intern");
 
   const [pageCategory, setPageCategory] =
+    useState("");
+
+  const [documentSlug, setDocumentSlug] =
     useState("");
 
   const [versions, setVersions] =
@@ -97,17 +103,29 @@ export default function HistoryPage() {
     const pages =
       getStoredPages();
 
+    const decodedSlug =
+      decodeURIComponent(slug);
+
     const page =
       pages.find(
         (item: any) =>
-          item.slug === slug
+          item.slug === slug ||
+          item.slug === decodedSlug
       );
 
     const allVersions =
       getVersions();
 
+    const versionKey =
+      page?.slug ||
+      decodedSlug ||
+      slug;
+
     setVersions(
-      allVersions[slug] || []
+      allVersions[versionKey] ||
+        allVersions[slug] ||
+        allVersions[decodedSlug] ||
+        []
     );
 
     if (!page) {
@@ -119,6 +137,8 @@ export default function HistoryPage() {
     }
 
     setPageFound(true);
+
+    setDocumentSlug(page.slug);
 
     setPageTitle(page.title);
 
@@ -133,16 +153,45 @@ export default function HistoryPage() {
     setPageChecked(true);
   }
 
+  function getDocumentHref() {
+    if (!documentSlug) {
+      return "/wiki";
+    }
+
+    return `/wiki/${encodeURIComponent(
+      documentSlug
+    )}`;
+  }
+
+  function wikiCompanyHref(
+    company: string
+  ) {
+    return `/wiki?company=${encodeURIComponent(
+      company
+    )}`;
+  }
+
+  function wikiDepartmentHref(
+    department: string
+  ) {
+    return `/wiki?department=${encodeURIComponent(
+      department
+    )}`;
+  }
+
   function goToDocument() {
-    router.push(documentHref);
+    router.push(
+      getDocumentHref()
+    );
   }
 
   function restoreVersion(
     version: any
   ) {
-    const confirmed = confirm(
-      "Version wirklich wiederherstellen?"
-    );
+    const confirmed =
+      confirm(
+        "Version wirklich wiederherstellen?"
+      );
 
     if (!confirmed) {
       return;
@@ -151,13 +200,18 @@ export default function HistoryPage() {
     const pages =
       getStoredPages();
 
-    const pageExists =
-      pages.some(
+    const decodedSlug =
+      decodeURIComponent(slug);
+
+    const existingPage =
+      pages.find(
         (page: any) =>
-          page.slug === slug
+          page.slug === slug ||
+          page.slug === decodedSlug ||
+          page.slug === documentSlug
       );
 
-    if (!pageExists) {
+    if (!existingPage) {
       alert(
         "Dokument existiert nicht mehr und kann deshalb nicht aus der Historie wiederhergestellt werden."
       );
@@ -167,7 +221,10 @@ export default function HistoryPage() {
 
     const updatedPages =
       pages.map((page: any) => {
-        if (page.slug !== slug) {
+        if (
+          page.slug !==
+          existingPage.slug
+        ) {
           return page;
         }
 
@@ -175,7 +232,8 @@ export default function HistoryPage() {
           ...page,
 
           title:
-            version.title || page.title,
+            version.title ||
+            page.title,
 
           company:
             version.company ||
@@ -187,32 +245,40 @@ export default function HistoryPage() {
             page.category,
 
           description:
-            version.description || "",
+            version.description ||
+            "",
 
           tags:
-            Array.isArray(version.tags)
+            Array.isArray(
+              version.tags
+            )
               ? version.tags
               : [],
 
           content:
-            version.content || "",
+            version.content ||
+            "",
 
           updatedAt:
             new Date().toLocaleDateString(),
         };
       });
 
-    savePages(updatedPages);
+    savePages(
+      updatedPages
+    );
 
     saveActivity({
       type: "restored",
 
       title:
-        version.title || slug,
+        version.title ||
+        existingPage.title ||
+        existingPage.slug,
 
       company:
         version.company ||
-        pageCompany ||
+        existingPage.company ||
         "Intern",
 
       user:
@@ -227,7 +293,11 @@ export default function HistoryPage() {
       "Version wurde wiederhergestellt."
     );
 
-    router.push(documentHref);
+    router.push(
+      `/wiki/${encodeURIComponent(
+        existingPage.slug
+      )}`
+    );
   }
 
   if (!mounted || !pageChecked) {
@@ -266,7 +336,9 @@ export default function HistoryPage() {
           <p className="text-zinc-500 mt-3">
             Die Historie für{" "}
             <span className="font-mono text-zinc-900">
-              {slug}
+              {decodeURIComponent(
+                slug
+              )}
             </span>{" "}
             kann nicht geöffnet werden, weil das Dokument nicht existiert oder gelöscht wurde.
           </p>
@@ -306,6 +378,7 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
+      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -319,10 +392,10 @@ export default function HistoryPage() {
         </span>
 
         <Link
-          href={`/wiki/company/${encodeURIComponent(
+          href={wikiCompanyHref(
             pageCompany
-          )}`}
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          )}
+          className="text-indigo-600 hover:text-indigo-900 transition"
         >
           {pageCompany}
         </Link>
@@ -334,10 +407,10 @@ export default function HistoryPage() {
         {pageCategory ? (
           <>
             <Link
-              href={`/wiki/department/${encodeURIComponent(
+              href={wikiDepartmentHref(
                 pageCategory
-              )}`}
-              className="text-zinc-500 hover:text-zinc-900 transition"
+              )}
+              className="text-indigo-600 hover:text-indigo-900 transition"
             >
               {pageCategory}
             </Link>
@@ -352,7 +425,7 @@ export default function HistoryPage() {
           onClick={goToDocument}
           className="text-zinc-500 hover:text-zinc-900 transition"
         >
-          {pageTitle || slug}
+          {pageTitle || documentSlug || slug}
         </button>
 
         <span className="text-zinc-400">
@@ -364,6 +437,7 @@ export default function HistoryPage() {
         </span>
       </div>
 
+      {/* BACK BUTTON */}
       <div>
         <button
           onClick={goToDocument}
@@ -373,13 +447,36 @@ export default function HistoryPage() {
         </button>
       </div>
 
+      {/* HEADER */}
       <div>
-        <p className="text-zinc-500">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={wikiCompanyHref(
+              pageCompany
+            )}
+            className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+          >
+            {pageCompany}
+          </Link>
+
+          {pageCategory && (
+            <Link
+              href={wikiDepartmentHref(
+                pageCategory
+              )}
+              className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+            >
+              {pageCategory}
+            </Link>
+          )}
+        </div>
+
+        <p className="text-zinc-500 mt-5">
           Versionshistorie
         </p>
 
         <h1 className="text-4xl font-bold mt-2">
-          {pageTitle || slug}
+          {pageTitle || documentSlug || slug}
         </h1>
 
         <p className="text-zinc-500 mt-3">
@@ -406,7 +503,13 @@ export default function HistoryPage() {
 
             const versionCompany =
               version.company ||
+              pageCompany ||
               "Intern";
+
+            const versionCategory =
+              version.category ||
+              pageCategory ||
+              "Keine Kategorie";
 
             return (
               <div
@@ -455,20 +558,29 @@ export default function HistoryPage() {
                       Firma
                     </p>
 
-                    <p className="font-medium">
+                    <Link
+                      href={wikiCompanyHref(
+                        versionCompany
+                      )}
+                      className="inline-block mt-1 bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    >
                       {versionCompany}
-                    </p>
+                    </Link>
                   </div>
 
                   <div>
                     <p className="text-sm text-zinc-500">
-                      Kategorie
+                      Kategorie / Abteilung
                     </p>
 
-                    <p className="font-medium">
-                      {version.category ||
-                        "Keine Kategorie"}
-                    </p>
+                    <Link
+                      href={wikiDepartmentHref(
+                        versionCategory
+                      )}
+                      className="inline-block mt-1 bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    >
+                      {versionCategory}
+                    </Link>
                   </div>
 
                   <div>
@@ -496,7 +608,7 @@ export default function HistoryPage() {
                           ) => (
                             <Link
                               key={tag}
-                              href={`/wiki/tag/${encodeURIComponent(
+                              href={`/wiki?tag=${encodeURIComponent(
                                 tag
                               )}`}
                               className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"

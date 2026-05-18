@@ -6,7 +6,6 @@ import Link from "next/link";
 
 import {
   useParams,
-  useRouter,
 } from "next/navigation";
 
 import ReactMarkdown from "react-markdown";
@@ -39,9 +38,6 @@ import FileList from "../../../../components/wiki/FileList";
 export default function EditWikiPage() {
   const params =
     useParams();
-
-  const router =
-    useRouter();
 
   const slug =
     params.slug as string;
@@ -138,15 +134,14 @@ export default function EditWikiPage() {
       return "/wiki";
     }
 
-    return `/wiki/${documentSlug}`;
+    return `/wiki/${encodeURIComponent(
+      documentSlug
+    )}`;
   }
 
   function goToDocument() {
-    const href =
-      getDocumentHref();
-
     window.location.href =
-      href;
+      getDocumentHref();
   }
 
   function handleSave() {
@@ -233,7 +228,10 @@ export default function EditWikiPage() {
 
     const updatedPages =
       pages.map((page: any) => {
-        if (page.slug !== existingPage.slug) {
+        if (
+          page.slug !==
+          existingPage.slug
+        ) {
           return page;
         }
 
@@ -289,7 +287,9 @@ export default function EditWikiPage() {
     });
 
     window.location.href =
-      `/wiki/${existingPage.slug}`;
+      `/wiki/${encodeURIComponent(
+        existingPage.slug
+      )}`;
   }
 
   if (!mounted || !pageChecked) {
@@ -371,6 +371,14 @@ export default function EditWikiPage() {
       </div>
     );
   }
+
+  const previewTags =
+    tags
+      .split(",")
+      .map((tag) =>
+        tag.trim()
+      )
+      .filter(Boolean);
 
   return (
     <div className="space-y-6">
@@ -535,7 +543,9 @@ export default function EditWikiPage() {
               </p>
             </div>
 
-            <FileUpload slug={documentSlug || slug} />
+            <FileUpload
+              slug={documentSlug || slug}
+            />
 
             <FileList
               slug={documentSlug || slug}
@@ -573,16 +583,31 @@ export default function EditWikiPage() {
           </div>
 
           <div className="flex flex-wrap gap-2 mb-6">
-            <span className="bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full">
+            <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
               {company || "Intern"}
             </span>
 
             {category && (
-              <span className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full">
+              <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
                 {category}
               </span>
             )}
           </div>
+
+          {previewTags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {previewTags.map(
+                (tag) => (
+                  <span
+                    key={tag}
+                    className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                  >
+                    #{tag}
+                  </span>
+                )
+              )}
+            </div>
+          )}
 
           <article className="prose prose-zinc max-w-none">
             <ReactMarkdown>

@@ -369,7 +369,7 @@ export default function HomePage() {
 
         <Link
           href="/wiki"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-blue-50 transition"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-indigo-50 transition"
         >
           <p className="text-sm text-zinc-500">
             Firmen
@@ -382,7 +382,7 @@ export default function HomePage() {
 
         <Link
           href="/wiki"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-indigo-50 transition"
         >
           <p className="text-sm text-zinc-500">
             Abteilungen
@@ -593,9 +593,14 @@ export default function HomePage() {
                     </p>
 
                     <p className="text-sm text-zinc-500 mt-1">
-                      {page.company ||
-                        "Intern"}{" "}
-                      · {page.category}
+                      <span className="text-indigo-700">
+                        {page.company ||
+                          "Intern"}
+                      </span>{" "}
+                      ·{" "}
+                      <span className="text-indigo-700">
+                        {page.category}
+                      </span>
                     </p>
                   </div>
 
@@ -716,7 +721,7 @@ export default function HomePage() {
                       </p>
 
                       <div className="flex flex-wrap gap-2 mt-1">
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full">
                           {activity.company ||
                             "Intern"}
                         </span>

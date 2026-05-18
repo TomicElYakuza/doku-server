@@ -27,6 +27,8 @@ export default function ActivityPage() {
   useEffect(() => {
     setMounted(true);
 
+    applyUrlFilters();
+
     loadActivities();
 
     function handleActivityUpdated() {
@@ -46,9 +48,94 @@ export default function ActivityPage() {
     };
   }, []);
 
+  function applyUrlFilters() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    setSearch(
+      params.get("q") || ""
+    );
+
+    setCompanyFilter(
+      params.get("company") || ""
+    );
+
+    setTypeFilter(
+      params.get("type") || ""
+    );
+  }
+
+  function updateUrlFilters(
+    nextSearch: string,
+    nextCompany: string,
+    nextType: string
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    if (nextSearch) {
+      params.set(
+        "q",
+        nextSearch
+      );
+    }
+
+    if (nextCompany) {
+      params.set(
+        "company",
+        nextCompany
+      );
+    }
+
+    if (nextType) {
+      params.set(
+        "type",
+        nextType
+      );
+    }
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/activity?${query}`
+        : "/activity";
+
+    window.history.replaceState(
+      null,
+      "",
+      nextUrl
+    );
+  }
+
   function loadActivities() {
     setActivities(
       getActivities()
+    );
+  }
+
+  function resetFilters() {
+    setSearch("");
+
+    setCompanyFilter("");
+
+    setTypeFilter("");
+
+    updateUrlFilters(
+      "",
+      "",
+      ""
     );
   }
 
@@ -235,13 +322,21 @@ export default function ActivityPage() {
       }
     );
 
-  function resetFilters() {
-    setSearch("");
+  const ticketActivityCount =
+    activities.filter(
+      (activity: any) =>
+        activity.type?.startsWith(
+          "ticket"
+        )
+    ).length;
 
-    setCompanyFilter("");
-
-    setTypeFilter("");
-  }
+  const wikiActivityCount =
+    activities.filter(
+      (activity: any) =>
+        !activity.type?.startsWith(
+          "ticket"
+        )
+    ).length;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -285,7 +380,7 @@ export default function ActivityPage() {
       </div>
 
       {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
             Aktivitäten gesamt
@@ -296,7 +391,25 @@ export default function ActivityPage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            if (companies.length > 0) {
+              const firstCompany =
+                companies[0];
+
+              setCompanyFilter(
+                firstCompany
+              );
+
+              updateUrlFilters(
+                search,
+                firstCompany,
+                typeFilter
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
@@ -304,15 +417,38 @@ export default function ActivityPage() {
           <h2 className="text-3xl font-bold mt-2">
             {companies.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            setTypeFilter(
+              "ticketCreated"
+            );
+
+            updateUrlFilters(
+              search,
+              companyFilter,
+              "ticketCreated"
+            );
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-blue-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Aktivitätstypen
+            Ticket-Aktivitäten
           </p>
 
           <h2 className="text-3xl font-bold mt-2">
-            {activityTypes.length}
+            {ticketActivityCount}
+          </h2>
+        </button>
+
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+          <p className="text-sm text-zinc-500">
+            Wiki-Aktivitäten
+          </p>
+
+          <h2 className="text-3xl font-bold mt-2">
+            {wikiActivityCount}
           </h2>
         </div>
 
@@ -338,21 +474,35 @@ export default function ActivityPage() {
             type="text"
             placeholder="Nach Firma, Benutzer, Titel, Datum oder Aktion suchen..."
             value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setSearch(value);
+
+              updateUrlFilters(
+                value,
+                companyFilter,
+                typeFilter
+              );
+            }}
             className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
             value={companyFilter}
-            onChange={(event) =>
-              setCompanyFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setCompanyFilter(value);
+
+              updateUrlFilters(
+                search,
+                value,
+                typeFilter
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -373,11 +523,18 @@ export default function ActivityPage() {
 
           <select
             value={typeFilter}
-            onChange={(event) =>
-              setTypeFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setTypeFilter(value);
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                value
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -451,15 +608,41 @@ export default function ActivityPage() {
 
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
-                          {activityCompany}
-                        </span>
+                        <button
+                          onClick={() => {
+                            setCompanyFilter(
+                              activityCompany
+                            );
 
-                        <span className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full">
+                            updateUrlFilters(
+                              search,
+                              activityCompany,
+                              typeFilter
+                            );
+                          }}
+                          className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full hover:bg-indigo-100 transition"
+                        >
+                          {activityCompany}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setTypeFilter(
+                              activity.type
+                            );
+
+                            updateUrlFilters(
+                              search,
+                              companyFilter,
+                              activity.type
+                            );
+                          }}
+                          className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                        >
                           {getActivityLabel(
                             activity.type
                           )}
-                        </span>
+                        </button>
                       </div>
 
                       <p className="font-medium mt-2">

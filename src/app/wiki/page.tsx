@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import {
+  useSearchParams,
+} from "next/navigation";
+
+import {
   getStoredPages,
 } from "../../lib/wikiStorage";
 
@@ -33,6 +37,9 @@ import {
 } from "../../lib/fileStorage";
 
 export default function WikiPage() {
+  const searchParams =
+    useSearchParams();
+
   const [search, setSearch] =
     useState("");
 
@@ -77,22 +84,6 @@ export default function WikiPage() {
 
   const [favorites, setFavorites] =
     useState<string[]>([]);
-
-  function loadPages() {
-    setPages(getStoredPages());
-  }
-
-  function loadFavorites() {
-    setFavorites(getFavorites());
-  }
-
-  function loadMetaData() {
-    setComments(getComments());
-
-    setFiles(getFiles());
-
-    setVersions(getVersions());
-  }
 
   useEffect(() => {
     setMounted(true);
@@ -192,8 +183,202 @@ export default function WikiPage() {
     };
   }, []);
 
-  if (!mounted) {
-    return null;
+  useEffect(() => {
+    applyUrlFilters();
+  }, [searchParams]);
+
+  function applyUrlFilters() {
+    const view =
+      searchParams.get("view") ||
+      "cards";
+
+    setSearch(
+      searchParams.get("q") || ""
+    );
+
+    setCompanyFilter(
+      searchParams.get("company") ||
+        ""
+    );
+
+    setDepartmentFilter(
+      searchParams.get("department") ||
+        ""
+    );
+
+    setTagFilter(
+      searchParams.get("tag") || ""
+    );
+
+    setSortBy(
+      searchParams.get("sort") ||
+        "updated-desc"
+    );
+
+    setViewMode(
+      view === "table"
+        ? "table"
+        : "cards"
+    );
+
+    setOnlyMine(
+      searchParams.get("mine") ===
+        "true"
+    );
+
+    setOnlyFavorites(
+      searchParams.get("favorites") ===
+        "true"
+    );
+  }
+
+  function updateUrlFilters(
+    nextSearch: string,
+    nextCompany: string,
+    nextDepartment: string,
+    nextTag: string,
+    nextSort: string,
+    nextView: "cards" | "table",
+    nextMine: boolean,
+    nextFavorites: boolean
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    if (nextSearch) {
+      params.set(
+        "q",
+        nextSearch
+      );
+    }
+
+    if (nextCompany) {
+      params.set(
+        "company",
+        nextCompany
+      );
+    }
+
+    if (nextDepartment) {
+      params.set(
+        "department",
+        nextDepartment
+      );
+    }
+
+    if (nextTag) {
+      params.set(
+        "tag",
+        nextTag
+      );
+    }
+
+    if (
+      nextSort &&
+      nextSort !== "updated-desc"
+    ) {
+      params.set(
+        "sort",
+        nextSort
+      );
+    }
+
+    if (nextView !== "cards") {
+      params.set(
+        "view",
+        nextView
+      );
+    }
+
+    if (nextMine) {
+      params.set(
+        "mine",
+        "true"
+      );
+    }
+
+    if (nextFavorites) {
+      params.set(
+        "favorites",
+        "true"
+      );
+    }
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/wiki?${query}`
+        : "/wiki";
+
+    window.history.pushState(
+      null,
+      "",
+      nextUrl
+    );
+
+    applyUrlFiltersFromValues(
+      nextSearch,
+      nextCompany,
+      nextDepartment,
+      nextTag,
+      nextSort,
+      nextView,
+      nextMine,
+      nextFavorites
+    );
+  }
+
+  function applyUrlFiltersFromValues(
+    nextSearch: string,
+    nextCompany: string,
+    nextDepartment: string,
+    nextTag: string,
+    nextSort: string,
+    nextView: "cards" | "table",
+    nextMine: boolean,
+    nextFavorites: boolean
+  ) {
+    setSearch(nextSearch);
+
+    setCompanyFilter(nextCompany);
+
+    setDepartmentFilter(
+      nextDepartment
+    );
+
+    setTagFilter(nextTag);
+
+    setSortBy(nextSort);
+
+    setViewMode(nextView);
+
+    setOnlyMine(nextMine);
+
+    setOnlyFavorites(
+      nextFavorites
+    );
+  }
+
+  function loadPages() {
+    setPages(getStoredPages());
+  }
+
+  function loadFavorites() {
+    setFavorites(getFavorites());
+  }
+
+  function loadMetaData() {
+    setComments(getComments());
+
+    setFiles(getFiles());
+
+    setVersions(getVersions());
   }
 
   function parseDate(value: string) {
@@ -221,51 +406,79 @@ export default function WikiPage() {
       ).getTime();
     }
 
-    return new Date(value).getTime();
+    return new Date(
+      value
+    ).getTime();
   }
 
-  function getCommentCount(slug: string) {
+  function getCommentCount(
+    slug: string
+  ) {
     return comments[slug]?.length || 0;
   }
 
-  function getFileCount(slug: string) {
+  function getFileCount(
+    slug: string
+  ) {
     return files[slug]?.length || 0;
   }
 
-  function getVersionCount(slug: string) {
+  function getVersionCount(
+    slug: string
+  ) {
     return versions[slug]?.length || 0;
   }
 
-  const companies: string[] = [
-    ...new Set(
-      pages
-        .map(
-          (page: any) =>
-            page.company || "Intern"
-        )
-        .filter(Boolean)
-    ),
-  ];
+  function resetFilters() {
+    updateUrlFilters(
+      "",
+      "",
+      "",
+      "",
+      "updated-desc",
+      viewMode,
+      false,
+      false
+    );
+  }
 
-  const departments: string[] = [
-    ...new Set(
-      pages
-        .map(
-          (page: any) =>
-            page.category
-        )
-        .filter(Boolean)
-    ),
-  ];
+  if (!mounted) {
+    return null;
+  }
 
-  const tags: string[] = [
-    ...new Set(
-      pages.flatMap(
-        (page: any) =>
-          page.tags || []
+  const companies: string[] =
+    Array.from(
+      new Set(
+        pages
+          .map(
+            (page: any) =>
+              page.company || "Intern"
+          )
+          .filter(Boolean)
       )
-    ),
-  ];
+    );
+
+  const departments: string[] =
+    Array.from(
+      new Set(
+        pages
+          .map(
+            (page: any) =>
+              page.category
+          )
+          .filter(Boolean)
+      )
+    );
+
+  const tags: string[] =
+    Array.from(
+      new Set(
+        pages.flatMap(
+          (page: any) =>
+            page.tags || []
+        )
+      )
+    );
 
   const versionCount = (
     Object.values(
@@ -371,7 +584,9 @@ export default function WikiPage() {
     }
 
     if (sortBy === "company-asc") {
-      return (a.company || "Intern").localeCompare(
+      return (
+        a.company || "Intern"
+      ).localeCompare(
         b.company || "Intern"
       );
     }
@@ -394,22 +609,6 @@ export default function WikiPage() {
       parseDate(a.updatedAt)
     );
   });
-
-  function resetFilters() {
-    setSearch("");
-
-    setCompanyFilter("");
-
-    setDepartmentFilter("");
-
-    setTagFilter("");
-
-    setSortBy("updated-desc");
-
-    setOnlyMine(false);
-
-    setOnlyFavorites(false);
-  }
 
   return (
     <div className="space-y-6">
@@ -439,7 +638,12 @@ export default function WikiPage() {
 
       {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            resetFilters();
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
@@ -447,9 +651,28 @@ export default function WikiPage() {
           <h2 className="text-3xl font-bold mt-2">
             {pages.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            if (companies.length > 0) {
+              const firstCompany =
+                companies[0];
+
+              updateUrlFilters(
+                search,
+                firstCompany,
+                departmentFilter,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
@@ -457,9 +680,28 @@ export default function WikiPage() {
           <h2 className="text-3xl font-bold mt-2">
             {companies.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            if (departments.length > 0) {
+              const firstDepartment =
+                departments[0];
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                firstDepartment,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Abteilungen
           </p>
@@ -467,9 +709,28 @@ export default function WikiPage() {
           <h2 className="text-3xl font-bold mt-2">
             {departments.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() => {
+            if (tags.length > 0) {
+              const firstTag =
+                tags[0];
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                departmentFilter,
+                firstTag,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Tags
           </p>
@@ -477,7 +738,7 @@ export default function WikiPage() {
           <h2 className="text-3xl font-bold mt-2">
             {tags.length}
           </h2>
-        </div>
+        </button>
 
         <div className="bg-white border border-zinc-200 rounded-2xl p-6">
           <p className="text-sm text-zinc-500">
@@ -499,9 +760,18 @@ export default function WikiPage() {
 
           <div className="flex bg-zinc-100 rounded-2xl p-1">
             <button
-              onClick={() =>
-                setViewMode("cards")
-              }
+              onClick={() => {
+                updateUrlFilters(
+                  search,
+                  companyFilter,
+                  departmentFilter,
+                  tagFilter,
+                  sortBy,
+                  "cards",
+                  onlyMine,
+                  onlyFavorites
+                );
+              }}
               className={`px-4 py-2 rounded-xl text-sm transition ${
                 viewMode === "cards"
                   ? "bg-white shadow-sm"
@@ -512,9 +782,18 @@ export default function WikiPage() {
             </button>
 
             <button
-              onClick={() =>
-                setViewMode("table")
-              }
+              onClick={() => {
+                updateUrlFilters(
+                  search,
+                  companyFilter,
+                  departmentFilter,
+                  tagFilter,
+                  sortBy,
+                  "table",
+                  onlyMine,
+                  onlyFavorites
+                );
+              }}
               className={`px-4 py-2 rounded-xl text-sm transition ${
                 viewMode === "table"
                   ? "bg-white shadow-sm"
@@ -529,9 +808,21 @@ export default function WikiPage() {
         {/* QUICK FILTERS */}
         <div className="flex flex-wrap gap-3 mt-5">
           <button
-            onClick={() =>
-              setOnlyMine(!onlyMine)
-            }
+            onClick={() => {
+              const nextValue =
+                !onlyMine;
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                departmentFilter,
+                tagFilter,
+                sortBy,
+                viewMode,
+                nextValue,
+                onlyFavorites
+              );
+            }}
             className={`px-4 py-2 rounded-xl text-sm transition ${
               onlyMine
                 ? "bg-zinc-900 text-white"
@@ -542,11 +833,21 @@ export default function WikiPage() {
           </button>
 
           <button
-            onClick={() =>
-              setOnlyFavorites(
-                !onlyFavorites
-              )
-            }
+            onClick={() => {
+              const nextValue =
+                !onlyFavorites;
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                departmentFilter,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                nextValue
+              );
+            }}
             className={`px-4 py-2 rounded-xl text-sm transition ${
               onlyFavorites
                 ? "bg-yellow-500 text-white"
@@ -562,21 +863,41 @@ export default function WikiPage() {
             type="text"
             placeholder="Dokumente, Firmen, Abteilungen, Tags, Autoren oder Inhalte suchen..."
             value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              updateUrlFilters(
+                value,
+                companyFilter,
+                departmentFilter,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }}
             className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
             value={companyFilter}
-            onChange={(event) =>
-              setCompanyFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              updateUrlFilters(
+                search,
+                value,
+                departmentFilter,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -597,11 +918,21 @@ export default function WikiPage() {
 
           <select
             value={departmentFilter}
-            onChange={(event) =>
-              setDepartmentFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                value,
+                tagFilter,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -622,11 +953,21 @@ export default function WikiPage() {
 
           <select
             value={tagFilter}
-            onChange={(event) =>
-              setTagFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                departmentFilter,
+                value,
+                sortBy,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -645,11 +986,21 @@ export default function WikiPage() {
 
           <select
             value={sortBy}
-            onChange={(event) =>
-              setSortBy(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                departmentFilter,
+                tagFilter,
+                value,
+                viewMode,
+                onlyMine,
+                onlyFavorites
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="updated-desc">
@@ -706,120 +1057,159 @@ export default function WikiPage() {
       {viewMode === "cards" && (
         <div className="grid gap-4">
           {sortedPages.map(
-            (page: any) => (
-              <div
-                key={page.slug}
-                className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
-                      {page.company || "Intern"}
-                    </span>
+            (page: any) => {
+              const pageCompany =
+                page.company || "Intern";
 
-                    <Link
-                      href={`/wiki/department/${encodeURIComponent(
-                        page.category
-                      )}`}
-                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
-                    >
-                      {page.category}
-                    </Link>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {favorites.includes(
-                      page.slug
-                    ) && (
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
-                        Favorit
-                      </span>
-                    )}
-
-                    <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                      Dokument
-                    </span>
-                  </div>
-                </div>
-
-                <Link
-                  href={`/wiki/${page.slug}`}
-                  className="block mt-3"
+              return (
+                <div
+                  key={page.slug}
+                  className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
                 >
-                  <h2 className="text-xl font-semibold hover:underline">
-                    {page.title}
-                  </h2>
-                </Link>
-
-                <p className="text-zinc-600 mt-2">
-                  {page.description}
-                </p>
-
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {page.tags?.map(
-                    (tag: string) => (
-                      <Link
-                        key={tag}
-                        href={`/wiki/tag/${encodeURIComponent(
-                          tag
-                        )}`}
-                        className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          updateUrlFilters(
+                            search,
+                            pageCompany,
+                            departmentFilter,
+                            tagFilter,
+                            sortBy,
+                            viewMode,
+                            onlyMine,
+                            onlyFavorites
+                          );
+                        }}
+                        className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
                       >
-                        #{tag}
-                      </Link>
-                    )
-                  )}
-                </div>
+                        {pageCompany}
+                      </button>
 
-                <div className="grid grid-cols-3 gap-3 mt-6">
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Kommentare
-                    </p>
+                      <button
+                        onClick={() => {
+                          updateUrlFilters(
+                            search,
+                            companyFilter,
+                            page.category,
+                            tagFilter,
+                            sortBy,
+                            viewMode,
+                            onlyMine,
+                            onlyFavorites
+                          );
+                        }}
+                        className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                      >
+                        {page.category}
+                      </button>
+                    </div>
 
-                    <p className="font-semibold mt-1">
-                      {getCommentCount(
+                    <div className="flex items-center gap-2">
+                      {favorites.includes(
                         page.slug
+                      ) && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
+                          Favorit
+                        </span>
                       )}
-                    </p>
+
+                      <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
+                        Dokument
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Anhänge
-                    </p>
+                  <Link
+                    href={`/wiki/${encodeURIComponent(
+                      page.slug
+                    )}`}
+                    className="block mt-3"
+                  >
+                    <h2 className="text-xl font-semibold hover:underline">
+                      {page.title}
+                    </h2>
+                  </Link>
 
-                    <p className="font-semibold mt-1">
-                      {getFileCount(
-                        page.slug
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Versionen
-                    </p>
-
-                    <p className="font-semibold mt-1">
-                      {getVersionCount(
-                        page.slug
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                  <p className="text-sm text-zinc-500">
-                    {page.author}
+                  <p className="text-zinc-600 mt-2">
+                    {page.description}
                   </p>
 
-                  <p className="text-sm text-zinc-500">
-                    {page.updatedAt}
-                  </p>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {page.tags?.map(
+                      (tag: string) => (
+                        <button
+                          key={tag}
+                          onClick={() => {
+                            updateUrlFilters(
+                              search,
+                              companyFilter,
+                              departmentFilter,
+                              tag,
+                              sortBy,
+                              viewMode,
+                              onlyMine,
+                              onlyFavorites
+                            );
+                          }}
+                          className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                        >
+                          #{tag}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mt-6">
+                    <div className="bg-zinc-50 rounded-2xl p-3">
+                      <p className="text-xs text-zinc-500">
+                        Kommentare
+                      </p>
+
+                      <p className="font-semibold mt-1">
+                        {getCommentCount(
+                          page.slug
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-50 rounded-2xl p-3">
+                      <p className="text-xs text-zinc-500">
+                        Anhänge
+                      </p>
+
+                      <p className="font-semibold mt-1">
+                        {getFileCount(
+                          page.slug
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-50 rounded-2xl p-3">
+                      <p className="text-xs text-zinc-500">
+                        Versionen
+                      </p>
+
+                      <p className="font-semibold mt-1">
+                        {getVersionCount(
+                          page.slug
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
+                    <p className="text-sm text-zinc-500">
+                      {page.author}
+                    </p>
+
+                    <p className="text-sm text-zinc-500">
+                      {page.updatedAt}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )
+              );
+            }
           )}
         </div>
       )}
@@ -862,101 +1252,142 @@ export default function WikiPage() {
 
             <tbody>
               {sortedPages.map(
-                (page: any) => (
-                  <tr
-                    key={page.slug}
-                    className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition"
-                  >
-                    <td className="px-5 py-4">
-                      <Link
-                        href={`/wiki/${page.slug}`}
-                        className="font-medium hover:underline"
-                      >
-                        {page.title}
-                      </Link>
+                (page: any) => {
+                  const pageCompany =
+                    page.company || "Intern";
 
-                      <p className="text-zinc-500 mt-1">
-                        {page.description}
-                      </p>
+                  return (
+                    <tr
+                      key={page.slug}
+                      className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition"
+                    >
+                      <td className="px-5 py-4">
+                        <Link
+                          href={`/wiki/${encodeURIComponent(
+                            page.slug
+                          )}`}
+                          className="font-medium hover:underline"
+                        >
+                          {page.title}
+                        </Link>
 
-                      {favorites.includes(
-                        page.slug
-                      ) && (
-                        <span className="inline-block mt-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
-                          Favorit
-                        </span>
-                      )}
-                    </td>
+                        <p className="text-zinc-500 mt-1">
+                          {page.description}
+                        </p>
 
-                    <td className="px-5 py-4 text-zinc-600">
-                      {page.company || "Intern"}
-                    </td>
-
-                    <td className="px-5 py-4 text-zinc-600">
-                      <Link
-                        href={`/wiki/department/${encodeURIComponent(
-                          page.category
-                        )}`}
-                        className="hover:underline"
-                      >
-                        {page.category}
-                      </Link>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {page.tags?.map(
-                          (
-                            tag: string
-                          ) => (
-                            <Link
-                              key={tag}
-                              href={`/wiki/tag/${encodeURIComponent(
-                                tag
-                              )}`}
-                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
-                            >
-                              #{tag}
-                            </Link>
-                          )
+                        {favorites.includes(
+                          page.slug
+                        ) && (
+                          <span className="inline-block mt-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                            Favorit
+                          </span>
                         )}
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="px-5 py-4 text-zinc-600">
-                      <div className="flex flex-col gap-1">
-                        <span>
-                          💬{" "}
-                          {getCommentCount(
-                            page.slug
+                      <td className="px-5 py-4 text-zinc-600">
+                        <button
+                          onClick={() => {
+                            updateUrlFilters(
+                              search,
+                              pageCompany,
+                              departmentFilter,
+                              tagFilter,
+                              sortBy,
+                              viewMode,
+                              onlyMine,
+                              onlyFavorites
+                            );
+                          }}
+                          className="hover:underline text-indigo-700"
+                        >
+                          {pageCompany}
+                        </button>
+                      </td>
+
+                      <td className="px-5 py-4 text-zinc-600">
+                        <button
+                          onClick={() => {
+                            updateUrlFilters(
+                              search,
+                              companyFilter,
+                              page.category,
+                              tagFilter,
+                              sortBy,
+                              viewMode,
+                              onlyMine,
+                              onlyFavorites
+                            );
+                          }}
+                          className="hover:underline text-indigo-700"
+                        >
+                          {page.category}
+                        </button>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {page.tags?.map(
+                            (
+                              tag: string
+                            ) => (
+                              <button
+                                key={tag}
+                                onClick={() => {
+                                  updateUrlFilters(
+                                    search,
+                                    companyFilter,
+                                    departmentFilter,
+                                    tag,
+                                    sortBy,
+                                    viewMode,
+                                    onlyMine,
+                                    onlyFavorites
+                                  );
+                                }}
+                                className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                              >
+                                #{tag}
+                              </button>
+                            )
                           )}
-                        </span>
+                        </div>
+                      </td>
 
-                        <span>
-                          📎{" "}
-                          {getFileCount(
-                            page.slug
-                          )}
-                        </span>
+                      <td className="px-5 py-4 text-zinc-600">
+                        <div className="flex flex-col gap-1">
+                          <span>
+                            💬{" "}
+                            {getCommentCount(
+                              page.slug
+                            )}
+                          </span>
 
-                        <span>
-                          🕓{" "}
-                          {getVersionCount(
-                            page.slug
-                          )}
-                        </span>
-                      </div>
-                    </td>
+                          <span>
+                            📎{" "}
+                            {getFileCount(
+                              page.slug
+                            )}
+                          </span>
 
-                    <td className="px-5 py-4 text-zinc-600">
-                      {page.author}
-                    </td>
+                          <span>
+                            🕓{" "}
+                            {getVersionCount(
+                              page.slug
+                            )}
+                          </span>
+                        </div>
+                      </td>
 
-                    <td className="px-5 py-4 text-zinc-600">
-                      {page.updatedAt}
-                    </td>
-                  </tr>
-                )
+                      <td className="px-5 py-4 text-zinc-600">
+                        {page.author}
+                      </td>
+
+                      <td className="px-5 py-4 text-zinc-600">
+                        {page.updatedAt}
+                      </td>
+                    </tr>
+                  );
+                }
               )}
             </tbody>
           </table>

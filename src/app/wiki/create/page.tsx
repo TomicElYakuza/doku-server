@@ -35,7 +35,8 @@ import FileUpload from "../../../components/wiki/FileUpload";
 import FileList from "../../../components/wiki/FileList";
 
 export default function CreateWikiPage() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
   const [mounted, setMounted] =
     useState(false);
@@ -67,10 +68,14 @@ export default function CreateWikiPage() {
   useEffect(() => {
     setMounted(true);
 
-    setAllowed(canCreate());
+    setAllowed(
+      canCreate()
+    );
   }, []);
 
-  function createSlug(value: string) {
+  function createSlug(
+    value: string
+  ) {
     return value
       .toLowerCase()
       .trim()
@@ -206,7 +211,9 @@ export default function CreateWikiPage() {
     setCreatedSlug(slug);
 
     router.push(
-      `/wiki/${slug}`
+      `/wiki/${encodeURIComponent(
+        slug
+      )}`
     );
   }
 
@@ -245,6 +252,7 @@ export default function CreateWikiPage() {
 
   return (
     <div className="space-y-6">
+      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/wiki"
@@ -262,6 +270,7 @@ export default function CreateWikiPage() {
         </span>
       </div>
 
+      {/* BACK */}
       <div>
         <Link
           href="/wiki"
@@ -272,6 +281,7 @@ export default function CreateWikiPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* FORM */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <div className="mb-8">
             <h1 className="text-3xl font-bold">
@@ -407,7 +417,9 @@ export default function CreateWikiPage() {
 
             {uploadSlug ? (
               <>
-                <FileUpload slug={uploadSlug} />
+                <FileUpload
+                  slug={uploadSlug}
+                />
 
                 <FileList
                   slug={uploadSlug}
@@ -444,6 +456,7 @@ export default function CreateWikiPage() {
           </div>
         </div>
 
+        {/* PREVIEW */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
           <div className="mb-8">
             <h2 className="text-3xl font-bold">
@@ -456,16 +469,35 @@ export default function CreateWikiPage() {
           </div>
 
           <div className="flex flex-wrap gap-2 mb-6">
-            <span className="bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full">
+            <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
               {company || "Intern"}
             </span>
 
             {category && (
-              <span className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full">
+              <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
                 {category}
               </span>
             )}
           </div>
+
+          {tags.trim() && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {tags
+                .split(",")
+                .map((tag) =>
+                  tag.trim()
+                )
+                .filter(Boolean)
+                .map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+            </div>
+          )}
 
           <article className="prose prose-zinc max-w-none">
             <ReactMarkdown>

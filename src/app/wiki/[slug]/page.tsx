@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import { useParams } from "next/navigation";
+import {
+  useParams,
+} from "next/navigation";
 
 import ReactMarkdown from "react-markdown";
 
@@ -107,7 +112,9 @@ export default function WikiDetailPage() {
     };
   }, [rawSlug]);
 
-  function normalizeSlug(value: string) {
+  function normalizeSlug(
+    value: string
+  ) {
     return value
       .toLowerCase()
       .trim()
@@ -134,9 +141,21 @@ export default function WikiDetailPage() {
         (item: any) =>
           item.slug === rawSlug ||
           item.slug === decodedSlug ||
-          encodeURIComponent(item.slug) === rawSlug ||
-          normalizeSlug(item.slug) === normalizeSlug(decodedSlug) ||
-          normalizeSlug(item.title || "") === normalizeSlug(decodedSlug)
+          encodeURIComponent(
+            item.slug
+          ) === rawSlug ||
+          normalizeSlug(
+            item.slug
+          ) ===
+            normalizeSlug(
+              decodedSlug
+            ) ||
+          normalizeSlug(
+            item.title || ""
+          ) ===
+            normalizeSlug(
+              decodedSlug
+            )
       );
 
     setPage(
@@ -152,13 +171,27 @@ export default function WikiDetailPage() {
     }
   }
 
-  function getDocumentHref() {
-    if (!page?.slug) {
-      return "/wiki";
-    }
+  function wikiCompanyHref(
+    company: string
+  ) {
+    return `/wiki?company=${encodeURIComponent(
+      company
+    )}`;
+  }
 
-    return `/wiki/${encodeURIComponent(
-      page.slug
+  function wikiDepartmentHref(
+    department: string
+  ) {
+    return `/wiki?department=${encodeURIComponent(
+      department
+    )}`;
+  }
+
+  function wikiTagHref(
+    tag: string
+  ) {
+    return `/wiki?tag=${encodeURIComponent(
+      tag
     )}`;
   }
 
@@ -345,9 +378,6 @@ export default function WikiDetailPage() {
   const company =
     page.company || "Intern";
 
-  const documentHref =
-    getDocumentHref();
-
   return (
     <div className="flex gap-6">
       <div className="flex-1 max-w-5xl">
@@ -365,10 +395,10 @@ export default function WikiDetailPage() {
           </span>
 
           <Link
-            href={`/wiki/company/${encodeURIComponent(
+            href={wikiCompanyHref(
               company
-            )}`}
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            )}
+            className="text-indigo-600 hover:text-indigo-900 transition"
           >
             {company}
           </Link>
@@ -378,10 +408,10 @@ export default function WikiDetailPage() {
           </span>
 
           <Link
-            href={`/wiki/department/${encodeURIComponent(
+            href={wikiDepartmentHref(
               page.category
-            )}`}
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            )}
+            className="text-indigo-600 hover:text-indigo-900 transition"
           >
             {page.category}
           </Link>
@@ -403,19 +433,19 @@ export default function WikiDetailPage() {
             <div>
               <div className="flex flex-wrap gap-2 mb-4">
                 <Link
-                  href={`/wiki/company/${encodeURIComponent(
+                  href={wikiCompanyHref(
                     company
-                  )}`}
-                  className="inline-block bg-blue-50 text-blue-700 text-sm px-3 py-1 rounded-full hover:bg-blue-100 transition"
+                  )}
+                  className="inline-block bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
                 >
                   {company}
                 </Link>
 
                 <Link
-                  href={`/wiki/department/${encodeURIComponent(
+                  href={wikiDepartmentHref(
                     page.category
-                  )}`}
-                  className="inline-block bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                  )}
+                  className="inline-block bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
                 >
                   {page.category}
                 </Link>
@@ -434,9 +464,9 @@ export default function WikiDetailPage() {
                   (tag: string) => (
                     <Link
                       key={tag}
-                      href={`/wiki/tag/${encodeURIComponent(
+                      href={wikiTagHref(
                         tag
-                      )}`}
+                      )}
                       className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
                     >
                       #{tag}
@@ -491,7 +521,27 @@ export default function WikiDetailPage() {
 
           <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10 flex-wrap">
             <p>
-              Firma: {company}
+              Firma:{" "}
+              <Link
+                href={wikiCompanyHref(
+                  company
+                )}
+                className="text-indigo-700 hover:underline"
+              >
+                {company}
+              </Link>
+            </p>
+
+            <p>
+              Abteilung:{" "}
+              <Link
+                href={wikiDepartmentHref(
+                  page.category
+                )}
+                className="text-indigo-700 hover:underline"
+              >
+                {page.category}
+              </Link>
             </p>
 
             <p>
@@ -505,10 +555,6 @@ export default function WikiDetailPage() {
 
             <p>
               Version: 1.0
-            </p>
-
-            <p className="font-mono text-xs">
-              {documentHref}
             </p>
           </div>
 

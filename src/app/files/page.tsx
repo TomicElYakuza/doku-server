@@ -31,6 +31,8 @@ export default function FilesPage() {
   useEffect(() => {
     setMounted(true);
 
+    applyUrlFilters();
+
     loadFiles();
 
     function handleFilesUpdated() {
@@ -64,6 +66,77 @@ export default function FilesPage() {
     };
   }, []);
 
+  function applyUrlFilters() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    setSearch(
+      params.get("q") || ""
+    );
+
+    setCompanyFilter(
+      params.get("company") || ""
+    );
+
+    setTypeFilter(
+      params.get("type") || ""
+    );
+  }
+
+  function updateUrlFilters(
+    nextSearch: string,
+    nextCompany: string,
+    nextType: string
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    if (nextSearch) {
+      params.set(
+        "q",
+        nextSearch
+      );
+    }
+
+    if (nextCompany) {
+      params.set(
+        "company",
+        nextCompany
+      );
+    }
+
+    if (nextType) {
+      params.set(
+        "type",
+        nextType
+      );
+    }
+
+    const query =
+      params.toString();
+
+    const nextUrl =
+      query
+        ? `/files?${query}`
+        : "/files";
+
+    window.history.replaceState(
+      null,
+      "",
+      nextUrl
+    );
+  }
+
   function loadFiles() {
     const storedFiles =
       getFiles();
@@ -72,7 +145,9 @@ export default function FilesPage() {
       getStoredPages();
 
     const allFiles =
-      Object.entries(storedFiles).flatMap(
+      Object.entries(
+        storedFiles
+      ).flatMap(
         ([slug, fileList]: any) => {
           if (!Array.isArray(fileList)) {
             return [];
@@ -93,7 +168,8 @@ export default function FilesPage() {
 
               slug,
 
-              fileIndex: index,
+              fileIndex:
+                index,
 
               pageTitle:
                 page?.title || slug,
@@ -189,6 +265,20 @@ export default function FilesPage() {
     return "Sonstige";
   }
 
+  function resetFilters() {
+    setSearch("");
+
+    setCompanyFilter("");
+
+    setTypeFilter("");
+
+    updateUrlFilters(
+      "",
+      "",
+      ""
+    );
+  }
+
   const companies: string[] =
     Array.from(
       new Set(
@@ -205,7 +295,9 @@ export default function FilesPage() {
     Array.from(
       new Set(
         files.map((file: any) =>
-          getFileTypeLabel(file.type)
+          getFileTypeLabel(
+            file.type
+          )
         )
       )
     );
@@ -216,7 +308,9 @@ export default function FilesPage() {
         search.toLowerCase();
 
       const typeLabel =
-        getFileTypeLabel(file.type);
+        getFileTypeLabel(
+          file.type
+        );
 
       const fileCompany =
         file.company || "Intern";
@@ -254,7 +348,8 @@ export default function FilesPage() {
 
       const matchesType =
         !typeFilter ||
-        typeLabel === typeFilter;
+        typeLabel ===
+          typeFilter;
 
       return (
         matchesSearch &&
@@ -274,14 +369,6 @@ export default function FilesPage() {
         sum + (file.size || 0),
       0
     );
-
-  function resetFilters() {
-    setSearch("");
-
-    setCompanyFilter("");
-
-    setTypeFilter("");
-  }
 
   if (!mounted) {
     return null;
@@ -312,7 +399,25 @@ export default function FilesPage() {
           </h2>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            if (companies.length > 0) {
+              const firstCompany =
+                companies[0];
+
+              setCompanyFilter(
+                firstCompany
+              );
+
+              updateUrlFilters(
+                search,
+                firstCompany,
+                typeFilter
+              );
+            }
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
@@ -320,9 +425,20 @@ export default function FilesPage() {
           <h2 className="text-4xl font-bold mt-3">
             {companies.length}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() => {
+            setTypeFilter("Bild");
+
+            updateUrlFilters(
+              search,
+              companyFilter,
+              "Bild"
+            );
+          }}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Bilder
           </p>
@@ -330,7 +446,7 @@ export default function FilesPage() {
           <h2 className="text-4xl font-bold mt-3">
             {imageCount}
           </h2>
-        </div>
+        </button>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
@@ -348,7 +464,9 @@ export default function FilesPage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {formatSize(totalSize)}
+            {formatSize(
+              totalSize
+            )}
           </h2>
         </div>
       </div>
@@ -364,21 +482,35 @@ export default function FilesPage() {
             type="text"
             placeholder="Nach Datei, Firma, Dokument, Benutzer oder Datum suchen..."
             value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setSearch(value);
+
+              updateUrlFilters(
+                value,
+                companyFilter,
+                typeFilter
+              );
+            }}
             className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
             value={companyFilter}
-            onChange={(event) =>
-              setCompanyFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setCompanyFilter(value);
+
+              updateUrlFilters(
+                search,
+                value,
+                typeFilter
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -399,11 +531,18 @@ export default function FilesPage() {
 
           <select
             value={typeFilter}
-            onChange={(event) =>
-              setTypeFilter(
-                event.target.value
-              )
-            }
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              setTypeFilter(value);
+
+              updateUrlFilters(
+                search,
+                companyFilter,
+                value
+              );
+            }}
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -497,15 +636,54 @@ export default function FilesPage() {
                     )}
 
                     <p className="text-sm text-zinc-500 mt-1">
-                      {file.company ||
-                        "Intern"}{" "}
+                      <button
+                        onClick={() => {
+                          const fileCompany =
+                            file.company ||
+                            "Intern";
+
+                          setCompanyFilter(
+                            fileCompany
+                          );
+
+                          updateUrlFilters(
+                            search,
+                            fileCompany,
+                            typeFilter
+                          );
+                        }}
+                        className="text-indigo-700 hover:underline"
+                      >
+                        {file.company ||
+                          "Intern"}
+                      </button>{" "}
                       ·{" "}
                       {file.category ||
                         "Allgemein"}{" "}
                       ·{" "}
-                      {getFileTypeLabel(
-                        file.type
-                      )}{" "}
+                      <button
+                        onClick={() => {
+                          const label =
+                            getFileTypeLabel(
+                              file.type
+                            );
+
+                          setTypeFilter(
+                            label
+                          );
+
+                          updateUrlFilters(
+                            search,
+                            companyFilter,
+                            label
+                          );
+                        }}
+                        className="text-zinc-700 hover:underline"
+                      >
+                        {getFileTypeLabel(
+                          file.type
+                        )}
+                      </button>{" "}
                       ·{" "}
                       {formatSize(
                         file.size
@@ -523,8 +701,10 @@ export default function FilesPage() {
                     )}
 
                     <Link
-                      href={`/wiki/${file.slug}`}
-                      className="text-sm text-blue-600 hover:underline mt-1 inline-block"
+                      href={`/wiki/${encodeURIComponent(
+                        file.slug
+                      )}`}
+                      className="text-sm text-indigo-700 hover:underline mt-1 inline-block"
                     >
                       {file.pageTitle ||
                         "Zugehöriges Dokument öffnen"}
