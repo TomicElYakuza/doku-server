@@ -1,11 +1,3 @@
-import {
-  ticketTemplates,
-} from "../data/tickets";
-
-const STORAGE_KEY = "wiki-tickets";
-
-const INIT_KEY = "wiki-tickets-initialized";
-
 export type TicketStatus =
   | "open"
   | "in-progress"
@@ -23,63 +15,210 @@ export type Ticket = {
   title: string;
   description: string;
   company: string;
+  category: string;
+  assignedTo: string;
   status: TicketStatus;
   priority: TicketPriority;
-  category: string;
   createdBy: string;
-  assignedTo: string;
   createdAt: string;
   updatedAt: string;
 };
 
-function normalizeTicket(ticket: any): Ticket {
-  return {
+const STORAGE_KEY =
+  "dms_tickets";
+
+const defaultTickets: Ticket[] = [
+  {
     id:
-      ticket.id || "",
+      "ticket-demo-vpn",
 
     title:
-      ticket.title || "Ohne Titel",
+      "VPN Verbindung funktioniert nicht",
 
     description:
-      ticket.description || "",
+      "Benutzer kann keine VPN-Verbindung herstellen. Bitte VPN-Client, Zugangsdaten und Netzwerk prüfen.",
 
     company:
-      ticket.company || "Intern",
-
-    status:
-      ticket.status || "open",
-
-    priority:
-      ticket.priority || "medium",
+      "Intern",
 
     category:
-      ticket.category || "Allgemein",
-
-    createdBy:
-      ticket.createdBy || "Unbekannt",
+      "IT",
 
     assignedTo:
-      ticket.assignedTo || "",
+      "IT Support",
+
+    status:
+      "open",
+
+    priority:
+      "high",
+
+    createdBy:
+      "System",
 
     createdAt:
-      ticket.createdAt || "",
+      new Date().toLocaleString(),
 
     updatedAt:
-      ticket.updatedAt || "",
-  };
-}
+      new Date().toLocaleString(),
+  },
 
-function normalizeTickets(
-  tickets: any[]
-): Ticket[] {
-  if (!Array.isArray(tickets)) {
-    return [];
+  {
+    id:
+      "ticket-demo-drucker",
+
+    title:
+      "Drucker druckt nicht",
+
+    description:
+      "Druckaufträge bleiben hängen. Druckerstatus, Warteschlange und Treiber prüfen.",
+
+    company:
+      "Intern",
+
+    category:
+      "Support",
+
+    assignedTo:
+      "IT Support",
+
+    status:
+      "in-progress",
+
+    priority:
+      "medium",
+
+    createdBy:
+      "System",
+
+    createdAt:
+      new Date().toLocaleString(),
+
+    updatedAt:
+      new Date().toLocaleString(),
+  },
+];
+
+function dispatchTicketsUpdated() {
+  if (typeof window === "undefined") {
+    return;
   }
 
-  return tickets.map(
-    (ticket) =>
-      normalizeTicket(ticket)
+  window.dispatchEvent(
+    new Event("ticketsUpdated")
   );
+}
+
+function createId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+function normalizeStatus(
+  value: unknown
+): TicketStatus {
+  if (value === "open") {
+    return "open";
+  }
+
+  if (value === "in-progress") {
+    return "in-progress";
+  }
+
+  if (value === "done") {
+    return "done";
+  }
+
+  if (value === "closed") {
+    return "closed";
+  }
+
+  return "open";
+}
+
+function normalizePriority(
+  value: unknown
+): TicketPriority {
+  if (value === "low") {
+    return "low";
+  }
+
+  if (value === "medium") {
+    return "medium";
+  }
+
+  if (value === "high") {
+    return "high";
+  }
+
+  if (value === "urgent") {
+    return "urgent";
+  }
+
+  return "medium";
+}
+
+function normalizeTicket(
+  ticket: Partial<Ticket>
+): Ticket {
+  const now =
+    new Date().toLocaleString();
+
+  return {
+    id:
+      ticket.id ||
+      createId(),
+
+    title:
+      ticket.title ||
+      "Ohne Titel",
+
+    description:
+      ticket.description ||
+      "",
+
+    company:
+      ticket.company ||
+      "Intern",
+
+    category:
+      ticket.category ||
+      "Allgemein",
+
+    assignedTo:
+      ticket.assignedTo ||
+      "",
+
+    status:
+      normalizeStatus(
+        ticket.status
+      ),
+
+    priority:
+      normalizePriority(
+        ticket.priority
+      ),
+
+    createdBy:
+      ticket.createdBy ||
+      "Unbekannt",
+
+    createdAt:
+      ticket.createdAt ||
+      now,
+
+    updatedAt:
+      ticket.updatedAt ||
+      now,
+  };
 }
 
 export function getTickets(): Ticket[] {
@@ -87,46 +226,36 @@ export function getTickets(): Ticket[] {
     return [];
   }
 
-  const initialized =
-    localStorage.getItem(INIT_KEY);
+  const raw =
+    localStorage.getItem(
+      STORAGE_KEY
+    );
 
-  const data =
-    localStorage.getItem(STORAGE_KEY);
-
-  if (!initialized) {
-    const normalizedTemplates =
-      normalizeTickets(
-        ticketTemplates
-      );
-
+  if (!raw) {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(
-        normalizedTemplates
+        defaultTickets
       )
     );
 
-    localStorage.setItem(
-      INIT_KEY,
-      "true"
-    );
-
-    return normalizedTemplates;
-  }
-
-  if (!data) {
-    return [];
+    return defaultTickets;
   }
 
   try {
     const parsed =
-      JSON.parse(data);
+      JSON.parse(raw);
 
     if (!Array.isArray(parsed)) {
       return [];
     }
 
-    return normalizeTickets(parsed);
+    return parsed.map(
+      (ticket) =>
+        normalizeTicket(
+          ticket
+        )
+    );
   } catch {
     return [];
   }
@@ -139,39 +268,46 @@ export function saveTickets(
     return;
   }
 
-  const safeTickets =
-    normalizeTickets(
-      Array.isArray(tickets)
-        ? tickets
-        : []
-    );
-
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(safeTickets)
+    JSON.stringify(
+      tickets
+    )
   );
 
-  localStorage.setItem(
-    INIT_KEY,
-    "true"
-  );
+  dispatchTicketsUpdated();
+}
 
-  window.dispatchEvent(
-    new Event("ticketsUpdated")
+export function resetTickets() {
+  saveTickets(
+    defaultTickets
   );
 }
 
-function createId() {
-  if (
-    typeof crypto !== "undefined" &&
-    "randomUUID" in crypto
-  ) {
-    return crypto.randomUUID();
+export function clearTickets() {
+  if (typeof window === "undefined") {
+    return;
   }
 
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  dispatchTicketsUpdated();
+}
+
+export function getTicketById(
+  id: string
+): Ticket | null {
+  const tickets =
+    getTickets();
+
+  return (
+    tickets.find(
+      (ticket) =>
+        ticket.id === id
+    ) || null
+  );
 }
 
 export function createTicket(
@@ -179,51 +315,26 @@ export function createTicket(
     Ticket,
     "id" | "createdAt" | "updatedAt"
   >
-): Ticket | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
+): Ticket {
   const tickets =
     getTickets();
 
   const now =
     new Date().toLocaleString();
 
-  const newTicket: Ticket = {
-    id:
-      createId(),
+  const newTicket: Ticket =
+    normalizeTicket({
+      ...ticket,
 
-    title:
-      ticket.title || "Ohne Titel",
+      id:
+        createId(),
 
-    description:
-      ticket.description || "",
+      createdAt:
+        now,
 
-    company:
-      ticket.company || "Intern",
-
-    status:
-      ticket.status || "open",
-
-    priority:
-      ticket.priority || "medium",
-
-    category:
-      ticket.category || "Allgemein",
-
-    createdBy:
-      ticket.createdBy || "Unbekannt",
-
-    assignedTo:
-      ticket.assignedTo || "",
-
-    createdAt:
-      now,
-
-    updatedAt:
-      now,
-  };
+      updatedAt:
+        now,
+    });
 
   saveTickets([
     newTicket,
@@ -237,52 +348,48 @@ export function updateTicket(
   id: string,
   updates: Partial<Ticket>
 ): Ticket | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  if (!id) {
-    return null;
-  }
-
   const tickets =
     getTickets();
 
-  let updatedTicket: Ticket | null =
-    null;
+  let updatedTicket:
+    | Ticket
+    | null = null;
 
   const updatedTickets =
-    tickets.map((ticket) => {
-      if (ticket.id !== id) {
-        return ticket;
+    tickets.map(
+      (ticket) => {
+        if (ticket.id !== id) {
+          return ticket;
+        }
+
+        const nextTicket: Ticket =
+          normalizeTicket({
+            ...ticket,
+            ...updates,
+
+            id:
+              ticket.id,
+
+            createdAt:
+              ticket.createdAt,
+
+            createdBy:
+              ticket.createdBy,
+
+            updatedAt:
+              new Date().toLocaleString(),
+          });
+
+        updatedTicket =
+          nextTicket;
+
+        return nextTicket;
       }
+    );
 
-      const nextTicket: Ticket = {
-        ...ticket,
-        ...updates,
-
-        id:
-          ticket.id,
-
-        createdAt:
-          ticket.createdAt,
-
-        company:
-          updates.company ||
-          ticket.company ||
-          "Intern",
-
-        updatedAt:
-          new Date().toLocaleString(),
-      };
-
-      updatedTicket =
-        nextTicket;
-
-      return nextTicket;
-    });
-
-  saveTickets(updatedTickets);
+  saveTickets(
+    updatedTickets
+  );
 
   return updatedTicket;
 }
@@ -290,14 +397,6 @@ export function updateTicket(
 export function deleteTicket(
   id: string
 ) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (!id) {
-    return;
-  }
-
   const tickets =
     getTickets();
 
@@ -307,43 +406,13 @@ export function deleteTicket(
         ticket.id !== id
     );
 
-  saveTickets(updatedTickets);
-}
-
-export function clearTickets() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  localStorage.removeItem(
-    STORAGE_KEY
-  );
-
-  window.dispatchEvent(
-    new Event("ticketsUpdated")
-  );
-}
-
-export function resetTickets() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  localStorage.removeItem(
-    STORAGE_KEY
-  );
-
-  localStorage.removeItem(
-    INIT_KEY
-  );
-
-  window.dispatchEvent(
-    new Event("ticketsUpdated")
+  saveTickets(
+    updatedTickets
   );
 }
 
 export function getStatusLabel(
-  status: string
+  status: TicketStatus | string
 ) {
   if (status === "open") {
     return "Offen";
@@ -365,7 +434,7 @@ export function getStatusLabel(
 }
 
 export function getPriorityLabel(
-  priority: string
+  priority: TicketPriority | string
 ) {
   if (priority === "low") {
     return "Niedrig";
@@ -384,4 +453,82 @@ export function getPriorityLabel(
   }
 
   return "Unbekannt";
+}
+
+export function getStatusOptions(): {
+  value: TicketStatus;
+  label: string;
+}[] {
+  return [
+    {
+      value:
+        "open",
+
+      label:
+        "Offen",
+    },
+
+    {
+      value:
+        "in-progress",
+
+      label:
+        "In Bearbeitung",
+    },
+
+    {
+      value:
+        "done",
+
+      label:
+        "Erledigt",
+    },
+
+    {
+      value:
+        "closed",
+
+      label:
+        "Geschlossen",
+    },
+  ];
+}
+
+export function getPriorityOptions(): {
+  value: TicketPriority;
+  label: string;
+}[] {
+  return [
+    {
+      value:
+        "low",
+
+      label:
+        "Niedrig",
+    },
+
+    {
+      value:
+        "medium",
+
+      label:
+        "Mittel",
+    },
+
+    {
+      value:
+        "high",
+
+      label:
+        "Hoch",
+    },
+
+    {
+      value:
+        "urgent",
+
+      label:
+        "Dringend",
+    },
+  ];
 }

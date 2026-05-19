@@ -40,6 +40,7 @@ import {
   deleteAllTicketComments,
   deleteTicketComment,
   getTicketCommentsByTicketId,
+  updateTicketComment,
 } from "../../../lib/ticketCommentStorage";
 
 import type {
@@ -83,6 +84,12 @@ export default function TicketDetailPage() {
     useState<TicketComment[]>([]);
 
   const [newComment, setNewComment] =
+    useState("");
+
+  const [editingCommentId, setEditingCommentId] =
+    useState("");
+
+  const [editingCommentText, setEditingCommentText] =
     useState("");
 
   const [selectedTemplateId, setSelectedTemplateId] =
@@ -639,6 +646,87 @@ export default function TicketDetailPage() {
       });
 
       setNewComment("");
+
+      loadComments();
+    }
+  }
+
+  function startEditComment(
+    comment: TicketComment
+  ) {
+    if (!canEdit()) {
+      alert(
+        "Du hast keine Berechtigung, Kommentare zu bearbeiten."
+      );
+
+      return;
+    }
+
+    setEditingCommentId(
+      comment.id
+    );
+
+    setEditingCommentText(
+      comment.text
+    );
+  }
+
+  function cancelEditComment() {
+    setEditingCommentId("");
+
+    setEditingCommentText("");
+  }
+
+  function handleUpdateComment(
+    comment: TicketComment
+  ) {
+    if (!ticket) {
+      return;
+    }
+
+    if (!canEdit()) {
+      alert(
+        "Du hast keine Berechtigung, Kommentare zu bearbeiten."
+      );
+
+      return;
+    }
+
+    if (!editingCommentText.trim()) {
+      alert(
+        "Bitte einen Kommentar eingeben."
+      );
+
+      return;
+    }
+
+    const updated =
+      updateTicketComment(
+        ticket.id,
+        comment.id,
+        editingCommentText
+      );
+
+    if (updated) {
+      saveActivity({
+        type: "ticketCommentUpdated",
+
+        title:
+          ticket.title,
+
+        company:
+          ticket.company ||
+          "Intern",
+
+        user:
+          getUser()?.name ||
+          "Unbekannt",
+
+        createdAt:
+          new Date().toLocaleString(),
+      });
+
+      cancelEditComment();
 
       loadComments();
     }
@@ -1326,42 +1414,112 @@ export default function TicketDetailPage() {
           )}
 
           {comments.map(
-            (comment) => (
-              <div
-                key={comment.id}
-                className="border border-zinc-200 rounded-2xl p-5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold">
-                      {comment.author ||
-                        "Unbekannt"}
-                    </p>
+            (comment) => {
+              const isEditingComment =
+                editingCommentId ===
+                comment.id;
 
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {comment.createdAt}
-                    </p>
+              return (
+                <div
+                  key={comment.id}
+                  className="border border-zinc-200 rounded-2xl p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold">
+                        {comment.author ||
+                          "Unbekannt"}
+                      </p>
+
+                      <p className="text-sm text-zinc-500 mt-1">
+                        Erstellt:{" "}
+                        {comment.createdAt}
+                      </p>
+
+                      {comment.updatedAt && (
+                        <p className="text-sm text-zinc-400 mt-1">
+                          Bearbeitet:{" "}
+                          {comment.updatedAt}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 justify-end">
+                      {canEdit() &&
+                        !isEditingComment && (
+                          <button
+                            onClick={() =>
+                              startEditComment(
+                                comment
+                              )
+                            }
+                            className="text-sm bg-zinc-100 text-zinc-700 px-3 py-2 rounded-xl hover:bg-zinc-200 transition"
+                          >
+                            Bearbeiten
+                          </button>
+                        )}
+
+                      {canDelete() &&
+                        !isEditingComment && (
+                          <button
+                            onClick={() =>
+                              handleDeleteComment(
+                                comment
+                              )
+                            }
+                            className="text-sm bg-red-50 text-red-700 px-3 py-2 rounded-xl hover:bg-red-100 transition"
+                          >
+                            Löschen
+                          </button>
+                        )}
+                    </div>
                   </div>
 
-                  {canDelete() && (
-                    <button
-                      onClick={() =>
-                        handleDeleteComment(
-                          comment
-                        )
-                      }
-                      className="text-sm bg-red-50 text-red-700 px-3 py-2 rounded-xl hover:bg-red-100 transition"
-                    >
-                      Löschen
-                    </button>
+                  {!isEditingComment && (
+                    <p className="text-zinc-700 mt-4 whitespace-pre-wrap">
+                      {comment.text}
+                    </p>
+                  )}
+
+                  {isEditingComment && (
+                    <div className="mt-4">
+                      <textarea
+                        value={editingCommentText}
+                        onChange={(event) =>
+                          setEditingCommentText(
+                            event.target.value
+                          )
+                        }
+                        rows={4}
+                        className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                      />
+
+                      <div className="flex flex-wrap gap-3 mt-3">
+                        <button
+                          onClick={() =>
+                            handleUpdateComment(
+                              comment
+                            )
+                          }
+                          className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+                        >
+                          Kommentar speichern
+                        </button>
+
+                        <button
+                          onClick={
+                            cancelEditComment
+                          }
+                          className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                        >
+                          Abbrechen
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                <p className="text-zinc-700 mt-4 whitespace-pre-wrap">
-                  {comment.text}
-                </p>
-              </div>
-            )
+              );
+            }
           )}
         </div>
       </div>

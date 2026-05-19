@@ -4,6 +4,7 @@ export type TicketComment = {
   text: string;
   author: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 const STORAGE_KEY =
@@ -116,6 +117,9 @@ export function addTicketComment(
 
     createdAt:
       new Date().toLocaleString(),
+
+    updatedAt:
+      "",
   };
 
   const currentComments =
@@ -135,6 +139,64 @@ export function addTicketComment(
   );
 
   return newComment;
+}
+
+export function updateTicketComment(
+  ticketId: string,
+  commentId: string,
+  text: string
+): TicketComment | null {
+  if (
+    !ticketId ||
+    !commentId ||
+    !text.trim()
+  ) {
+    return null;
+  }
+
+  const comments =
+    getTicketComments();
+
+  const currentComments =
+    comments[ticketId] || [];
+
+  let updatedComment:
+    | TicketComment
+    | null = null;
+
+  const updatedTicketComments =
+    currentComments.map(
+      (comment) => {
+        if (comment.id !== commentId) {
+          return comment;
+        }
+
+        updatedComment = {
+          ...comment,
+
+          text:
+            text.trim(),
+
+          updatedAt:
+            new Date().toLocaleString(),
+        };
+
+        return updatedComment;
+      }
+    );
+
+  const updatedComments = {
+    ...comments,
+
+    [ticketId]:
+      updatedTicketComments,
+  };
+
+  saveTicketComments(
+    updatedComments
+  );
+
+  return updatedComment;
 }
 
 export function deleteTicketComment(

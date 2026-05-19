@@ -1,355 +1,474 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import {
-  getStoredPages,
-  resetWikiPages,
-} from "../../lib/wikiStorage";
+  useEffect,
+  useState,
+} from "react";
 
-import {
-  getTrashPages,
-  clearTrashPages,
-} from "../../lib/trashStorage";
+type StorageStat = {
+  key: string;
+  label: string;
+  count: number;
+};
 
-import {
-  getFavorites,
-  clearFavorites,
-} from "../../lib/favoritesStorage";
-
-import {
-  getRecentPages,
-  clearRecentPages,
-} from "../../lib/recentStorage";
-
-import {
-  getComments,
-  clearComments,
-} from "../../lib/commentStorage";
-
-import {
-  getFiles,
-  clearFiles,
-} from "../../lib/fileStorage";
-
-import {
-  getVersions,
-  clearVersions,
-} from "../../lib/versionStorage";
-
-import {
-  getActivities,
-  clearActivities,
-} from "../../lib/activityStorage";
-
-import {
-  getTickets,
-  clearTickets,
-  resetTickets,
-} from "../../lib/ticketStorage";
-
-import {
-  clearUser,
-} from "../../lib/userStorage";
+const STORAGE_KEYS = {
+  tickets: "dms_tickets",
+  ticketTemplates: "dms_ticket_templates",
+  ticketComments: "dms_ticket_comments",
+  activities: "dms_activities",
+  user: "dms_user",
+  wikiPages: "dms_wiki_pages",
+  trashPages: "dms_trash_pages",
+  files: "dms_files",
+};
 
 export default function SettingsPage() {
-  const [status, setStatus] =
-    useState("");
+  const [mounted, setMounted] =
+    useState(false);
 
   const [stats, setStats] =
-    useState({
-      pages: 0,
-      trash: 0,
-      favorites: 0,
-      recent: 0,
-      activities: 0,
-      comments: 0,
-      files: 0,
-      versions: 0,
-      tickets: 0,
-    });
+    useState<StorageStat[]>([]);
 
   useEffect(() => {
+    setMounted(true);
+
     loadStats();
 
-    function handleDataUpdated() {
+    function handleStorageUpdate() {
       loadStats();
     }
 
     window.addEventListener(
-      "wikiPagesUpdated",
-      handleDataUpdated
+      "ticketsUpdated",
+      handleStorageUpdate
     );
 
     window.addEventListener(
-      "trashUpdated",
-      handleDataUpdated
+      "ticketTemplatesUpdated",
+      handleStorageUpdate
     );
 
     window.addEventListener(
-      "favoritesUpdated",
-      handleDataUpdated
-    );
-
-    window.addEventListener(
-      "recentUpdated",
-      handleDataUpdated
-    );
-
-    window.addEventListener(
-      "commentsUpdated",
-      handleDataUpdated
-    );
-
-    window.addEventListener(
-      "filesUpdated",
-      handleDataUpdated
-    );
-
-    window.addEventListener(
-      "versionsUpdated",
-      handleDataUpdated
+      "ticketCommentsUpdated",
+      handleStorageUpdate
     );
 
     window.addEventListener(
       "activityUpdated",
-      handleDataUpdated
+      handleStorageUpdate
     );
 
     window.addEventListener(
-      "ticketsUpdated",
-      handleDataUpdated
+      "wikiPagesUpdated",
+      handleStorageUpdate
+    );
+
+    window.addEventListener(
+      "trashUpdated",
+      handleStorageUpdate
     );
 
     return () => {
       window.removeEventListener(
-        "wikiPagesUpdated",
-        handleDataUpdated
+        "ticketsUpdated",
+        handleStorageUpdate
       );
 
       window.removeEventListener(
-        "trashUpdated",
-        handleDataUpdated
+        "ticketTemplatesUpdated",
+        handleStorageUpdate
       );
 
       window.removeEventListener(
-        "favoritesUpdated",
-        handleDataUpdated
-      );
-
-      window.removeEventListener(
-        "recentUpdated",
-        handleDataUpdated
-      );
-
-      window.removeEventListener(
-        "commentsUpdated",
-        handleDataUpdated
-      );
-
-      window.removeEventListener(
-        "filesUpdated",
-        handleDataUpdated
-      );
-
-      window.removeEventListener(
-        "versionsUpdated",
-        handleDataUpdated
+        "ticketCommentsUpdated",
+        handleStorageUpdate
       );
 
       window.removeEventListener(
         "activityUpdated",
-        handleDataUpdated
+        handleStorageUpdate
       );
 
       window.removeEventListener(
-        "ticketsUpdated",
-        handleDataUpdated
+        "wikiPagesUpdated",
+        handleStorageUpdate
+      );
+
+      window.removeEventListener(
+        "trashUpdated",
+        handleStorageUpdate
       );
     };
   }, []);
 
-  function countObjectArrays(data: any) {
-    return (
-      Object.values(data) as any[]
-    ).reduce(
-      (
-        acc: number,
-        current: any
-      ) => {
-        if (Array.isArray(current)) {
-          return acc + current.length;
-        }
+  function getCountFromStorage(
+    key: string
+  ) {
+    if (typeof window === "undefined") {
+      return 0;
+    }
 
-        return acc;
-      },
-      0
-    );
+    const raw =
+      localStorage.getItem(key);
+
+    if (!raw) {
+      return 0;
+    }
+
+    try {
+      const parsed =
+        JSON.parse(raw);
+
+      if (Array.isArray(parsed)) {
+        return parsed.length;
+      }
+
+      if (
+        parsed &&
+        typeof parsed === "object"
+      ) {
+        return Object.values(parsed).reduce(
+          (
+            sum: number,
+            value: any
+          ) => {
+            if (Array.isArray(value)) {
+              return sum + value.length;
+            }
+
+            return sum + 1;
+          },
+          0
+        );
+      }
+
+      return 1;
+    } catch {
+      return 0;
+    }
   }
 
   function loadStats() {
-    const pages =
-      getStoredPages();
+    if (typeof window === "undefined") {
+      return;
+    }
 
-    const trash =
-      getTrashPages();
-
-    const favorites =
-      getFavorites();
-
-    const recent =
-      getRecentPages();
-
-    const activities =
-      getActivities();
-
-    const comments =
-      getComments();
-
-    const files =
-      getFiles();
-
-    const versions =
-      getVersions();
-
-    const tickets =
-      getTickets();
-
-    setStats({
-      pages: pages.length,
-
-      trash: trash.length,
-
-      favorites:
-        favorites.length,
-
-      recent:
-        recent.length,
-
-      activities:
-        activities.length,
-
-      comments:
-        countObjectArrays(
-          comments
+    setStats([
+      {
+        key: STORAGE_KEYS.tickets,
+        label: "Tickets",
+        count: getCountFromStorage(
+          STORAGE_KEYS.tickets
         ),
-
-      files:
-        countObjectArrays(
-          files
+      },
+      {
+        key: STORAGE_KEYS.ticketTemplates,
+        label: "Ticket-Vorlagen",
+        count: getCountFromStorage(
+          STORAGE_KEYS.ticketTemplates
         ),
-
-      versions:
-        countObjectArrays(
-          versions
+      },
+      {
+        key: STORAGE_KEYS.ticketComments,
+        label: "Ticket-Kommentare",
+        count: getCountFromStorage(
+          STORAGE_KEYS.ticketComments
         ),
-
-      tickets:
-        tickets.length,
-    });
+      },
+      {
+        key: STORAGE_KEYS.activities,
+        label: "Aktivitäten",
+        count: getCountFromStorage(
+          STORAGE_KEYS.activities
+        ),
+      },
+      {
+        key: STORAGE_KEYS.wikiPages,
+        label: "Wiki-Dokumente",
+        count: getCountFromStorage(
+          STORAGE_KEYS.wikiPages
+        ),
+      },
+      {
+        key: STORAGE_KEYS.trashPages,
+        label: "Papierkorb",
+        count: getCountFromStorage(
+          STORAGE_KEYS.trashPages
+        ),
+      },
+      {
+        key: STORAGE_KEYS.files,
+        label: "Dateien",
+        count: getCountFromStorage(
+          STORAGE_KEYS.files
+        ),
+      },
+    ]);
   }
 
-  function exportBackup() {
-    const backup = {
-      exportedAt:
-        new Date().toLocaleString(),
+  function dispatchAllUpdates() {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-      user:
-        localStorage.getItem(
-          "wiki-user"
-        ),
+    window.dispatchEvent(
+      new Event("ticketsUpdated")
+    );
 
-      pages:
-        localStorage.getItem(
-          "wiki-pages"
-        ),
+    window.dispatchEvent(
+      new Event("ticketTemplatesUpdated")
+    );
 
-      pagesInitialized:
-        localStorage.getItem(
-          "wiki-pages-initialized"
-        ),
+    window.dispatchEvent(
+      new Event("ticketCommentsUpdated")
+    );
 
-      trash:
-        localStorage.getItem(
-          "wiki-trash"
-        ),
+    window.dispatchEvent(
+      new Event("activityUpdated")
+    );
 
-      favorites:
-        localStorage.getItem(
-          "wiki-favorites"
-        ),
+    window.dispatchEvent(
+      new Event("wikiPagesUpdated")
+    );
 
-      recent:
-        localStorage.getItem(
-          "wiki-recent"
-        ),
+    window.dispatchEvent(
+      new Event("trashUpdated")
+    );
+  }
 
-      versions:
-        localStorage.getItem(
-          "wiki-versions"
-        ),
+  function removeStorageKey(
+    key: string
+  ) {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-      files:
-        localStorage.getItem(
-          "wiki-files"
-        ),
+    localStorage.removeItem(key);
 
-      comments:
-        localStorage.getItem(
-          "wiki-comments"
-        ),
+    dispatchAllUpdates();
 
-      activities:
-        localStorage.getItem(
-          "wiki-activities"
-        ),
+    loadStats();
+  }
 
-      tickets:
-        localStorage.getItem(
-          "wiki-tickets"
-        ),
+  function clearTickets() {
+    const confirmed =
+      confirm(
+        "Alle Tickets löschen? Kommentare zu Tickets bleiben nur erhalten, wenn du sie nicht separat löschst."
+      );
 
-      ticketsInitialized:
-        localStorage.getItem(
-          "wiki-tickets-initialized"
-        ),
-    };
+    if (!confirmed) {
+      return;
+    }
 
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          backup,
-          null,
-          2
-        ),
-      ],
-      {
-        type: "application/json",
+    removeStorageKey(
+      STORAGE_KEYS.tickets
+    );
+  }
+
+  function clearTicketTemplates() {
+    const confirmed =
+      confirm(
+        "Alle Ticket-Vorlagen löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.ticketTemplates
+    );
+  }
+
+  function clearTicketComments() {
+    const confirmed =
+      confirm(
+        "Alle Ticket-Kommentare löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.ticketComments
+    );
+  }
+
+  function clearActivities() {
+    const confirmed =
+      confirm(
+        "Alle Aktivitäten löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.activities
+    );
+  }
+
+  function clearWikiPages() {
+    const confirmed =
+      confirm(
+        "Alle Wiki-Dokumente löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.wikiPages
+    );
+  }
+
+  function clearWikiTrash() {
+    const confirmed =
+      confirm(
+        "Papierkorb leeren?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.trashPages
+    );
+  }
+
+  function clearFiles() {
+    const confirmed =
+      confirm(
+        "Alle gespeicherten Dateien löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.files
+    );
+  }
+
+  function clearUser() {
+    const confirmed =
+      confirm(
+        "Benutzer-Setup zurücksetzen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.user
+    );
+  }
+
+  function clearAllDemoData() {
+    const confirmed =
+      confirm(
+        "Wirklich alle lokalen Demo-Daten löschen? Tickets, Vorlagen, Kommentare, Aktivitäten, Wiki-Daten, Papierkorb, Dateien und Benutzer-Setup werden entfernt."
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    Object.values(
+      STORAGE_KEYS
+    ).forEach(
+      (key) => {
+        localStorage.removeItem(
+          key
+        );
       }
     );
 
+    dispatchAllUpdates();
+
+    loadStats();
+  }
+
+  function exportLocalStorage() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const data: Record<string, string> =
+      {};
+
+    Object.values(
+      STORAGE_KEYS
+    ).forEach(
+      (key) => {
+        const value =
+          localStorage.getItem(
+            key
+          );
+
+        if (value !== null) {
+          data[key] =
+            value;
+        }
+      }
+    );
+
+    const json =
+      JSON.stringify(
+        data,
+        null,
+        2
+      );
+
+    const blob =
+      new Blob(
+        [json],
+        {
+          type: "application/json",
+        }
+      );
+
     const url =
-      URL.createObjectURL(blob);
+      URL.createObjectURL(
+        blob
+      );
 
     const link =
-      document.createElement("a");
+      document.createElement(
+        "a"
+      );
 
-    link.href = url;
+    link.href =
+      url;
 
     link.download =
-      "wiki-backup.json";
+      `dms-export-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
+
+    document.body.appendChild(
+      link
+    );
 
     link.click();
 
-    URL.revokeObjectURL(url);
+    link.remove();
 
-    setStatus(
-      "Backup wurde exportiert."
+    URL.revokeObjectURL(
+      url
     );
   }
 
-  function importBackup(
-    event: any
+  function importLocalStorage(
+    event: React.ChangeEvent<HTMLInputElement>
   ) {
     const file =
       event.target.files?.[0];
@@ -358,325 +477,125 @@ export default function SettingsPage() {
       return;
     }
 
+    const confirmed =
+      confirm(
+        "Import starten? Bestehende lokale Daten mit gleichen Schlüsseln werden überschrieben."
+      );
+
+    if (!confirmed) {
+      event.target.value =
+        "";
+
+      return;
+    }
+
     const reader =
       new FileReader();
 
-    reader.onload = () => {
-      try {
-        const backup = JSON.parse(
-          reader.result as string
-        );
+    reader.onload =
+      () => {
+        try {
+          const result =
+            reader.result;
 
-        if (
-          !backup ||
-          typeof backup !== "object"
-        ) {
-          setStatus(
-            "Ungültige Backup-Datei."
+          if (
+            typeof result !== "string"
+          ) {
+            alert(
+              "Import fehlgeschlagen."
+            );
+
+            return;
+          }
+
+          const parsed =
+            JSON.parse(result);
+
+          if (
+            !parsed ||
+            typeof parsed !== "object" ||
+            Array.isArray(parsed)
+          ) {
+            alert(
+              "Ungültige Import-Datei."
+            );
+
+            return;
+          }
+
+          Object.entries(
+            parsed
+          ).forEach(
+            ([key, value]) => {
+              if (
+                Object.values(
+                  STORAGE_KEYS
+                ).includes(key)
+              ) {
+                localStorage.setItem(
+                  key,
+                  String(value)
+                );
+              }
+            }
           );
 
-          return;
+          dispatchAllUpdates();
+
+          loadStats();
+
+          alert(
+            "Import abgeschlossen."
+          );
+        } catch {
+          alert(
+            "Import fehlgeschlagen. Datei ist kein gültiges JSON."
+          );
+        } finally {
+          event.target.value =
+            "";
         }
+      };
 
-        if (backup.user) {
-          localStorage.setItem(
-            "wiki-user",
-            backup.user
-          );
-        }
-
-        if (backup.pages) {
-          localStorage.setItem(
-            "wiki-pages",
-            backup.pages
-          );
-        }
-
-        if (backup.pagesInitialized) {
-          localStorage.setItem(
-            "wiki-pages-initialized",
-            backup.pagesInitialized
-          );
-        } else if (backup.pages) {
-          localStorage.setItem(
-            "wiki-pages-initialized",
-            "true"
-          );
-        }
-
-        if (backup.trash) {
-          localStorage.setItem(
-            "wiki-trash",
-            backup.trash
-          );
-        }
-
-        if (backup.favorites) {
-          localStorage.setItem(
-            "wiki-favorites",
-            backup.favorites
-          );
-        }
-
-        if (backup.recent) {
-          localStorage.setItem(
-            "wiki-recent",
-            backup.recent
-          );
-        }
-
-        if (backup.versions) {
-          localStorage.setItem(
-            "wiki-versions",
-            backup.versions
-          );
-        }
-
-        if (backup.files) {
-          localStorage.setItem(
-            "wiki-files",
-            backup.files
-          );
-        }
-
-        if (backup.comments) {
-          localStorage.setItem(
-            "wiki-comments",
-            backup.comments
-          );
-        }
-
-        if (backup.activities) {
-          localStorage.setItem(
-            "wiki-activities",
-            backup.activities
-          );
-        }
-
-        if (backup.tickets) {
-          localStorage.setItem(
-            "wiki-tickets",
-            backup.tickets
-          );
-        }
-
-        if (backup.ticketsInitialized) {
-          localStorage.setItem(
-            "wiki-tickets-initialized",
-            backup.ticketsInitialized
-          );
-        } else if (backup.tickets) {
-          localStorage.setItem(
-            "wiki-tickets-initialized",
-            "true"
-          );
-        }
-
-        loadStats();
-
-        window.dispatchEvent(
-          new Event("wikiPagesUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("trashUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("favoritesUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("recentUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("commentsUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("filesUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("versionsUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("activityUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("ticketsUpdated")
-        );
-
-        window.dispatchEvent(
-          new Event("userUpdated")
-        );
-
-        setStatus(
-          "Backup wurde importiert. Seite bitte neu laden."
-        );
-      } catch {
-        setStatus(
-          "Backup konnte nicht gelesen werden."
-        );
-      }
-    };
-
-    reader.readAsText(file);
-  }
-
-  function resetWikiData() {
-    const confirmed = confirm(
-      "Wirklich alle lokalen Wiki-Daten inklusive Tickets löschen?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    resetWikiPages();
-
-    clearTrashPages();
-
-    clearFavorites();
-
-    clearRecentPages();
-
-    clearVersions();
-
-    clearFiles();
-
-    clearComments();
-
-    clearActivities();
-
-    clearTickets();
-
-    loadStats();
-
-    setStatus(
-      "Wiki-Daten und Tickets wurden gelöscht. Beim nächsten Öffnen wird das Wiki wieder initialisiert."
+    reader.readAsText(
+      file
     );
   }
 
-  function resetEverything() {
-    const confirmed = confirm(
-      "Wirklich ALLES löschen, inklusive Benutzer?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearUser();
-
-    resetWikiPages();
-
-    clearTrashPages();
-
-    clearFavorites();
-
-    clearRecentPages();
-
-    clearVersions();
-
-    clearFiles();
-
-    clearComments();
-
-    clearActivities();
-
-    clearTickets();
-
-    localStorage.removeItem(
-      "wiki-tickets-initialized"
-    );
-
-    loadStats();
-
-    setStatus(
-      "Alle lokalen Daten wurden gelöscht."
-    );
-  }
-
-  function clearOnlyTrash() {
-    const confirmed = confirm(
-      "Papierkorb wirklich vollständig leeren?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearTrashPages();
-
-    loadStats();
-
-    setStatus(
-      "Papierkorb wurde geleert."
-    );
-  }
-
-  function clearOnlyActivities() {
-    const confirmed = confirm(
-      "Aktivitäten wirklich löschen?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearActivities();
-
-    loadStats();
-
-    setStatus(
-      "Aktivitäten wurden gelöscht."
-    );
-  }
-
-  function clearOnlyTickets() {
-    const confirmed = confirm(
-      "Tickets wirklich löschen?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearTickets();
-
-    loadStats();
-
-    setStatus(
-      "Tickets wurden gelöscht."
-    );
-  }
-
-  function reloadTicketTemplates() {
-    const confirmed = confirm(
-      "Ticket-Templates wirklich neu laden? Bestehende Tickets werden dadurch ersetzt."
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    resetTickets();
-
-    getTickets();
-
-    loadStats();
-
-    setStatus(
-      "Ticket-Templates wurden neu geladen."
-    );
+  if (!mounted) {
+    return null;
   }
 
   return (
     <div className="space-y-8 max-w-6xl">
+      {/* TOP NAV */}
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          dashboard
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
+        <span className="text-zinc-900">
+          einstellungen
+        </span>
+      </div>
+
+      {/* BACK */}
+      <div>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Dashboard
+        </Link>
+      </div>
+
       {/* HEADER */}
       <div>
         <h1 className="text-4xl font-bold">
@@ -684,218 +603,146 @@ export default function SettingsPage() {
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Backup, lokale Daten und Zurücksetzen
+          Lokale Demo-Daten, Export, Import und Reset verwalten
         </p>
       </div>
 
       {/* STATS */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Lokale Daten
-        </h2>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {stats.map(
+          (item) => (
+            <div
+              key={item.key}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+            >
+              <p className="text-sm text-zinc-500">
+                {item.label}
+              </p>
 
-        <p className="text-zinc-500 mt-2">
-          Übersicht über alle aktuell gespeicherten Browser-Daten.
-        </p>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Dokumente
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.pages}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Papierkorb
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.trash}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Favoriten
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.favorites}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Zuletzt geöffnet
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.recent}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Versionen
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.versions}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Anhänge
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.files}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Kommentare
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.comments}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Aktivitäten
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.activities}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Tickets
-            </p>
-
-            <p className="text-3xl font-bold mt-2">
-              {stats.tickets}
-            </p>
-          </div>
-        </div>
+              <h2 className="text-4xl font-bold mt-3">
+                {item.count}
+              </h2>
+            </div>
+          )
+        )}
       </div>
 
-      {/* BACKUP */}
+      {/* DATA MANAGEMENT */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Backup
+          Datenverwaltung
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Exportiere oder importiere alle lokalen Wiki-Daten inklusive Benutzer, Papierkorb, Versionen, Anhängen, Kommentaren und Tickets.
+          Alle Daten liegen aktuell lokal im Browser-Storage.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
           <button
-            onClick={exportBackup}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            onClick={exportLocalStorage}
+            className="bg-zinc-900 text-white px-5 py-4 rounded-2xl hover:bg-zinc-700 transition text-left"
           >
-            Backup exportieren
+            Lokale Daten exportieren
           </button>
 
-          <label className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition cursor-pointer">
-            Backup importieren
-
+          <label className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-zinc-100 transition cursor-pointer text-left">
+            Lokale Daten importieren
             <input
               type="file"
               accept="application/json"
-              onChange={importBackup}
+              onChange={importLocalStorage}
               className="hidden"
             />
           </label>
         </div>
       </div>
 
-      {/* SINGLE ACTIONS */}
+      {/* RESET SECTIONS */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
           Einzelne Bereiche löschen
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Lösche gezielt einzelne lokale Bereiche.
+          Damit kannst du gezielt einzelne lokale Bereiche zurücksetzen.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <button
-            onClick={clearOnlyTrash}
-            className="bg-white border border-red-200 text-red-600 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
-          >
-            Papierkorb leeren
-          </button>
-
-          <button
-            onClick={clearOnlyActivities}
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Aktivitäten löschen
-          </button>
-
-          <button
-            onClick={clearOnlyTickets}
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            onClick={clearTickets}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
           >
             Tickets löschen
           </button>
 
           <button
-            onClick={reloadTicketTemplates}
-            className="bg-white border border-blue-200 text-blue-700 px-5 py-3 rounded-2xl hover:bg-blue-50 transition"
+            onClick={clearTicketTemplates}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
           >
-            Ticket-Templates neu laden
+            Ticket-Vorlagen löschen
+          </button>
+
+          <button
+            onClick={clearTicketComments}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Ticket-Kommentare löschen
+          </button>
+
+          <button
+            onClick={clearActivities}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Aktivitäten löschen
+          </button>
+
+          <button
+            onClick={clearWikiPages}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Wiki-Dokumente löschen
+          </button>
+
+          <button
+            onClick={clearWikiTrash}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Papierkorb leeren
+          </button>
+
+          <button
+            onClick={clearFiles}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Dateien löschen
+          </button>
+
+          <button
+            onClick={clearUser}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            Benutzer-Setup löschen
           </button>
         </div>
       </div>
 
-      {/* RESET */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Daten zurücksetzen
+      {/* DANGER */}
+      <div className="bg-red-50 border border-red-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold text-red-800">
+          Gefahrenbereich
         </h2>
 
-        <p className="text-zinc-500 mt-2">
-          Entfernt lokale Demo-Daten aus dem Browser.
+        <p className="text-red-700 mt-2">
+          Diese Aktion löscht alle lokalen Demo-Daten dieses Browsers.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-4">
-          <button
-            onClick={resetWikiData}
-            className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
-          >
-            Wiki-Daten & Tickets löschen
-          </button>
-
-          <button
-            onClick={resetEverything}
-            className="bg-red-900 text-white px-5 py-3 rounded-2xl hover:bg-red-800 transition"
-          >
-            Alles löschen
-          </button>
-        </div>
+        <button
+          onClick={clearAllDemoData}
+          className="mt-6 bg-red-600 text-white px-6 py-4 rounded-2xl hover:bg-red-500 transition"
+        >
+          Alle lokalen Demo-Daten löschen
+        </button>
       </div>
-
-      {/* STATUS */}
-      {status && (
-        <div className="bg-zinc-900 text-white rounded-2xl p-5">
-          {status}
-        </div>
-      )}
     </div>
   );
 }

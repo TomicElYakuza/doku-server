@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Link from "next/link";
+
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   getUser,
   saveUser,
-  clearUser,
 } from "../../lib/userStorage";
+
+import type {
+  User,
+  UserRole,
+} from "../../lib/userStorage";
+
+import {
+  getRoleLabel,
+} from "../../lib/permissions";
 
 export default function SetupPage() {
   const [mounted, setMounted] =
@@ -17,26 +28,59 @@ export default function SetupPage() {
   const [name, setName] =
     useState("");
 
-  const [role, setRole] =
-    useState("viewer");
-
-  const [status, setStatus] =
+  const [email, setEmail] =
     useState("");
+
+  const [role, setRole] =
+    useState<UserRole>("admin");
+
+  const [currentUser, setCurrentUser] =
+    useState<User | null>(null);
 
   useEffect(() => {
     setMounted(true);
 
+    loadUser();
+
+    function handleUserUpdated() {
+      loadUser();
+    }
+
+    window.addEventListener(
+      "userUpdated",
+      handleUserUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "userUpdated",
+        handleUserUpdated
+      );
+    };
+  }, []);
+
+  function loadUser() {
     const user =
       getUser();
 
-    if (user) {
-      setName(user.name || "");
+    setCurrentUser(
+      user
+    );
 
-      setRole(user.role || "viewer");
-    }
-  }, []);
+    setName(
+      user?.name || "Admin"
+    );
 
-  function handleSave() {
+    setEmail(
+      user?.email || "admin@local"
+    );
+
+    setRole(
+      user?.role || "admin"
+    );
+  }
+
+  function handleSaveUser() {
     if (!name.trim()) {
       alert(
         "Bitte einen Namen eingeben."
@@ -45,39 +89,73 @@ export default function SetupPage() {
       return;
     }
 
-    const user = {
-      name: name.trim(),
+    if (!email.trim()) {
+      alert(
+        "Bitte eine E-Mail-Adresse eingeben."
+      );
 
-      role,
+      return;
+    }
 
-      updatedAt:
-        new Date().toLocaleString(),
-    };
+    const savedUser =
+      saveUser({
+        name:
+          name.trim(),
 
-    saveUser(user);
+        email:
+          email.trim(),
 
-    setStatus(
+        role,
+      });
+
+    setCurrentUser(
+      savedUser || null
+    );
+
+    alert(
       "Benutzer wurde gespeichert."
     );
   }
 
-  function handleDeleteUser() {
-    const confirmed = confirm(
-      "Benutzer wirklich entfernen?"
+  function setDemoAdmin() {
+    setName(
+      "Admin"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    setEmail(
+      "admin@local"
+    );
 
-    clearUser();
+    setRole(
+      "admin"
+    );
+  }
 
-    setName("");
+  function setDemoEditor() {
+    setName(
+      "Editor"
+    );
 
-    setRole("viewer");
+    setEmail(
+      "editor@local"
+    );
 
-    setStatus(
-      "Benutzer wurde entfernt."
+    setRole(
+      "editor"
+    );
+  }
+
+  function setDemoViewer() {
+    setName(
+      "Viewer"
+    );
+
+    setEmail(
+      "viewer@local"
+    );
+
+    setRole(
+      "viewer"
     );
   }
 
@@ -86,7 +164,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-8 max-w-5xl">
       {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
@@ -101,7 +179,7 @@ export default function SetupPage() {
         </span>
 
         <span className="text-zinc-900">
-          benutzer setup
+          setup
         </span>
       </div>
 
@@ -122,17 +200,70 @@ export default function SetupPage() {
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Lege fest, welcher Benutzer gerade mit dem lokalen Demo-System arbeitet.
+          Lokalen Demo-Benutzer und Rolle festlegen
         </p>
+      </div>
+
+      {/* CURRENT USER */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Aktueller Benutzer
+        </h2>
+
+        {!currentUser && (
+          <p className="text-zinc-500 mt-4">
+            Kein Benutzer geladen.
+          </p>
+        )}
+
+        {currentUser && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Name
+              </p>
+
+              <p className="font-semibold mt-1">
+                {currentUser.name}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                E-Mail
+              </p>
+
+              <p className="font-semibold mt-1">
+                {currentUser.email}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Rolle
+              </p>
+
+              <p className="font-semibold mt-1">
+                {getRoleLabel(
+                  currentUser.role
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* FORM */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Benutzer
+          Benutzer bearbeiten
         </h2>
 
-        <div className="space-y-6 mt-6">
+        <p className="text-zinc-500 mt-2">
+          Diese Demo-Version speichert den Benutzer lokal im Browser. Später kann das an ein echtes Login-System und eine Datenbank angebunden werden.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
           <div>
             <label className="block mb-2 font-medium">
               Name
@@ -146,12 +277,30 @@ export default function SetupPage() {
                   event.target.value
                 )
               }
-              placeholder="Thomas Hörth"
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Name"
             />
           </div>
 
           <div>
+            <label className="block mb-2 font-medium">
+              E-Mail
+            </label>
+
+            <input
+              type="email"
+              value={email}
+              onChange={(event) =>
+                setEmail(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="email@firma.at"
+            />
+          </div>
+
+          <div className="md:col-span-2">
             <label className="block mb-2 font-medium">
               Rolle
             </label>
@@ -160,82 +309,133 @@ export default function SetupPage() {
               value={role}
               onChange={(event) =>
                 setRole(
-                  event.target.value
+                  event.target.value as UserRole
                 )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
             >
-              <option value="viewer">
-                Viewer
+              <option value="admin">
+                Administrator
               </option>
 
               <option value="editor">
-                Editor
+                Bearbeiter
               </option>
 
-              <option value="admin">
-                Admin
+              <option value="viewer">
+                Leser
               </option>
             </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mt-6">
+          <button
+            onClick={handleSaveUser}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Benutzer speichern
+          </button>
+
+          <button
+            onClick={loadUser}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Aktuelle Daten neu laden
+          </button>
+        </div>
+      </div>
+
+      {/* ROLE SHORTCUTS */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Demo-Rollen
+        </h2>
+
+        <p className="text-zinc-500 mt-2">
+          Schnell zwischen Rollen wechseln und danach speichern.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <button
+            onClick={setDemoAdmin}
+            className="bg-zinc-900 text-white px-5 py-4 rounded-2xl hover:bg-zinc-700 transition text-left"
+          >
+            <p className="font-semibold">
+              Admin
+            </p>
+
+            <p className="text-sm text-zinc-300 mt-1">
+              Darf alles sehen, erstellen, bearbeiten und löschen.
+            </p>
+          </button>
+
+          <button
+            onClick={setDemoEditor}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-zinc-100 transition text-left"
+          >
+            <p className="font-semibold">
+              Editor
+            </p>
+
+            <p className="text-sm text-zinc-500 mt-1">
+              Darf Inhalte erstellen und bearbeiten, aber nicht alles löschen.
+            </p>
+          </button>
+
+          <button
+            onClick={setDemoViewer}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-zinc-100 transition text-left"
+          >
+            <p className="font-semibold">
+              Viewer
+            </p>
+
+            <p className="text-sm text-zinc-500 mt-1">
+              Darf Inhalte ansehen, aber nicht ändern.
+            </p>
+          </button>
+        </div>
+      </div>
+
+      {/* PERMISSIONS INFO */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Rollenübersicht
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <h3 className="font-semibold">
+              Administrator
+            </h3>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Viewer kann lesen und kommentieren. Editor kann zusätzlich bearbeiten. Admin kann zusätzlich löschen und den Papierkorb verwalten.
+              Vollzugriff auf Wiki, Tickets, Vorlagen, Aktivitäten, Einstellungen und später Admin-Dashboard.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleSave}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Benutzer speichern
-            </button>
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <h3 className="font-semibold">
+              Bearbeiter
+            </h3>
 
-            <button
-              onClick={handleDeleteUser}
-              className="bg-white border border-red-200 text-red-600 px-6 py-4 rounded-2xl hover:bg-red-50 transition"
-            >
-              Benutzer entfernen
-            </button>
+            <p className="text-sm text-zinc-500 mt-2">
+              Kann Inhalte erstellen und bearbeiten. Lösch- und Admin-Funktionen sind eingeschränkt.
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <h3 className="font-semibold">
+              Leser
+            </h3>
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Nur Lesezugriff. Keine Bearbeitung, keine Kommentare, keine Löschaktionen.
+            </p>
           </div>
         </div>
       </div>
-
-      {/* CURRENT */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Aktueller Zustand
-        </h2>
-
-        {name ? (
-          <div className="mt-6 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-zinc-900 text-white flex items-center justify-center font-semibold">
-              {name.charAt(0)}
-            </div>
-
-            <div>
-              <p className="font-medium">
-                {name}
-              </p>
-
-              <p className="text-sm text-zinc-500 capitalize">
-                {role}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-zinc-500 mt-4">
-            Kein Benutzer eingerichtet.
-          </p>
-        )}
-      </div>
-
-      {/* STATUS */}
-      {status && (
-        <div className="bg-zinc-900 text-white rounded-2xl p-5">
-          {status}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,134 +1,155 @@
-const STORAGE_KEY = "wiki-activities";
+export type ActivityType =
+  | "created"
+  | "edited"
+  | "deleted"
+  | "deletedForever"
+  | "restored"
+  | "uploaded"
+  | "fileDeleted"
+  | "commented"
+  | "commentDeleted"
+  | "ticketCreated"
+  | "ticketUpdated"
+  | "ticketDeleted"
+  | "ticketCommented"
+  | "ticketCommentUpdated"
+  | "ticketCommentDeleted"
+  | "ticketTemplateCreated"
+  | "ticketTemplateUpdated"
+  | "ticketTemplateDeleted"
+  | "ticketTemplateReset";
 
-const MAX_ACTIVITIES = 100;
+export type Activity = {
+  id?: string;
+  type: ActivityType | string;
+  title: string;
+  company?: string;
+  user?: string;
+  createdAt: string;
+};
 
-export function getActivities() {
-  if (typeof window === "undefined") {
-    return [];
-  }
+const STORAGE_KEY =
+  "dms_activities";
 
-  const data =
-    localStorage.getItem(STORAGE_KEY);
-
-  if (!data) {
-    return [];
-  }
-
-  try {
-    const parsed =
-      JSON.parse(data);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.map(
-      (activity: any) => ({
-        type:
-          activity.type || "unknown",
-
-        title:
-          activity.title || "Ohne Titel",
-
-        company:
-          activity.company || "Intern",
-
-        user:
-          activity.user || "Unbekannt",
-
-        createdAt:
-          activity.createdAt || "",
-      })
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function saveActivities(
-  activities: any[]
-) {
+function dispatchActivityUpdated() {
   if (typeof window === "undefined") {
     return;
   }
-
-  const safeActivities =
-    Array.isArray(activities)
-      ? activities.map(
-          (activity: any) => ({
-            type:
-              activity.type || "unknown",
-
-            title:
-              activity.title || "Ohne Titel",
-
-            company:
-              activity.company || "Intern",
-
-            user:
-              activity.user || "Unbekannt",
-
-            createdAt:
-              activity.createdAt ||
-              new Date().toLocaleString(),
-          })
-        )
-      : [];
-
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(
-      safeActivities.slice(
-        0,
-        MAX_ACTIVITIES
-      )
-    )
-  );
 
   window.dispatchEvent(
     new Event("activityUpdated")
   );
 }
 
-export function saveActivity(
-  activity: any
+function createId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+export function getActivities(): Activity[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const raw =
+    localStorage.getItem(
+      STORAGE_KEY
+    );
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed =
+      JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+export function saveActivities(
+  activities: Activity[]
 ) {
   if (typeof window === "undefined") {
     return;
   }
 
-  if (!activity) {
-    return;
-  }
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      activities
+    )
+  );
 
+  dispatchActivityUpdated();
+}
+
+export function saveActivity(
+  activity: Activity
+) {
   const activities =
     getActivities();
 
-  const newActivity = {
+  const nextActivity: Activity = {
+    id:
+      activity.id ||
+      createId(),
+
     type:
-      activity.type || "unknown",
+      activity.type ||
+      "edited",
 
     title:
-      activity.title || "Ohne Titel",
+      activity.title ||
+      "Ohne Titel",
 
     company:
-      activity.company || "Intern",
+      activity.company ||
+      "Intern",
 
     user:
-      activity.user || "Unbekannt",
+      activity.user ||
+      "Unbekannt",
 
     createdAt:
       activity.createdAt ||
       new Date().toLocaleString(),
   };
 
-  const updatedActivities = [
-    newActivity,
+  saveActivities([
+    nextActivity,
     ...activities,
-  ].slice(
-    0,
-    MAX_ACTIVITIES
-  );
+  ]);
+
+  return nextActivity;
+}
+
+export function deleteActivity(
+  id: string
+) {
+  const activities =
+    getActivities();
+
+  const updatedActivities =
+    activities.filter(
+      (activity) =>
+        activity.id !== id
+    );
 
   saveActivities(
     updatedActivities
@@ -136,15 +157,5 @@ export function saveActivity(
 }
 
 export function clearActivities() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  localStorage.removeItem(
-    STORAGE_KEY
-  );
-
-  window.dispatchEvent(
-    new Event("activityUpdated")
-  );
+  saveActivities([]);
 }

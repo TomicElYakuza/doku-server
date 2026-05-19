@@ -239,6 +239,10 @@ export default function HomePage() {
       return "Ticket-Kommentar hinzugefügt";
     }
 
+    if (type === "ticketCommentUpdated") {
+      return "Ticket-Kommentar bearbeitet";
+    }
+
     if (type === "ticketCommentDeleted") {
       return "Ticket-Kommentar gelöscht";
     }
@@ -315,6 +319,10 @@ export default function HomePage() {
       return "💬";
     }
 
+    if (type === "ticketCommentUpdated") {
+      return "✏️";
+    }
+
     if (type === "ticketCommentDeleted") {
       return "🧹";
     }
@@ -385,7 +393,8 @@ export default function HomePage() {
       pages
         .map(
           (page: any) =>
-            page.company || "Intern"
+            page.company ||
+            "Intern"
         )
         .filter(Boolean)
     ),
@@ -447,12 +456,11 @@ export default function HomePage() {
         ticket.priority === "urgent"
     );
 
-  const latestTickets = [
-    ...tickets,
-  ].slice(
-    0,
-    5
-  );
+  const latestTickets =
+    [...tickets].slice(
+      0,
+      5
+    );
 
   const totalCommentCount =
     Object.values(

@@ -196,6 +196,10 @@ export default function ActivityPage() {
       return "Ticket-Kommentar hinzugefügt";
     }
 
+    if (type === "ticketCommentUpdated") {
+      return "Ticket-Kommentar bearbeitet";
+    }
+
     if (type === "ticketCommentDeleted") {
       return "Ticket-Kommentar gelöscht";
     }
@@ -270,6 +274,10 @@ export default function ActivityPage() {
 
     if (type === "ticketCommented") {
       return "💬";
+    }
+
+    if (type === "ticketCommentUpdated") {
+      return "✏️";
     }
 
     if (type === "ticketCommentDeleted") {

@@ -1,20 +1,95 @@
-const STORAGE_KEY = "wiki-user";
+export type UserRole =
+  | "admin"
+  | "editor"
+  | "viewer";
 
-export function getUser() {
+export type User = {
+  name: string;
+  email: string;
+  role: UserRole;
+};
+
+const STORAGE_KEY =
+  "dms_user";
+
+function dispatchUserUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event("userUpdated")
+  );
+}
+
+function normalizeRole(
+  value: unknown
+): UserRole {
+  if (value === "admin") {
+    return "admin";
+  }
+
+  if (value === "editor") {
+    return "editor";
+  }
+
+  if (value === "viewer") {
+    return "viewer";
+  }
+
+  return "admin";
+}
+
+function normalizeUser(
+  user: Partial<User>
+): User {
+  return {
+    name:
+      user.name ||
+      "Admin",
+
+    email:
+      user.email ||
+      "admin@local",
+
+    role:
+      normalizeRole(
+        user.role
+      ),
+  };
+}
+
+export function getUser(): User | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const data =
-    localStorage.getItem(STORAGE_KEY);
+  const raw =
+    localStorage.getItem(
+      STORAGE_KEY
+    );
 
-  if (!data) {
-    return null;
+  if (!raw) {
+    const defaultUser =
+      normalizeUser({
+        name: "Admin",
+        email: "admin@local",
+        role: "admin",
+      });
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        defaultUser
+      )
+    );
+
+    return defaultUser;
   }
 
   try {
     const parsed =
-      JSON.parse(data);
+      JSON.parse(raw);
 
     if (
       !parsed ||
@@ -24,45 +99,55 @@ export function getUser() {
       return null;
     }
 
-    return parsed;
+    return normalizeUser(
+      parsed
+    );
   } catch {
     return null;
   }
 }
 
-export function saveUser(user: any) {
+export function saveUser(
+  user: User
+) {
   if (typeof window === "undefined") {
     return;
   }
 
-  if (
-    !user ||
-    typeof user !== "object" ||
-    Array.isArray(user)
-  ) {
-    return;
-  }
-
-  const safeUser = {
-    name:
-      user.name || "Unbekannt",
-
-    role:
-      user.role || "viewer",
-
-    updatedAt:
-      user.updatedAt ||
-      new Date().toLocaleString(),
-  };
+  const normalizedUser =
+    normalizeUser(
+      user
+    );
 
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(safeUser)
+    JSON.stringify(
+      normalizedUser
+    )
   );
 
-  window.dispatchEvent(
-    new Event("userUpdated")
+  dispatchUserUpdated();
+
+  return normalizedUser;
+}
+
+export function updateUser(
+  updates: Partial<User>
+) {
+  const currentUser =
+    getUser();
+
+  const updatedUser =
+    normalizeUser({
+      ...(currentUser || {}),
+      ...updates,
+    });
+
+  saveUser(
+    updatedUser
   );
+
+  return updatedUser;
 }
 
 export function clearUser() {
@@ -74,7 +159,30 @@ export function clearUser() {
     STORAGE_KEY
   );
 
-  window.dispatchEvent(
-    new Event("userUpdated")
+  dispatchUserUpdated();
+}
+
+export function getUserRole(): UserRole {
+  const user =
+    getUser();
+
+  return user?.role || "admin";
+}
+
+export function isAdmin() {
+  return getUserRole() === "admin";
+}
+
+export function isEditor() {
+  const role =
+    getUserRole();
+
+  return (
+    role === "admin" ||
+    role === "editor"
   );
+}
+
+export function isViewer() {
+  return getUserRole() === "viewer";
 }

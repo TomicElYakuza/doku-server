@@ -735,6 +735,21 @@ export default function TicketsPage() {
     return "bg-zinc-100 text-zinc-700";
   }
 
+  function getLocalComments(
+    ticketId: string
+  ) {
+    if (
+      comments[ticketId] &&
+      Array.isArray(
+        comments[ticketId]
+      )
+    ) {
+      return comments[ticketId];
+    }
+
+    return [];
+  }
+
   function getLocalCommentCount(
     ticketId: string
   ) {
@@ -775,6 +790,25 @@ export default function TicketsPage() {
             ticket.id
           );
 
+        const ticketComments =
+          getLocalComments(
+            ticket.id
+          );
+
+        const matchesCommentText =
+          ticketComments.some(
+            (comment: any) =>
+              comment.text
+                ?.toLowerCase()
+                .includes(query) ||
+              comment.author
+                ?.toLowerCase()
+                .includes(query) ||
+              comment.createdAt
+                ?.toLowerCase()
+                .includes(query)
+          );
+
         const matchesSearch =
           ticket.title
             ?.toLowerCase()
@@ -799,7 +833,8 @@ export default function TicketsPage() {
           ) ||
           `${commentCount} kommentar`.includes(
             query
-          );
+          ) ||
+          matchesCommentText;
 
         const matchesCompany =
           !companyFilter ||
@@ -1277,7 +1312,7 @@ export default function TicketsPage() {
                 priorityFilter
               );
             }}
-            placeholder="Tickets, Firmen, Kategorien, Kommentare oder Personen suchen..."
+            placeholder="Tickets, Kommentare, Firmen, Kategorien oder Personen suchen..."
             className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
