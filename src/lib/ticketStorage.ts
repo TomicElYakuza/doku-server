@@ -18,17 +18,13 @@ export type Ticket = {
   status: TicketStatus;
   priority: TicketPriority;
   category: string;
-
   companyId?: string;
   departmentId?: string;
   company?: string;
   department?: string;
-
   assignedTo?: string;
   createdBy?: string;
-
   tags?: string[];
-
   createdAt: string;
   updatedAt: string;
 };
@@ -46,13 +42,13 @@ const STORAGE_KEY =
 const defaultTickets: Ticket[] = [
   {
     id:
-      "ticket-demo-1",
+      "1",
 
     title:
       "Netzwerkdrucker funktioniert nicht",
 
     description:
-      "Der Drucker im Office ist nicht erreichbar. Bitte Netzwerkverbindung und Treiber prüfen.",
+      "Der Drucker im Office ist nicht erreichbar.\nBitte Netzwerkverbindung und Treiber prüfen.",
 
     status:
       "open",
@@ -93,10 +89,9 @@ const defaultTickets: Ticket[] = [
     updatedAt:
       new Date().toLocaleString(),
   },
-
   {
     id:
-      "ticket-demo-2",
+      "2",
 
     title:
       "Neue Benutzerberechtigung anlegen",
@@ -143,10 +138,9 @@ const defaultTickets: Ticket[] = [
     updatedAt:
       new Date().toLocaleString(),
   },
-
   {
     id:
-      "ticket-demo-3",
+      "3",
 
     title:
       "Wiki-Dokumentation aktualisieren",
@@ -201,21 +195,58 @@ function dispatchTicketsUpdated() {
   }
 
   window.dispatchEvent(
-    new Event("ticketsUpdated")
+    new Event(
+      "ticketsUpdated"
+    )
+  );
+
+  window.dispatchEvent(
+    new Event(
+      "dataUpdated"
+    )
   );
 }
 
-function createId() {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
+function isNumericId(
+  value: unknown
+) {
+  return /^[0-9]+$/.test(
+    String(
+      value || ""
+    )
+  );
+}
+
+function getNumericIdValue(
+  value: unknown
+) {
+  if (!isNumericId(value)) {
+    return 0;
   }
 
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  return Number(
+    value
+  );
+}
+
+function getNextNumericTicketId(
+  tickets: Ticket[]
+) {
+  const maxId =
+    tickets.reduce(
+      (max, ticket) =>
+        Math.max(
+          max,
+          getNumericIdValue(
+            ticket.id
+          )
+        ),
+      0
+    );
+
+  return String(
+    maxId + 1
+  );
 }
 
 function normalizeStatus(
@@ -286,10 +317,12 @@ function normalizeOrganizationReference(
 ): OrganizationReference {
   return {
     companyId:
-      reference.companyId || "",
+      reference.companyId ||
+      "",
 
     departmentId:
-      reference.departmentId || "",
+      reference.departmentId ||
+      "",
 
     company:
       reference.company ||
@@ -302,7 +335,8 @@ function normalizeOrganizationReference(
 }
 
 function normalizeTicket(
-  ticket: Partial<Ticket>
+  ticket: Partial<Ticket>,
+  fallbackId = ""
 ): Ticket {
   const now =
     new Date().toLocaleString();
@@ -324,8 +358,11 @@ function normalizeTicket(
 
   return {
     id:
-      ticket.id ||
-      createId(),
+      String(
+        ticket.id ||
+        fallbackId ||
+        ""
+      ),
 
     title:
       ticket.title ||
@@ -384,7 +421,62 @@ function normalizeTicket(
   };
 }
 
-export function getTickets(): Ticket[] {
+function normalizeTicketList(
+  tickets: Partial<Ticket>[]
+): Ticket[] {
+  const usedIds =
+    new Set<string>();
+
+  let nextId =
+    1;
+
+  return tickets.map(
+    (ticket) => {
+      let id =
+        String(
+          ticket.id ||
+          ""
+        );
+
+      if (
+        !isNumericId(id) ||
+        usedIds.has(id)
+      ) {
+        while (
+          usedIds.has(
+            String(nextId)
+          )
+        ) {
+          nextId += 1;
+        }
+
+        id =
+          String(nextId);
+      }
+
+      usedIds.add(
+        id
+      );
+
+      nextId =
+        Math.max(
+          nextId,
+          getNumericIdValue(id) + 1
+        );
+
+      return normalizeTicket(
+        {
+          ...ticket,
+
+          id,
+        },
+        id
+      );
+    }
+  );
+}
+
+function readRawTickets(): Partial<Ticket>[] {
   if (typeof window === "undefined") {
     return [];
   }
@@ -402,31 +494,54 @@ export function getTickets(): Ticket[] {
       )
     );
 
-    return defaultTickets.map(
-      (ticket) =>
-        normalizeTicket(
-          ticket
-        )
-    );
+    return defaultTickets;
   }
 
   try {
     const parsed =
-      JSON.parse(raw);
+      JSON.parse(
+        raw
+      );
 
     if (!Array.isArray(parsed)) {
       return [];
     }
 
-    return parsed.map(
-      (ticket) =>
-        normalizeTicket(
-          ticket
-        )
-    );
+    return parsed;
   } catch {
     return [];
   }
+}
+
+export function getTickets(): Ticket[] {
+  const rawTickets =
+    readRawTickets();
+
+  const normalizedTickets =
+    normalizeTicketList(
+      rawTickets
+    );
+
+  if (typeof window !== "undefined") {
+    const raw =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
+    const nextRaw =
+      JSON.stringify(
+        normalizedTickets
+      );
+
+    if (raw !== nextRaw) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        nextRaw
+      );
+    }
+  }
+
+  return normalizedTickets;
 }
 
 export function saveTickets(
@@ -437,11 +552,8 @@ export function saveTickets(
   }
 
   const normalizedTickets =
-    tickets.map(
-      (ticket) =>
-        normalizeTicket(
-          ticket
-        )
+    normalizeTicketList(
+      tickets
     );
 
   localStorage.setItem(
@@ -500,7 +612,9 @@ export function createTicket(
       ...ticket,
 
       id:
-        createId(),
+        getNextNumericTicketId(
+          tickets
+        ),
 
       createdAt:
         now,
@@ -526,7 +640,8 @@ export function updateTicket(
 
   let updatedTicket:
     | Ticket
-    | null = null;
+    | null =
+    null;
 
   const updatedTickets =
     tickets.map(

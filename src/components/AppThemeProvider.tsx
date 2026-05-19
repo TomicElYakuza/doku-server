@@ -30,53 +30,131 @@ type AccentColors = {
 };
 
 const accentColors: Record<AppAccentColor, AccentColors> = {
-  zinc: {
-    primary: "#18181b",
-    primaryHover: "#27272a",
-    soft: "#f4f4f5",
-    border: "#e4e4e7",
-    text: "#18181b",
-  },
+  zinc:
+    {
+      primary:
+        "#18181b",
 
-  blue: {
-    primary: "#2563eb",
-    primaryHover: "#1d4ed8",
-    soft: "#eff6ff",
-    border: "#bfdbfe",
-    text: "#1d4ed8",
-  },
+      primaryHover:
+        "#27272a",
 
-  indigo: {
-    primary: "#4f46e5",
-    primaryHover: "#4338ca",
-    soft: "#eef2ff",
-    border: "#c7d2fe",
-    text: "#4338ca",
-  },
+      soft:
+        "#f4f4f5",
 
-  emerald: {
-    primary: "#059669",
-    primaryHover: "#047857",
-    soft: "#ecfdf5",
-    border: "#a7f3d0",
-    text: "#047857",
-  },
+      border:
+        "#e4e4e7",
 
-  red: {
-    primary: "#dc2626",
-    primaryHover: "#b91c1c",
-    soft: "#fef2f2",
-    border: "#fecaca",
-    text: "#b91c1c",
-  },
+      text:
+        "#18181b",
+    },
 
-  orange: {
-    primary: "#ea580c",
-    primaryHover: "#c2410c",
-    soft: "#fff7ed",
-    border: "#fed7aa",
-    text: "#c2410c",
-  },
+  blue:
+    {
+      primary:
+        "#2563eb",
+
+      primaryHover:
+        "#1d4ed8",
+
+      soft:
+        "#eff6ff",
+
+      border:
+        "#bfdbfe",
+
+      text:
+        "#1d4ed8",
+    },
+
+  indigo:
+    {
+      primary:
+        "#4f46e5",
+
+      primaryHover:
+        "#4338ca",
+
+      soft:
+        "#eef2ff",
+
+      border:
+        "#c7d2fe",
+
+      text:
+        "#4338ca",
+    },
+
+  emerald:
+    {
+      primary:
+        "#059669",
+
+      primaryHover:
+        "#047857",
+
+      soft:
+        "#ecfdf5",
+
+      border:
+        "#a7f3d0",
+
+      text:
+        "#047857",
+    },
+
+  amber:
+    {
+      primary:
+        "#d97706",
+
+      primaryHover:
+        "#b45309",
+
+      soft:
+        "#fffbeb",
+
+      border:
+        "#fde68a",
+
+      text:
+        "#b45309",
+    },
+
+  orange:
+    {
+      primary:
+        "#ea580c",
+
+      primaryHover:
+        "#c2410c",
+
+      soft:
+        "#fff7ed",
+
+      border:
+        "#fed7aa",
+
+      text:
+        "#c2410c",
+    },
+
+  red:
+    {
+      primary:
+        "#dc2626",
+
+      primaryHover:
+        "#b91c1c",
+
+      soft:
+        "#fef2f2",
+
+      border:
+        "#fecaca",
+
+      text:
+        "#b91c1c",
+    },
 };
 
 function getSafeAccentColor(
@@ -94,12 +172,16 @@ function getSafeAccentColor(
     return "emerald";
   }
 
-  if (value === "red") {
-    return "red";
+  if (value === "amber") {
+    return "amber";
   }
 
   if (value === "orange") {
     return "orange";
+  }
+
+  if (value === "red") {
+    return "red";
   }
 
   return "zinc";
@@ -115,8 +197,9 @@ function getSafeColors(
     );
 
   return (
-    accentColors[accentColor] ||
-    accentColors.zinc
+    accentColors[
+      accentColor
+    ] || accentColors.zinc
   );
 }
 
@@ -138,16 +221,22 @@ function applySettings(
         settings.accentColor
     );
 
+  const theme =
+    settings.theme ||
+    "modern";
+
   document.documentElement.dataset.theme =
-    settings.theme || "modern";
+    theme;
 
   document.documentElement.dataset.accent =
     safeAccentColor;
 
   document.documentElement.classList.toggle(
     "dark",
-    settings.darkMode ||
-      settings.theme === "dark"
+    Boolean(
+      settings.darkMode ||
+        theme === "dark"
+    )
   );
 
   document.documentElement.style.setProperty(
@@ -180,18 +269,20 @@ export default function AppThemeProvider({
   children,
 }: AppThemeProviderProps) {
   const [settings, setSettings] =
-    useState<AppSettings>(() =>
-      getDefaultAppSettings()
+    useState(
+      () =>
+        getDefaultAppSettings()
     );
 
-  const colors =
-    useMemo(
-      () =>
-        getSafeColors(
-          settings
-        ),
-      [settings]
-    );
+  useMemo(
+    () =>
+      getSafeColors(
+        settings
+      ),
+    [
+      settings,
+    ]
+  );
 
   useEffect(() => {
     const loadedSettings =
@@ -245,38 +336,6 @@ export default function AppThemeProvider({
 
   return (
     <>
-      <style suppressHydrationWarning>
-        {`
-          :root {
-            --app-accent: ${colors.primary};
-            --app-accent-hover: ${colors.primaryHover};
-            --app-accent-soft: ${colors.soft};
-            --app-accent-border: ${colors.border};
-            --app-accent-text: ${colors.text};
-          }
-
-          .app-accent-bg {
-            background: var(--app-accent);
-          }
-
-          .app-accent-bg:hover {
-            background: var(--app-accent-hover);
-          }
-
-          .app-accent-text {
-            color: var(--app-accent-text);
-          }
-
-          .app-accent-border {
-            border-color: var(--app-accent-border);
-          }
-
-          .app-accent-soft {
-            background: var(--app-accent-soft);
-          }
-        `}
-      </style>
-
       {children}
     </>
   );

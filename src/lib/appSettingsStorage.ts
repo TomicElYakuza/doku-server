@@ -5,7 +5,8 @@ import type {
 export type AppTheme =
   | "modern"
   | "light"
-  | "dark";
+  | "dark"
+  | "system";
 
 export type SidebarPosition =
   | "left"
@@ -16,36 +17,27 @@ export type AppAccentColor =
   | "blue"
   | "indigo"
   | "emerald"
+  | "amber"
   | "red"
   | "orange";
 
 export type AppSettings = {
   appName: string;
   companyName: string;
-
   appVersion: string;
   version: string;
-
   theme: AppTheme;
   darkMode: boolean;
-
-  /**
-   * Neuer Name + alter Alias.
-   */
   appAccentColor: AppAccentColor;
   accentColor: AppAccentColor;
-
   sidebarPosition: SidebarPosition;
-
   showVersion: boolean;
   compactMode: boolean;
-
   showDemoHints: boolean;
   enableTicketTemplates: boolean;
   enableTicketComments: boolean;
   enableActivityLog: boolean;
   defaultUserRole: UserRole;
-
   updatedAt: string;
 };
 
@@ -54,7 +46,7 @@ const STORAGE_KEY =
 
 const defaultSettings: AppSettings = {
   appName:
-    "DMS Intranet",
+    "Intranet",
 
   companyName:
     "Intern",
@@ -113,15 +105,15 @@ function dispatchAppSettingsUpdated() {
   window.dispatchEvent(
     new Event("appSettingsUpdated")
   );
+
+  window.dispatchEvent(
+    new Event("dataUpdated")
+  );
 }
 
 function normalizeTheme(
   value: unknown
 ): AppTheme {
-  if (value === "modern") {
-    return "modern";
-  }
-
   if (value === "light") {
     return "light";
   }
@@ -156,6 +148,10 @@ function normalizeAccentColor(
 
   if (value === "emerald") {
     return "emerald";
+  }
+
+  if (value === "amber") {
+    return "amber";
   }
 
   if (value === "red") {
@@ -197,20 +193,20 @@ function normalizeBoolean(
 function normalizeSettings(
   settings: Partial<AppSettings>
 ): AppSettings {
-  const version =
-    settings.appVersion ||
-    settings.version ||
-    defaultSettings.appVersion;
-
   const theme =
     normalizeTheme(
       settings.theme
     );
 
+  const version =
+    settings.appVersion ||
+    settings.version ||
+    defaultSettings.appVersion;
+
   const accentColor =
     normalizeAccentColor(
       settings.appAccentColor ||
-      settings.accentColor
+        settings.accentColor
     );
 
   return {
@@ -225,15 +221,14 @@ function normalizeSettings(
     appVersion:
       version,
 
-    version:
-      version,
+    version,
 
     theme,
 
     darkMode:
       typeof settings.darkMode === "boolean"
         ? settings.darkMode
-        : theme === "dark",
+        : false,
 
     appAccentColor:
       accentColor,
@@ -322,7 +317,9 @@ export function getAppSettings(): AppSettings {
 
   try {
     const parsed =
-      JSON.parse(raw);
+      JSON.parse(
+        raw
+      );
 
     return normalizeSettings(
       parsed
@@ -341,8 +338,12 @@ export function saveAppSettings(
     );
   }
 
+  const currentSettings =
+    getAppSettings();
+
   const normalizedSettings =
     normalizeSettings({
+      ...currentSettings,
       ...settings,
 
       updatedAt:
@@ -364,13 +365,9 @@ export function saveAppSettings(
 export function updateAppSettings(
   updates: Partial<AppSettings>
 ): AppSettings {
-  const currentSettings =
-    getAppSettings();
-
-  return saveAppSettings({
-    ...currentSettings,
-    ...updates,
-  });
+  return saveAppSettings(
+    updates
+  );
 }
 
 export function resetAppSettings(): AppSettings {
@@ -394,10 +391,6 @@ export function clearAppSettings() {
 export function getThemeLabel(
   theme: AppTheme | string
 ) {
-  if (theme === "modern") {
-    return "Modern";
-  }
-
   if (theme === "light") {
     return "Hell";
   }
@@ -406,7 +399,7 @@ export function getThemeLabel(
     return "Dunkel";
   }
 
-  return "Unbekannt";
+  return "Modern";
 }
 
 export function getAccentColorLabel(
@@ -424,12 +417,16 @@ export function getAccentColorLabel(
     return "Grün";
   }
 
-  if (color === "red") {
-    return "Rot";
+  if (color === "amber") {
+    return "Amber";
   }
 
   if (color === "orange") {
     return "Orange";
+  }
+
+  if (color === "red") {
+    return "Rot";
   }
 
   return "Standard";
@@ -474,7 +471,6 @@ export function getThemeOptions() {
           "modern"
         ),
     },
-
     {
       value:
         "light" as AppTheme,
@@ -484,7 +480,6 @@ export function getThemeOptions() {
           "light"
         ),
     },
-
     {
       value:
         "dark" as AppTheme,
@@ -508,7 +503,6 @@ export function getAccentColorOptions() {
           "zinc"
         ),
     },
-
     {
       value:
         "blue" as AppAccentColor,
@@ -518,7 +512,6 @@ export function getAccentColorOptions() {
           "blue"
         ),
     },
-
     {
       value:
         "indigo" as AppAccentColor,
@@ -528,7 +521,6 @@ export function getAccentColorOptions() {
           "indigo"
         ),
     },
-
     {
       value:
         "emerald" as AppAccentColor,
@@ -538,7 +530,15 @@ export function getAccentColorOptions() {
           "emerald"
         ),
     },
+    {
+      value:
+        "amber" as AppAccentColor,
 
+      label:
+        getAccentColorLabel(
+          "amber"
+        ),
+    },
     {
       value:
         "red" as AppAccentColor,
@@ -546,16 +546,6 @@ export function getAccentColorOptions() {
       label:
         getAccentColorLabel(
           "red"
-        ),
-    },
-
-    {
-      value:
-        "orange" as AppAccentColor,
-
-      label:
-        getAccentColorLabel(
-          "orange"
         ),
     },
   ];
@@ -572,7 +562,6 @@ export function getSidebarPositionOptions() {
           "left"
         ),
     },
-
     {
       value:
         "right" as SidebarPosition,
@@ -596,7 +585,6 @@ export function getDefaultUserRoleOptions() {
           "admin"
         ),
     },
-
     {
       value:
         "editor" as UserRole,
@@ -606,7 +594,6 @@ export function getDefaultUserRoleOptions() {
           "editor"
         ),
     },
-
     {
       value:
         "viewer" as UserRole,
@@ -619,9 +606,6 @@ export function getDefaultUserRoleOptions() {
   ];
 }
 
-/**
- * Alte Alias-Namen für bestehende Seiten.
- */
 export function getSettings() {
   return getAppSettings();
 }

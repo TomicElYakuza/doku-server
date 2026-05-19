@@ -32,6 +32,26 @@ import {
   isAdmin,
 } from "../../../lib/permissions";
 
+function SectionTitle({
+  icon,
+  title,
+}: {
+  icon: string;
+  title: string;
+}) {
+  return (
+    <h3 className="flex items-center gap-2 text-sm font-semibold app-accent-text uppercase mb-3">
+      <span className="text-base leading-none">
+        {icon}
+      </span>
+
+      <span>
+        {title}
+      </span>
+    </h3>
+  );
+}
+
 export default function WikiSidebar() {
   const pathname =
     usePathname();
@@ -73,13 +93,19 @@ export default function WikiSidebar() {
     const allPages =
       getStoredPages();
 
-    setPages(allPages);
+    setPages(
+      allPages
+    );
 
-    loadRecentPages(allPages);
+    loadRecentPages(
+      allPages
+    );
   }
 
   function loadFavorites() {
-    setFavorites(getFavorites());
+    setFavorites(
+      getFavorites()
+    );
   }
 
   function loadRecentPages(
@@ -90,15 +116,18 @@ export default function WikiSidebar() {
 
     const recent =
       recentSlugs
-        .map((slug: string) =>
-          allPages.find(
-            (page: any) =>
-              page.slug === slug
-          )
+        .map(
+          (slug: string) =>
+            allPages.find(
+              (page: any) =>
+                page.slug === slug
+            )
         )
         .filter(Boolean);
 
-    setRecentPages(recent);
+    setRecentPages(
+      recent
+    );
   }
 
   function loadTrashCount() {
@@ -108,7 +137,9 @@ export default function WikiSidebar() {
   }
 
   function loadAdminStatus() {
-    setAdmin(isAdmin());
+    setAdmin(
+      isAdmin()
+    );
   }
 
   function wikiCompanyHref(
@@ -136,7 +167,9 @@ export default function WikiSidebar() {
   }
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadAdminStatus();
 
@@ -291,9 +324,10 @@ export default function WikiSidebar() {
       {/* FAVORITEN */}
       {favoritePages.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-yellow-600 uppercase mb-3">
-            Favoriten
-          </h3>
+          <SectionTitle
+            icon="⭐"
+            title="Favoriten"
+          />
 
           <div className="flex flex-col gap-1">
             {favoritePages.map(
@@ -306,41 +340,11 @@ export default function WikiSidebar() {
                   className={`p-3 rounded-xl transition ${
                     pathname ===
                     `/wiki/${page.slug}`
-                      ? "bg-yellow-500 text-white"
-                      : "hover:bg-yellow-50"
+                      ? "bg-zinc-900 text-white"
+                      : "text-zinc-700 hover:bg-zinc-100"
                   }`}
                 >
-                  ⭐ {page.title}
-                </Link>
-              )
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ZULETZT GEÖFFNET */}
-      {recentPages.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-sm font-semibold text-blue-600 uppercase mb-3">
-            Zuletzt geöffnet
-          </h3>
-
-          <div className="flex flex-col gap-1">
-            {recentPages.map(
-              (page: any) => (
-                <Link
-                  key={page.slug}
-                  href={`/wiki/${encodeURIComponent(
-                    page.slug
-                  )}`}
-                  className={`p-3 rounded-xl transition ${
-                    pathname ===
-                    `/wiki/${page.slug}`
-                      ? "bg-blue-600 text-white"
-                      : "hover:bg-blue-50"
-                  }`}
-                >
-                  🕒 {page.title}
+                  {page.title}
                 </Link>
               )
             )}
@@ -350,11 +354,12 @@ export default function WikiSidebar() {
 
       {/* FIRMEN */}
       <div className="mb-8">
-        <h3 className="text-sm font-semibold text-indigo-700 uppercase mb-3">
-          Firmen
-        </h3>
+        <SectionTitle
+          icon="🏢"
+          title="Firmen"
+        />
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
           {companies.length === 0 && (
             <p className="text-sm text-zinc-400 px-3">
               Keine Firmen
@@ -369,10 +374,9 @@ export default function WikiSidebar() {
                   company
                 )}
                 className={`p-3 rounded-xl transition ${
-                  activeCompany ===
-                  company
-                    ? "bg-indigo-600 text-white"
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  activeCompany === company
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {company}
@@ -384,11 +388,12 @@ export default function WikiSidebar() {
 
       {/* ABTEILUNGEN */}
       <div className="mb-8">
-        <h3 className="text-sm font-semibold text-indigo-700 uppercase mb-3">
-          Abteilungen
-        </h3>
+        <SectionTitle
+          icon="👥"
+          title="Abteilungen"
+        />
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
           {departments.length === 0 && (
             <p className="text-sm text-zinc-400 px-3">
               Keine Abteilungen
@@ -403,10 +408,9 @@ export default function WikiSidebar() {
                   department
                 )}
                 className={`p-3 rounded-xl transition ${
-                  activeDepartment ===
-                  department
-                    ? "bg-indigo-600 text-white"
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  activeDepartment === department
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {department}
@@ -416,9 +420,41 @@ export default function WikiSidebar() {
         </div>
       </div>
 
+      {/* ZULETZT GEÖFFNET */}
+      {recentPages.length > 0 && (
+        <div className="mb-8">
+          <SectionTitle
+            icon="🕒"
+            title="Zuletzt geöffnet"
+          />
+
+          <div className="flex flex-col gap-1">
+            {recentPages.map(
+              (page: any) => (
+                <Link
+                  key={page.slug}
+                  href={`/wiki/${encodeURIComponent(
+                    page.slug
+                  )}`}
+                  className={`p-3 rounded-xl transition ${
+                    pathname ===
+                    `/wiki/${page.slug}`
+                      ? "bg-zinc-900 text-white"
+                      : "text-zinc-700 hover:bg-zinc-100"
+                  }`}
+                >
+                  {page.title}
+                </Link>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
       {/* TAGS */}
       <div className="mb-8">
         <button
+          type="button"
           onClick={() =>
             setTagsOpen(
               !tagsOpen
@@ -426,8 +462,14 @@ export default function WikiSidebar() {
           }
           className="w-full flex items-center justify-between mb-3"
         >
-          <h3 className="text-sm font-semibold text-zinc-500 uppercase">
-            Tags
+          <h3 className="flex items-center gap-2 text-sm font-semibold app-accent-text uppercase">
+            <span className="text-base leading-none">
+              #
+            </span>
+
+            <span>
+              Tags
+            </span>
           </h3>
 
           <span className="text-zinc-500">
@@ -449,7 +491,9 @@ export default function WikiSidebar() {
               (tag: string) => (
                 <Link
                   key={tag}
-                  href={wikiTagHref(tag)}
+                  href={wikiTagHref(
+                    tag
+                  )}
                   className={`text-sm px-3 py-1 rounded-full transition ${
                     activeTag === tag
                       ? "bg-zinc-900 text-white"
@@ -467,16 +511,17 @@ export default function WikiSidebar() {
       {/* ADMIN */}
       {admin && (
         <div>
-          <h3 className="text-sm font-semibold text-red-600 uppercase mb-3">
-            Admin
-          </h3>
+          <SectionTitle
+            icon="🛡️"
+            title="Admin"
+          />
 
           <Link
             href="/wiki/trash"
             className={`flex items-center justify-between p-3 rounded-xl transition ${
               pathname === "/wiki/trash"
-                ? "bg-red-600 text-white"
-                : "hover:bg-red-50 text-red-600"
+                ? "bg-zinc-900 text-white"
+                : "hover:bg-zinc-100 text-zinc-700"
             }`}
           >
             <span>
@@ -486,8 +531,8 @@ export default function WikiSidebar() {
             <span
               className={`text-xs px-2 py-1 rounded-full ${
                 pathname === "/wiki/trash"
-                  ? "bg-white text-red-600"
-                  : "bg-red-100 text-red-600"
+                  ? "bg-white text-zinc-900"
+                  : "bg-zinc-100 text-zinc-600"
               }`}
             >
               {trashCount}

@@ -459,7 +459,7 @@ export default function AppShell({
                 : "p-8"
             }`}
           >
-            <div className="w-full max-w-none">
+            <div className="app-page-content w-full max-w-none">
               {children}
             </div>
           </main>

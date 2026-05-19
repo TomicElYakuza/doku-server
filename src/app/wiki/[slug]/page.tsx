@@ -30,13 +30,13 @@ import {
 
 import {
   getFavorites,
-  saveFavorites,
   removeFavorite,
+  saveFavorites,
 } from "../../../lib/favoritesStorage";
 
 import {
-  saveRecentPage,
   removeRecentPage,
+  saveRecentPage,
 } from "../../../lib/recentStorage";
 
 import {
@@ -48,9 +48,59 @@ import {
 } from "../../../lib/userStorage";
 
 import {
-  canEdit,
   canDelete,
+  canEdit,
 } from "../../../lib/permissions";
+
+type WikiPage = {
+  title: string;
+  slug: string;
+  description?: string;
+  content?: string;
+  company?: string;
+  category?: string;
+  author?: string;
+  updatedAt?: string;
+  tags?: string[];
+};
+
+function normalizeSlug(
+  value: string
+) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function wikiCompanyHref(
+  company: string
+) {
+  return `/wiki?company=${encodeURIComponent(
+    company
+  )}`;
+}
+
+function wikiDepartmentHref(
+  department: string
+) {
+  return `/wiki?department=${encodeURIComponent(
+    department
+  )}`;
+}
+
+function wikiTagHref(
+  tag: string
+) {
+  return `/wiki?tag=${encodeURIComponent(
+    tag
+  )}`;
+}
 
 export default function WikiDetailPage() {
   const params =
@@ -60,13 +110,15 @@ export default function WikiDetailPage() {
     params.slug as string;
 
   const decodedSlug =
-    decodeURIComponent(rawSlug);
+    decodeURIComponent(
+      rawSlug
+    );
 
   const [favorites, setFavorites] =
     useState<string[]>([]);
 
   const [page, setPage] =
-    useState<any>(null);
+    useState<WikiPage | null>(null);
 
   const [mounted, setMounted] =
     useState(false);
@@ -75,7 +127,9 @@ export default function WikiDetailPage() {
     useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadPage();
 
@@ -110,21 +164,9 @@ export default function WikiDetailPage() {
         handleWikiPagesUpdated
       );
     };
-  }, [rawSlug]);
-
-  function normalizeSlug(
-    value: string
-  ) {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  }
+  }, [
+    rawSlug,
+  ]);
 
   function loadFavorites() {
     setFavorites(
@@ -146,23 +188,23 @@ export default function WikiDetailPage() {
           ) === rawSlug ||
           normalizeSlug(
             item.slug
-          ) ===
-            normalizeSlug(
-              decodedSlug
-            ) ||
+          ) === normalizeSlug(
+            decodedSlug
+          ) ||
           normalizeSlug(
             item.title || ""
-          ) ===
-            normalizeSlug(
-              decodedSlug
-            )
-      );
+          ) === normalizeSlug(
+            decodedSlug
+          )
+      ) || null;
 
     setPage(
-      foundPage || null
+      foundPage
     );
 
-    setPageChecked(true);
+    setPageChecked(
+      true
+    );
 
     if (foundPage) {
       saveRecentPage(
@@ -171,38 +213,15 @@ export default function WikiDetailPage() {
     }
   }
 
-  function wikiCompanyHref(
-    company: string
-  ) {
-    return `/wiki?company=${encodeURIComponent(
-      company
-    )}`;
-  }
-
-  function wikiDepartmentHref(
-    department: string
-  ) {
-    return `/wiki?department=${encodeURIComponent(
-      department
-    )}`;
-  }
-
-  function wikiTagHref(
-    tag: string
-  ) {
-    return `/wiki?tag=${encodeURIComponent(
-      tag
-    )}`;
-  }
-
   function toggleFavorite() {
     if (!page) {
       return;
     }
 
-    let updated = [
-      ...favorites,
-    ];
+    let updated =
+      [
+        ...favorites,
+      ];
 
     if (
       updated.includes(
@@ -212,8 +231,7 @@ export default function WikiDetailPage() {
       updated =
         updated.filter(
           (favoriteSlug) =>
-            favoriteSlug !==
-            page.slug
+            favoriteSlug !== page.slug
         );
     } else {
       updated.push(
@@ -221,9 +239,13 @@ export default function WikiDetailPage() {
       );
     }
 
-    setFavorites(updated);
+    setFavorites(
+      updated
+    );
 
-    saveFavorites(updated);
+    saveFavorites(
+      updated
+    );
   }
 
   function handleDeleteDocument() {
@@ -276,8 +298,7 @@ export default function WikiDetailPage() {
     const updatedPages =
       allPages.filter(
         (item: any) =>
-          item.slug !==
-          pageToDelete.slug
+          item.slug !== pageToDelete.slug
       );
 
     savePages(
@@ -293,7 +314,8 @@ export default function WikiDetailPage() {
     );
 
     saveActivity({
-      type: "deleted",
+      type:
+        "deleted",
 
       title:
         pageToDelete.title,
@@ -314,14 +336,17 @@ export default function WikiDetailPage() {
       "/wiki/trash";
   }
 
-  if (!mounted || !pageChecked) {
+  if (
+    !mounted ||
+    !pageChecked
+  ) {
     return null;
   }
 
   if (!page) {
     return (
-      <div className="max-w-3xl">
-        <div className="flex items-center gap-3 mb-6 text-sm">
+      <div className="w-full max-w-[1800px] space-y-8">
+        <div className="flex items-center gap-3 text-sm">
           <Link
             href="/wiki"
             className="text-zinc-500 hover:text-zinc-900 transition"
@@ -338,24 +363,20 @@ export default function WikiDetailPage() {
           </span>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
-            🔎
-          </div>
-
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Dokument nicht gefunden
           </h1>
 
           <p className="text-zinc-500 mt-3">
             Die Wiki-Seite mit dem Slug{" "}
-            <span className="font-mono text-zinc-900">
+            <span className="font-semibold text-zinc-900">
               {decodedSlug}
             </span>{" "}
             existiert nicht mehr oder wurde gelöscht.
           </p>
 
-          <div className="flex flex-wrap gap-3 mt-8">
+          <div className="flex flex-wrap gap-3 mt-6">
             <Link
               href="/wiki"
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
@@ -376,209 +397,236 @@ export default function WikiDetailPage() {
   }
 
   const company =
-    page.company || "Intern";
+    page.company ||
+    "Intern";
+
+  const department =
+    page.category ||
+    "Allgemein";
+
+  const isFavorite =
+    favorites.includes(
+      page.slug
+    );
 
   return (
-    <div className="flex gap-6">
-      <div className="flex-1 max-w-5xl">
-        {/* TOP NAV */}
-        <div className="flex items-center gap-3 mb-6 text-sm">
-          <Link
-            href="/wiki"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            wiki
-          </Link>
+    <div className="w-full max-w-[1800px] space-y-6">
+      <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/wiki"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          wiki
+        </Link>
 
-          <span className="text-zinc-400">
-            /
-          </span>
+        <span className="text-zinc-400">
+          /
+        </span>
 
-          <Link
-            href={wikiCompanyHref(
-              company
-            )}
-            className="text-indigo-600 hover:text-indigo-900 transition"
-          >
-            {company}
-          </Link>
+        <Link
+          href={wikiCompanyHref(
+            company
+          )}
+          className="app-accent-text hover:underline"
+        >
+          {company}
+        </Link>
 
-          <span className="text-zinc-400">
-            /
-          </span>
+        <span className="text-zinc-400">
+          /
+        </span>
 
-          <Link
-            href={wikiDepartmentHref(
-              page.category
-            )}
-            className="text-indigo-600 hover:text-indigo-900 transition"
-          >
-            {page.category}
-          </Link>
-        </div>
+        <Link
+          href={wikiDepartmentHref(
+            department
+          )}
+          className="app-accent-text hover:underline"
+        >
+          {department}
+        </Link>
+      </div>
 
-        {/* BACK BUTTON */}
-        <div className="mb-6">
-          <Link
-            href="/wiki"
-            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            ← Zurück zur Übersicht
-          </Link>
-        </div>
+      <div>
+        <Link
+          href="/wiki"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zur Übersicht
+        </Link>
+      </div>
 
-        {/* MAIN CARD */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="flex items-start justify-between gap-6 mb-10">
-            <div>
-              <div className="flex flex-wrap gap-2 mb-4">
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+        <div className="min-w-0 space-y-6">
+          <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={wikiCompanyHref(
+                      company
+                    )}
+                    className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                  >
+                    {company}
+                  </Link>
+
+                  <Link
+                    href={wikiDepartmentHref(
+                      department
+                    )}
+                    className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                  >
+                    {department}
+                  </Link>
+                </div>
+
+                <h1 className="text-5xl font-black tracking-tight mt-5">
+                  {page.title}
+                </h1>
+
+                {page.description && (
+                  <p className="text-xl text-zinc-500 mt-4">
+                    {page.description}
+                  </p>
+                )}
+
+                {page.tags &&
+                  page.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-5">
+                      {page.tags.map(
+                        (tag: string) => (
+                          <Link
+                            key={tag}
+                            href={wikiTagHref(
+                              tag
+                            )}
+                            className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                          >
+                            #{tag}
+                          </Link>
+                        )
+                      )}
+                    </div>
+                  )}
+              </div>
+
+              <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
+                {canEdit() && (
+                  <Link
+                    href={`/wiki/edit/${encodeURIComponent(
+                      page.slug
+                    )}`}
+                    className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+                  >
+                    Bearbeiten
+                  </Link>
+                )}
+
+                <Link
+                  href={`/wiki/history/${encodeURIComponent(
+                    page.slug
+                  )}`}
+                  className="bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-500 transition"
+                >
+                  Historie
+                </Link>
+
+                {canDelete() && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteDocument}
+                    className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
+                  >
+                    Löschen
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={toggleFavorite}
+                  className={`px-5 py-3 rounded-2xl transition ${
+                    isFavorite
+                      ? "bg-amber-500 text-white hover:bg-amber-400"
+                      : "bg-white border border-zinc-200 text-zinc-900 hover:bg-zinc-100"
+                  }`}
+                >
+                  {isFavorite
+                    ? "Favorisiert"
+                    : "Favorit"}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-500 mt-8 border-b border-zinc-200 pb-6">
+              <p>
+                Firma:{" "}
                 <Link
                   href={wikiCompanyHref(
                     company
                   )}
-                  className="inline-block bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                  className="app-accent-text hover:underline"
                 >
                   {company}
                 </Link>
-
-                <Link
-                  href={wikiDepartmentHref(
-                    page.category
-                  )}
-                  className="inline-block bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                >
-                  {page.category}
-                </Link>
-              </div>
-
-              <h1 className="text-5xl font-bold">
-                {page.title}
-              </h1>
-
-              <p className="text-zinc-600 mt-4 text-lg">
-                {page.description}
               </p>
 
-              <div className="flex flex-wrap gap-2 mt-4">
-                {page.tags?.map(
-                  (tag: string) => (
-                    <Link
-                      key={tag}
-                      href={wikiTagHref(
-                        tag
-                      )}
-                      className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
-                    >
-                      #{tag}
-                    </Link>
-                  )
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3 flex-wrap justify-end">
-              {canEdit() && (
+              <p>
+                Abteilung:{" "}
                 <Link
-                  href={`/wiki/edit/${encodeURIComponent(
-                    page.slug
-                  )}`}
-                  className="bg-zinc-900 text-white px-5 py-3 rounded-xl hover:bg-zinc-700 transition"
+                  href={wikiDepartmentHref(
+                    department
+                  )}
+                  className="app-accent-text hover:underline"
                 >
-                  Bearbeiten
+                  {department}
                 </Link>
-              )}
+              </p>
 
-              <Link
-                href={`/wiki/history/${encodeURIComponent(
-                  page.slug
-                )}`}
-                className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
-              >
-                Historie
-              </Link>
+              <p>
+                Autor:{" "}
+                {page.author ||
+                  "Unbekannt"}
+              </p>
 
-              {canDelete() && (
-                <button
-                  onClick={handleDeleteDocument}
-                  className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
-                >
-                  Löschen
-                </button>
-              )}
+              <p>
+                Zuletzt aktualisiert:{" "}
+                {page.updatedAt ||
+                  "Unbekannt"}
+              </p>
 
-              <button
-                onClick={toggleFavorite}
-                className="bg-yellow-500 text-white px-5 py-3 rounded-xl hover:bg-yellow-400 transition"
-              >
-                {favorites.includes(
-                  page.slug
-                )
-                  ? "Favorisiert"
-                  : "Favorit"}
-              </button>
+              <p>
+                Version: 1.0
+              </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-6 text-sm text-zinc-500 border-b pb-6 mb-10 flex-wrap">
-            <p>
-              Firma:{" "}
-              <Link
-                href={wikiCompanyHref(
-                  company
-                )}
-                className="text-indigo-700 hover:underline"
-              >
-                {company}
-              </Link>
-            </p>
+            <div className="mt-8 max-w-none text-zinc-900 leading-relaxed">
+              <ReactMarkdown>
+                {page.content ||
+                  ""}
+              </ReactMarkdown>
+            </div>
 
-            <p>
-              Abteilung:{" "}
-              <Link
-                href={wikiDepartmentHref(
-                  page.category
-                )}
-                className="text-indigo-700 hover:underline"
-              >
-                {page.category}
-              </Link>
-            </p>
-
-            <p>
-              Autor: {page.author}
-            </p>
-
-            <p>
-              Zuletzt aktualisiert:{" "}
-              {page.updatedAt}
-            </p>
-
-            <p>
-              Version: 1.0
-            </p>
-          </div>
-
-          <article className="prose prose-zinc max-w-none prose-headings:font-bold prose-p:text-zinc-700 prose-li:text-zinc-700">
-            <ReactMarkdown>
-              {page.content}
-            </ReactMarkdown>
+            <div className="mt-10">
+              <FileList
+                slug={page.slug}
+                editable={canEdit()}
+              />
+            </div>
           </article>
 
-          <div className="mt-10">
-            <FileList
-              slug={page.slug}
-            />
-          </div>
+          <Comments
+            slug={page.slug}
+          />
         </div>
 
-        <Comments
-          slug={page.slug}
-        />
+        <aside className="hidden 2xl:block sticky top-6">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <TableOfContents
+              content={page.content || ""}
+            />
+          </div>
+        </aside>
       </div>
-
-      <TableOfContents
-        content={page.content}
-      />
     </div>
   );
 }

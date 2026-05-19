@@ -6,13 +6,7 @@ Wiki (Intranet "DMS"):
 Setup => Login
 
 Ticket:
--	Kategorie Drop Down
--	Zugewiesen Drop Down
-	-	Admin Backend konfigurierbar
--	Datei hinzufügen
--	ID Anzeige ganz vorne
--	Eventuell extra Fenster
--	Geschlossene Tickets ausblenden Funktion
+-	Drop Down bei rest
 
 Grundlegendes zum Intranet:
 -	Berechtigungen
@@ -20,9 +14,6 @@ Grundlegendes zum Intranet:
 Weitere mögliche Features:
 -	Anstehende Projekte
 -	Neuigkeiten
-
-Einstellungen:
--	Dark Mode
 
 Rechte Vergabe:
 -	Firmen und Abteilungen können nur eigene sehen
@@ -36,7 +27,7 @@ Admin Dashboard:
 Wichtig:
 -	AD Integration mit EMail
 -	Externer Firmenzugang
--	Sidebar Kategorien werden nicht kleiner bei zoom
+-	Ticket/Wiki nur zugewissene Sachen sichtbar sprich Abteilung Firmen usw.
 
 
 
