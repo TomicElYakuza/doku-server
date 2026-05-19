@@ -4,14 +4,14 @@ import type {
 
 import "./globals.css";
 
-import Sidebar from "../components/layout/Sidebar";
+import AppThemeProvider from "../components/AppThemeProvider";
 
-import Topbar from "../components/layout/Topbar";
+import AppShell from "../components/AppShell";
 
 export const metadata: Metadata = {
-  title: "Doku Server",
+  title: "DMS Intranet",
   description:
-    "Intranet, Wiki und Wissensbasis",
+    "DMS, Ticket-System und Firmen-Intranet",
 };
 
 export default function RootLayout({
@@ -20,19 +20,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="de">
-      <body>
-        <div className="h-screen bg-zinc-100 flex overflow-hidden">
-          <Sidebar />
-
-          <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-            <Topbar />
-
-            <main className="flex-1 overflow-y-auto p-8">
-              {children}
-            </main>
-          </div>
-        </div>
+    <html
+      lang="de"
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen bg-zinc-100 text-zinc-900 antialiased">
+        <AppThemeProvider>
+          <AppShell>
+            {children}
+          </AppShell>
+        </AppThemeProvider>
       </body>
     </html>
   );

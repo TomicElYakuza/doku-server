@@ -32,6 +32,7 @@ import {
 
 import {
   canCreate,
+  canViewAdmin,
 } from "../lib/permissions";
 
 export default function HomePage() {
@@ -186,7 +187,9 @@ export default function HomePage() {
     return null;
   }
 
-  function getActivityLabel(type: string) {
+  function getActivityLabel(
+    type: string
+  ) {
     if (type === "created") {
       return "Dokument erstellt";
     }
@@ -266,7 +269,9 @@ export default function HomePage() {
     return "Aktivität";
   }
 
-  function getActivityIcon(type: string) {
+  function getActivityIcon(
+    type: string
+  ) {
     if (type === "created") {
       return "📝";
     }
@@ -346,7 +351,9 @@ export default function HomePage() {
     return "📌";
   }
 
-  function parseDate(value: string) {
+  function parseDate(
+    value: string
+  ) {
     if (!value) {
       return 0;
     }
@@ -493,7 +500,7 @@ export default function HomePage() {
       </div>
 
       {/* DASHBOARD CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-9 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-10 gap-6">
         <Link
           href="/wiki"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -610,6 +617,21 @@ export default function HomePage() {
             {activities.length}
           </h2>
         </Link>
+
+        {canViewAdmin() && (
+          <Link
+            href="/admin"
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Admin
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              ⚙️
+            </h2>
+          </Link>
+        )}
       </div>
 
       {/* TICKET STATUS */}
@@ -729,11 +751,27 @@ export default function HomePage() {
           </Link>
 
           <Link
+            href="/settings"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Einstellungen
+          </Link>
+
+          <Link
             href="/setup"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
             Benutzer Setup
           </Link>
+
+          {canViewAdmin() && (
+            <Link
+              href="/admin"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Admin-Dashboard
+            </Link>
+          )}
         </div>
       </div>
 

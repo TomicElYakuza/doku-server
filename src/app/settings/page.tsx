@@ -7,6 +7,22 @@ import {
   useState,
 } from "react";
 
+import {
+  getAccentColorLabel,
+  getAccentColorOptions,
+  getAppSettings,
+  getThemeLabel,
+  getThemeOptions,
+  resetAppSettings,
+  saveAppSettings,
+} from "../../lib/appSettingsStorage";
+
+import type {
+  AppAccentColor,
+  AppSettings,
+  AppTheme,
+} from "../../lib/appSettingsStorage";
+
 type StorageStat = {
   key: string;
   label: string;
@@ -22,6 +38,7 @@ const STORAGE_KEYS = {
   wikiPages: "dms_wiki_pages",
   trashPages: "dms_trash_pages",
   files: "dms_files",
+  appSettings: "dms_app_settings",
 };
 
 export default function SettingsPage() {
@@ -31,12 +48,53 @@ export default function SettingsPage() {
   const [stats, setStats] =
     useState<StorageStat[]>([]);
 
+  const [settings, setSettings] =
+    useState<AppSettings | null>(null);
+
+  const [appName, setAppName] =
+    useState("");
+
+  const [companyName, setCompanyName] =
+    useState("");
+
+  const [theme, setTheme] =
+    useState<AppTheme>("light");
+
+  const [accentColor, setAccentColor] =
+    useState<AppAccentColor>("indigo");
+
+  const [compactMode, setCompactMode] =
+    useState(false);
+
+  const [showDemoHints, setShowDemoHints] =
+    useState(true);
+
+  const [enableTicketTemplates, setEnableTicketTemplates] =
+    useState(true);
+
+  const [enableTicketComments, setEnableTicketComments] =
+    useState(true);
+
+  const [enableActivityLog, setEnableActivityLog] =
+    useState(true);
+
+  const [defaultUserRole, setDefaultUserRole] =
+    useState<"admin" | "editor" | "viewer">("viewer");
+
   useEffect(() => {
     setMounted(true);
 
     loadStats();
 
+    loadSettings();
+
     function handleStorageUpdate() {
+      loadStats();
+    }
+
+    function handleSettingsUpdate() {
+      loadSettings();
+
       loadStats();
     }
 
@@ -70,6 +128,11 @@ export default function SettingsPage() {
       handleStorageUpdate
     );
 
+    window.addEventListener(
+      "appSettingsUpdated",
+      handleSettingsUpdate
+    );
+
     return () => {
       window.removeEventListener(
         "ticketsUpdated",
@@ -100,6 +163,11 @@ export default function SettingsPage() {
         "trashUpdated",
         handleStorageUpdate
       );
+
+      window.removeEventListener(
+        "appSettingsUpdated",
+        handleSettingsUpdate
+      );
     };
   }, []);
 
@@ -111,7 +179,9 @@ export default function SettingsPage() {
     }
 
     const raw =
-      localStorage.getItem(key);
+      localStorage.getItem(
+        key
+      );
 
     if (!raw) {
       return 0;
@@ -205,7 +275,63 @@ export default function SettingsPage() {
           STORAGE_KEYS.files
         ),
       },
+      {
+        key: STORAGE_KEYS.appSettings,
+        label: "App-Einstellungen",
+        count: getCountFromStorage(
+          STORAGE_KEYS.appSettings
+        ),
+      },
     ]);
+  }
+
+  function loadSettings() {
+    const loadedSettings =
+      getAppSettings();
+
+    setSettings(
+      loadedSettings
+    );
+
+    setAppName(
+      loadedSettings.appName
+    );
+
+    setCompanyName(
+      loadedSettings.companyName
+    );
+
+    setTheme(
+      loadedSettings.theme
+    );
+
+    setAccentColor(
+      loadedSettings.accentColor
+    );
+
+    setCompactMode(
+      loadedSettings.compactMode
+    );
+
+    setShowDemoHints(
+      loadedSettings.showDemoHints
+    );
+
+    setEnableTicketTemplates(
+      loadedSettings.enableTicketTemplates
+    );
+
+    setEnableTicketComments(
+      loadedSettings.enableTicketComments
+    );
+
+    setEnableActivityLog(
+      loadedSettings.enableActivityLog
+    );
+
+    setDefaultUserRole(
+      loadedSettings.defaultUserRole
+    );
   }
 
   function dispatchAllUpdates() {
@@ -236,6 +362,10 @@ export default function SettingsPage() {
     window.dispatchEvent(
       new Event("trashUpdated")
     );
+
+    window.dispatchEvent(
+      new Event("appSettingsUpdated")
+    );
   }
 
   function removeStorageKey(
@@ -245,9 +375,90 @@ export default function SettingsPage() {
       return;
     }
 
-    localStorage.removeItem(key);
+    localStorage.removeItem(
+      key
+    );
 
     dispatchAllUpdates();
+
+    loadStats();
+  }
+
+  function handleSaveSettings() {
+    if (!settings) {
+      return;
+    }
+
+    if (!appName.trim()) {
+      alert(
+        "Bitte einen App-Namen eingeben."
+      );
+
+      return;
+    }
+
+    if (!companyName.trim()) {
+      alert(
+        "Bitte einen Firmennamen eingeben."
+      );
+
+      return;
+    }
+
+    const savedSettings =
+      saveAppSettings({
+        ...settings,
+
+        appName:
+          appName.trim(),
+
+        companyName:
+          companyName.trim(),
+
+        theme,
+
+        accentColor,
+
+        compactMode,
+
+        showDemoHints,
+
+        enableTicketTemplates,
+
+        enableTicketComments,
+
+        enableActivityLog,
+
+        defaultUserRole,
+      });
+
+    setSettings(
+      savedSettings
+    );
+
+    alert(
+      "Einstellungen wurden gespeichert."
+    );
+  }
+
+  function handleResetSettings() {
+    const confirmed =
+      confirm(
+        "App-Einstellungen wirklich auf Standard zurücksetzen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const resetSettings =
+      resetAppSettings();
+
+    setSettings(
+      resetSettings
+    );
+
+    loadSettings();
 
     loadStats();
   }
@@ -372,10 +583,27 @@ export default function SettingsPage() {
     );
   }
 
+  function clearAppSettings() {
+    const confirmed =
+      confirm(
+        "App-Einstellungen löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    removeStorageKey(
+      STORAGE_KEYS.appSettings
+    );
+
+    loadSettings();
+  }
+
   function clearAllDemoData() {
     const confirmed =
       confirm(
-        "Wirklich alle lokalen Demo-Daten löschen? Tickets, Vorlagen, Kommentare, Aktivitäten, Wiki-Daten, Papierkorb, Dateien und Benutzer-Setup werden entfernt."
+        "Wirklich alle lokalen Demo-Daten löschen? Tickets, Vorlagen, Kommentare, Aktivitäten, Wiki-Daten, Papierkorb, Dateien, Benutzer-Setup und App-Einstellungen werden entfernt."
       );
 
     if (!confirmed) {
@@ -393,6 +621,8 @@ export default function SettingsPage() {
     );
 
     dispatchAllUpdates();
+
+    loadSettings();
 
     loadStats();
   }
@@ -542,6 +772,8 @@ export default function SettingsPage() {
 
           dispatchAllUpdates();
 
+          loadSettings();
+
           loadStats();
 
           alert(
@@ -562,7 +794,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (!mounted) {
+  if (!mounted || !settings) {
     return null;
   }
 
@@ -597,14 +829,354 @@ export default function SettingsPage() {
       </div>
 
       {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Einstellungen
-        </h1>
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold">
+            Einstellungen
+          </h1>
+
+          <p className="text-zinc-500 mt-2">
+            App-Konfiguration, lokale Demo-Daten, Export, Import und Reset verwalten
+          </p>
+        </div>
+
+        <Link
+          href="/admin"
+          className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          Admin-Dashboard
+        </Link>
+      </div>
+
+      {/* APP SETTINGS OVERVIEW */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            App
+          </p>
+
+          <h2 className="text-2xl font-bold mt-3">
+            {settings.appName}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Firma
+          </p>
+
+          <h2 className="text-2xl font-bold mt-3">
+            {settings.companyName}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Theme
+          </p>
+
+          <h2 className="text-2xl font-bold mt-3">
+            {getThemeLabel(
+              settings.theme
+            )}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Accent
+          </p>
+
+          <h2 className="text-2xl font-bold mt-3">
+            {getAccentColorLabel(
+              settings.accentColor
+            )}
+          </h2>
+        </div>
+      </div>
+
+      {/* APP SETTINGS FORM */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          App-Einstellungen
+        </h2>
 
         <p className="text-zinc-500 mt-2">
-          Lokale Demo-Daten, Export, Import und Reset verwalten
+          Diese Einstellungen liegen aktuell im Browser. Später können sie in der Datenbank pro Firma oder global gespeichert werden.
         </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+          <div>
+            <label className="block mb-2 font-medium">
+              App-Name
+            </label>
+
+            <input
+              type="text"
+              value={appName}
+              onChange={(event) =>
+                setAppName(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="DMS Intranet"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Firmenname
+            </label>
+
+            <input
+              type="text"
+              value={companyName}
+              onChange={(event) =>
+                setCompanyName(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Firma"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Theme
+            </label>
+
+            <select
+              value={theme}
+              onChange={(event) =>
+                setTheme(
+                  event.target.value as AppTheme
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              {getThemeOptions().map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Accent Color
+            </label>
+
+            <select
+              value={accentColor}
+              onChange={(event) =>
+                setAccentColor(
+                  event.target.value as AppAccentColor
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              {getAccentColorOptions().map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Standardrolle für neue Benutzer
+            </label>
+
+            <select
+              value={defaultUserRole}
+              onChange={(event) =>
+                setDefaultUserRole(
+                  event.target.value as
+                    | "admin"
+                    | "editor"
+                    | "viewer"
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="viewer">
+                Leser
+              </option>
+
+              <option value="editor">
+                Bearbeiter
+              </option>
+
+              <option value="admin">
+                Administrator
+              </option>
+            </select>
+          </div>
+
+          <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Zuletzt geändert
+            </p>
+
+            <p className="font-semibold mt-1">
+              {settings.updatedAt}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <label className="flex items-center justify-between gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 cursor-pointer">
+            <span>
+              <span className="block font-medium">
+                Kompakter Modus
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Später für kleinere Abstände und dichtere Tabellen.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={compactMode}
+              onChange={(event) =>
+                setCompactMode(
+                  event.target.checked
+                )
+              }
+              className="w-5 h-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 cursor-pointer">
+            <span>
+              <span className="block font-medium">
+                Demo-Hinweise anzeigen
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Hinweise für spätere Datenbank- und Admin-Funktionen anzeigen.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={showDemoHints}
+              onChange={(event) =>
+                setShowDemoHints(
+                  event.target.checked
+                )
+              }
+              className="w-5 h-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 cursor-pointer">
+            <span>
+              <span className="block font-medium">
+                Ticket-Vorlagen aktivieren
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Vorlagen-Modul für wiederkehrende Tickets.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={enableTicketTemplates}
+              onChange={(event) =>
+                setEnableTicketTemplates(
+                  event.target.checked
+                )
+              }
+              className="w-5 h-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 cursor-pointer">
+            <span>
+              <span className="block font-medium">
+                Ticket-Kommentare aktivieren
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Kommentare bei Tickets erlauben.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={enableTicketComments}
+              onChange={(event) =>
+                setEnableTicketComments(
+                  event.target.checked
+                )
+              }
+              className="w-5 h-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 cursor-pointer md:col-span-2">
+            <span>
+              <span className="block font-medium">
+                Aktivitätslog aktivieren
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Änderungen, Kommentare, Löschungen und Ticket-Aktionen protokollieren.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={enableActivityLog}
+              onChange={(event) =>
+                setEnableActivityLog(
+                  event.target.checked
+                )
+              }
+              className="w-5 h-5"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mt-6">
+          <button
+            onClick={handleSaveSettings}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Einstellungen speichern
+          </button>
+
+          <button
+            onClick={loadSettings}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Änderungen verwerfen
+          </button>
+
+          <button
+            onClick={handleResetSettings}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-red-50 transition"
+          >
+            App-Einstellungen zurücksetzen
+          </button>
+        </div>
       </div>
 
       {/* STATS */}
@@ -647,6 +1219,7 @@ export default function SettingsPage() {
 
           <label className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-zinc-100 transition cursor-pointer text-left">
             Lokale Daten importieren
+
             <input
               type="file"
               accept="application/json"
@@ -722,6 +1295,13 @@ export default function SettingsPage() {
             className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
           >
             Benutzer-Setup löschen
+          </button>
+
+          <button
+            onClick={clearAppSettings}
+            className="bg-white border border-zinc-200 px-5 py-4 rounded-2xl hover:bg-red-50 transition text-left"
+          >
+            App-Einstellungen löschen
           </button>
         </div>
       </div>

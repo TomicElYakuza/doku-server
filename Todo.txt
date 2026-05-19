@@ -1,23 +1,45 @@
 Wiki (Intranet "DMS"):
 -	DB Anbindung (Postgres)
-	-	Connected, Connection failed
--	Vordefinierte Kategorien
-	-	Über Admin Backend editierbar
 -	PDF, Word Konvertierung
--	Kategorien Berechtigungen
 -	Live Vorschau Design (HTML CSS)
 
+Setup => Login
+
 Grundlegendes zum Intranet:
--	Admin Backend
--	Einstellungen machen
-	-	Dark Mode
--	Login System
-	-	Password Create / Reset
 -	Berechtigungen
 
 Weitere mögliche Features:
 -	Anstehende Projekte
 -	Neuigkeiten
 
-Design etwas responsiver machen
+Einstellungen:
+-	Dark Mode
 
+Rechte Vergabe:
+-	Firmen und Abteilungen können nur eigene sehen
+
+Admin Dashboard:
+-	Benutzer erstellen und Rechte Vergabe
+-	UI Anpassungen, damit man nicht mehr im Quellcode oder DB was ändern muss
+-	Firmen sowie Abteilungen editierbar über Admin Backend
+
+
+
+
+
+
+
+
+Serveradmin:
+
+Benutzer:
+adm_hoertht
+Kennwort:
+adsh02evm$2öR-3
+
+Domainadmin:
+
+Benutzer:
+domadm_hoertht
+Kennwort:
+U8rn-4Ä+4bne2Wa
