@@ -4,14 +4,18 @@ import type {
 
 import "./globals.css";
 
-import AppThemeProvider from "../components/AppThemeProvider";
-
 import AppShell from "../components/AppShell";
 
+import AppThemeProvider from "../components/AppThemeProvider";
+
+import NotificationCenter from "../components/NotificationCenter";
+
 export const metadata: Metadata = {
-  title: "DMS Intranet",
+  title:
+    "DMS Intranet",
+
   description:
-    "DMS, Ticket-System und Firmen-Intranet",
+    "DMS, Ticket und Intranet App",
 };
 
 export default function RootLayout({
@@ -24,11 +28,13 @@ export default function RootLayout({
       lang="de"
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-zinc-100 text-zinc-900 antialiased">
+      <body className="min-h-screen">
         <AppThemeProvider>
           <AppShell>
             {children}
           </AppShell>
+
+          <NotificationCenter />
         </AppThemeProvider>
       </body>
     </html>

@@ -13,8 +13,12 @@ export type AdminUser = {
   email: string;
   role: UserRole;
   status: AdminUserStatus;
-  company: string;
-  department: string;
+
+  companyId?: string;
+  departmentId?: string;
+  company?: string;
+  department?: string;
+
   createdAt: string;
   updatedAt: string;
   lastLoginAt?: string;
@@ -26,7 +30,7 @@ const STORAGE_KEY =
 const defaultAdminUsers: AdminUser[] = [
   {
     id:
-      "user-admin-demo",
+      "admin-user-admin",
 
     name:
       "Admin",
@@ -39,6 +43,12 @@ const defaultAdminUsers: AdminUser[] = [
 
     status:
       "active",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-it",
 
     company:
       "Intern",
@@ -53,12 +63,12 @@ const defaultAdminUsers: AdminUser[] = [
       new Date().toLocaleString(),
 
     lastLoginAt:
-      new Date().toLocaleString(),
+      "",
   },
 
   {
     id:
-      "user-editor-demo",
+      "admin-user-editor",
 
     name:
       "Editor",
@@ -71,6 +81,12 @@ const defaultAdminUsers: AdminUser[] = [
 
     status:
       "active",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-support",
 
     company:
       "Intern",
@@ -90,7 +106,7 @@ const defaultAdminUsers: AdminUser[] = [
 
   {
     id:
-      "user-viewer-demo",
+      "admin-user-viewer",
 
     name:
       "Viewer",
@@ -102,7 +118,13 @@ const defaultAdminUsers: AdminUser[] = [
       "viewer",
 
     status:
-      "invited",
+      "active",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-office",
 
     company:
       "Intern",
@@ -136,10 +158,10 @@ function createId() {
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
   ) {
-    return crypto.randomUUID();
+    return `admin-user-${crypto.randomUUID()}`;
   }
 
-  return `${Date.now()}-${Math.random()
+  return `admin-user-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2)}`;
 }
@@ -153,6 +175,10 @@ function normalizeRole(
 
   if (value === "editor") {
     return "editor";
+  }
+
+  if (value === "viewer") {
+    return "viewer";
   }
 
   return "viewer";
@@ -189,11 +215,11 @@ function normalizeAdminUser(
 
     name:
       user.name ||
-      "Unbekannt",
+      "Unbekannter Benutzer",
 
     email:
       user.email ||
-      "user@local",
+      "unknown@local",
 
     role:
       normalizeRole(
@@ -205,13 +231,21 @@ function normalizeAdminUser(
         user.status
       ),
 
+    companyId:
+      user.companyId ||
+      "company-intern",
+
+    departmentId:
+      user.departmentId ||
+      "department-it",
+
     company:
       user.company ||
       "Intern",
 
     department:
       user.department ||
-      "Allgemein",
+      "IT",
 
     createdAt:
       user.createdAt ||
@@ -245,7 +279,12 @@ export function getAdminUsers(): AdminUser[] {
       )
     );
 
-    return defaultAdminUsers;
+    return defaultAdminUsers.map(
+      (user) =>
+        normalizeAdminUser(
+          user
+        )
+    );
   }
 
   try {
@@ -274,10 +313,18 @@ export function saveAdminUsers(
     return;
   }
 
+  const normalizedUsers =
+    users.map(
+      (user) =>
+        normalizeAdminUser(
+          user
+        )
+    );
+
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify(
-      users
+      normalizedUsers
     )
   );
 
@@ -305,11 +352,8 @@ export function clearAdminUsers() {
 export function getAdminUserById(
   id: string
 ): AdminUser | null {
-  const users =
-    getAdminUsers();
-
   return (
-    users.find(
+    getAdminUsers().find(
       (user) =>
         user.id === id
     ) || null
@@ -319,19 +363,17 @@ export function getAdminUserById(
 export function getAdminUserByEmail(
   email: string
 ): AdminUser | null {
-  const users =
-    getAdminUsers();
-
   const normalizedEmail =
-    email.trim().toLowerCase();
+    email
+      .trim()
+      .toLowerCase();
 
   return (
-    users.find(
+    getAdminUsers().find(
       (user) =>
         user.email
           .trim()
-          .toLowerCase() ===
-        normalizedEmail
+          .toLowerCase() === normalizedEmail
     ) || null
   );
 }
@@ -344,15 +386,6 @@ export function createAdminUser(
 ): AdminUser {
   const users =
     getAdminUsers();
-
-  const existingUser =
-    getAdminUserByEmail(
-      user.email
-    );
-
-  if (existingUser) {
-    return existingUser;
-  }
 
   const now =
     new Date().toLocaleString();
@@ -432,56 +465,17 @@ export function deleteAdminUser(
   const users =
     getAdminUsers();
 
-  const updatedUsers =
+  saveAdminUsers(
     users.filter(
       (user) =>
         user.id !== id
-    );
-
-  saveAdminUsers(
-    updatedUsers
-  );
-}
-
-export function activateAdminUser(
-  id: string
-) {
-  return updateAdminUser(
-    id,
-    {
-      status:
-        "active",
-    }
-  );
-}
-
-export function deactivateAdminUser(
-  id: string
-) {
-  return updateAdminUser(
-    id,
-    {
-      status:
-        "inactive",
-    }
-  );
-}
-
-export function markAdminUserInvited(
-  id: string
-) {
-  return updateAdminUser(
-    id,
-    {
-      status:
-        "invited",
-    }
+    )
   );
 }
 
 export function updateAdminUserLastLogin(
   email: string
-) {
+): AdminUser | null {
   const user =
     getAdminUserByEmail(
       email
@@ -498,6 +492,78 @@ export function updateAdminUserLastLogin(
         new Date().toLocaleString(),
     }
   );
+}
+
+export function getAdminUsersByCompanyId(
+  companyId: string
+) {
+  return getAdminUsers().filter(
+    (user) =>
+      user.companyId === companyId
+  );
+}
+
+export function getAdminUsersByDepartmentId(
+  departmentId: string
+) {
+  return getAdminUsers().filter(
+    (user) =>
+      user.departmentId === departmentId
+  );
+}
+
+export function getAdminUsersByStatus(
+  status: AdminUserStatus
+) {
+  return getAdminUsers().filter(
+    (user) =>
+      user.status === status
+  );
+}
+
+export function getAdminUsersByRole(
+  role: UserRole
+) {
+  return getAdminUsers().filter(
+    (user) =>
+      user.role === role
+  );
+}
+
+export function getAdminUserRoleLabel(
+  role: UserRole | string
+) {
+  if (role === "admin") {
+    return "Administrator";
+  }
+
+  if (role === "editor") {
+    return "Bearbeiter";
+  }
+
+  if (role === "viewer") {
+    return "Leser";
+  }
+
+  return "Unbekannt";
+}
+
+export function getAdminUserRoleClass(
+  role: UserRole | string
+) {
+  if (role === "admin") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (role === "editor") {
+    return "bg-indigo-50 text-indigo-700";
+  }
+
+  if (role === "viewer") {
+    return "bg-zinc-100 text-zinc-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
 }
 
 export function getAdminUserStatusLabel(
@@ -518,20 +584,55 @@ export function getAdminUserStatusLabel(
   return "Unbekannt";
 }
 
-export function getAdminUserRoleLabel(
+export function getAdminUserStatusClass(
+  status: AdminUserStatus | string
+) {
+  if (status === "active") {
+    return "bg-green-50 text-green-700";
+  }
+
+  if (status === "inactive") {
+    return "bg-zinc-100 text-zinc-700";
+  }
+
+  if (status === "invited") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
+}
+
+/**
+ * Alte Alias-Namen, falls ältere Seiten sie noch importieren.
+ */
+export function getUserStatusLabel(
+  status: AdminUserStatus | string
+) {
+  return getAdminUserStatusLabel(
+    status
+  );
+}
+
+export function getUserStatusClass(
+  status: AdminUserStatus | string
+) {
+  return getAdminUserStatusClass(
+    status
+  );
+}
+
+export function getUserRoleLabel(
   role: UserRole | string
 ) {
-  if (role === "admin") {
-    return "Administrator";
-  }
+  return getAdminUserRoleLabel(
+    role
+  );
+}
 
-  if (role === "editor") {
-    return "Bearbeiter";
-  }
-
-  if (role === "viewer") {
-    return "Leser";
-  }
-
-  return "Unbekannt";
+export function getUserRoleClass(
+  role: UserRole | string
+) {
+  return getAdminUserRoleClass(
+    role
+  );
 }

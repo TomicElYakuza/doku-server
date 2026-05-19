@@ -1,38 +1,103 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Link from "next/link";
 
 import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  clearActivities,
+  deleteActivity,
   getActivities,
+  getActivityTypeClass,
+  getActivityTypeLabel,
 } from "../../lib/activityStorage";
+
+import type {
+  Activity,
+} from "../../lib/activityStorage";
+
+import {
+  canDelete,
+  canViewActivity,
+} from "../../lib/permissions";
+
+import {
+  getCompanies,
+  getDepartments,
+} from "../../lib/companyStorage";
+
+import type {
+  Company,
+  Department,
+} from "../../lib/companyStorage";
+
+import {
+  isActivityLogEnabled,
+} from "../../lib/featureFlags";
+
+type ViewMode =
+  | "cards"
+  | "table";
 
 export default function ActivityPage() {
   const [mounted, setMounted] =
     useState(false);
 
+  const [activityLogEnabled, setActivityLogEnabled] =
+    useState(true);
+
   const [activities, setActivities] =
-    useState<any[]>([]);
+    useState<Activity[]>([]);
+
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
   const [search, setSearch] =
-    useState("");
-
-  const [companyFilter, setCompanyFilter] =
     useState("");
 
   const [typeFilter, setTypeFilter] =
     useState("");
 
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
+  const [departmentFilter, setDepartmentFilter] =
+    useState("");
+
+  const [viewMode, setViewMode] =
+    useState<ViewMode>("cards");
+
   useEffect(() => {
     setMounted(true);
 
-    applyUrlFilters();
+    loadData();
 
-    loadActivities();
+    setActivityLogEnabled(
+      isActivityLogEnabled()
+    );
 
     function handleActivityUpdated() {
-      loadActivities();
+      loadData();
+    }
+
+    function handleCompaniesUpdated() {
+      loadData();
+    }
+
+    function handleDepartmentsUpdated() {
+      loadData();
+    }
+
+    function handleSettingsUpdated() {
+      setActivityLogEnabled(
+        isActivityLogEnabled()
+      );
     }
 
     window.addEventListener(
@@ -40,363 +105,382 @@ export default function ActivityPage() {
       handleActivityUpdated
     );
 
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated
+    );
+
+    window.addEventListener(
+      "appSettingsUpdated",
+      handleSettingsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "activityUpdated",
         handleActivityUpdated
       );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated
+      );
+
+      window.removeEventListener(
+        "appSettingsUpdated",
+        handleSettingsUpdated
+      );
     };
   }, []);
 
-  function applyUrlFilters() {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    setSearch(
-      params.get("q") || ""
-    );
-
-    setCompanyFilter(
-      params.get("company") || ""
-    );
-
-    setTypeFilter(
-      params.get("type") || ""
-    );
-  }
-
-  function updateUrlFilters(
-    nextSearch: string,
-    nextCompany: string,
-    nextType: string
-  ) {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params =
-      new URLSearchParams();
-
-    if (nextSearch) {
-      params.set(
-        "q",
-        nextSearch
-      );
-    }
-
-    if (nextCompany) {
-      params.set(
-        "company",
-        nextCompany
-      );
-    }
-
-    if (nextType) {
-      params.set(
-        "type",
-        nextType
-      );
-    }
-
-    const query =
-      params.toString();
-
-    const nextUrl =
-      query
-        ? `/activity?${query}`
-        : "/activity";
-
-    window.history.replaceState(
-      null,
-      "",
-      nextUrl
-    );
-  }
-
-  function loadActivities() {
+  function loadData() {
     setActivities(
       getActivities()
+    );
+
+    setCompanies(
+      getCompanies()
+    );
+
+    setDepartments(
+      getDepartments()
+    );
+  }
+
+  function getCompanyName(
+    companyId?: string
+  ) {
+    if (!companyId) {
+      return "";
+    }
+
+    return (
+      companies.find(
+        (company) =>
+          company.id === companyId
+      )?.name || ""
+    );
+  }
+
+  function getDepartmentName(
+    departmentId?: string
+  ) {
+    if (!departmentId) {
+      return "";
+    }
+
+    return (
+      departments.find(
+        (department) =>
+          department.id === departmentId
+      )?.name || ""
+    );
+  }
+
+  function getActivityCompany(
+    activity: Activity
+  ) {
+    return (
+      activity.company ||
+      getCompanyName(
+        activity.companyId
+      ) ||
+      "Intern"
+    );
+  }
+
+  function getActivityDepartment(
+    activity: Activity
+  ) {
+    return (
+      activity.department ||
+      getDepartmentName(
+        activity.departmentId
+      ) ||
+      "Allgemein"
     );
   }
 
   function resetFilters() {
     setSearch("");
 
-    setCompanyFilter("");
-
     setTypeFilter("");
 
-    updateUrlFilters(
-      "",
-      "",
-      ""
+    setCompanyFilter("");
+
+    setDepartmentFilter("");
+  }
+
+  function handleDeleteActivity(
+    activity: Activity
+  ) {
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, Aktivitäten zu löschen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        "Aktivität wirklich löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    deleteActivity(
+      activity.id
     );
+  }
+
+  function handleClearActivities() {
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, Aktivitäten zu löschen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        "Alle Aktivitäten wirklich löschen?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearActivities();
   }
 
   if (!mounted) {
     return null;
   }
 
-  function getActivityLabel(type: string) {
-    if (type === "created") {
-      return "Dokument erstellt";
-    }
+  if (!activityLogEnabled) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center gap-3 text-sm">
+          <Link
+            href="/"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            dashboard
+          </Link>
 
-    if (type === "edited") {
-      return "Dokument bearbeitet";
-    }
+          <span className="text-zinc-400">
+            /
+          </span>
 
-    if (type === "deleted") {
-      return "Dokument in Papierkorb verschoben";
-    }
+          <span className="text-zinc-900">
+            aktivitäten
+          </span>
+        </div>
 
-    if (type === "deletedForever") {
-      return "Dokument endgültig gelöscht";
-    }
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <h1 className="text-4xl font-bold">
+            Aktivitätslog deaktiviert
+          </h1>
 
-    if (type === "restored") {
-      return "Dokument oder Version wiederhergestellt";
-    }
+          <p className="text-zinc-500 mt-3">
+            Das Aktivitätslog ist aktuell in den Einstellungen deaktiviert.
+          </p>
 
-    if (type === "uploaded") {
-      return "Datei hochgeladen";
-    }
-
-    if (type === "fileDeleted") {
-      return "Datei gelöscht";
-    }
-
-    if (type === "commented") {
-      return "Kommentar hinzugefügt";
-    }
-
-    if (type === "commentDeleted") {
-      return "Kommentar gelöscht";
-    }
-
-    if (type === "ticketCreated") {
-      return "Ticket erstellt";
-    }
-
-    if (type === "ticketUpdated") {
-      return "Ticket aktualisiert";
-    }
-
-    if (type === "ticketDeleted") {
-      return "Ticket gelöscht";
-    }
-
-    if (type === "ticketCommented") {
-      return "Ticket-Kommentar hinzugefügt";
-    }
-
-    if (type === "ticketCommentUpdated") {
-      return "Ticket-Kommentar bearbeitet";
-    }
-
-    if (type === "ticketCommentDeleted") {
-      return "Ticket-Kommentar gelöscht";
-    }
-
-    if (type === "ticketTemplateCreated") {
-      return "Ticket-Vorlage erstellt";
-    }
-
-    if (type === "ticketTemplateUpdated") {
-      return "Ticket-Vorlage aktualisiert";
-    }
-
-    if (type === "ticketTemplateDeleted") {
-      return "Ticket-Vorlage gelöscht";
-    }
-
-    if (type === "ticketTemplateReset") {
-      return "Ticket-Vorlagen zurückgesetzt";
-    }
-
-    return "Aktivität";
+          <Link
+            href="/settings"
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Zu den Einstellungen
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  function getActivityIcon(type: string) {
-    if (type === "created") {
-      return "📝";
-    }
+  if (!canViewActivity()) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 text-sm">
+          <Link
+            href="/"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            dashboard
+          </Link>
 
-    if (type === "edited") {
-      return "✏️";
-    }
+          <span className="text-zinc-400">
+            /
+          </span>
 
-    if (type === "deleted") {
-      return "🗑️";
-    }
+          <span className="text-zinc-900">
+            aktivitäten
+          </span>
+        </div>
 
-    if (type === "deletedForever") {
-      return "❌";
-    }
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
+            🔒
+          </div>
 
-    if (type === "restored") {
-      return "♻️";
-    }
+          <h1 className="text-4xl font-bold">
+            Kein Zugriff
+          </h1>
 
-    if (type === "uploaded") {
-      return "📎";
-    }
-
-    if (type === "fileDeleted") {
-      return "🧹";
-    }
-
-    if (type === "commented") {
-      return "💬";
-    }
-
-    if (type === "commentDeleted") {
-      return "🧹";
-    }
-
-    if (type === "ticketCreated") {
-      return "🎫";
-    }
-
-    if (type === "ticketUpdated") {
-      return "🔄";
-    }
-
-    if (type === "ticketDeleted") {
-      return "🗑️";
-    }
-
-    if (type === "ticketCommented") {
-      return "💬";
-    }
-
-    if (type === "ticketCommentUpdated") {
-      return "✏️";
-    }
-
-    if (type === "ticketCommentDeleted") {
-      return "🧹";
-    }
-
-    if (type === "ticketTemplateCreated") {
-      return "🧩";
-    }
-
-    if (type === "ticketTemplateUpdated") {
-      return "🔧";
-    }
-
-    if (type === "ticketTemplateDeleted") {
-      return "🗑️";
-    }
-
-    if (type === "ticketTemplateReset") {
-      return "♻️";
-    }
-
-    return "📌";
+          <p className="text-zinc-500 mt-3">
+            Du hast mit deiner aktuellen Rolle keine Berechtigung für das Aktivitätslog.
+          </p>
+        </div>
+      </div>
+    );
   }
-
-  const companies: string[] =
-    Array.from(
-      new Set(
-        activities
-          .map(
-            (activity: any) =>
-              activity.company ||
-              "Intern"
-          )
-          .filter(Boolean)
-      )
-    );
-
-  const activityTypes: string[] =
-    Array.from(
-      new Set(
-        activities
-          .map(
-            (activity: any) =>
-              activity.type
-          )
-          .filter(Boolean)
-      )
-    );
 
   const filteredActivities =
     activities.filter(
-      (activity: any) => {
+      (activity) => {
         const query =
           search.toLowerCase();
 
-        const label =
-          getActivityLabel(
-            activity.type
+        const activityCompany =
+          getActivityCompany(
+            activity
           );
 
-        const activityCompany =
-          activity.company ||
-          "Intern";
+        const activityDepartment =
+          getActivityDepartment(
+            activity
+          );
+
+        const user =
+          activity.userName ||
+          activity.user ||
+          "";
 
         const matchesSearch =
           activity.title
-            ?.toLowerCase()
+            .toLowerCase()
             .includes(query) ||
-          activity.user
-            ?.toLowerCase()
+          activity.description
+            .toLowerCase()
+            .includes(query) ||
+          getActivityTypeLabel(
+            activity.type
+          )
+            .toLowerCase()
             .includes(query) ||
           activityCompany
-            ?.toLowerCase()
-            .includes(query) ||
-          activity.createdAt
-            ?.toLowerCase()
-            .includes(query) ||
-          label
             .toLowerCase()
+            .includes(query) ||
+          activityDepartment
+            .toLowerCase()
+            .includes(query) ||
+          user
+            .toLowerCase()
+            .includes(query) ||
+          activity.userEmail
+            ?.toLowerCase()
+            .includes(query) ||
+          activity.entityType
+            ?.toLowerCase()
+            .includes(query) ||
+          activity.entityId
+            ?.toLowerCase()
             .includes(query);
-
-        const matchesCompany =
-          !companyFilter ||
-          activityCompany ===
-            companyFilter;
 
         const matchesType =
           !typeFilter ||
-          activity.type ===
-            typeFilter;
+          activity.type === typeFilter;
+
+        const matchesCompany =
+          !companyFilter ||
+          activity.companyId === companyFilter ||
+          activity.company ===
+            getCompanyName(
+              companyFilter
+            );
+
+        const matchesDepartment =
+          !departmentFilter ||
+          activity.departmentId === departmentFilter ||
+          activity.department ===
+            getDepartmentName(
+              departmentFilter
+            );
 
         return (
           matchesSearch &&
+          matchesType &&
           matchesCompany &&
-          matchesType
+          matchesDepartment
         );
       }
     );
 
   const ticketActivityCount =
     activities.filter(
-      (activity: any) =>
-        activity.type?.startsWith(
+      (activity) =>
+        String(activity.type).startsWith(
           "ticket"
         )
     ).length;
 
   const wikiActivityCount =
     activities.filter(
-      (activity: any) =>
-        !activity.type?.startsWith(
-          "ticket"
+      (activity) =>
+        String(activity.type).startsWith(
+          "wiki"
+        ) ||
+        activity.type === "created" ||
+        activity.type === "updated" ||
+        activity.type === "deleted" ||
+        activity.type === "restored" ||
+        activity.type === "commented"
+    ).length;
+
+  const userActivityCount =
+    activities.filter(
+      (activity) =>
+        String(activity.type).startsWith(
+          "user"
         )
     ).length;
 
+  const organizationActivityCount =
+    activities.filter(
+      (activity) =>
+        String(activity.type).startsWith(
+          "company"
+        ) ||
+        String(activity.type).startsWith(
+          "department"
+        )
+    ).length;
+
+  const availableTypes =
+    Array.from(
+      new Set(
+        activities.map(
+          (activity) =>
+            activity.type
+        )
+      )
+    ).sort();
+
   return (
-    <div className="space-y-6 max-w-6xl">
-      {/* TOP NAV */}
+    <div className="space-y-8">
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/"
@@ -414,205 +498,265 @@ export default function ActivityPage() {
         </span>
       </div>
 
-      {/* BACK */}
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Dashboard
-        </Link>
-      </div>
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold">
+            Aktivitäten
+          </h1>
 
-      {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Aktivitäten
-        </h1>
-
-        <p className="text-zinc-500 mt-2">
-          Verlauf aller Änderungen, Kommentare, Uploads, Tickets, Vorlagen und Löschaktionen
-        </p>
-      </div>
-
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
-          <p className="text-sm text-zinc-500">
-            Aktivitäten gesamt
+          <p className="text-zinc-500 mt-2">
+            Audit-Log für Wiki, Tickets, Kommentare, Benutzer und Systemaktionen
           </p>
-
-          <h2 className="text-3xl font-bold mt-2">
-            {activities.length}
-          </h2>
         </div>
 
+        <div className="flex flex-wrap gap-3 justify-end">
+          <Link
+            href="/tickets"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Tickets
+          </Link>
+
+          <Link
+            href="/wiki"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Wiki
+          </Link>
+
+          {canDelete() && (
+            <button
+              onClick={handleClearActivities}
+              className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
+            >
+              Alle löschen
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
-          onClick={() => {
-            if (companies.length > 0) {
-              const firstCompany =
-                companies[0];
-
-              setCompanyFilter(
-                firstCompany
-              );
-
-              updateUrlFilters(
-                search,
-                firstCompany,
-                typeFilter
-              );
-            }
-          }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+          onClick={() =>
+            setTypeFilter("")
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Firmen
+            Gesamt
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {companies.length}
+          <h2 className="text-4xl font-bold mt-3">
+            {activities.length}
           </h2>
         </button>
 
         <button
-          onClick={() => {
-            setTypeFilter(
-              "ticketCreated"
-            );
-
-            updateUrlFilters(
-              search,
-              companyFilter,
-              "ticketCreated"
-            );
-          }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-blue-50 transition"
+          onClick={() =>
+            setSearch(
+              "ticket"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Ticket-Aktivitäten
+            Tickets
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {ticketActivityCount}
           </h2>
         </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() =>
+            setSearch(
+              "wiki"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Wiki-Aktivitäten
+            Wiki
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {wikiActivityCount}
           </h2>
-        </div>
+        </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <button
+          onClick={() =>
+            setSearch(
+              "benutzer"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-emerald-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Gefiltert
+            Benutzer
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
-            {filteredActivities.length}
+          <h2 className="text-4xl font-bold mt-3">
+            {userActivityCount}
           </h2>
-        </div>
+        </button>
+
+        <button
+          onClick={() =>
+            setSearch(
+              "firma"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Organisation
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {organizationActivityCount}
+          </h2>
+        </button>
       </div>
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Suche & Filter
-        </h2>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Suche & Filter
+            </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+            <p className="text-zinc-500 mt-1">
+              Filtere Aktivitäten nach Text, Typ, Firma und Abteilung.
+            </p>
+          </div>
+
+          <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
+            <button
+              onClick={() =>
+                setViewMode(
+                  "cards"
+                )
+              }
+              className={`px-4 py-2 rounded-xl transition ${
+                viewMode === "cards"
+                  ? "bg-white shadow-sm"
+                  : "hover:bg-zinc-200"
+              }`}
+            >
+              Karten
+            </button>
+
+            <button
+              onClick={() =>
+                setViewMode(
+                  "table"
+                )
+              }
+              className={`px-4 py-2 rounded-xl transition ${
+                viewMode === "table"
+                  ? "bg-white shadow-sm"
+                  : "hover:bg-zinc-200"
+              }`}
+            >
+              Tabelle
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
           <input
             type="text"
-            placeholder="Nach Firma, Benutzer, Titel, Datum oder Aktion suchen..."
             value={search}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setSearch(value);
-
-              updateUrlFilters(
-                value,
-                companyFilter,
-                typeFilter
-              );
-            }}
-            className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Nach Titel, Beschreibung, Benutzer, Firma oder Entity suchen..."
+            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
-            value={companyFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setCompanyFilter(value);
-
-              updateUrlFilters(
-                search,
-                value,
-                typeFilter
-              );
-            }}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">
-              Alle Firmen
-            </option>
-
-            {companies.map(
-              (company: string) => (
-                <option
-                  key={company}
-                  value={company}
-                >
-                  {company}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
             value={typeFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setTypeFilter(value);
-
-              updateUrlFilters(
-                search,
-                companyFilter,
-                value
-              );
-            }}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            onChange={(event) =>
+              setTypeFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
               Alle Typen
             </option>
 
-            {activityTypes.map(
-              (type: string) => (
+            {availableTypes.map(
+              (type) => (
                 <option
                   key={type}
                   value={type}
                 >
-                  {getActivityLabel(
+                  {getActivityTypeLabel(
                     type
                   )}
                 </option>
               )
             )}
           </select>
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (company) => (
+                <option
+                  key={company.id}
+                  value={company.id}
+                >
+                  {company.name}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={departmentFilter}
+            onChange={(event) =>
+              setDepartmentFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Abteilungen
+            </option>
+
+            {departments.map(
+              (department) => (
+                <option
+                  key={department.id}
+                  value={department.id}
+                >
+                  {department.name}
+                </option>
+              )
+            )}
+          </select>
         </div>
 
-        <div className="flex items-center justify-between mt-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-5">
           <p className="text-sm text-zinc-500">
             {filteredActivities.length} von{" "}
             {activities.length} Aktivitäten gefunden
@@ -627,102 +771,264 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {/* LIST */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Verlauf
-        </h2>
-
-        <div className="mt-6 space-y-4">
-          {filteredActivities.length ===
-            0 && (
-            <p className="text-zinc-500">
-              Keine Aktivitäten gefunden.
-            </p>
+      {viewMode === "cards" && (
+        <div className="grid gap-4">
+          {filteredActivities.length === 0 && (
+            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+              <p className="text-zinc-500">
+                Keine Aktivitäten gefunden.
+              </p>
+            </div>
           )}
 
           {filteredActivities.map(
-            (
-              activity: any,
-              index: number
-            ) => {
+            (activity) => {
               const activityCompany =
-                activity.company ||
-                "Intern";
+                getActivityCompany(
+                  activity
+                );
+
+              const activityDepartment =
+                getActivityDepartment(
+                  activity
+                );
+
+              const user =
+                activity.userName ||
+                activity.user ||
+                "Unbekannt";
 
               return (
                 <div
-                  key={`${activity.createdAt}-${activity.type}-${index}`}
-                  className="flex items-center justify-between border-b border-zinc-100 pb-4 last:border-b-0 gap-6"
+                  key={activity.id}
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
                 >
-                  <div className="flex items-start gap-4 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                      {getActivityIcon(
-                        activity.type
-                      )}
-                    </div>
-
+                  <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => {
-                            setCompanyFilter(
-                              activityCompany
-                            );
-
-                            updateUrlFilters(
-                              search,
-                              activityCompany,
-                              typeFilter
-                            );
-                          }}
-                          className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full hover:bg-indigo-100 transition"
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full ${getActivityTypeClass(
+                            activity.type
+                          )}`}
                         >
-                          {activityCompany}
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setTypeFilter(
-                              activity.type
-                            );
-
-                            updateUrlFilters(
-                              search,
-                              companyFilter,
-                              activity.type
-                            );
-                          }}
-                          className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full hover:bg-zinc-200 transition"
-                        >
-                          {getActivityLabel(
+                          {getActivityTypeLabel(
                             activity.type
                           )}
-                        </button>
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                          {activityCompany}
+                        </span>
+
+                        <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                          {activityDepartment}
+                        </span>
+
+                        {activity.entityType && (
+                          <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                            {activity.entityType}
+                          </span>
+                        )}
                       </div>
 
-                      <p className="font-medium mt-2">
-                        {activity.user ||
-                          "Unbekannt"}
+                      <h2 className="text-2xl font-bold mt-4">
+                        {activity.title}
+                      </h2>
+
+                      <p className="text-zinc-500 mt-2 whitespace-pre-wrap">
+                        {activity.description ||
+                          "Keine Beschreibung"}
                       </p>
 
-                      <p className="mt-2 font-medium break-words">
-                        {activity.title ||
-                          "Ohne Titel"}
-                      </p>
+                      <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
+                        <p>
+                          Benutzer:{" "}
+                          {user}
+                        </p>
+
+                        {activity.userEmail && (
+                          <p>
+                            E-Mail:{" "}
+                            {activity.userEmail}
+                          </p>
+                        )}
+
+                        <p>
+                          Zeitpunkt:{" "}
+                          {activity.createdAt}
+                        </p>
+
+                        {activity.entityId && (
+                          <p>
+                            Entity-ID:{" "}
+                            {activity.entityId}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <p className="text-sm text-zinc-500 whitespace-nowrap">
-                    {activity.createdAt ||
-                      "Unbekannt"}
-                  </p>
+                    {canDelete() && (
+                      <button
+                        onClick={() =>
+                          handleDeleteActivity(
+                            activity
+                          )
+                        }
+                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition shrink-0"
+                      >
+                        Löschen
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             }
           )}
         </div>
-      </div>
+      )}
+
+      {viewMode === "table" && (
+        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
+                <tr>
+                  <th className="px-5 py-4 font-semibold">
+                    Aktivität
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Typ
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Benutzer
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Firma
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Abteilung
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Entity
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Zeitpunkt
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold text-right">
+                    Aktionen
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredActivities.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-5 py-8 text-zinc-500"
+                    >
+                      Keine Aktivitäten gefunden.
+                    </td>
+                  </tr>
+                )}
+
+                {filteredActivities.map(
+                  (activity) => {
+                    const activityCompany =
+                      getActivityCompany(
+                        activity
+                      );
+
+                    const activityDepartment =
+                      getActivityDepartment(
+                        activity
+                      );
+
+                    const user =
+                      activity.userName ||
+                      activity.user ||
+                      "Unbekannt";
+
+                    return (
+                      <tr
+                        key={activity.id}
+                        className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
+                      >
+                        <td className="px-5 py-4 min-w-[280px]">
+                          <p className="font-semibold">
+                            {activity.title}
+                          </p>
+
+                          <p className="text-xs text-zinc-500 mt-1 line-clamp-1">
+                            {activity.description ||
+                              "Keine Beschreibung"}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span
+                            className={`text-xs px-3 py-1 rounded-full ${getActivityTypeClass(
+                              activity.type
+                            )}`}
+                          >
+                            {getActivityTypeLabel(
+                              activity.type
+                            )}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-600">
+                          {user}
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-600">
+                          {activityCompany}
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-600">
+                          {activityDepartment}
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-500">
+                          {activity.entityType || "—"}
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
+                          {activity.createdAt}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end">
+                            {canDelete() && (
+                              <button
+                                onClick={() =>
+                                  handleDeleteActivity(
+                                    activity
+                                  )
+                                }
+                                className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
+                              >
+                                Löschen
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

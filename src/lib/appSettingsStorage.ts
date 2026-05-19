@@ -1,46 +1,87 @@
+import type {
+  UserRole,
+} from "./userStorage";
+
 export type AppTheme =
   | "modern"
   | "light"
-  | "dark"
-  | "system";
+  | "dark";
+
+export type SidebarPosition =
+  | "left"
+  | "right";
 
 export type AppAccentColor =
   | "zinc"
-  | "indigo"
   | "blue"
+  | "indigo"
   | "emerald"
-  | "violet"
-  | "rose";
+  | "red"
+  | "orange";
 
 export type AppSettings = {
   appName: string;
   companyName: string;
+
+  appVersion: string;
+  version: string;
+
   theme: AppTheme;
+  darkMode: boolean;
+
+  /**
+   * Neuer Name + alter Alias.
+   */
+  appAccentColor: AppAccentColor;
   accentColor: AppAccentColor;
+
+  sidebarPosition: SidebarPosition;
+
+  showVersion: boolean;
   compactMode: boolean;
+
   showDemoHints: boolean;
   enableTicketTemplates: boolean;
   enableTicketComments: boolean;
   enableActivityLog: boolean;
-  defaultUserRole: "admin" | "editor" | "viewer";
+  defaultUserRole: UserRole;
+
   updatedAt: string;
 };
 
 const STORAGE_KEY =
   "dms_app_settings";
 
-export const defaultAppSettings: AppSettings = {
+const defaultSettings: AppSettings = {
   appName:
     "DMS Intranet",
 
   companyName:
     "Intern",
 
+  appVersion:
+    "0.1.0",
+
+  version:
+    "0.1.0",
+
   theme:
     "modern",
 
+  darkMode:
+    false,
+
+  appAccentColor:
+    "zinc",
+
   accentColor:
-    "indigo",
+    "zinc",
+
+  sidebarPosition:
+    "left",
+
+  showVersion:
+    true,
 
   compactMode:
     false,
@@ -89,46 +130,48 @@ function normalizeTheme(
     return "dark";
   }
 
-  if (value === "system") {
-    return "system";
+  return "modern";
+}
+
+function normalizeSidebarPosition(
+  value: unknown
+): SidebarPosition {
+  if (value === "right") {
+    return "right";
   }
 
-  return "modern";
+  return "left";
 }
 
 function normalizeAccentColor(
   value: unknown
 ): AppAccentColor {
-  if (value === "zinc") {
-    return "zinc";
+  if (value === "blue") {
+    return "blue";
   }
 
   if (value === "indigo") {
     return "indigo";
   }
 
-  if (value === "blue") {
-    return "blue";
-  }
-
   if (value === "emerald") {
     return "emerald";
   }
 
-  if (value === "violet") {
-    return "violet";
+  if (value === "red") {
+    return "red";
   }
 
-  if (value === "rose") {
-    return "rose";
+  if (value === "orange") {
+    return "orange";
   }
 
-  return "indigo";
+  return "zinc";
 }
 
-function normalizeDefaultRole(
+function normalizeDefaultUserRole(
   value: unknown
-): "admin" | "editor" | "viewer" {
+): UserRole {
   if (value === "admin") {
     return "admin";
   }
@@ -154,57 +197,93 @@ function normalizeBoolean(
 function normalizeSettings(
   settings: Partial<AppSettings>
 ): AppSettings {
+  const version =
+    settings.appVersion ||
+    settings.version ||
+    defaultSettings.appVersion;
+
+  const theme =
+    normalizeTheme(
+      settings.theme
+    );
+
+  const accentColor =
+    normalizeAccentColor(
+      settings.appAccentColor ||
+      settings.accentColor
+    );
+
   return {
     appName:
       settings.appName ||
-      defaultAppSettings.appName,
+      defaultSettings.appName,
 
     companyName:
       settings.companyName ||
-      defaultAppSettings.companyName,
+      defaultSettings.companyName,
 
-    theme:
-      normalizeTheme(
-        settings.theme
-      ),
+    appVersion:
+      version,
+
+    version:
+      version,
+
+    theme,
+
+    darkMode:
+      typeof settings.darkMode === "boolean"
+        ? settings.darkMode
+        : theme === "dark",
+
+    appAccentColor:
+      accentColor,
 
     accentColor:
-      normalizeAccentColor(
-        settings.accentColor
+      accentColor,
+
+    sidebarPosition:
+      normalizeSidebarPosition(
+        settings.sidebarPosition
+      ),
+
+    showVersion:
+      normalizeBoolean(
+        settings.showVersion,
+        true
       ),
 
     compactMode:
       normalizeBoolean(
         settings.compactMode,
-        defaultAppSettings.compactMode
+        false
       ),
 
     showDemoHints:
       normalizeBoolean(
         settings.showDemoHints,
-        defaultAppSettings.showDemoHints
+        true
       ),
 
     enableTicketTemplates:
       normalizeBoolean(
         settings.enableTicketTemplates,
-        defaultAppSettings.enableTicketTemplates
+        true
       ),
 
     enableTicketComments:
       normalizeBoolean(
         settings.enableTicketComments,
-        defaultAppSettings.enableTicketComments
+        true
       ),
 
     enableActivityLog:
       normalizeBoolean(
         settings.enableActivityLog,
-        defaultAppSettings.enableActivityLog
+        true
       ),
 
     defaultUserRole:
-      normalizeDefaultRole(
+      normalizeDefaultUserRole(
         settings.defaultUserRole
       ),
 
@@ -214,9 +293,15 @@ function normalizeSettings(
   };
 }
 
+export function getDefaultAppSettings(): AppSettings {
+  return normalizeSettings(
+    defaultSettings
+  );
+}
+
 export function getAppSettings(): AppSettings {
   if (typeof window === "undefined") {
-    return defaultAppSettings;
+    return getDefaultAppSettings();
   }
 
   const raw =
@@ -228,38 +313,32 @@ export function getAppSettings(): AppSettings {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(
-        defaultAppSettings
+        defaultSettings
       )
     );
 
-    return defaultAppSettings;
+    return getDefaultAppSettings();
   }
 
   try {
     const parsed =
       JSON.parse(raw);
 
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed)
-    ) {
-      return defaultAppSettings;
-    }
-
     return normalizeSettings(
       parsed
     );
   } catch {
-    return defaultAppSettings;
+    return getDefaultAppSettings();
   }
 }
 
 export function saveAppSettings(
-  settings: AppSettings
-) {
+  settings: Partial<AppSettings>
+): AppSettings {
   if (typeof window === "undefined") {
-    return settings;
+    return normalizeSettings(
+      settings
+    );
   }
 
   const normalizedSettings =
@@ -284,31 +363,20 @@ export function saveAppSettings(
 
 export function updateAppSettings(
   updates: Partial<AppSettings>
-) {
+): AppSettings {
   const currentSettings =
     getAppSettings();
 
-  const updatedSettings =
-    normalizeSettings({
-      ...currentSettings,
-      ...updates,
-
-      updatedAt:
-        new Date().toLocaleString(),
-    });
-
-  return saveAppSettings(
-    updatedSettings
-  );
+  return saveAppSettings({
+    ...currentSettings,
+    ...updates,
+  });
 }
 
-export function resetAppSettings() {
-  return saveAppSettings({
-    ...defaultAppSettings,
-
-    updatedAt:
-      new Date().toLocaleString(),
-  });
+export function resetAppSettings(): AppSettings {
+  return saveAppSettings(
+    defaultSettings
+  );
 }
 
 export function clearAppSettings() {
@@ -338,133 +406,246 @@ export function getThemeLabel(
     return "Dunkel";
   }
 
-  if (theme === "system") {
-    return "System";
-  }
-
   return "Unbekannt";
 }
 
 export function getAccentColorLabel(
-  accentColor: AppAccentColor | string
+  color: AppAccentColor | string
 ) {
-  if (accentColor === "zinc") {
-    return "Neutral";
-  }
-
-  if (accentColor === "indigo") {
-    return "Indigo";
-  }
-
-  if (accentColor === "blue") {
+  if (color === "blue") {
     return "Blau";
   }
 
-  if (accentColor === "emerald") {
-    return "Emerald";
+  if (color === "indigo") {
+    return "Indigo";
   }
 
-  if (accentColor === "violet") {
-    return "Violett";
+  if (color === "emerald") {
+    return "Grün";
   }
 
-  if (accentColor === "rose") {
-    return "Rose";
+  if (color === "red") {
+    return "Rot";
+  }
+
+  if (color === "orange") {
+    return "Orange";
+  }
+
+  return "Standard";
+}
+
+export function getSidebarPositionLabel(
+  position: SidebarPosition | string
+) {
+  if (position === "right") {
+    return "Rechts";
+  }
+
+  return "Links";
+}
+
+export function getDefaultUserRoleLabel(
+  role: UserRole | string
+) {
+  if (role === "admin") {
+    return "Administrator";
+  }
+
+  if (role === "editor") {
+    return "Bearbeiter";
+  }
+
+  if (role === "viewer") {
+    return "Leser";
   }
 
   return "Unbekannt";
 }
 
-export function getThemeOptions(): {
-  value: AppTheme;
-  label: string;
-}[] {
+export function getThemeOptions() {
   return [
     {
       value:
-        "modern",
+        "modern" as AppTheme,
 
       label:
-        "Modern",
+        getThemeLabel(
+          "modern"
+        ),
     },
 
     {
       value:
-        "light",
+        "light" as AppTheme,
 
       label:
-        "Hell",
+        getThemeLabel(
+          "light"
+        ),
     },
 
     {
       value:
-        "dark",
+        "dark" as AppTheme,
 
       label:
-        "Dunkel",
-    },
-
-    {
-      value:
-        "system",
-
-      label:
-        "System",
+        getThemeLabel(
+          "dark"
+        ),
     },
   ];
 }
 
-export function getAccentColorOptions(): {
-  value: AppAccentColor;
-  label: string;
-}[] {
+export function getAccentColorOptions() {
   return [
     {
       value:
-        "indigo",
+        "zinc" as AppAccentColor,
 
       label:
-        "Indigo",
+        getAccentColorLabel(
+          "zinc"
+        ),
     },
 
     {
       value:
-        "blue",
+        "blue" as AppAccentColor,
 
       label:
-        "Blau",
+        getAccentColorLabel(
+          "blue"
+        ),
     },
 
     {
       value:
-        "emerald",
+        "indigo" as AppAccentColor,
 
       label:
-        "Emerald",
+        getAccentColorLabel(
+          "indigo"
+        ),
     },
 
     {
       value:
-        "violet",
+        "emerald" as AppAccentColor,
 
       label:
-        "Violett",
+        getAccentColorLabel(
+          "emerald"
+        ),
     },
 
     {
       value:
-        "rose",
+        "red" as AppAccentColor,
 
       label:
-        "Rose",
+        getAccentColorLabel(
+          "red"
+        ),
     },
 
     {
       value:
-        "zinc",
+        "orange" as AppAccentColor,
 
       label:
-        "Neutral",
+        getAccentColorLabel(
+          "orange"
+        ),
     },
   ];
+}
+
+export function getSidebarPositionOptions() {
+  return [
+    {
+      value:
+        "left" as SidebarPosition,
+
+      label:
+        getSidebarPositionLabel(
+          "left"
+        ),
+    },
+
+    {
+      value:
+        "right" as SidebarPosition,
+
+      label:
+        getSidebarPositionLabel(
+          "right"
+        ),
+    },
+  ];
+}
+
+export function getDefaultUserRoleOptions() {
+  return [
+    {
+      value:
+        "admin" as UserRole,
+
+      label:
+        getDefaultUserRoleLabel(
+          "admin"
+        ),
+    },
+
+    {
+      value:
+        "editor" as UserRole,
+
+      label:
+        getDefaultUserRoleLabel(
+          "editor"
+        ),
+    },
+
+    {
+      value:
+        "viewer" as UserRole,
+
+      label:
+        getDefaultUserRoleLabel(
+          "viewer"
+        ),
+    },
+  ];
+}
+
+/**
+ * Alte Alias-Namen für bestehende Seiten.
+ */
+export function getSettings() {
+  return getAppSettings();
+}
+
+export function saveSettings(
+  settings: Partial<AppSettings>
+) {
+  return saveAppSettings(
+    settings
+  );
+}
+
+export function updateSettings(
+  updates: Partial<AppSettings>
+) {
+  return updateAppSettings(
+    updates
+  );
+}
+
+export function resetSettings() {
+  return resetAppSettings();
+}
+
+export function clearSettings() {
+  clearAppSettings();
 }

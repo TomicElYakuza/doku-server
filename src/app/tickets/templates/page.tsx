@@ -10,18 +10,22 @@ import {
 import {
   createTicketTemplate,
   deleteTicketTemplate,
+  getTicketTemplatePriorityClass,
+  getTicketTemplatePriorityLabel,
+  getTicketTemplateStatusClass,
+  getTicketTemplateStatusLabel,
   getTicketTemplates,
-  resetTicketTemplates,
   updateTicketTemplate,
 } from "../../../lib/ticketTemplateStorage";
 
 import type {
   TicketTemplate,
+  TicketTemplatePriority,
+  TicketTemplateStatus,
 } from "../../../lib/ticketTemplateStorage";
 
-import type {
-  TicketPriority,
-  TicketStatus,
+import {
+  createTicket,
 } from "../../../lib/ticketStorage";
 
 import {
@@ -31,27 +35,58 @@ import {
 } from "../../../lib/permissions";
 
 import {
-  saveActivity,
-} from "../../../lib/activityStorage";
+  getActiveCompanies,
+  getActiveDepartments,
+  getActiveDepartmentsByCompanyId,
+  getCompanies,
+  getDepartments,
+} from "../../../lib/companyStorage";
+
+import type {
+  Company,
+  Department,
+} from "../../../lib/companyStorage";
 
 import {
-  getUser,
-} from "../../../lib/userStorage";
+  saveTicketCreatedFromTemplateActivity,
+  saveTicketTemplateCreatedActivity,
+  saveTicketTemplateDeletedActivity,
+  saveTicketTemplateUpdatedActivity,
+} from "../../../lib/ticketTemplateActivityHelpers";
+
+import {
+  areTicketTemplatesEnabled,
+} from "../../../lib/featureFlags";
 
 export default function TicketTemplatesPage() {
   const [mounted, setMounted] =
     useState(false);
 
+  const [templatesEnabled, setTemplatesEnabled] =
+    useState(true);
+
   const [templates, setTemplates] =
     useState<TicketTemplate[]>([]);
 
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
+
   const [search, setSearch] =
+    useState("");
+
+  const [priorityFilter, setPriorityFilter] =
+    useState("");
+
+  const [statusFilter, setStatusFilter] =
     useState("");
 
   const [companyFilter, setCompanyFilter] =
     useState("");
 
-  const [categoryFilter, setCategoryFilter] =
+  const [departmentFilter, setDepartmentFilter] =
     useState("");
 
   const [showForm, setShowForm] =
@@ -66,30 +101,58 @@ export default function TicketTemplatesPage() {
   const [description, setDescription] =
     useState("");
 
+  const [category, setCategory] =
+    useState("Allgemein");
+
+  const [priority, setPriority] =
+    useState<TicketTemplatePriority>("medium");
+
+  const [status, setStatus] =
+    useState<TicketTemplateStatus>("open");
+
+  const [companyId, setCompanyId] =
+    useState("");
+
+  const [departmentId, setDepartmentId] =
+    useState("");
+
   const [company, setCompany] =
     useState("Intern");
 
-  const [category, setCategory] =
-    useState("Support");
+  const [department, setDepartment] =
+    useState("Allgemein");
 
   const [assignedTo, setAssignedTo] =
     useState("");
 
-  const [status, setStatus] =
-    useState<TicketStatus>("open");
-
-  const [priority, setPriority] =
-    useState<TicketPriority>("medium");
+  const [tags, setTags] =
+    useState("");
 
   useEffect(() => {
     setMounted(true);
 
-    applyUrlFilters();
+    loadData();
 
-    loadTemplates();
+    setTemplatesEnabled(
+      areTicketTemplatesEnabled()
+    );
 
     function handleTemplatesUpdated() {
-      loadTemplates();
+      loadData();
+    }
+
+    function handleCompaniesUpdated() {
+      loadData();
+    }
+
+    function handleDepartmentsUpdated() {
+      loadData();
+    }
+
+    function handleSettingsUpdated() {
+      setTemplatesEnabled(
+        areTicketTemplatesEnabled()
+      );
     }
 
     window.addEventListener(
@@ -97,93 +160,201 @@ export default function TicketTemplatesPage() {
       handleTemplatesUpdated
     );
 
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated
+    );
+
+    window.addEventListener(
+      "appSettingsUpdated",
+      handleSettingsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "ticketTemplatesUpdated",
         handleTemplatesUpdated
       );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated
+      );
+
+      window.removeEventListener(
+        "appSettingsUpdated",
+        handleSettingsUpdated
+      );
     };
   }, []);
 
-  function applyUrlFilters() {
-    if (typeof window === "undefined") {
-      return;
-    }
+  function loadData() {
+    const nextCompanies =
+      getCompanies();
 
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
+    const nextDepartments =
+      getDepartments();
 
-    setSearch(
-      params.get("q") || ""
-    );
-
-    setCompanyFilter(
-      params.get("company") || ""
-    );
-
-    setCategoryFilter(
-      params.get("category") || ""
-    );
-  }
-
-  function updateUrlFilters(
-    nextSearch: string,
-    nextCompany: string,
-    nextCategory: string
-  ) {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params =
-      new URLSearchParams();
-
-    if (nextSearch) {
-      params.set(
-        "q",
-        nextSearch
-      );
-    }
-
-    if (nextCompany) {
-      params.set(
-        "company",
-        nextCompany
-      );
-    }
-
-    if (nextCategory) {
-      params.set(
-        "category",
-        nextCategory
-      );
-    }
-
-    const query =
-      params.toString();
-
-    const nextUrl =
-      query
-        ? `/tickets/templates?${query}`
-        : "/tickets/templates";
-
-    window.history.replaceState(
-      null,
-      "",
-      nextUrl
-    );
-  }
-
-  function loadTemplates() {
     setTemplates(
       getTicketTemplates()
+    );
+
+    setCompanies(
+      nextCompanies
+    );
+
+    setDepartments(
+      nextDepartments
+    );
+
+    if (
+      !companyId &&
+      nextCompanies.length > 0
+    ) {
+      setCompanyId(
+        nextCompanies[0].id
+      );
+
+      setCompany(
+        nextCompanies[0].name
+      );
+    }
+
+    if (
+      !departmentId &&
+      nextDepartments.length > 0
+    ) {
+      setDepartmentId(
+        nextDepartments[0].id
+      );
+
+      setDepartment(
+        nextDepartments[0].name
+      );
+    }
+  }
+
+  function getCompanyName(
+    nextCompanyId?: string
+  ) {
+    if (!nextCompanyId) {
+      return "";
+    }
+
+    return (
+      companies.find(
+        (item) =>
+          item.id === nextCompanyId
+      )?.name || ""
+    );
+  }
+
+  function getDepartmentName(
+    nextDepartmentId?: string
+  ) {
+    if (!nextDepartmentId) {
+      return "";
+    }
+
+    return (
+      departments.find(
+        (item) =>
+          item.id === nextDepartmentId
+      )?.name || ""
+    );
+  }
+
+  function getSelectableDepartments() {
+    if (!companyId) {
+      return getActiveDepartments();
+    }
+
+    return getActiveDepartmentsByCompanyId(
+      companyId
+    );
+  }
+
+  function handleCompanyChange(
+    nextCompanyId: string
+  ) {
+    setCompanyId(
+      nextCompanyId
+    );
+
+    const selectedCompany =
+      companies.find(
+        (item) =>
+          item.id === nextCompanyId
+      );
+
+    setCompany(
+      selectedCompany?.name ||
+        "Intern"
+    );
+
+    const nextDepartments =
+      getActiveDepartmentsByCompanyId(
+        nextCompanyId
+      );
+
+    const firstDepartment =
+      nextDepartments[0];
+
+    setDepartmentId(
+      firstDepartment?.id || ""
+    );
+
+    setDepartment(
+      firstDepartment?.name ||
+        "Allgemein"
+    );
+  }
+
+  function handleDepartmentChange(
+    nextDepartmentId: string
+  ) {
+    setDepartmentId(
+      nextDepartmentId
+    );
+
+    const selectedDepartment =
+      departments.find(
+        (item) =>
+          item.id === nextDepartmentId
+      );
+
+    setDepartment(
+      selectedDepartment?.name ||
+        "Allgemein"
     );
   }
 
   function resetForm() {
-    setShowForm(false);
+    const activeCompanies =
+      getActiveCompanies();
+
+    const firstCompany =
+      activeCompanies[0];
+
+    const activeDepartments =
+      firstCompany
+        ? getActiveDepartmentsByCompanyId(
+            firstCompany.id
+          )
+        : getActiveDepartments();
+
+    const firstDepartment =
+      activeDepartments[0];
 
     setEditingId("");
 
@@ -191,71 +362,106 @@ export default function TicketTemplatesPage() {
 
     setDescription("");
 
-    setCompany("Intern");
+    setCategory("Allgemein");
 
-    setCategory("Support");
-
-    setAssignedTo("");
+    setPriority("medium");
 
     setStatus("open");
 
-    setPriority("medium");
-  }
-
-  function resetFilters() {
-    setSearch("");
-
-    setCompanyFilter("");
-
-    setCategoryFilter("");
-
-    updateUrlFilters(
-      "",
-      "",
-      ""
+    setCompanyId(
+      firstCompany?.id || ""
     );
+
+    setDepartmentId(
+      firstDepartment?.id || ""
+    );
+
+    setCompany(
+      firstCompany?.name || "Intern"
+    );
+
+    setDepartment(
+      firstDepartment?.name || "Allgemein"
+    );
+
+    setAssignedTo("");
+
+    setTags("");
+
+    setShowForm(false);
   }
 
   function openCreateForm() {
+    if (!templatesEnabled) {
+      alert(
+        "Ticket-Vorlagen sind in den Einstellungen deaktiviert."
+      );
+
+      return;
+    }
+
     resetForm();
 
     setShowForm(true);
   }
 
-  function startEdit(
+  function startEditTemplate(
     template: TicketTemplate
   ) {
-    setEditingId(template.id);
+    if (!templatesEnabled) {
+      alert(
+        "Ticket-Vorlagen sind in den Einstellungen deaktiviert."
+      );
 
-    setTitle(template.title);
+      return;
+    }
+
+    setEditingId(
+      template.id
+    );
+
+    setTitle(
+      template.title
+    );
 
     setDescription(
       template.description
     );
 
-    setCompany(
-      template.company ||
-        "Intern"
-    );
-
     setCategory(
-      template.category ||
-        "Support"
-    );
-
-    setAssignedTo(
-      template.assignedTo ||
-        ""
-    );
-
-    setStatus(
-      template.status ||
-        "open"
+      template.category
     );
 
     setPriority(
-      template.priority ||
-        "medium"
+      template.priority
+    );
+
+    setStatus(
+      template.status
+    );
+
+    setCompanyId(
+      template.companyId || ""
+    );
+
+    setDepartmentId(
+      template.departmentId || ""
+    );
+
+    setCompany(
+      template.company || "Intern"
+    );
+
+    setDepartment(
+      template.department || "Allgemein"
+    );
+
+    setAssignedTo(
+      template.assignedTo || ""
+    );
+
+    setTags(
+      template.tags?.join(", ") || ""
     );
 
     setShowForm(true);
@@ -266,18 +472,26 @@ export default function TicketTemplatesPage() {
     });
   }
 
-  function handleSave() {
-    if (editingId && !canEdit()) {
+  function handleSaveTemplate() {
+    if (!templatesEnabled) {
       alert(
-        "Du hast keine Berechtigung, Templates zu bearbeiten."
+        "Ticket-Vorlagen sind in den Einstellungen deaktiviert."
       );
 
       return;
     }
 
-    if (!editingId && !canCreate()) {
+    if (!canCreate() && !editingId) {
       alert(
-        "Du hast keine Berechtigung, Templates zu erstellen."
+        "Du hast keine Berechtigung, Vorlagen zu erstellen."
+      );
+
+      return;
+    }
+
+    if (!canEdit() && editingId) {
+      alert(
+        "Du hast keine Berechtigung, Vorlagen zu bearbeiten."
       );
 
       return;
@@ -291,102 +505,105 @@ export default function TicketTemplatesPage() {
       return;
     }
 
-    if (!company.trim()) {
-      alert(
-        "Bitte eine Firma eingeben."
-      );
+    const selectedCompanyName =
+      getCompanyName(
+        companyId
+      ) ||
+      company.trim() ||
+      "Intern";
 
-      return;
-    }
+    const selectedDepartmentName =
+      getDepartmentName(
+        departmentId
+      ) ||
+      department.trim() ||
+      "Allgemein";
 
-    const payload = {
+    const tagList =
+      tags
+        .split(",")
+        .map(
+          (tag) =>
+            tag.trim()
+        )
+        .filter(Boolean);
+
+    const templateData = {
       title:
         title.trim(),
 
       description:
         description.trim(),
 
-      company:
-        company.trim() ||
-        "Intern",
-
       category:
         category.trim() ||
         "Allgemein",
 
-      assignedTo:
-        assignedTo.trim(),
+      priority,
 
       status,
 
-      priority,
+      companyId,
+
+      departmentId,
+
+      company:
+        selectedCompanyName,
+
+      department:
+        selectedDepartmentName,
+
+      assignedTo:
+        assignedTo.trim(),
+
+      tags:
+        tagList,
     };
 
-    const user =
-      getUser();
-
     if (editingId) {
-      const updated =
+      const updatedTemplate =
         updateTicketTemplate(
           editingId,
-          payload
+          templateData
         );
 
-      if (updated) {
-        saveActivity({
-          type:
-            "ticketTemplateUpdated",
-
-          title:
-            updated.title,
-
-          company:
-            updated.company ||
-            "Intern",
-
-          user:
-            user?.name ||
-            "Unbekannt",
-
-          createdAt:
-            new Date().toLocaleString(),
-        });
+      if (updatedTemplate) {
+        saveTicketTemplateUpdatedActivity(
+          updatedTemplate
+        );
       }
-    } else {
-      const created =
-        createTicketTemplate(
-          payload
-        );
 
-      saveActivity({
-        type:
-          "ticketTemplateCreated",
+      resetForm();
 
-        title:
-          created.title,
-
-        company:
-          created.company ||
-          "Intern",
-
-        user:
-          user?.name ||
-          "Unbekannt",
-
-        createdAt:
-          new Date().toLocaleString(),
-      });
+      return;
     }
+
+    const newTemplate =
+      createTicketTemplate(
+        templateData
+      );
+
+    saveTicketTemplateCreatedActivity(
+      newTemplate
+    );
 
     resetForm();
   }
 
-  function handleDelete(
+  function handleDeleteTemplate(
     template: TicketTemplate
   ) {
+    if (!templatesEnabled) {
+      alert(
+        "Ticket-Vorlagen sind in den Einstellungen deaktiviert."
+      );
+
+      return;
+    }
+
     if (!canDelete()) {
       alert(
-        "Nur Admins dürfen Templates löschen."
+        "Du hast keine Berechtigung, Vorlagen zu löschen."
       );
 
       return;
@@ -394,179 +611,165 @@ export default function TicketTemplatesPage() {
 
     const confirmed =
       confirm(
-        "Template wirklich löschen?"
+        `Vorlage "${template.title}" wirklich löschen?`
       );
 
     if (!confirmed) {
       return;
     }
+
+    saveTicketTemplateDeletedActivity(
+      template
+    );
 
     deleteTicketTemplate(
       template.id
     );
-
-    saveActivity({
-      type:
-        "ticketTemplateDeleted",
-
-      title:
-        template.title,
-
-      company:
-        template.company ||
-        "Intern",
-
-      user:
-        getUser()?.name ||
-        "Unbekannt",
-
-      createdAt:
-        new Date().toLocaleString(),
-    });
   }
 
-  function handleResetDefaults() {
-    if (!canDelete()) {
+  function createTicketFromTemplate(
+    template: TicketTemplate
+  ) {
+    if (!templatesEnabled) {
       alert(
-        "Nur Admins dürfen Templates zurücksetzen."
+        "Ticket-Vorlagen sind in den Einstellungen deaktiviert."
       );
 
       return;
     }
 
-    const confirmed =
-      confirm(
-        "Alle Ticket-Templates auf Standard zurücksetzen?"
+    if (!canCreate()) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu erstellen."
       );
 
-    if (!confirmed) {
       return;
     }
 
-    resetTicketTemplates();
+    const newTicket =
+      createTicket({
+        title:
+          template.title,
 
-    saveActivity({
-      type:
-        "ticketTemplateReset",
+        description:
+          template.description,
 
-      title:
-        "Ticket-Templates auf Standard zurückgesetzt",
+        status:
+          template.status,
 
-      company:
-        "Intern",
+        priority:
+          template.priority,
 
-      user:
-        getUser()?.name ||
-        "Unbekannt",
+        category:
+          template.category,
 
-      createdAt:
-        new Date().toLocaleString(),
-    });
+        companyId:
+          template.companyId || "",
 
-    resetForm();
+        departmentId:
+          template.departmentId || "",
+
+        company:
+          template.company || "Intern",
+
+        department:
+          template.department || "Allgemein",
+
+        assignedTo:
+          template.assignedTo || "",
+
+        createdBy:
+          "",
+
+        tags:
+          template.tags || [],
+      });
+
+    saveTicketCreatedFromTemplateActivity(
+      template,
+      newTicket
+    );
+
+    alert(
+      "Ticket wurde aus Vorlage erstellt."
+    );
   }
 
-  function getPriorityLabel(
-    value: string
-  ) {
-    if (value === "urgent") {
-      return "Dringend";
-    }
+  function resetFilters() {
+    setSearch("");
 
-    if (value === "high") {
-      return "Hoch";
-    }
+    setPriorityFilter("");
 
-    if (value === "medium") {
-      return "Mittel";
-    }
+    setStatusFilter("");
 
-    return "Niedrig";
-  }
+    setCompanyFilter("");
 
-  function getStatusLabel(
-    value: string
-  ) {
-    if (value === "open") {
-      return "Offen";
-    }
-
-    if (value === "in-progress") {
-      return "In Bearbeitung";
-    }
-
-    if (value === "done") {
-      return "Erledigt";
-    }
-
-    return "Geschlossen";
-  }
-
-  function getPriorityClass(
-    value: string
-  ) {
-    if (value === "urgent") {
-      return "bg-red-100 text-red-700";
-    }
-
-    if (value === "high") {
-      return "bg-orange-100 text-orange-700";
-    }
-
-    if (value === "medium") {
-      return "bg-yellow-100 text-yellow-700";
-    }
-
-    return "bg-green-100 text-green-700";
-  }
-
-  function getStatusClass(
-    value: string
-  ) {
-    if (value === "open") {
-      return "bg-blue-100 text-blue-700";
-    }
-
-    if (value === "in-progress") {
-      return "bg-purple-100 text-purple-700";
-    }
-
-    if (value === "done") {
-      return "bg-green-100 text-green-700";
-    }
-
-    return "bg-zinc-100 text-zinc-700";
+    setDepartmentFilter("");
   }
 
   if (!mounted) {
     return null;
   }
 
-  const companies: string[] =
-    Array.from(
-      new Set(
-        templates
-          .map(
-            (template) =>
-              template.company ||
-              "Intern"
-          )
-          .filter(Boolean)
-      )
-    );
+  if (!templatesEnabled) {
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center gap-3 text-sm">
+          <Link
+            href="/"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            dashboard
+          </Link>
 
-  const categories: string[] =
-    Array.from(
-      new Set(
-        templates
-          .map(
-            (template) =>
-              template.category ||
-              "Allgemein"
-          )
-          .filter(Boolean)
-      )
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <Link
+            href="/tickets"
+            className="text-zinc-500 hover:text-zinc-900 transition"
+          >
+            tickets
+          </Link>
+
+          <span className="text-zinc-400">
+            /
+          </span>
+
+          <span className="text-zinc-900">
+            vorlagen
+          </span>
+        </div>
+
+        <div>
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zu Tickets
+          </Link>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+          <h1 className="text-4xl font-bold">
+            Ticket-Vorlagen deaktiviert
+          </h1>
+
+          <p className="text-zinc-500 mt-3">
+            Ticket-Vorlagen sind aktuell in den Einstellungen deaktiviert.
+          </p>
+
+          <Link
+            href="/settings"
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Zu den Einstellungen
+          </Link>
+        </div>
+      </div>
     );
+  }
 
   const filteredTemplates =
     templates.filter(
@@ -576,67 +779,108 @@ export default function TicketTemplatesPage() {
 
         const templateCompany =
           template.company ||
-          "Intern";
+          getCompanyName(
+            template.companyId
+          ) ||
+          "";
 
-        const templateCategory =
-          template.category ||
-          "Allgemein";
-
-        const statusLabel =
-          getStatusLabel(
-            template.status
-          );
-
-        const priorityLabel =
-          getPriorityLabel(
-            template.priority
-          );
+        const templateDepartment =
+          template.department ||
+          getDepartmentName(
+            template.departmentId
+          ) ||
+          "";
 
         const matchesSearch =
           template.title
-            ?.toLowerCase()
+            .toLowerCase()
             .includes(query) ||
           template.description
-            ?.toLowerCase()
+            .toLowerCase()
+            .includes(query) ||
+          template.category
+            .toLowerCase()
             .includes(query) ||
           templateCompany
-            ?.toLowerCase()
+            .toLowerCase()
             .includes(query) ||
-          templateCategory
-            ?.toLowerCase()
+          templateDepartment
+            .toLowerCase()
             .includes(query) ||
           template.assignedTo
             ?.toLowerCase()
             .includes(query) ||
-          statusLabel
-            .toLowerCase()
-            .includes(query) ||
-          priorityLabel
+          template.tags
+            ?.join(" ")
             .toLowerCase()
             .includes(query);
 
+        const matchesPriority =
+          !priorityFilter ||
+          template.priority ===
+            priorityFilter;
+
+        const matchesStatus =
+          !statusFilter ||
+          template.status ===
+            statusFilter;
+
         const matchesCompany =
           !companyFilter ||
-          templateCompany ===
-            companyFilter;
+          template.companyId ===
+            companyFilter ||
+          template.company ===
+            getCompanyName(
+              companyFilter
+            );
 
-        const matchesCategory =
-          !categoryFilter ||
-          templateCategory ===
-            categoryFilter;
+        const matchesDepartment =
+          !departmentFilter ||
+          template.departmentId ===
+            departmentFilter ||
+          template.department ===
+            getDepartmentName(
+              departmentFilter
+            );
 
         return (
           matchesSearch &&
+          matchesPriority &&
+          matchesStatus &&
           matchesCompany &&
-          matchesCategory
+          matchesDepartment
         );
       }
     );
 
+  const highPriorityCount =
+    templates.filter(
+      (template) =>
+        template.priority === "high" ||
+        template.priority === "urgent"
+    ).length;
+
+  const openCount =
+    templates.filter(
+      (template) =>
+        template.status === "open"
+    ).length;
+
   return (
-    <div className="space-y-8 max-w-6xl">
+    <div className="space-y-8">
       {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
+        <Link
+          href="/"
+          className="text-zinc-500 hover:text-zinc-900 transition"
+        >
+          dashboard
+        </Link>
+
+        <span className="text-zinc-400">
+          /
+        </span>
+
         <Link
           href="/tickets"
           className="text-zinc-500 hover:text-zinc-900 transition"
@@ -649,7 +893,7 @@ export default function TicketTemplatesPage() {
         </span>
 
         <span className="text-zinc-900">
-          templates
+          vorlagen
         </span>
       </div>
 
@@ -667,218 +911,87 @@ export default function TicketTemplatesPage() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
-            Ticket-Templates
+            Ticket-Vorlagen
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Vorlagen für häufige Supportfälle verwalten
+            Wiederkehrende Ticket-Typen als Vorlage speichern und daraus Tickets erstellen
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-end">
-          {canCreate() && (
-            <button
-              onClick={openCreateForm}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Neues Template
-            </button>
-          )}
-
-          {canDelete() && (
-            <button
-              onClick={handleResetDefaults}
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-red-50 transition"
-            >
-              Standards wiederherstellen
-            </button>
-          )}
-        </div>
+        {canCreate() && (
+          <button
+            onClick={openCreateForm}
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Vorlage erstellen
+          </button>
+        )}
       </div>
 
       {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          onClick={() =>
+            setStatusFilter("")
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Templates gesamt
+            Vorlagen gesamt
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
             {templates.length}
           </h2>
-        </div>
+        </button>
 
         <button
-          onClick={() => {
-            if (companies.length > 0) {
-              const firstCompany =
-                companies[0];
-
-              setCompanyFilter(
-                firstCompany
-              );
-
-              updateUrlFilters(
-                search,
-                firstCompany,
-                categoryFilter
-              );
-            }
-          }}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+          onClick={() =>
+            setStatusFilter(
+              "open"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Firmen
+            Offen
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {companies.length}
+            {openCount}
           </h2>
         </button>
 
         <button
-          onClick={() => {
-            if (categories.length > 0) {
-              const firstCategory =
-                categories[0];
-
-              setCategoryFilter(
-                firstCategory
-              );
-
-              updateUrlFilters(
-                search,
-                companyFilter,
-                firstCategory
-              );
-            }
-          }}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+          onClick={() =>
+            setPriorityFilter(
+              "high"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-orange-100 transition"
         >
           <p className="text-sm text-zinc-500">
-            Kategorien
+            Hoch/Dringend
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {categories.length}
+            {highPriorityCount}
           </h2>
         </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Gefiltert
+            Tickets
           </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {filteredTemplates.length}
+          <h2 className="text-2xl font-bold mt-3">
+            Öffnen
           </h2>
-        </div>
-      </div>
-
-      {/* FILTER */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Suche & Filter
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setSearch(value);
-
-              updateUrlFilters(
-                value,
-                companyFilter,
-                categoryFilter
-              );
-            }}
-            placeholder="Nach Vorlage, Firma, Kategorie, Status oder Priorität suchen..."
-            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-          />
-
-          <select
-            value={companyFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setCompanyFilter(value);
-
-              updateUrlFilters(
-                search,
-                value,
-                categoryFilter
-              );
-            }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="">
-              Alle Firmen
-            </option>
-
-            {companies.map(
-              (companyName) => (
-                <option
-                  key={companyName}
-                  value={companyName}
-                >
-                  {companyName}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={categoryFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setCategoryFilter(value);
-
-              updateUrlFilters(
-                search,
-                companyFilter,
-                value
-              );
-            }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="">
-              Alle Kategorien
-            </option>
-
-            {categories.map(
-              (categoryName) => (
-                <option
-                  key={categoryName}
-                  value={categoryName}
-                >
-                  {categoryName}
-                </option>
-              )
-            )}
-          </select>
-        </div>
-
-        <div className="flex items-center justify-between mt-5">
-          <p className="text-sm text-zinc-500">
-            {filteredTemplates.length} von{" "}
-            {templates.length} Templates gefunden
-          </p>
-
-          <button
-            onClick={resetFilters}
-            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-          >
-            Filter zurücksetzen
-          </button>
-        </div>
+        </Link>
       </div>
 
       {/* FORM */}
@@ -886,12 +999,16 @@ export default function TicketTemplatesPage() {
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
             {editingId
-              ? "Template bearbeiten"
-              : "Neues Template erstellen"}
+              ? "Vorlage bearbeiten"
+              : "Vorlage erstellen"}
           </h2>
 
+          <p className="text-zinc-500 mt-2">
+            Vorlagen sind bereits für echte Firmen- und Abteilungs-IDs vorbereitet.
+          </p>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            <div className="md:col-span-2">
+            <div>
               <label className="block mb-2 font-medium">
                 Titel
               </label>
@@ -905,42 +1022,7 @@ export default function TicketTemplatesPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. VPN Verbindung funktioniert nicht"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Beschreibung
-              </label>
-
-              <textarea
-                value={description}
-                onChange={(event) =>
-                  setDescription(
-                    event.target.value
-                  )
-                }
-                rows={8}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                placeholder="Beschreibung / Checkliste / Standardablauf"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-
-              <input
-                type="text"
-                value={company}
-                onChange={(event) =>
-                  setCompany(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Kurzer Titel"
               />
             </div>
 
@@ -958,23 +1040,7 @@ export default function TicketTemplatesPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Zugewiesen an
-              </label>
-
-              <input
-                type="text"
-                value={assignedTo}
-                onChange={(event) =>
-                  setAssignedTo(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="IT, Benutzer, Dokumentation..."
               />
             </div>
 
@@ -987,8 +1053,7 @@ export default function TicketTemplatesPage() {
                 value={status}
                 onChange={(event) =>
                   setStatus(
-                    event.target
-                      .value as TicketStatus
+                    event.target.value as TicketTemplateStatus
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
@@ -997,8 +1062,12 @@ export default function TicketTemplatesPage() {
                   Offen
                 </option>
 
-                <option value="in-progress">
+                <option value="in_progress">
                   In Bearbeitung
+                </option>
+
+                <option value="waiting">
+                  Wartend
                 </option>
 
                 <option value="done">
@@ -1020,8 +1089,7 @@ export default function TicketTemplatesPage() {
                 value={priority}
                 onChange={(event) =>
                   setPriority(
-                    event.target
-                      .value as TicketPriority
+                    event.target.value as TicketTemplatePriority
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
@@ -1043,16 +1111,132 @@ export default function TicketTemplatesPage() {
                 </option>
               </select>
             </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Firma
+              </label>
+
+              <select
+                value={companyId}
+                onChange={(event) =>
+                  handleCompanyChange(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="">
+                  Firma auswählen
+                </option>
+
+                {getActiveCompanies().map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                    >
+                      {item.name}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Abteilung
+              </label>
+
+              <select
+                value={departmentId}
+                onChange={(event) =>
+                  handleDepartmentChange(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="">
+                  Abteilung auswählen
+                </option>
+
+                {getSelectableDepartments().map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                    >
+                      {item.name}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Zugewiesen an
+              </label>
+
+              <input
+                type="text"
+                value={assignedTo}
+                onChange={(event) =>
+                  setAssignedTo(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Name"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Tags
+              </label>
+
+              <input
+                type="text"
+                value={tags}
+                onChange={(event) =>
+                  setTags(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="kommagetrennt"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
+                Beschreibung
+              </label>
+
+              <textarea
+                value={description}
+                onChange={(event) =>
+                  setDescription(
+                    event.target.value
+                  )
+                }
+                rows={5}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                placeholder="Beschreibung der Vorlage..."
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3 mt-6">
             <button
-              onClick={handleSave}
+              onClick={handleSaveTemplate}
               className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
             >
               {editingId
                 ? "Änderungen speichern"
-                : "Template erstellen"}
+                : "Vorlage erstellen"}
             </button>
 
             <button
@@ -1065,146 +1249,311 @@ export default function TicketTemplatesPage() {
         </div>
       )}
 
-      {/* LIST */}
+      {/* FILTER */}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Suche & Filter
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Nach Titel, Beschreibung, Kategorie, Firma, Abteilung oder Tag suchen..."
+            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          />
+
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Status
+            </option>
+
+            <option value="open">
+              Offen
+            </option>
+
+            <option value="in_progress">
+              In Bearbeitung
+            </option>
+
+            <option value="waiting">
+              Wartend
+            </option>
+
+            <option value="done">
+              Erledigt
+            </option>
+
+            <option value="closed">
+              Geschlossen
+            </option>
+          </select>
+
+          <select
+            value={priorityFilter}
+            onChange={(event) =>
+              setPriorityFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Prioritäten
+            </option>
+
+            <option value="low">
+              Niedrig
+            </option>
+
+            <option value="medium">
+              Mittel
+            </option>
+
+            <option value="high">
+              Hoch
+            </option>
+
+            <option value="urgent">
+              Dringend
+            </option>
+          </select>
+
+          <select
+            value={companyFilter}
+            onChange={(event) =>
+              setCompanyFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (item) => (
+                <option
+                  key={item.id}
+                  value={item.id}
+                >
+                  {item.name}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={departmentFilter}
+            onChange={(event) =>
+              setDepartmentFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white md:col-span-2"
+          >
+            <option value="">
+              Alle Abteilungen
+            </option>
+
+            {departments.map(
+              (item) => (
+                <option
+                  key={item.id}
+                  value={item.id}
+                >
+                  {item.name}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between mt-5">
+          <p className="text-sm text-zinc-500">
+            {filteredTemplates.length} von{" "}
+            {templates.length} Vorlagen gefunden
+          </p>
+
+          <button
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Filter zurücksetzen
+          </button>
+        </div>
+      </div>
+
+      {/* TEMPLATES */}
       <div className="grid gap-4">
         {filteredTemplates.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <p className="text-zinc-500">
-              Keine Templates gefunden.
+              Keine Vorlagen gefunden.
             </p>
           </div>
         )}
 
         {filteredTemplates.map(
-          (template) => (
-            <div
-              key={template.id}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-6">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => {
-                        const templateCompany =
-                          template.company ||
-                          "Intern";
+          (template) => {
+            const templateCompany =
+              template.company ||
+              getCompanyName(
+                template.companyId
+              ) ||
+              "Intern";
 
-                        setCompanyFilter(
-                          templateCompany
-                        );
+            const templateDepartment =
+              template.department ||
+              getDepartmentName(
+                template.departmentId
+              ) ||
+              "Allgemein";
 
-                        updateUrlFilters(
-                          search,
-                          templateCompany,
-                          categoryFilter
-                        );
-                      }}
-                      className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                    >
-                      {template.company ||
-                        "Intern"}
-                    </button>
+            return (
+              <div
+                key={template.id}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getTicketTemplateStatusClass(
+                          template.status
+                        )}`}
+                      >
+                        {getTicketTemplateStatusLabel(
+                          template.status
+                        )}
+                      </span>
 
-                    <button
-                      onClick={() => {
-                        const templateCategory =
-                          template.category ||
-                          "Allgemein";
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getTicketTemplatePriorityClass(
+                          template.priority
+                        )}`}
+                      >
+                        {getTicketTemplatePriorityLabel(
+                          template.priority
+                        )}
+                      </span>
 
-                        setCategoryFilter(
-                          templateCategory
-                        );
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {template.category}
+                      </span>
 
-                        updateUrlFilters(
-                          search,
-                          companyFilter,
-                          templateCategory
-                        );
-                      }}
-                      className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
-                    >
-                      {template.category ||
-                        "Allgemein"}
-                    </button>
+                      <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
+                        {templateCompany}
+                      </span>
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
-                        template.status
-                      )}`}
-                    >
-                      {getStatusLabel(
-                        template.status
-                      )}
-                    </span>
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                        {templateDepartment}
+                      </span>
+                    </div>
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
-                        template.priority
-                      )}`}
-                    >
-                      {getPriorityLabel(
-                        template.priority
-                      )}
-                    </span>
-                  </div>
+                    <h2 className="text-2xl font-bold mt-4">
+                      {template.title}
+                    </h2>
 
-                  <h2 className="text-2xl font-bold mt-4">
-                    {template.title}
-                  </h2>
-
-                  <p className="text-zinc-600 mt-3 whitespace-pre-wrap">
-                    {template.description}
-                  </p>
-
-                  <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                    <p>
-                      Zugewiesen an:{" "}
-                      {template.assignedTo ||
-                        "Niemand"}
+                    <p className="text-zinc-500 mt-2">
+                      {template.description ||
+                        "Keine Beschreibung"}
                     </p>
+
+                    {template.tags &&
+                      template.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {template.tags.map(
+                            (tag) => (
+                              <span
+                                key={tag}
+                                className="text-xs bg-zinc-50 border border-zinc-200 text-zinc-700 px-3 py-1 rounded-full"
+                              >
+                                #{tag}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                    <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
+                      <p>
+                        Erstellt:{" "}
+                        {template.createdAt}
+                      </p>
+
+                      <p>
+                        Aktualisiert:{" "}
+                        {template.updatedAt}
+                      </p>
+
+                      {template.assignedTo && (
+                        <p>
+                          Zuständig:{" "}
+                          {template.assignedTo}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                  <Link
-                    href={`/tickets?template=${encodeURIComponent(
-                      template.id
-                    )}`}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-500 transition"
-                  >
-                    Ticket daraus erstellen
-                  </Link>
+                  <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                    {canCreate() && (
+                      <button
+                        onClick={() =>
+                          createTicketFromTemplate(
+                            template
+                          )
+                        }
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                      >
+                        Ticket erstellen
+                      </button>
+                    )}
 
-                  {canEdit() && (
-                    <button
-                      onClick={() =>
-                        startEdit(
-                          template
-                        )
-                      }
-                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                    >
-                      Bearbeiten
-                    </button>
-                  )}
+                    {canEdit() && (
+                      <button
+                        onClick={() =>
+                          startEditTemplate(
+                            template
+                          )
+                        }
+                        className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                      >
+                        Bearbeiten
+                      </button>
+                    )}
 
-                  {canDelete() && (
-                    <button
-                      onClick={() =>
-                        handleDelete(
-                          template
-                        )
-                      }
-                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                    >
-                      Löschen
-                    </button>
-                  )}
+                    {canDelete() && (
+                      <button
+                        onClick={() =>
+                          handleDeleteTemplate(
+                            template
+                          )
+                        }
+                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                      >
+                        Löschen
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )
+            );
+          }
         )}
       </div>
     </div>

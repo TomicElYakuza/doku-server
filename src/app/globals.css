@@ -2,13 +2,151 @@
 
 :root {
   --background: #f4f4f5;
-  --foreground: #18181b;
+  --foreground: #09090b;
+
+  --app-accent: #18181b;
+  --app-accent-hover: #27272a;
+  --app-accent-soft: #f4f4f5;
+  --app-accent-border: #e4e4e7;
+  --app-accent-text: #18181b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  color: var(--foreground);
 }
 
 body {
+  margin: 0;
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  margin: 0;
-  padding: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  text-decoration: none;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+}
+
+.dark body {
+  background: #09090b;
+  color: #fafafa;
+}
+
+/* Grundflächen */
+.dark .bg-zinc-100 {
+  background-color: #09090b;
+}
+
+.dark .bg-white {
+  background-color: #18181b;
+}
+
+.dark .bg-zinc-50 {
+  background-color: #27272a;
+}
+
+.dark .bg-zinc-900 {
+  background-color: #18181b;
+}
+
+.dark .bg-zinc-950 {
+  background-color: #020617;
+}
+
+/* Rahmen */
+.dark .border-zinc-100,
+.dark .border-zinc-200 {
+  border-color: #3f3f46;
+}
+
+.dark .border-zinc-800,
+.dark .border-zinc-900 {
+  border-color: #27272a;
+}
+
+/* Texte */
+.dark .text-zinc-950,
+.dark .text-zinc-900 {
+  color: #fafafa;
+}
+
+.dark .text-zinc-800,
+.dark .text-zinc-700 {
+  color: #e4e4e7;
+}
+
+.dark .text-zinc-600,
+.dark .text-zinc-500 {
+  color: #a1a1aa;
+}
+
+.dark .text-zinc-400,
+.dark .text-zinc-300 {
+  color: #d4d4d8;
+}
+
+/* Inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #18181b;
+  color: #fafafa;
+  border-color: #3f3f46;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #71717a;
+}
+
+/* Hover-Flächen */
+.dark .hover\:bg-zinc-50:hover,
+.dark .hover\:bg-zinc-100:hover {
+  background-color: #27272a;
+}
+
+.dark .hover\:bg-zinc-200:hover {
+  background-color: #3f3f46;
+}
+
+/* Schatten im Dark Mode dezenter */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Akzent-Helfer */
+.app-accent-bg {
+  background: var(--app-accent);
+}
+
+.app-accent-bg:hover {
+  background: var(--app-accent-hover);
+}
+
+.app-accent-text {
+  color: var(--app-accent-text);
+}
+
+.app-accent-border {
+  border-color: var(--app-accent-border);
+}
+
+.app-accent-soft {
+  background: var(--app-accent-soft);
 }

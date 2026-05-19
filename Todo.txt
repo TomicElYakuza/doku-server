@@ -5,6 +5,15 @@ Wiki (Intranet "DMS"):
 
 Setup => Login
 
+Ticket:
+-	Kategorie Drop Down
+-	Zugewiesen Drop Down
+	-	Admin Backend konfigurierbar
+-	Datei hinzufügen
+-	ID Anzeige ganz vorne
+-	Eventuell extra Fenster
+-	Geschlossene Tickets ausblenden Funktion
+
 Grundlegendes zum Intranet:
 -	Berechtigungen
 
@@ -17,12 +26,17 @@ Einstellungen:
 
 Rechte Vergabe:
 -	Firmen und Abteilungen können nur eigene sehen
+-	Auch Vergabe von Sidebar Features
 
 Admin Dashboard:
 -	Benutzer erstellen und Rechte Vergabe
 -	UI Anpassungen, damit man nicht mehr im Quellcode oder DB was ändern muss
 -	Firmen sowie Abteilungen editierbar über Admin Backend
 
+Wichtig:
+-	AD Integration mit EMail
+-	Externer Firmenzugang
+-	Sidebar Kategorien werden nicht kleiner bei zoom
 
 
 

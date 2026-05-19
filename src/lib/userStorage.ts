@@ -7,10 +7,39 @@ export type User = {
   name: string;
   email: string;
   role: UserRole;
+
+  companyId?: string;
+  departmentId?: string;
+
+  company?: string;
+  department?: string;
 };
 
 const STORAGE_KEY =
   "dms_user";
+
+export const defaultUser: User = {
+  name:
+    "Admin",
+
+  email:
+    "admin@local",
+
+  role:
+    "admin",
+
+  companyId:
+    "company-intern",
+
+  departmentId:
+    "department-it",
+
+  company:
+    "Intern",
+
+  department:
+    "IT",
+};
 
 function dispatchUserUpdated() {
   if (typeof window === "undefined") {
@@ -37,7 +66,7 @@ function normalizeRole(
     return "viewer";
   }
 
-  return "admin";
+  return "viewer";
 }
 
 function normalizeUser(
@@ -46,16 +75,32 @@ function normalizeUser(
   return {
     name:
       user.name ||
-      "Admin",
+      defaultUser.name,
 
     email:
       user.email ||
-      "admin@local",
+      defaultUser.email,
 
     role:
       normalizeRole(
         user.role
       ),
+
+    companyId:
+      user.companyId ||
+      defaultUser.companyId,
+
+    departmentId:
+      user.departmentId ||
+      defaultUser.departmentId,
+
+    company:
+      user.company ||
+      defaultUser.company,
+
+    department:
+      user.department ||
+      defaultUser.department,
   };
 }
 
@@ -70,13 +115,6 @@ export function getUser(): User | null {
     );
 
   if (!raw) {
-    const defaultUser =
-      normalizeUser({
-        name: "Admin",
-        email: "admin@local",
-        role: "admin",
-      });
-
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify(
@@ -96,22 +134,33 @@ export function getUser(): User | null {
       typeof parsed !== "object" ||
       Array.isArray(parsed)
     ) {
-      return null;
+      return defaultUser;
     }
 
     return normalizeUser(
       parsed
     );
   } catch {
-    return null;
+    return defaultUser;
   }
+}
+
+export function getUserRole(): UserRole {
+  const user =
+    getUser();
+
+  return normalizeRole(
+    user?.role
+  );
 }
 
 export function saveUser(
   user: User
-) {
+): User {
   if (typeof window === "undefined") {
-    return;
+    return normalizeUser(
+      user
+    );
   }
 
   const normalizedUser =
@@ -133,21 +182,21 @@ export function saveUser(
 
 export function updateUser(
   updates: Partial<User>
-) {
+): User {
   const currentUser =
-    getUser();
+    getUser() ||
+    defaultUser;
 
-  const updatedUser =
-    normalizeUser({
-      ...(currentUser || {}),
-      ...updates,
-    });
+  return saveUser({
+    ...currentUser,
+    ...updates,
+  });
+}
 
-  saveUser(
-    updatedUser
+export function resetUser(): User {
+  return saveUser(
+    defaultUser
   );
-
-  return updatedUser;
 }
 
 export function clearUser() {
@@ -162,27 +211,38 @@ export function clearUser() {
   dispatchUserUpdated();
 }
 
-export function getUserRole(): UserRole {
-  const user =
-    getUser();
+export function getRoleLabel(
+  role: UserRole | string
+) {
+  if (role === "admin") {
+    return "Administrator";
+  }
 
-  return user?.role || "admin";
+  if (role === "editor") {
+    return "Bearbeiter";
+  }
+
+  if (role === "viewer") {
+    return "Leser";
+  }
+
+  return "Unbekannt";
 }
 
-export function isAdmin() {
-  return getUserRole() === "admin";
+export function isAdminUser(
+  user?: User | null
+) {
+  return user?.role === "admin";
 }
 
-export function isEditor() {
-  const role =
-    getUserRole();
-
-  return (
-    role === "admin" ||
-    role === "editor"
-  );
+export function isEditorUser(
+  user?: User | null
+) {
+  return user?.role === "editor";
 }
 
-export function isViewer() {
-  return getUserRole() === "viewer";
+export function isViewerUser(
+  user?: User | null
+) {
+  return user?.role === "viewer";
 }

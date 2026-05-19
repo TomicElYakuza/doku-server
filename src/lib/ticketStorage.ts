@@ -1,6 +1,7 @@
 export type TicketStatus =
   | "open"
-  | "in-progress"
+  | "in_progress"
+  | "waiting"
   | "done"
   | "closed";
 
@@ -14,14 +15,29 @@ export type Ticket = {
   id: string;
   title: string;
   description: string;
-  company: string;
-  category: string;
-  assignedTo: string;
   status: TicketStatus;
   priority: TicketPriority;
-  createdBy: string;
+  category: string;
+
+  companyId?: string;
+  departmentId?: string;
+  company?: string;
+  department?: string;
+
+  assignedTo?: string;
+  createdBy?: string;
+
+  tags?: string[];
+
   createdAt: string;
   updatedAt: string;
+};
+
+type OrganizationReference = {
+  companyId?: string;
+  departmentId?: string;
+  company?: string;
+  department?: string;
 };
 
 const STORAGE_KEY =
@@ -30,22 +46,13 @@ const STORAGE_KEY =
 const defaultTickets: Ticket[] = [
   {
     id:
-      "ticket-demo-vpn",
+      "ticket-demo-1",
 
     title:
-      "VPN Verbindung funktioniert nicht",
+      "Netzwerkdrucker funktioniert nicht",
 
     description:
-      "Benutzer kann keine VPN-Verbindung herstellen. Bitte VPN-Client, Zugangsdaten und Netzwerk prüfen.",
-
-    company:
-      "Intern",
-
-    category:
-      "IT",
-
-    assignedTo:
-      "IT Support",
+      "Der Drucker im Office ist nicht erreichbar. Bitte Netzwerkverbindung und Treiber prüfen.",
 
     status:
       "open",
@@ -53,8 +60,32 @@ const defaultTickets: Ticket[] = [
     priority:
       "high",
 
+    category:
+      "IT",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-it",
+
+    company:
+      "Intern",
+
+    department:
+      "IT",
+
+    assignedTo:
+      "Admin",
+
     createdBy:
-      "System",
+      "Editor",
+
+    tags:
+      [
+        "drucker",
+        "netzwerk",
+      ],
 
     createdAt:
       new Date().toLocaleString(),
@@ -65,31 +96,96 @@ const defaultTickets: Ticket[] = [
 
   {
     id:
-      "ticket-demo-drucker",
+      "ticket-demo-2",
 
     title:
-      "Drucker druckt nicht",
+      "Neue Benutzerberechtigung anlegen",
 
     description:
-      "Druckaufträge bleiben hängen. Druckerstatus, Warteschlange und Treiber prüfen.",
-
-    company:
-      "Intern",
-
-    category:
-      "Support",
-
-    assignedTo:
-      "IT Support",
+      "Für einen neuen Mitarbeiter soll Zugriff auf interne Wiki-Dokumente vorbereitet werden.",
 
     status:
-      "in-progress",
+      "in_progress",
 
     priority:
       "medium",
 
+    category:
+      "Benutzer",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-support",
+
+    company:
+      "Intern",
+
+    department:
+      "Support",
+
+    assignedTo:
+      "Admin",
+
     createdBy:
-      "System",
+      "Admin",
+
+    tags:
+      [
+        "benutzer",
+        "rechte",
+      ],
+
+    createdAt:
+      new Date().toLocaleString(),
+
+    updatedAt:
+      new Date().toLocaleString(),
+  },
+
+  {
+    id:
+      "ticket-demo-3",
+
+    title:
+      "Wiki-Dokumentation aktualisieren",
+
+    description:
+      "Die interne Anleitung für neue Mitarbeiter soll überarbeitet und ergänzt werden.",
+
+    status:
+      "waiting",
+
+    priority:
+      "low",
+
+    category:
+      "Dokumentation",
+
+    companyId:
+      "company-intern",
+
+    departmentId:
+      "department-office",
+
+    company:
+      "Intern",
+
+    department:
+      "Office",
+
+    assignedTo:
+      "Editor",
+
+    createdBy:
+      "Admin",
+
+    tags:
+      [
+        "wiki",
+        "dokumentation",
+      ],
 
     createdAt:
       new Date().toLocaleString(),
@@ -129,8 +225,12 @@ function normalizeStatus(
     return "open";
   }
 
-  if (value === "in-progress") {
-    return "in-progress";
+  if (value === "in_progress") {
+    return "in_progress";
+  }
+
+  if (value === "waiting") {
+    return "waiting";
   }
 
   if (value === "done") {
@@ -166,11 +266,61 @@ function normalizePriority(
   return "medium";
 }
 
+function normalizeTags(
+  value: unknown
+) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(
+      (tag) =>
+        String(tag).trim()
+    )
+    .filter(Boolean);
+}
+
+function normalizeOrganizationReference(
+  reference: OrganizationReference
+): OrganizationReference {
+  return {
+    companyId:
+      reference.companyId || "",
+
+    departmentId:
+      reference.departmentId || "",
+
+    company:
+      reference.company ||
+      "Intern",
+
+    department:
+      reference.department ||
+      "Allgemein",
+  };
+}
+
 function normalizeTicket(
   ticket: Partial<Ticket>
 ): Ticket {
   const now =
     new Date().toLocaleString();
+
+  const organization =
+    normalizeOrganizationReference({
+      companyId:
+        ticket.companyId,
+
+      departmentId:
+        ticket.departmentId,
+
+      company:
+        ticket.company,
+
+      department:
+        ticket.department,
+    });
 
   return {
     id:
@@ -179,22 +329,10 @@ function normalizeTicket(
 
     title:
       ticket.title ||
-      "Ohne Titel",
+      "Unbenanntes Ticket",
 
     description:
       ticket.description ||
-      "",
-
-    company:
-      ticket.company ||
-      "Intern",
-
-    category:
-      ticket.category ||
-      "Allgemein",
-
-    assignedTo:
-      ticket.assignedTo ||
       "",
 
     status:
@@ -207,9 +345,34 @@ function normalizeTicket(
         ticket.priority
       ),
 
+    category:
+      ticket.category ||
+      "Allgemein",
+
+    companyId:
+      organization.companyId,
+
+    departmentId:
+      organization.departmentId,
+
+    company:
+      organization.company,
+
+    department:
+      organization.department,
+
+    assignedTo:
+      ticket.assignedTo ||
+      "",
+
     createdBy:
       ticket.createdBy ||
-      "Unbekannt",
+      "",
+
+    tags:
+      normalizeTags(
+        ticket.tags
+      ),
 
     createdAt:
       ticket.createdAt ||
@@ -239,7 +402,12 @@ export function getTickets(): Ticket[] {
       )
     );
 
-    return defaultTickets;
+    return defaultTickets.map(
+      (ticket) =>
+        normalizeTicket(
+          ticket
+        )
+    );
   }
 
   try {
@@ -268,10 +436,18 @@ export function saveTickets(
     return;
   }
 
+  const normalizedTickets =
+    tickets.map(
+      (ticket) =>
+        normalizeTicket(
+          ticket
+        )
+    );
+
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify(
-      tickets
+      normalizedTickets
     )
   );
 
@@ -299,11 +475,8 @@ export function clearTickets() {
 export function getTicketById(
   id: string
 ): Ticket | null {
-  const tickets =
-    getTickets();
-
   return (
-    tickets.find(
+    getTickets().find(
       (ticket) =>
         ticket.id === id
     ) || null
@@ -322,7 +495,7 @@ export function createTicket(
   const now =
     new Date().toLocaleString();
 
-  const newTicket: Ticket =
+  const newTicket =
     normalizeTicket({
       ...ticket,
 
@@ -362,7 +535,7 @@ export function updateTicket(
           return ticket;
         }
 
-        const nextTicket: Ticket =
+        const nextTicket =
           normalizeTicket({
             ...ticket,
             ...updates,
@@ -372,9 +545,6 @@ export function updateTicket(
 
             createdAt:
               ticket.createdAt,
-
-            createdBy:
-              ticket.createdBy,
 
             updatedAt:
               new Date().toLocaleString(),
@@ -400,26 +570,63 @@ export function deleteTicket(
   const tickets =
     getTickets();
 
-  const updatedTickets =
+  saveTickets(
     tickets.filter(
       (ticket) =>
         ticket.id !== id
-    );
-
-  saveTickets(
-    updatedTickets
+    )
   );
 }
 
-export function getStatusLabel(
+export function getTicketsByCompanyId(
+  companyId: string
+) {
+  return getTickets().filter(
+    (ticket) =>
+      ticket.companyId === companyId
+  );
+}
+
+export function getTicketsByDepartmentId(
+  departmentId: string
+) {
+  return getTickets().filter(
+    (ticket) =>
+      ticket.departmentId === departmentId
+  );
+}
+
+export function getTicketsByStatus(
+  status: TicketStatus
+) {
+  return getTickets().filter(
+    (ticket) =>
+      ticket.status === status
+  );
+}
+
+export function getTicketsByPriority(
+  priority: TicketPriority
+) {
+  return getTickets().filter(
+    (ticket) =>
+      ticket.priority === priority
+  );
+}
+
+export function getTicketStatusLabel(
   status: TicketStatus | string
 ) {
   if (status === "open") {
     return "Offen";
   }
 
-  if (status === "in-progress") {
+  if (status === "in_progress") {
     return "In Bearbeitung";
+  }
+
+  if (status === "waiting") {
+    return "Wartend";
   }
 
   if (status === "done") {
@@ -433,7 +640,7 @@ export function getStatusLabel(
   return "Unbekannt";
 }
 
-export function getPriorityLabel(
+export function getTicketPriorityLabel(
   priority: TicketPriority | string
 ) {
   if (priority === "low") {
@@ -455,80 +662,86 @@ export function getPriorityLabel(
   return "Unbekannt";
 }
 
-export function getStatusOptions(): {
-  value: TicketStatus;
-  label: string;
-}[] {
-  return [
-    {
-      value:
-        "open",
+export function getTicketStatusClass(
+  status: TicketStatus | string
+) {
+  if (status === "open") {
+    return "bg-blue-50 text-blue-700";
+  }
 
-      label:
-        "Offen",
-    },
+  if (status === "in_progress") {
+    return "bg-indigo-50 text-indigo-700";
+  }
 
-    {
-      value:
-        "in-progress",
+  if (status === "waiting") {
+    return "bg-yellow-100 text-yellow-700";
+  }
 
-      label:
-        "In Bearbeitung",
-    },
+  if (status === "done") {
+    return "bg-green-50 text-green-700";
+  }
 
-    {
-      value:
-        "done",
+  if (status === "closed") {
+    return "bg-zinc-100 text-zinc-700";
+  }
 
-      label:
-        "Erledigt",
-    },
-
-    {
-      value:
-        "closed",
-
-      label:
-        "Geschlossen",
-    },
-  ];
+  return "bg-zinc-100 text-zinc-700";
 }
 
-export function getPriorityOptions(): {
-  value: TicketPriority;
-  label: string;
-}[] {
-  return [
-    {
-      value:
-        "low",
+export function getTicketPriorityClass(
+  priority: TicketPriority | string
+) {
+  if (priority === "low") {
+    return "bg-zinc-100 text-zinc-700";
+  }
 
-      label:
-        "Niedrig",
-    },
+  if (priority === "medium") {
+    return "bg-blue-50 text-blue-700";
+  }
 
-    {
-      value:
-        "medium",
+  if (priority === "high") {
+    return "bg-orange-100 text-orange-700";
+  }
 
-      label:
-        "Mittel",
-    },
+  if (priority === "urgent") {
+    return "bg-red-50 text-red-700";
+  }
 
-    {
-      value:
-        "high",
+  return "bg-zinc-100 text-zinc-700";
+}
 
-      label:
-        "Hoch",
-    },
+/**
+ * Alte Export-Namen für bestehende Seiten.
+ * Nicht entfernen, solange Seiten wie /tickets diese Namen noch importieren.
+ */
+export function getStatusLabel(
+  status: TicketStatus | string
+) {
+  return getTicketStatusLabel(
+    status
+  );
+}
 
-    {
-      value:
-        "urgent",
+export function getPriorityLabel(
+  priority: TicketPriority | string
+) {
+  return getTicketPriorityLabel(
+    priority
+  );
+}
 
-      label:
-        "Dringend",
-    },
-  ];
+export function getStatusClass(
+  status: TicketStatus | string
+) {
+  return getTicketStatusClass(
+    status
+  );
+}
+
+export function getPriorityClass(
+  priority: TicketPriority | string
+) {
+  return getTicketPriorityClass(
+    priority
+  );
 }

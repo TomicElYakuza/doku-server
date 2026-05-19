@@ -9,57 +9,115 @@ import {
 
 import {
   canViewAdmin,
-  canManageUsers,
-  canManageSystem,
-  getCurrentUser,
-  getRoleLabel,
 } from "../../lib/permissions";
 
-type AdminStat = {
-  label: string;
-  value: number;
-  href: string;
-};
+import {
+  getAdminUsers,
+} from "../../lib/adminUserStorage";
 
-const STORAGE_KEYS = {
-  tickets: "dms_tickets",
-  ticketTemplates: "dms_ticket_templates",
-  ticketComments: "dms_ticket_comments",
-  activities: "dms_activities",
-  wikiPages: "dms_wiki_pages",
-  trashPages: "dms_trash_pages",
-  files: "dms_files",
-  user: "dms_user",
+import {
+  getCompanies,
+  getDepartments,
+} from "../../lib/companyStorage";
+
+import {
+  getTickets,
+} from "../../lib/ticketStorage";
+
+import {
+  getActivities,
+} from "../../lib/activityStorage";
+
+import {
+  formatStorageSize,
+  getStorageInfo,
+  getTotalStorageSize,
+} from "../../lib/storageManager";
+
+import {
+  getAllDataAdapterMeta,
+  getLocalStorageAdapterCount,
+} from "../../lib/dataAdapterRegistry";
+
+import {
+  useAppSettings,
+} from "../../hooks/useAppSettings";
+
+import AccessDeniedCard from "../../components/AccessDeniedCard";
+
+type AdminCard = {
+  title: string;
+  description: string;
+  href: string;
+  icon: string;
+  value: string | number;
+  meta: string;
 };
 
 export default function AdminPage() {
+  const {
+    mounted: settingsMounted,
+    enableActivityLog,
+    enableTicketTemplates,
+    enableTicketComments,
+  } = useAppSettings();
+
   const [mounted, setMounted] =
     useState(false);
 
-  const [stats, setStats] =
-    useState<AdminStat[]>([]);
+  const [userCount, setUserCount] =
+    useState(0);
+
+  const [companyCount, setCompanyCount] =
+    useState(0);
+
+  const [departmentCount, setDepartmentCount] =
+    useState(0);
+
+  const [ticketCount, setTicketCount] =
+    useState(0);
+
+  const [activityCount, setActivityCount] =
+    useState(0);
+
+  const [storageAreaCount, setStorageAreaCount] =
+    useState(0);
+
+  const [storageSize, setStorageSize] =
+    useState(0);
+
+  const [adapterCount, setAdapterCount] =
+    useState(0);
+
+  const [localStorageAdapterCount, setLocalStorageAdapterCount] =
+    useState(0);
 
   useEffect(() => {
     setMounted(true);
 
-    loadStats();
+    loadData();
 
     function handleUpdate() {
-      loadStats();
+      loadData();
     }
 
     window.addEventListener(
+      "adminUsersUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
+      "companiesUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
       "ticketsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "ticketTemplatesUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "ticketCommentsUpdated",
       handleUpdate
     );
 
@@ -69,33 +127,33 @@ export default function AdminPage() {
     );
 
     window.addEventListener(
-      "wikiPagesUpdated",
+      "storageManagerUpdated",
       handleUpdate
     );
 
     window.addEventListener(
-      "trashUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "userUpdated",
+      "appSettingsUpdated",
       handleUpdate
     );
 
     return () => {
       window.removeEventListener(
+        "adminUsersUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
         "ticketsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "ticketTemplatesUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "ticketCommentsUpdated",
         handleUpdate
       );
 
@@ -105,221 +163,176 @@ export default function AdminPage() {
       );
 
       window.removeEventListener(
-        "wikiPagesUpdated",
+        "storageManagerUpdated",
         handleUpdate
       );
 
       window.removeEventListener(
-        "trashUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "userUpdated",
+        "appSettingsUpdated",
         handleUpdate
       );
     };
   }, []);
 
-  function getCountFromStorage(
-    key: string
-  ) {
-    if (typeof window === "undefined") {
-      return 0;
-    }
-
-    const raw =
-      localStorage.getItem(key);
-
-    if (!raw) {
-      return 0;
-    }
-
-    try {
-      const parsed =
-        JSON.parse(raw);
-
-      if (Array.isArray(parsed)) {
-        return parsed.length;
-      }
-
-      if (
-        parsed &&
-        typeof parsed === "object"
-      ) {
-        return Object.values(parsed).reduce(
-          (
-            sum: number,
-            value: any
-          ) => {
-            if (Array.isArray(value)) {
-              return sum + value.length;
-            }
-
-            return sum + 1;
-          },
-          0
-        );
-      }
-
-      return 1;
-    } catch {
-      return 0;
-    }
-  }
-
-  function loadStats() {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    setStats([
-      {
-        label: "Wiki-Dokumente",
-        value: getCountFromStorage(
-          STORAGE_KEYS.wikiPages
-        ),
-        href: "/wiki",
-      },
-      {
-        label: "Tickets",
-        value: getCountFromStorage(
-          STORAGE_KEYS.tickets
-        ),
-        href: "/tickets",
-      },
-      {
-        label: "Ticket-Vorlagen",
-        value: getCountFromStorage(
-          STORAGE_KEYS.ticketTemplates
-        ),
-        href: "/tickets/templates",
-      },
-      {
-        label: "Kommentare",
-        value: getCountFromStorage(
-          STORAGE_KEYS.ticketComments
-        ),
-        href: "/tickets",
-      },
-      {
-        label: "Aktivitäten",
-        value: getCountFromStorage(
-          STORAGE_KEYS.activities
-        ),
-        href: "/activity",
-      },
-      {
-        label: "Papierkorb",
-        value: getCountFromStorage(
-          STORAGE_KEYS.trashPages
-        ),
-        href: "/wiki/trash",
-      },
-      {
-        label: "Dateien",
-        value: getCountFromStorage(
-          STORAGE_KEYS.files
-        ),
-        href: "/wiki",
-      },
-    ]);
-  }
-
-  function getStorageSize() {
-    if (typeof window === "undefined") {
-      return "0 KB";
-    }
-
-    let total =
-      0;
-
-    Object.values(
-      STORAGE_KEYS
-    ).forEach(
-      (key) => {
-        const value =
-          localStorage.getItem(
-            key
-          );
-
-        if (value) {
-          total += value.length;
-        }
-      }
+  function loadData() {
+    setUserCount(
+      getAdminUsers().length
     );
 
-    const kb =
-      total / 1024;
+    setCompanyCount(
+      getCompanies().length
+    );
 
-    if (kb < 1024) {
-      return `${kb.toFixed(1)} KB`;
-    }
+    setDepartmentCount(
+      getDepartments().length
+    );
 
-    return `${(kb / 1024).toFixed(2)} MB`;
+    setTicketCount(
+      getTickets().length
+    );
+
+    setActivityCount(
+      getActivities().length
+    );
+
+    setStorageAreaCount(
+      getStorageInfo().filter(
+        (item) =>
+          item.exists
+      ).length
+    );
+
+    setStorageSize(
+      getTotalStorageSize()
+    );
+
+    setAdapterCount(
+      getAllDataAdapterMeta().length
+    );
+
+    setLocalStorageAdapterCount(
+      getLocalStorageAdapterCount()
+    );
   }
 
-  if (!mounted) {
+  if (!mounted || !settingsMounted) {
     return null;
   }
 
-  const user =
-    getCurrentUser();
-
   if (!canViewAdmin()) {
     return (
-      <div className="space-y-6 max-w-4xl">
-        <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            dashboard
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            admin
-          </span>
-        </div>
-
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Dashboard
-        </Link>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
-            🔒
-          </div>
-
-          <h1 className="text-4xl font-bold">
-            Kein Zugriff
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du hast mit deiner aktuellen Rolle keine Berechtigung für das Admin-Dashboard.
-          </p>
-
-          <Link
-            href="/setup"
-            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Rolle im Setup ändern
-          </Link>
-        </div>
-      </div>
+      <AccessDeniedCard
+        description="Du hast mit deiner aktuellen Rolle keine Berechtigung für das Admin-Dashboard."
+      />
     );
   }
 
+  const cards: AdminCard[] = [
+    {
+      title:
+        "Benutzer",
+
+      description:
+        "Benutzer, Rollen, Status, Firmen und Abteilungen verwalten.",
+
+      href:
+        "/admin/users",
+
+      icon:
+        "◉",
+
+      value:
+        userCount,
+
+      meta:
+        "Benutzer im System",
+    },
+
+    {
+      title:
+        "Firmen & Abteilungen",
+
+      description:
+        "Organisationsstruktur für spätere Datenbank und Rechteverwaltung.",
+
+      href:
+        "/admin/companies",
+
+      icon:
+        "▦",
+
+      value:
+        companyCount,
+
+      meta:
+        `${departmentCount} Abteilungen`,
+    },
+
+    {
+      title:
+        "Speicher",
+
+      description:
+        "Lokale Browser-Daten exportieren, importieren und bereinigen.",
+
+      href:
+        "/admin/storage",
+
+      icon:
+        "▣",
+
+      value:
+        storageAreaCount,
+
+      meta:
+        formatStorageSize(
+          storageSize
+        ),
+    },
+
+    {
+      title:
+        "Daten-Adapter",
+
+      description:
+        "Vorbereitete Datenschicht für LocalStorage, spätere API und Datenbank.",
+
+      href:
+        "/admin/adapters",
+
+      icon:
+        "⇄",
+
+      value:
+        adapterCount,
+
+      meta:
+        `${localStorageAdapterCount} LocalStorage`,
+    },
+
+    {
+      title:
+        "Einstellungen",
+
+      description:
+        "App-Name, Theme, Dark Mode, Feature-Schalter und Standardwerte.",
+
+      href:
+        "/settings",
+
+      icon:
+        "◎",
+
+      value:
+        "System",
+
+      meta:
+        "Konfiguration",
+    },
+  ];
+
   return (
-    <div className="space-y-8 max-w-7xl">
-      {/* TOP NAV */}
+    <div className="space-y-8">
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/"
@@ -337,17 +350,6 @@ export default function AdminPage() {
         </span>
       </div>
 
-      {/* BACK */}
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Dashboard
-        </Link>
-      </div>
-
-      {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
@@ -355,228 +357,155 @@ export default function AdminPage() {
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Zentrale Verwaltung für Benutzer, System, Daten und spätere Datenbank-Anbindung
+            Verwaltung, Systemstatus, lokale Daten und Vorbereitung für echte Datenbank-Anbindung
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-end">
-          <Link
-            href="/settings"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Einstellungen
-          </Link>
-
-          <Link
-            href="/setup"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Benutzer Setup
-          </Link>
-        </div>
+        <Link
+          href="/settings"
+          className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+        >
+          Einstellungen
+        </Link>
       </div>
 
-      {/* CURRENT USER */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Aktueller Admin-Kontext
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Benutzer
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.name || "Unbekannt"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              E-Mail
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.email || "Keine E-Mail"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Rolle
-            </p>
-
-            <p className="font-semibold mt-1">
-              {getRoleLabel(
-                user?.role || "viewer"
-              )}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Lokaler Speicher
-            </p>
-
-            <p className="font-semibold mt-1">
-              {getStorageSize()}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {stats.map(
-          (item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-            >
-              <p className="text-sm text-zinc-500">
-                {item.label}
-              </p>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Tickets
+          </p>
 
-              <h2 className="text-4xl font-bold mt-3">
-                {item.value}
+          <h2 className="text-4xl font-bold mt-3">
+            {ticketCount}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            Support & Aufgaben
+          </p>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Aktivitäten
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {enableActivityLog
+              ? activityCount
+              : "Aus"}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            Audit-Log
+          </p>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Ticket-Vorlagen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {enableTicketTemplates
+              ? "Aktiv"
+              : "Aus"}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            Feature-Schalter
+          </p>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Kommentare
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {enableTicketComments
+              ? "Aktiv"
+              : "Aus"}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            Ticket-Kommentare
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        {cards.map(
+          (card) => (
+            <Link
+              key={card.href}
+              href={card.href}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition group"
+            >
+              <div className="flex items-start justify-between gap-6">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-100 text-zinc-700 flex items-center justify-center text-xl group-hover:bg-zinc-900 group-hover:text-white transition">
+                  {card.icon}
+                </div>
+
+                <div className="text-right">
+                  <p className="text-3xl font-bold">
+                    {card.value}
+                  </p>
+
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {card.meta}
+                  </p>
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-bold mt-6">
+                {card.title}
               </h2>
+
+              <p className="text-zinc-500 mt-2 leading-relaxed">
+                {card.description}
+              </p>
             </Link>
           )
         )}
       </div>
 
-      {/* ADMIN MODULES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center text-2xl">
-            👥
-          </div>
-
-          <h2 className="text-2xl font-semibold mt-5">
-            Benutzerverwaltung
-          </h2>
-
-          <p className="text-zinc-500 mt-2">
-            Später: echte Benutzer, Rollen, Rechte, Login und Einladungen verwalten.
-          </p>
-
-          {canManageUsers() && (
-            <Link
-              href="/setup"
-              className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Demo-Benutzer verwalten
-            </Link>
-          )}
-
-          {!canManageUsers() && (
-            <p className="text-sm text-zinc-400 mt-6">
-              Keine Berechtigung zur Benutzerverwaltung.
-            </p>
-          )}
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl">
-            🗄️
-          </div>
-
-          <h2 className="text-2xl font-semibold mt-5">
-            Datenbank
-          </h2>
-
-          <p className="text-zinc-500 mt-2">
-            Später: LocalStorage durch echte Datenbank ersetzen, Migrationen und Backups verwalten.
-          </p>
-
-          <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-4">
-            <p className="text-sm text-zinc-500">
-              Aktueller Modus
-            </p>
-
-            <p className="font-semibold mt-1">
-              Browser LocalStorage
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-100 text-zinc-700 flex items-center justify-center text-2xl">
-            ⚙️
-          </div>
-
-          <h2 className="text-2xl font-semibold mt-5">
-            Systemeinstellungen
-          </h2>
-
-          <p className="text-zinc-500 mt-2">
-            Später: Dark Mode, Firmenbranding, Standardrollen, Limits und globale Einstellungen.
-          </p>
-
-          {canManageSystem() && (
-            <Link
-              href="/settings"
-              className="inline-flex mt-6 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Einstellungen öffnen
-            </Link>
-          )}
-
-          {!canManageSystem() && (
-            <p className="text-sm text-zinc-400 mt-6">
-              Keine Berechtigung zur Systemverwaltung.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ROADMAP */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Nächste technische Ausbaustufen
+          Nächste technische Schritte
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        <p className="text-zinc-500 mt-2">
+          Die App ist jetzt stärker modularisiert. Lokaler Speicher, Settings, Feature-Flags, Aktivitäten und Daten-Adapter sind vorbereitet, damit später eine echte Datenbank und ein echtes Benutzersystem angebunden werden können.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              1. Datenmodell vorbereiten
+              Datenbank
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Wiki, Tickets, Kommentare, Benutzer, Rollen, Firmen und Einstellungen als saubere Tabellen/Collections planen.
+              Storage-Funktionen später durch API/DB ersetzen.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              2. Echtes Login
+              Authentifizierung
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Demo-User durch Login, Sessions und serverseitige Rechteprüfung ersetzen.
+              Demo-Rollen später durch echte Sessions ersetzen.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              3. Admin-Bereich
+              Adapter-Schicht
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Benutzer anlegen, Rollen setzen, Firmen und Abteilungen verwalten.
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="font-semibold">
-              4. Echte Einstellungen
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-2">
-              Dark Mode, Design, Standardwerte und Systemoptionen persistent speichern.
+              Seiten später systematisch von Storage auf Adapter umstellen.
             </p>
           </div>
         </div>

@@ -3,8 +3,22 @@ export type TicketComment = {
   ticketId: string;
   text: string;
   author: string;
+  authorEmail?: string;
+
+  companyId?: string;
+  departmentId?: string;
+  company?: string;
+  department?: string;
+
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
+};
+
+type OrganizationReference = {
+  companyId?: string;
+  departmentId?: string;
+  company?: string;
+  department?: string;
 };
 
 const STORAGE_KEY =
@@ -33,9 +47,91 @@ function createId() {
     .slice(2)}`;
 }
 
-export function getTicketComments(): Record<string, TicketComment[]> {
+function normalizeOrganizationReference(
+  reference: OrganizationReference
+): OrganizationReference {
+  return {
+    companyId:
+      reference.companyId || "",
+
+    departmentId:
+      reference.departmentId || "",
+
+    company:
+      reference.company || "Intern",
+
+    department:
+      reference.department || "Allgemein",
+  };
+}
+
+function normalizeTicketComment(
+  comment: Partial<TicketComment>
+): TicketComment {
+  const now =
+    new Date().toLocaleString();
+
+  const organization =
+    normalizeOrganizationReference({
+      companyId:
+        comment.companyId,
+
+      departmentId:
+        comment.departmentId,
+
+      company:
+        comment.company,
+
+      department:
+        comment.department,
+    });
+
+  return {
+    id:
+      comment.id ||
+      createId(),
+
+    ticketId:
+      comment.ticketId ||
+      "",
+
+    text:
+      comment.text ||
+      "",
+
+    author:
+      comment.author ||
+      "Unbekannt",
+
+    authorEmail:
+      comment.authorEmail ||
+      "",
+
+    companyId:
+      organization.companyId,
+
+    departmentId:
+      organization.departmentId,
+
+    company:
+      organization.company,
+
+    department:
+      organization.department,
+
+    createdAt:
+      comment.createdAt ||
+      now,
+
+    updatedAt:
+      comment.updatedAt ||
+      now,
+  };
+}
+
+export function getTicketComments(): TicketComment[] {
   if (typeof window === "undefined") {
-    return {};
+    return [];
   }
 
   const raw =
@@ -44,39 +140,60 @@ export function getTicketComments(): Record<string, TicketComment[]> {
     );
 
   if (!raw) {
-    return {};
+    return [];
   }
 
   try {
     const parsed =
       JSON.parse(raw);
 
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed)
-    ) {
-      return {};
+    if (!Array.isArray(parsed)) {
+      return [];
     }
 
-    return parsed;
+    return parsed.map(
+      (comment) =>
+        normalizeTicketComment(
+          comment
+        )
+    );
   } catch {
-    return {};
+    return [];
   }
 }
 
 export function saveTicketComments(
-  comments: Record<string, TicketComment[]>
+  comments: TicketComment[]
 ) {
   if (typeof window === "undefined") {
     return;
   }
 
+  const normalizedComments =
+    comments.map(
+      (comment) =>
+        normalizeTicketComment(
+          comment
+        )
+    );
+
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify(
-      comments
+      normalizedComments
     )
+  );
+
+  dispatchTicketCommentsUpdated();
+}
+
+export function clearTicketComments() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.removeItem(
+    STORAGE_KEY
   );
 
   dispatchTicketCommentsUpdated();
@@ -84,113 +201,107 @@ export function saveTicketComments(
 
 export function getTicketCommentsByTicketId(
   ticketId: string
-): TicketComment[] {
-  const comments =
-    getTicketComments();
-
-  return comments[ticketId] || [];
+) {
+  return getTicketComments()
+    .filter(
+      (comment) =>
+        comment.ticketId === ticketId
+    )
+    .sort(
+      (a, b) =>
+        new Date(
+          b.createdAt
+        ).getTime() -
+        new Date(
+          a.createdAt
+        ).getTime()
+    );
 }
 
-export function addTicketComment(
-  ticketId: string,
-  text: string,
-  author: string
+export function getTicketCommentById(
+  id: string
 ): TicketComment | null {
-  if (!ticketId || !text.trim()) {
-    return null;
-  }
+  return (
+    getTicketComments().find(
+      (comment) =>
+        comment.id === id
+    ) || null
+  );
+}
 
+export function createTicketComment(
+  comment: Omit<
+    TicketComment,
+    "id" | "createdAt" | "updatedAt"
+  >
+): TicketComment {
   const comments =
     getTicketComments();
 
-  const newComment: TicketComment = {
-    id:
-      createId(),
+  const now =
+    new Date().toLocaleString();
 
-    ticketId,
+  const newComment =
+    normalizeTicketComment({
+      ...comment,
 
-    text:
-      text.trim(),
+      id:
+        createId(),
 
-    author:
-      author || "Unbekannt",
+      createdAt:
+        now,
 
-    createdAt:
-      new Date().toLocaleString(),
+      updatedAt:
+        now,
+    });
 
-    updatedAt:
-      "",
-  };
-
-  const currentComments =
-    comments[ticketId] || [];
-
-  const updatedComments = {
+  saveTicketComments([
+    newComment,
     ...comments,
-
-    [ticketId]: [
-      newComment,
-      ...currentComments,
-    ],
-  };
-
-  saveTicketComments(
-    updatedComments
-  );
+  ]);
 
   return newComment;
 }
 
 export function updateTicketComment(
-  ticketId: string,
-  commentId: string,
-  text: string
+  id: string,
+  updates: Partial<TicketComment>
 ): TicketComment | null {
-  if (
-    !ticketId ||
-    !commentId ||
-    !text.trim()
-  ) {
-    return null;
-  }
-
   const comments =
     getTicketComments();
-
-  const currentComments =
-    comments[ticketId] || [];
 
   let updatedComment:
     | TicketComment
     | null = null;
 
-  const updatedTicketComments =
-    currentComments.map(
+  const updatedComments =
+    comments.map(
       (comment) => {
-        if (comment.id !== commentId) {
+        if (comment.id !== id) {
           return comment;
         }
 
-        updatedComment = {
-          ...comment,
+        const nextComment =
+          normalizeTicketComment({
+            ...comment,
+            ...updates,
 
-          text:
-            text.trim(),
+            id:
+              comment.id,
 
-          updatedAt:
-            new Date().toLocaleString(),
-        };
+            createdAt:
+              comment.createdAt,
 
-        return updatedComment;
+            updatedAt:
+              new Date().toLocaleString(),
+          });
+
+        updatedComment =
+          nextComment;
+
+        return nextComment;
       }
     );
-
-  const updatedComments = {
-    ...comments,
-
-    [ticketId]:
-      updatedTicketComments,
-  };
 
   saveTicketComments(
     updatedComments
@@ -200,47 +311,30 @@ export function updateTicketComment(
 }
 
 export function deleteTicketComment(
-  ticketId: string,
-  commentId: string
+  id: string
 ) {
   const comments =
     getTicketComments();
 
-  const currentComments =
-    comments[ticketId] || [];
-
-  const updatedTicketComments =
-    currentComments.filter(
-      (comment) =>
-        comment.id !== commentId
-    );
-
-  const updatedComments = {
-    ...comments,
-
-    [ticketId]:
-      updatedTicketComments,
-  };
-
   saveTicketComments(
-    updatedComments
+    comments.filter(
+      (comment) =>
+        comment.id !== id
+    )
   );
 }
 
-export function deleteAllTicketComments(
+export function deleteTicketCommentsByTicketId(
   ticketId: string
 ) {
   const comments =
     getTicketComments();
 
-  const updatedComments = {
-    ...comments,
-  };
-
-  delete updatedComments[ticketId];
-
   saveTicketComments(
-    updatedComments
+    comments.filter(
+      (comment) =>
+        comment.ticketId !== ticketId
+    )
   );
 }
 
@@ -250,4 +344,22 @@ export function getTicketCommentCount(
   return getTicketCommentsByTicketId(
     ticketId
   ).length;
+}
+
+export function getTicketCommentsByCompanyId(
+  companyId: string
+) {
+  return getTicketComments().filter(
+    (comment) =>
+      comment.companyId === companyId
+  );
+}
+
+export function getTicketCommentsByDepartmentId(
+  departmentId: string
+) {
+  return getTicketComments().filter(
+    (comment) =>
+      comment.departmentId === departmentId
+  );
 }
