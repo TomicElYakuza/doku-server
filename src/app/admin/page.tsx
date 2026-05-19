@@ -29,6 +29,10 @@ import {
 } from "../../lib/activityStorage";
 
 import {
+  getNotifications,
+} from "../../lib/notificationHelpers";
+
+import {
   formatStorageSize,
   getStorageInfo,
   getTotalStorageSize,
@@ -80,6 +84,9 @@ export default function AdminPage() {
   const [activityCount, setActivityCount] =
     useState(0);
 
+  const [notificationCount, setNotificationCount] =
+    useState(0);
+
   const [storageAreaCount, setStorageAreaCount] =
     useState(0);
 
@@ -127,6 +134,11 @@ export default function AdminPage() {
     );
 
     window.addEventListener(
+      "notificationsUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
       "storageManagerUpdated",
       handleUpdate
     );
@@ -163,6 +175,11 @@ export default function AdminPage() {
       );
 
       window.removeEventListener(
+        "notificationsUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
         "storageManagerUpdated",
         handleUpdate
       );
@@ -193,6 +210,10 @@ export default function AdminPage() {
 
     setActivityCount(
       getActivities().length
+    );
+
+    setNotificationCount(
+      getNotifications().length
     );
 
     setStorageAreaCount(
@@ -308,6 +329,46 @@ export default function AdminPage() {
 
       meta:
         `${localStorageAdapterCount} LocalStorage`,
+    },
+
+    {
+      title:
+        "Datenbank",
+
+      description:
+        "Readiness-Check für spätere API- und Datenbank-Anbindung.",
+
+      href:
+        "/admin/database",
+
+      icon:
+        "◍",
+
+      value:
+        "Ready",
+
+      meta:
+        "Vorbereitung",
+    },
+
+    {
+      title:
+        "Benachrichtigungen",
+
+      description:
+        "Gespeicherte Systemmeldungen und Toasts anzeigen und verwalten.",
+
+      href:
+        "/admin/notifications",
+
+      icon:
+        "●",
+
+      value:
+        notificationCount,
+
+      meta:
+        "Meldungen",
     },
 
     {
@@ -433,7 +494,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-7 gap-6">
         {cards.map(
           (card) => (
             <Link
@@ -475,7 +536,7 @@ export default function AdminPage() {
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Die App ist jetzt stärker modularisiert. Lokaler Speicher, Settings, Feature-Flags, Aktivitäten und Daten-Adapter sind vorbereitet, damit später eine echte Datenbank und ein echtes Benutzersystem angebunden werden können.
+          Die App ist jetzt stärker modularisiert. Lokaler Speicher, Settings, Feature-Flags, Aktivitäten, Benachrichtigungen und Daten-Adapter sind vorbereitet, damit später eine echte Datenbank und ein echtes Benutzersystem angebunden werden können.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">

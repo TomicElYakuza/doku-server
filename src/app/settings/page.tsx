@@ -8,64 +8,213 @@ import {
 } from "react";
 
 import {
-  getAccentColorLabel,
-  getAccentColorOptions,
   getAppSettings,
-  getDefaultUserRoleOptions,
-  getSidebarPositionOptions,
-  getThemeLabel,
-  getThemeOptions,
   resetAppSettings,
   saveAppSettings,
 } from "../../lib/appSettingsStorage";
 
 import type {
-  AppAccentColor,
   AppSettings,
-  AppTheme,
-  SidebarPosition,
 } from "../../lib/appSettingsStorage";
 
+import {
+  getDataSource,
+  getDataSourceDescription,
+  getDataSourceLabel,
+  getDataSourceOptions,
+  saveDataSource,
+} from "../../lib/dataSourceConfig";
+
 import type {
-  UserRole,
-} from "../../lib/userStorage";
+  AppDataSource,
+} from "../../lib/dataSourceConfig";
 
 import {
-  canManageSystem,
-} from "../../lib/permissions";
+  confirmReset,
+} from "../../lib/confirmHelpers";
 
 import {
-  saveSettingsResetActivity,
-  saveSettingsUpdatedActivity,
-} from "../../lib/settingsActivityHelpers";
+  notifySuccess,
+  notifyWarning,
+} from "../../lib/notificationHelpers";
+
+type ThemeOption = {
+  value: NonNullable<AppSettings["theme"]>;
+  label: string;
+  description: string;
+};
+
+type AccentColorOption = {
+  value: NonNullable<AppSettings["accentColor"]>;
+  label: string;
+  color: string;
+};
+
+type SidebarPositionOption = {
+  value: NonNullable<AppSettings["sidebarPosition"]>;
+  label: string;
+};
+
+type UserRoleOption = {
+  value: NonNullable<AppSettings["defaultUserRole"]>;
+  label: string;
+};
+
+const themeOptions: ThemeOption[] = [
+  {
+    value: "modern",
+    label: "Modern",
+    description: "Helles, modernes Standarddesign.",
+  },
+  {
+    value: "dark",
+    label: "Dark",
+    description: "Dunkles Design für die Oberfläche.",
+  },
+  {
+    value: "system",
+    label: "System",
+    description: "Orientiert sich später an Systemeinstellungen.",
+  },
+];
+
+const accentColorOptions: AccentColorOption[] = [
+  {
+    value: "zinc",
+    label: "Zinc",
+    color: "#18181b",
+  },
+  {
+    value: "blue",
+    label: "Blau",
+    color: "#2563eb",
+  },
+  {
+    value: "indigo",
+    label: "Indigo",
+    color: "#4f46e5",
+  },
+  {
+    value: "emerald",
+    label: "Emerald",
+    color: "#059669",
+  },
+  {
+    value: "amber",
+    label: "Amber",
+    color: "#d97706",
+  },
+  {
+    value: "red",
+    label: "Rot",
+    color: "#dc2626",
+  },
+];
+
+const sidebarPositionOptions: SidebarPositionOption[] = [
+  {
+    value: "left",
+    label: "Links",
+  },
+  {
+    value: "right",
+    label: "Rechts",
+  },
+];
+
+const userRoleOptions: UserRoleOption[] = [
+  {
+    value: "viewer",
+    label: "Leser",
+  },
+  {
+    value: "editor",
+    label: "Bearbeiter",
+  },
+  {
+    value: "admin",
+    label: "Administrator",
+  },
+];
+
+function normalizeTheme(
+  value: AppSettings["theme"]
+): NonNullable<AppSettings["theme"]> {
+  if (
+    value === "dark" ||
+    value === "system"
+  ) {
+    return value;
+  }
+
+  return "modern";
+}
+
+function normalizeAccentColor(
+  value:
+    | AppSettings["accentColor"]
+    | AppSettings["appAccentColor"]
+): NonNullable<AppSettings["accentColor"]> {
+  if (
+    value === "blue" ||
+    value === "indigo" ||
+    value === "emerald" ||
+    value === "amber" ||
+    value === "red"
+  ) {
+    return value;
+  }
+
+  return "zinc";
+}
+
+function normalizeSidebarPosition(
+  value: AppSettings["sidebarPosition"]
+): NonNullable<AppSettings["sidebarPosition"]> {
+  if (value === "right") {
+    return "right";
+  }
+
+  return "left";
+}
+
+function normalizeDefaultRole(
+  value: AppSettings["defaultUserRole"]
+): NonNullable<AppSettings["defaultUserRole"]> {
+  if (
+    value === "admin" ||
+    value === "editor"
+  ) {
+    return value;
+  }
+
+  return "viewer";
+}
 
 export default function SettingsPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [settings, setSettings] =
-    useState<AppSettings | null>(null);
-
   const [appName, setAppName] =
-    useState("");
+    useState("Intranet");
 
   const [companyName, setCompanyName] =
-    useState("");
+    useState("Intern");
 
   const [appVersion, setAppVersion] =
-    useState("");
+    useState("0.1.0");
 
   const [theme, setTheme] =
-    useState<AppTheme>("modern");
+    useState<NonNullable<AppSettings["theme"]>>("modern");
 
   const [darkMode, setDarkMode] =
     useState(false);
 
   const [accentColor, setAccentColor] =
-    useState<AppAccentColor>("zinc");
+    useState<NonNullable<AppSettings["accentColor"]>>("zinc");
 
   const [sidebarPosition, setSidebarPosition] =
-    useState<SidebarPosition>("left");
+    useState<NonNullable<AppSettings["sidebarPosition"]>>("left");
 
   const [showVersion, setShowVersion] =
     useState(true);
@@ -86,7 +235,10 @@ export default function SettingsPage() {
     useState(true);
 
   const [defaultUserRole, setDefaultUserRole] =
-    useState<UserRole>("viewer");
+    useState<NonNullable<AppSettings["defaultUserRole"]>>("viewer");
+
+  const [dataSource, setDataSource] =
+    useState<AppDataSource>("localStorage");
 
   useEffect(() => {
     setMounted(true);
@@ -102,9 +254,19 @@ export default function SettingsPage() {
       handleSettingsUpdated
     );
 
+    window.addEventListener(
+      "storage",
+      handleSettingsUpdated
+    );
+
     return () => {
       window.removeEventListener(
         "appSettingsUpdated",
+        handleSettingsUpdated
+      );
+
+      window.removeEventListener(
+        "storage",
         handleSettingsUpdated
       );
     };
@@ -114,182 +276,174 @@ export default function SettingsPage() {
     const loadedSettings =
       getAppSettings();
 
-    setSettings(
-      loadedSettings
-    );
-
     setAppName(
-      loadedSettings.appName
+      loadedSettings.appName ||
+        "Intranet"
     );
 
     setCompanyName(
-      loadedSettings.companyName
+      loadedSettings.companyName ||
+        "Intern"
     );
 
     setAppVersion(
       loadedSettings.appVersion ||
-        loadedSettings.version
+        loadedSettings.version ||
+        "0.1.0"
     );
 
     setTheme(
-      loadedSettings.theme
+      normalizeTheme(
+        loadedSettings.theme
+      )
     );
 
     setDarkMode(
-      loadedSettings.darkMode
+      Boolean(
+        loadedSettings.darkMode
+      )
     );
 
     setAccentColor(
-      loadedSettings.accentColor ||
-        loadedSettings.appAccentColor
+      normalizeAccentColor(
+        loadedSettings.accentColor ||
+          loadedSettings.appAccentColor
+      )
     );
 
     setSidebarPosition(
-      loadedSettings.sidebarPosition
+      normalizeSidebarPosition(
+        loadedSettings.sidebarPosition
+      )
     );
 
     setShowVersion(
-      loadedSettings.showVersion
+      Boolean(
+        loadedSettings.showVersion
+      )
     );
 
     setCompactMode(
-      loadedSettings.compactMode
+      Boolean(
+        loadedSettings.compactMode
+      )
     );
 
     setShowDemoHints(
-      loadedSettings.showDemoHints
+      Boolean(
+        loadedSettings.showDemoHints
+      )
     );
 
     setEnableTicketTemplates(
-      loadedSettings.enableTicketTemplates
+      Boolean(
+        loadedSettings.enableTicketTemplates
+      )
     );
 
     setEnableTicketComments(
-      loadedSettings.enableTicketComments
+      Boolean(
+        loadedSettings.enableTicketComments
+      )
     );
 
     setEnableActivityLog(
-      loadedSettings.enableActivityLog
+      Boolean(
+        loadedSettings.enableActivityLog
+      )
     );
 
     setDefaultUserRole(
-      loadedSettings.defaultUserRole
+      normalizeDefaultRole(
+        loadedSettings.defaultUserRole
+      )
+    );
+
+    setDataSource(
+      getDataSource()
     );
   }
 
-  function handleSaveSettings() {
-    if (!canManageSystem()) {
-      alert(
-        "Du hast keine Berechtigung, Einstellungen zu speichern."
-      );
+  function handleSave() {
+    saveAppSettings({
+      appName:
+        appName.trim() ||
+        "Intranet",
 
-      return;
-    }
+      companyName:
+        companyName.trim() ||
+        "Intern",
 
-    if (!appName.trim()) {
-      alert(
-        "Bitte einen App-Namen eingeben."
-      );
+      appVersion:
+        appVersion.trim() ||
+        "0.1.0",
 
-      return;
-    }
+      version:
+        appVersion.trim() ||
+        "0.1.0",
 
-    if (!companyName.trim()) {
-      alert(
-        "Bitte einen Firmennamen eingeben."
-      );
+      theme,
 
-      return;
-    }
+      darkMode,
 
-    const savedSettings =
-      saveAppSettings({
-        appName:
-          appName.trim(),
+      accentColor,
 
-        companyName:
-          companyName.trim(),
-
-        appVersion:
-          appVersion.trim() ||
-          "0.1.0",
-
-        version:
-          appVersion.trim() ||
-          "0.1.0",
-
-        theme,
-
-        darkMode,
-
-        appAccentColor:
-          accentColor,
-
+      appAccentColor:
         accentColor,
 
-        sidebarPosition,
+      sidebarPosition,
 
-        showVersion,
+      showVersion,
 
-        compactMode,
+      compactMode,
 
-        showDemoHints,
+      showDemoHints,
 
-        enableTicketTemplates,
+      enableTicketTemplates,
 
-        enableTicketComments,
+      enableTicketComments,
 
-        enableActivityLog,
+      enableActivityLog,
 
-        defaultUserRole,
-      });
+      defaultUserRole,
+    });
 
-    setSettings(
-      savedSettings
+    saveDataSource(
+      dataSource
     );
 
-    saveSettingsUpdatedActivity(
-      savedSettings
-    );
-
-    alert(
-      "Einstellungen wurden gespeichert."
+    notifySuccess(
+      "Einstellungen gespeichert",
+      "Die App-Einstellungen wurden übernommen."
     );
   }
 
-  function handleResetSettings() {
-    if (!canManageSystem()) {
-      alert(
-        "Du hast keine Berechtigung, Einstellungen zurückzusetzen."
-      );
-
-      return;
-    }
-
+  function handleReset() {
     const confirmed =
-      confirm(
-        "Einstellungen wirklich auf Standard zurücksetzen?"
+      confirmReset(
+        "Einstellungen"
       );
 
     if (!confirmed) {
+      notifyWarning(
+        "Zurücksetzen abgebrochen",
+        "Die Einstellungen wurden nicht verändert."
+      );
+
       return;
     }
 
-    const resetSettings =
-      resetAppSettings();
+    resetAppSettings();
 
-    setSettings(
-      resetSettings
-    );
-
-    saveSettingsResetActivity(
-      resetSettings
+    saveDataSource(
+      "localStorage"
     );
 
     loadSettings();
 
-    alert(
-      "Einstellungen wurden zurückgesetzt."
+    notifySuccess(
+      "Einstellungen zurückgesetzt",
+      "Die Standardwerte wurden wiederhergestellt."
     );
   }
 
@@ -297,50 +451,8 @@ export default function SettingsPage() {
     return null;
   }
 
-  if (!settings) {
-    return null;
-  }
-
-  if (!canManageSystem()) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            dashboard
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            einstellungen
-          </span>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
-            🔒
-          </div>
-
-          <h1 className="text-4xl font-bold">
-            Kein Zugriff
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du hast mit deiner aktuellen Rolle keine Berechtigung für die Systemeinstellungen.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
-      {/* TOP NAV */}
       <div className="flex items-center gap-3 text-sm">
         <Link
           href="/"
@@ -358,113 +470,34 @@ export default function SettingsPage() {
         </span>
       </div>
 
-      {/* HEADER */}
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Einstellungen
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            App-Name, Design, Features und Standardwerte verwalten
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3 justify-end">
-          <button
-            onClick={handleResetSettings}
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Zurücksetzen
-          </button>
-
-          <button
-            onClick={handleSaveSettings}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Speichern
-          </button>
-        </div>
-      </div>
-
-      {/* SUMMARY */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            App
-          </p>
-
-          <h2 className="text-2xl font-bold mt-3">
-            {settings.appName}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            {settings.companyName}
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Version
-          </p>
-
-          <h2 className="text-2xl font-bold mt-3">
-            {settings.appVersion}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Anzeige: {settings.showVersion ? "Aktiv" : "Aus"}
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Theme
-          </p>
-
-          <h2 className="text-2xl font-bold mt-3">
-            {getThemeLabel(
-              settings.theme
-            )}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Farbe:{" "}
-            {getAccentColorLabel(
-              settings.accentColor
-            )}
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Aktualisiert
-          </p>
-
-          <h2 className="text-xl font-bold mt-3">
-            {settings.updatedAt}
-          </h2>
-        </div>
-      </div>
-
-      {/* GENERAL */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Allgemein
-        </h2>
+      <div>
+        <h1 className="text-4xl font-bold">
+          Einstellungen
+        </h1>
 
         <p className="text-zinc-500 mt-2">
-          Grunddaten deiner DMS-/Ticket-/Intranet-App.
+          App-Name, Darstellung, Features und Standardwerte verwalten
         </p>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">
+            App-Informationen
+          </h2>
+
+          <p className="text-zinc-500 mt-2">
+            Grunddaten für Branding und Anzeige.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div>
             <label className="block mb-2 font-medium">
               App-Name
             </label>
 
             <input
-              type="text"
               value={appName}
               onChange={(event) =>
                 setAppName(
@@ -472,17 +505,16 @@ export default function SettingsPage() {
                 )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              placeholder="DMS Intranet"
+              placeholder="Intranet"
             />
           </div>
 
           <div>
             <label className="block mb-2 font-medium">
-              Firmenname
+              Firma
             </label>
 
             <input
-              type="text"
               value={companyName}
               onChange={(event) =>
                 setCompanyName(
@@ -500,7 +532,6 @@ export default function SettingsPage() {
             </label>
 
             <input
-              type="text"
               value={appVersion}
               onChange={(event) =>
                 setAppVersion(
@@ -511,194 +542,220 @@ export default function SettingsPage() {
               placeholder="0.1.0"
             />
           </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Standardrolle
-            </label>
-
-            <select
-              value={defaultUserRole}
-              onChange={(event) =>
-                setDefaultUserRole(
-                  event.target.value as UserRole
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              {getDefaultUserRoleOptions().map(
-                (option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                  >
-                    {option.label}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
         </div>
       </div>
 
-      {/* DESIGN */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Design
-        </h2>
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">
+            Darstellung
+          </h2>
 
-        <p className="text-zinc-500 mt-2">
-          Theme, Akzentfarbe, Dark Mode und Layoutverhalten.
-        </p>
+          <p className="text-zinc-500 mt-2">
+            Standarddesign, Dark Mode, Akzentfarbe und Layout.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-          <div>
-            <label className="block mb-2 font-medium">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="space-y-3">
+            <p className="font-medium">
               Theme
-            </label>
+            </p>
 
-            <select
-              value={theme}
-              onChange={(event) =>
-                setTheme(
-                  event.target.value as AppTheme
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              {getThemeOptions().map(
+            <div className="grid gap-3">
+              {themeOptions.map(
                 (option) => (
-                  <option
+                  <button
                     key={option.value}
-                    value={option.value}
+                    type="button"
+                    onClick={() =>
+                      setTheme(
+                        option.value
+                      )
+                    }
+                    className={`text-left border rounded-2xl p-5 transition ${
+                      theme === option.value
+                        ? "border-zinc-900 bg-zinc-100"
+                        : "border-zinc-200 hover:bg-zinc-50"
+                    }`}
                   >
-                    {option.label}
-                  </option>
+                    <p className="font-semibold">
+                      {option.label}
+                    </p>
+
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {option.description}
+                    </p>
+                  </button>
                 )
               )}
-            </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
+          <div className="space-y-3">
+            <p className="font-medium">
               Akzentfarbe
-            </label>
+            </p>
 
-            <select
-              value={accentColor}
-              onChange={(event) =>
-                setAccentColor(
-                  event.target.value as AppAccentColor
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              {getAccentColorOptions().map(
+            <div className="grid grid-cols-2 gap-3">
+              {accentColorOptions.map(
                 (option) => (
-                  <option
+                  <button
                     key={option.value}
-                    value={option.value}
+                    type="button"
+                    onClick={() =>
+                      setAccentColor(
+                        option.value
+                      )
+                    }
+                    className={`flex items-center gap-3 border rounded-2xl p-4 transition ${
+                      accentColor === option.value
+                        ? "border-zinc-900 bg-zinc-100"
+                        : "border-zinc-200 hover:bg-zinc-50"
+                    }`}
                   >
-                    {option.label}
-                  </option>
+                    <span
+                      className="h-6 w-6 rounded-full"
+                      style={{
+                        background:
+                          option.color,
+                      }}
+                    />
+
+                    <span className="font-medium">
+                      {option.label}
+                    </span>
+                  </button>
                 )
               )}
-            </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
-              Sidebar-Position
-            </label>
+          <div className="space-y-3">
+            <p className="font-medium">
+              Layout
+            </p>
 
-            <select
-              value={sidebarPosition}
-              onChange={(event) =>
-                setSidebarPosition(
-                  event.target.value as SidebarPosition
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              {getSidebarPositionOptions().map(
+            <div className="grid gap-3">
+              {sidebarPositionOptions.map(
                 (option) => (
-                  <option
+                  <button
                     key={option.value}
-                    value={option.value}
+                    type="button"
+                    onClick={() =>
+                      setSidebarPosition(
+                        option.value
+                      )
+                    }
+                    className={`text-left border rounded-2xl p-5 transition ${
+                      sidebarPosition === option.value
+                        ? "border-zinc-900 bg-zinc-100"
+                        : "border-zinc-200 hover:bg-zinc-50"
+                    }`}
                   >
-                    {option.label}
-                  </option>
+                    <p className="font-semibold">
+                      Sidebar {option.label}
+                    </p>
+                  </button>
                 )
               )}
-            </select>
-          </div>
+            </div>
 
-          <div className="grid gap-3">
-            <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
-              <span>
-                Dark Mode
-              </span>
+            <div className="space-y-3 pt-2">
+              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
+                <span>
+                  <span className="block font-medium">
+                    Dark Mode
+                  </span>
 
-              <input
-                type="checkbox"
-                checked={darkMode}
-                onChange={(event) =>
-                  setDarkMode(
-                    event.target.checked
-                  )
-                }
-              />
-            </label>
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Dunkle Oberfläche aktivieren.
+                  </span>
+                </span>
 
-            <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
-              <span>
-                Kompakter Modus
-              </span>
+                <input
+                  type="checkbox"
+                  checked={darkMode}
+                  onChange={(event) =>
+                    setDarkMode(
+                      event.target.checked
+                    )
+                  }
+                  className="h-5 w-5"
+                />
+              </label>
 
-              <input
-                type="checkbox"
-                checked={compactMode}
-                onChange={(event) =>
-                  setCompactMode(
-                    event.target.checked
-                  )
-                }
-              />
-            </label>
+              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
+                <span>
+                  <span className="block font-medium">
+                    Kompaktmodus
+                  </span>
+
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Weniger Innenabstand im Hauptbereich.
+                  </span>
+                </span>
+
+                <input
+                  type="checkbox"
+                  checked={compactMode}
+                  onChange={(event) =>
+                    setCompactMode(
+                      event.target.checked
+                    )
+                  }
+                  className="h-5 w-5"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
+                <span>
+                  <span className="block font-medium">
+                    Version anzeigen
+                  </span>
+
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Version in der Sidebar anzeigen.
+                  </span>
+                </span>
+
+                <input
+                  type="checkbox"
+                  checked={showVersion}
+                  onChange={(event) =>
+                    setShowVersion(
+                      event.target.checked
+                    )
+                  }
+                  className="h-5 w-5"
+                />
+              </label>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* FEATURES */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Funktionen
-        </h2>
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">
+            Features
+          </h2>
 
-        <p className="text-zinc-500 mt-2">
-          Feature-Schalter für Demo, Tickets, Kommentare und Aktivitäten.
-        </p>
+          <p className="text-zinc-500 mt-2">
+            Schalte optionale Bereiche der Anwendung ein oder aus.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
             <span>
-              Version anzeigen
-            </span>
+              <span className="block font-medium">
+                Demo-Hinweise
+              </span>
 
-            <input
-              type="checkbox"
-              checked={showVersion}
-              onChange={(event) =>
-                setShowVersion(
-                  event.target.checked
-                )
-              }
-            />
-          </label>
-
-          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
-            <span>
-              Demo-Hinweise anzeigen
+              <span className="block text-sm text-zinc-500 mt-1">
+                Hilfetexte anzeigen.
+              </span>
             </span>
 
             <input
@@ -709,12 +766,19 @@ export default function SettingsPage() {
                   event.target.checked
                 )
               }
+              className="h-5 w-5"
             />
           </label>
 
-          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
             <span>
-              Ticket-Vorlagen aktivieren
+              <span className="block font-medium">
+                Ticket-Vorlagen
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Vorlagenbereich aktivieren.
+              </span>
             </span>
 
             <input
@@ -725,12 +789,19 @@ export default function SettingsPage() {
                   event.target.checked
                 )
               }
+              className="h-5 w-5"
             />
           </label>
 
-          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
             <span>
-              Ticket-Kommentare aktivieren
+              <span className="block font-medium">
+                Ticket-Kommentare
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Kommentare in Tickets erlauben.
+              </span>
             </span>
 
             <input
@@ -741,12 +812,19 @@ export default function SettingsPage() {
                   event.target.checked
                 )
               }
+              className="h-5 w-5"
             />
           </label>
 
-          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
             <span>
-              Aktivitätslog aktivieren
+              <span className="block font-medium">
+                Aktivitätslog
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Systemaktionen protokollieren.
+              </span>
             </span>
 
             <input
@@ -757,26 +835,121 @@ export default function SettingsPage() {
                   event.target.checked
                 )
               }
+              className="h-5 w-5"
             />
           </label>
         </div>
       </div>
 
-      {/* ACTIONS */}
-      <div className="flex flex-wrap gap-3 justify-end">
-        <button
-          onClick={handleResetSettings}
-          className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          Zurücksetzen
-        </button>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">
+            Standardwerte & Datenquelle
+          </h2>
 
-        <button
-          onClick={handleSaveSettings}
-          className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Einstellungen speichern
-        </button>
+          <p className="text-zinc-500 mt-2">
+            Vorbereitung für Benutzerverwaltung und spätere Datenbank-Anbindung.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div>
+            <label className="block mb-2 font-medium">
+              Standardrolle für neue Benutzer
+            </label>
+
+            <select
+              value={defaultUserRole}
+              onChange={(event) =>
+                setDefaultUserRole(
+                  event.target.value as NonNullable<AppSettings["defaultUserRole"]>
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              {userRoleOptions.map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Datenquelle
+            </label>
+
+            <select
+              value={dataSource}
+              onChange={(event) =>
+                setDataSource(
+                  event.target.value as AppDataSource
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              {getDataSourceOptions().map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                )
+              )}
+            </select>
+
+            <p className="text-sm text-zinc-500 mt-2">
+              Aktuell:{" "}
+              {getDataSourceLabel(
+                dataSource
+              )}
+              {" — "}
+              {getDataSourceDescription(
+                dataSource
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Änderungen übernehmen
+            </h2>
+
+            <p className="text-zinc-500 mt-1">
+              Speichere die Einstellungen oder setze sie auf Standardwerte zurück.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3 justify-end">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Zurücksetzen
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Speichern
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

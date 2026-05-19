@@ -36,6 +36,18 @@ import {
   saveStorageKeyClearedActivity,
 } from "../../../lib/storageActivityHelpers";
 
+import {
+  confirmClearAllStorage,
+  confirmDeleteStorageKey,
+  confirmImportStorage,
+} from "../../../lib/confirmHelpers";
+
+import {
+  notifyError,
+  notifySuccess,
+  notifyWarning,
+} from "../../../lib/notificationHelpers";
+
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
 type ViewMode =
@@ -85,6 +97,10 @@ function getAreaLabel(
     return "Aktueller Benutzer";
   }
 
+  if (area === "notifications") {
+    return "Benachrichtigungen";
+  }
+
   return "Sonstiges";
 }
 
@@ -112,7 +128,11 @@ function getAreaClass(
     return "bg-indigo-50 text-indigo-700";
   }
 
-  if (area === "settings") {
+  if (
+    area === "settings" ||
+    area === "currentUser" ||
+    area === "notifications"
+  ) {
     return "bg-zinc-100 text-zinc-700";
   }
 
@@ -183,9 +203,21 @@ export default function AdminStoragePage() {
   }
 
   function handleExport() {
-    downloadStorageExport();
+    try {
+      downloadStorageExport();
 
-    saveStorageExportedActivity();
+      saveStorageExportedActivity();
+
+      notifySuccess(
+        "Export gestartet",
+        "Die lokalen DMS-Daten wurden als JSON-Datei vorbereitet."
+      );
+    } catch {
+      notifyError(
+        "Export fehlgeschlagen",
+        "Die lokalen DMS-Daten konnten nicht exportiert werden."
+      );
+    }
   }
 
   function handleImportClick() {
@@ -203,13 +235,16 @@ export default function AdminStoragePage() {
     }
 
     const confirmed =
-      confirm(
-        "Import wirklich durchführen? Bestehende lokale DMS-Daten können überschrieben werden."
-      );
+      confirmImportStorage();
 
     if (!confirmed) {
       event.target.value =
         "";
+
+      notifyWarning(
+        "Import abgebrochen",
+        "Es wurden keine lokalen Daten verändert."
+      );
 
       return;
     }
@@ -223,12 +258,14 @@ export default function AdminStoragePage() {
 
       loadData();
 
-      alert(
-        "Import wurde erfolgreich durchgeführt."
+      notifySuccess(
+        "Import erfolgreich",
+        "Die lokalen DMS-Daten wurden importiert."
       );
     } catch {
-      alert(
-        "Import fehlgeschlagen. Bitte prüfe, ob die Datei ein gültiger DMS-Export ist."
+      notifyError(
+        "Import fehlgeschlagen",
+        "Bitte prüfe, ob die Datei ein gültiger DMS-Export ist."
       );
     } finally {
       event.target.value =
@@ -240,19 +277,25 @@ export default function AdminStoragePage() {
     item: StorageInfo
   ) {
     if (!canManageSystem()) {
-      alert(
-        "Du hast keine Berechtigung, Speicher zu löschen."
+      notifyError(
+        "Keine Berechtigung",
+        "Du hast keine Berechtigung, Speicherbereiche zu löschen."
       );
 
       return;
     }
 
     const confirmed =
-      confirm(
-        `"${item.label}" wirklich aus dem lokalen Speicher löschen?`
+      confirmDeleteStorageKey(
+        item.label
       );
 
     if (!confirmed) {
+      notifyWarning(
+        "Löschen abgebrochen",
+        `"${item.label}" wurde nicht gelöscht.`
+      );
+
       return;
     }
 
@@ -278,32 +321,32 @@ export default function AdminStoragePage() {
     );
 
     loadData();
+
+    notifySuccess(
+      "Speicherbereich gelöscht",
+      `"${item.label}" wurde aus dem lokalen Speicher entfernt.`
+    );
   }
 
   function handleClearAll() {
     if (!canManageSystem()) {
-      alert(
-        "Du hast keine Berechtigung, den Speicher zu löschen."
+      notifyError(
+        "Keine Berechtigung",
+        "Du hast keine Berechtigung, den lokalen Speicher zu löschen."
       );
 
       return;
     }
 
     const confirmed =
-      confirm(
-        "Wirklich alle lokalen DMS-Daten löschen? Diese Aktion betrifft Wiki, Tickets, Benutzer, Firmen, Einstellungen und Aktivitäten."
-      );
+      confirmClearAllStorage();
 
     if (!confirmed) {
-      return;
-    }
-
-    const confirmedAgain =
-      confirm(
-        "Letzte Bestätigung: Alle lokalen DMS-Daten werden entfernt."
+      notifyWarning(
+        "Löschen abgebrochen",
+        "Der lokale DMS-Speicher wurde nicht verändert."
       );
 
-    if (!confirmedAgain) {
       return;
     }
 
@@ -313,8 +356,9 @@ export default function AdminStoragePage() {
 
     loadData();
 
-    alert(
-      "Lokaler DMS-Speicher wurde gelöscht."
+    notifySuccess(
+      "Lokaler Speicher gelöscht",
+      "Alle lokalen DMS-Daten wurden entfernt."
     );
   }
 

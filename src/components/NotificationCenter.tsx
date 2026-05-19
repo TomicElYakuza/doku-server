@@ -2,6 +2,8 @@
 
 import {
   useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import {
@@ -11,6 +13,55 @@ import {
 import type {
   NotificationType,
 } from "../lib/notificationHelpers";
+
+const DISMISSED_STORAGE_KEY =
+  "dms_dismissed_notifications";
+
+function getDismissedIds() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const raw =
+    sessionStorage.getItem(
+      DISMISSED_STORAGE_KEY
+    );
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed =
+      JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map(
+      (item) =>
+        String(item)
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveDismissedIds(
+  ids: string[]
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  sessionStorage.setItem(
+    DISMISSED_STORAGE_KEY,
+    JSON.stringify(
+      ids
+    )
+  );
+}
 
 function getNotificationClass(
   type: NotificationType
@@ -51,31 +102,76 @@ function getNotificationIcon(
 export default function NotificationCenter() {
   const {
     notifications,
-    remove,
   } = useNotifications();
 
+  const [dismissedIds, setDismissedIds] =
+    useState<string[]>([]);
+
   useEffect(() => {
-    if (notifications.length === 0) {
+    setDismissedIds(
+      getDismissedIds()
+    );
+  }, []);
+
+  function dismissNotification(
+    id: string
+  ) {
+    setDismissedIds(
+      (currentIds) => {
+        const nextIds =
+          Array.from(
+            new Set([
+              ...currentIds,
+              id,
+            ])
+          );
+
+        saveDismissedIds(
+          nextIds
+        );
+
+        return nextIds;
+      }
+    );
+  }
+
+  const visibleNotifications =
+    useMemo(
+      () =>
+        notifications
+          .filter(
+            (notification) =>
+              !dismissedIds.includes(
+                notification.id
+              )
+          )
+          .slice(
+            0,
+            5
+          ),
+      [
+        notifications,
+        dismissedIds,
+      ]
+    );
+
+  useEffect(() => {
+    if (visibleNotifications.length === 0) {
       return;
     }
 
     const timers =
-      notifications
-        .slice(
-          0,
-          5
-        )
-        .map(
-          (notification) =>
-            window.setTimeout(
-              () => {
-                remove(
-                  notification.id
-                );
-              },
-              6000
-            )
-        );
+      visibleNotifications.map(
+        (notification) =>
+          window.setTimeout(
+            () => {
+              dismissNotification(
+                notification.id
+              );
+            },
+            6000
+          )
+      );
 
     return () => {
       timers.forEach(
@@ -87,15 +183,8 @@ export default function NotificationCenter() {
       );
     };
   }, [
-    notifications,
-    remove,
+    visibleNotifications,
   ]);
-
-  const visibleNotifications =
-    notifications.slice(
-      0,
-      5
-    );
 
   if (visibleNotifications.length === 0) {
     return null;
@@ -137,7 +226,7 @@ export default function NotificationCenter() {
               <button
                 type="button"
                 onClick={() =>
-                  remove(
+                  dismissNotification(
                     notification.id
                   )
                 }

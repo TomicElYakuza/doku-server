@@ -62,7 +62,7 @@ const mainNavItems: NavItem[] = [
   {
     href: "/tickets/templates",
     label: "Ticket-Vorlagen",
-    icon: "◈",
+    icon: "◇",
     feature: "ticketTemplates",
   },
   {
@@ -103,6 +103,18 @@ const adminNavItems: NavItem[] = [
     href: "/admin/adapters",
     label: "Adapter",
     icon: "⇄",
+    adminOnly: true,
+  },
+  {
+    href: "/admin/database",
+    label: "Datenbank",
+    icon: "◍",
+    adminOnly: true,
+  },
+  {
+    href: "/admin/notifications",
+    label: "Benachrichtigungen",
+    icon: "●",
     adminOnly: true,
   },
 ];
@@ -151,10 +163,10 @@ function getNavLinkClass(
   active: boolean
 ) {
   if (active) {
-    return "flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-zinc-950 shadow-sm";
+    return "group flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-zinc-950 shadow-sm ring-1 ring-white/10";
   }
 
-  return "flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-300 hover:bg-zinc-800 hover:text-white transition";
+  return "group flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/10 hover:text-white transition";
 }
 
 function getIconClass(
@@ -164,7 +176,7 @@ function getIconClass(
     return "flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-950 text-white text-sm";
   }
 
-  return "flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 text-zinc-300 text-sm";
+  return "flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-zinc-300 text-sm group-hover:bg-white/15 group-hover:text-white transition";
 }
 
 function getVisibleItems(
@@ -221,12 +233,12 @@ function NavSection({
   }
 
   return (
-    <div>
-      <p className="px-4 text-xs uppercase tracking-widest text-zinc-500 mb-3">
+    <section>
+      <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-3">
         {title}
       </p>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {items.map(
           (item) => {
             const active =
@@ -247,7 +259,7 @@ function NavSection({
                   {item.icon}
                 </span>
 
-                <span className="font-medium">
+                <span className="font-medium text-sm">
                   {item.label}
                 </span>
               </Link>
@@ -255,7 +267,7 @@ function NavSection({
           }
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -267,7 +279,6 @@ export default function AppShell({
 
   const {
     mounted,
-    appName,
     companyName,
     appVersion,
     showVersion,
@@ -342,30 +353,24 @@ export default function AppShell({
     );
 
   const sidebar = (
-    <aside className="w-72 shrink-0 bg-zinc-950 text-white h-screen overflow-hidden flex flex-col">
-      <div className="shrink-0 p-6 border-b border-zinc-800">
+    <aside className="w-72 shrink-0 h-screen overflow-hidden flex flex-col bg-[#070A18] text-white border-r border-white/10">
+      <div className="shrink-0 px-5 py-5 border-b border-white/10">
         <Link
           href="/"
-          className="flex items-center gap-4"
+          className="block rounded-3xl px-3 py-2 hover:bg-white/5 transition"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xl font-black text-zinc-950">
-            D
-          </div>
+          <p className="text-xl font-black tracking-tight">
+            Intranet
+          </p>
 
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold leading-tight">
-              {appName}
-            </p>
-
-            <p className="truncate text-xs text-zinc-400 mt-1">
-              {companyName}
-            </p>
-          </div>
+          <p className="text-xs text-zinc-500 mt-1">
+            {companyName || "Intern"}
+          </p>
         </Link>
       </div>
 
-      <nav className="flex-1 min-h-0 overflow-hidden p-4">
-        <div className="space-y-8">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-5 sidebar-scroll">
+        <div className="space-y-7 pb-4">
           <NavSection
             title="Hauptmenü"
             items={visibleMainItems}
@@ -386,37 +391,9 @@ export default function AppShell({
         </div>
       </nav>
 
-      <div className="shrink-0 p-4 border-t border-zinc-800">
-        <div className="rounded-3xl bg-zinc-900 p-4">
-          <p className="text-xs text-zinc-500">
-            Angemeldet als
-          </p>
-
-          <p className="mt-1 truncate font-semibold text-white">
-            {user?.name ||
-              "Unbekannt"}
-          </p>
-
-          <p className="mt-1 truncate text-xs text-zinc-400">
-            {getRoleLabel(
-              user?.role
-            )}
-          </p>
-
-          {(user?.company ||
-            user?.department) && (
-            <p className="mt-2 truncate text-xs text-zinc-500">
-              {user.company ||
-                companyName}
-              {user.department
-                ? ` · ${user.department}`
-                : ""}
-            </p>
-          )}
-        </div>
-
+      <div className="shrink-0 border-t border-white/10 px-5 py-4">
         {showVersion && (
-          <p className="px-2 pt-4 text-xs text-zinc-500">
+          <p className="text-xs text-zinc-500">
             Version {appVersion}
           </p>
         )}
@@ -425,21 +402,38 @@ export default function AppShell({
   );
 
   const topbar = (
-    <header className="h-20 shrink-0 bg-zinc-950 text-white border-b border-zinc-900 px-8 flex items-center justify-between">
+    <header className="h-20 shrink-0 bg-white/90 dark:bg-[#070A18]/95 backdrop-blur border-b border-zinc-200 dark:border-white/10 px-8 flex items-center justify-between">
       <div className="min-w-0">
-        <p className="text-sm text-zinc-400">
-          {companyName}
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
+          {companyName || "Intern"}
         </p>
 
-        <h1 className="truncate text-lg font-bold">
-          {appName}
+        <h1 className="truncate text-xl font-black tracking-tight text-zinc-950 dark:text-white">
+          Intranet
         </h1>
       </div>
 
-      <div className="hidden md:flex items-center gap-3">
-        <p className="text-sm text-zinc-500">
-          {user?.name || "Unbekannt"}
-        </p>
+      <div className="flex items-center gap-3">
+        <div className="hidden sm:block text-right">
+          <p className="text-sm font-bold text-zinc-950 dark:text-white">
+            {user?.name || "Unbekannt"}
+          </p>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {getRoleLabel(
+              user?.role
+            )}
+            {user?.department
+              ? ` · ${user.department}`
+              : ""}
+          </p>
+        </div>
+
+        <div className="h-11 w-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold shadow-sm">
+          {(user?.name || "U")
+            .slice(0, 1)
+            .toUpperCase()}
+        </div>
       </div>
     </header>
   );
@@ -459,7 +453,7 @@ export default function AppShell({
           {topbar}
 
           <main
-            className={`flex-1 overflow-y-auto ${
+            className={`flex-1 overflow-y-auto bg-zinc-100 ${
               compactMode
                 ? "p-5"
                 : "p-8"

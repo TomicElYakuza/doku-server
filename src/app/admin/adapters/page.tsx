@@ -67,6 +67,10 @@ function getEntityLabel(
     return "Aktueller Benutzer";
   }
 
+  if (entity === "notification") {
+    return "Benachrichtigungen";
+  }
+
   return entity;
 }
 

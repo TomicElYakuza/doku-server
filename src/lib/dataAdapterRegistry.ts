@@ -30,6 +30,10 @@ import {
 } from "./systemDataAdapters";
 
 import {
+  getNotificationAdapter,
+} from "./notificationDataAdapter";
+
+import {
   createNotImplementedAdapter,
 } from "./dataAdapter";
 
@@ -73,6 +77,9 @@ export const dataAdapterRegistry: AdapterRegistry = {
 
   currentUser:
     getCurrentUserAdapter() as DataAdapter<unknown>,
+
+  notification:
+    getNotificationAdapter() as DataAdapter<unknown>,
 };
 
 export function getDataAdapter<T>(

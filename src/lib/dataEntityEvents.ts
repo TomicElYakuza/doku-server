@@ -73,6 +73,12 @@ export function getEventsForDataEntity(
     );
   }
 
+  if (entity === "notification") {
+    return getEventsForEntity(
+      "notifications"
+    );
+  }
+
   return [
     "dataUpdated",
   ];

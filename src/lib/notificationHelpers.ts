@@ -1,4 +1,5 @@
 import {
+  dispatchAppEvent,
   dispatchNotificationsUpdated,
 } from "./appEvents";
 
@@ -18,6 +19,9 @@ export type NotificationMessage = {
 
 const STORAGE_KEY =
   "dms_notifications";
+
+const MAX_NOTIFICATIONS =
+  100;
 
 function createId() {
   if (
@@ -58,6 +62,27 @@ function normalizeNotification(
   };
 }
 
+function limitNotifications(
+  notifications: NotificationMessage[]
+) {
+  return notifications.slice(
+    0,
+    MAX_NOTIFICATIONS
+  );
+}
+
+function dispatchNotificationStorageUpdated() {
+  dispatchNotificationsUpdated();
+
+  dispatchAppEvent(
+    "storageManagerUpdated"
+  );
+
+  dispatchAppEvent(
+    "dataUpdated"
+  );
+}
+
 export function getNotifications(): NotificationMessage[] {
   if (typeof window === "undefined") {
     return [];
@@ -80,11 +105,13 @@ export function getNotifications(): NotificationMessage[] {
       return [];
     }
 
-    return parsed.map(
-      (notification) =>
-        normalizeNotification(
-          notification
-        )
+    return limitNotifications(
+      parsed.map(
+        (notification) =>
+          normalizeNotification(
+            notification
+          )
+      )
     );
   } catch {
     return [];
@@ -98,19 +125,24 @@ export function saveNotifications(
     return;
   }
 
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(
+  const normalizedNotifications =
+    limitNotifications(
       notifications.map(
         (notification) =>
           normalizeNotification(
             notification
           )
       )
+    );
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      normalizedNotifications
     )
   );
 
-  dispatchNotificationsUpdated();
+  dispatchNotificationStorageUpdated();
 }
 
 export function addNotification(

@@ -8,7 +8,8 @@ export type DataEntity =
   | "company"
   | "department"
   | "settings"
-  | "currentUser";
+  | "currentUser"
+  | "notification";
 
 export type DataAdapterMode =
   | "localStorage"
