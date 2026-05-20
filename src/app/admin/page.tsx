@@ -45,21 +45,49 @@ import {
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
-type AdminCard = {
-  title: string;
-  value: number;
-  description: string;
-  href: string;
-  icon: string;
-};
-
 type AdminModule = {
   title: string;
   description: string;
   href: string;
   icon: string;
-  badge?: string;
+  status: "ready" | "progress" | "planned";
+  primary?: boolean;
 };
+
+type AdminMetric = {
+  label: string;
+  value: number;
+  description: string;
+  href: string;
+};
+
+function getStatusLabel(
+  status: AdminModule["status"]
+) {
+  if (status === "ready") {
+    return "Verfügbar";
+  }
+
+  if (status === "progress") {
+    return "In Arbeit";
+  }
+
+  return "Geplant";
+}
+
+function getStatusClass(
+  status: AdminModule["status"]
+) {
+  if (status === "ready") {
+    return "bg-green-50 text-green-700";
+  }
+
+  if (status === "progress") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  return "bg-zinc-100 text-zinc-600";
+}
 
 export default function AdminPage() {
   const [mounted, setMounted] =
@@ -269,176 +297,13 @@ export default function AdminPage() {
   const user =
     getCurrentUser();
 
-  const cards: AdminCard[] = [
-    {
-      title:
-        "News",
-
-      value:
-        newsCount,
-
-      description:
-        "Interne Meldungen und Ankündigungen",
-
-      href:
-        "/admin/news",
-
-      icon:
-        "◌",
-    },
-    {
-      title:
-        "Ungelesene News",
-
-      value:
-        unreadNewsCount,
-
-      description:
-        "Für aktuellen Benutzer noch nicht geöffnet",
-
-      href:
-        "/",
-
-      icon:
-        "●",
-    },
-    {
-      title:
-        "Tickets",
-
-      value:
-        ticketCount,
-
-      description:
-        "Alle Vorgänge im System",
-
-      href:
-        "/tickets",
-
-      icon:
-        "◆",
-    },
-    {
-      title:
-        "Offene Tickets",
-
-      value:
-        openTicketCount,
-
-      description:
-        "Noch nicht bearbeitete Tickets",
-
-      href:
-        "/tickets",
-
-      icon:
-        "◇",
-    },
-    {
-      title:
-        "Wiki-Dokumente",
-
-      value:
-        wikiCount,
-
-      description:
-        "Interne Dokumentationen",
-
-      href:
-        "/wiki",
-
-      icon:
-        "◫",
-    },
-    {
-      title:
-        "Benutzer",
-
-      value:
-        userCount,
-
-      description:
-        "Lokale Benutzerverwaltung",
-
-      href:
-        "/admin/users",
-
-      icon:
-        "◉",
-    },
-    {
-      title:
-        "Firmen",
-
-      value:
-        companyCount,
-
-      description:
-        "Organisationen / Mandanten",
-
-      href:
-        "/admin/companies",
-
-      icon:
-        "▦",
-    },
-    {
-      title:
-        "Abteilungen",
-
-      value:
-        departmentCount,
-
-      description:
-        "Interne Bereiche und Teams",
-
-      href:
-        "/admin/companies",
-
-      icon:
-        "▥",
-    },
-    {
-      title:
-        "Dateien",
-
-      value:
-        fileCount,
-
-      description:
-        "Anhänge und Uploads",
-
-      href:
-        "/admin/storage",
-
-      icon:
-        "▣",
-    },
-    {
-      title:
-        "Aktivitäten",
-
-      value:
-        activityCount,
-
-      description:
-        "Protokollierte Systemaktionen",
-
-      href:
-        "/activity",
-
-      icon:
-        "≡",
-    },
-  ];
-
   const modules: AdminModule[] = [
     {
       title:
         "News verwalten",
 
       description:
-        "Interne Meldungen erstellen, bearbeiten, löschen, fixieren und mit Anhängen versehen.",
+        "Meldungen erstellen, bearbeiten, löschen, fixieren, durchsuchen und mit Anhängen versehen.",
 
       href:
         "/admin/news",
@@ -446,99 +311,294 @@ export default function AdminPage() {
       icon:
         "◌",
 
-      badge:
-        "Neu",
+      status:
+        "ready",
+
+      primary:
+        true,
     },
     {
       title:
-        "Benutzerverwaltung",
+        "Benutzer & Rollen",
 
       description:
-        "Benutzer, Rollen, Firmen- und Abteilungszuordnung verwalten.",
+        "Benutzer, Rollen, Firmen, Abteilungen und lokale Login-Daten verwalten.",
 
       href:
         "/admin/users",
 
       icon:
         "◉",
+
+      status:
+        "ready",
+
+      primary:
+        true,
     },
     {
       title:
         "Firmen & Abteilungen",
 
       description:
-        "Organisationen, Firmen, Standorte und interne Abteilungen vorbereiten.",
+        "Organisationen, Firmen, Standorte und Abteilungen zentral konfigurieren.",
 
       href:
         "/admin/companies",
 
       icon:
         "▦",
+
+      status:
+        "ready",
+
+      primary:
+        true,
     },
     {
       title:
-        "Speicher",
+        "Speicher & Dateien",
 
       description:
-        "Dateien, Anhänge und gespeicherte Uploads prüfen.",
+        "Uploads, Anhänge und gespeicherte Dateien prüfen und verwalten.",
 
       href:
         "/admin/storage",
 
       icon:
         "▣",
+
+      status:
+        "ready",
     },
     {
       title:
-        "Adapter",
+        "Ticket-Vorlagen",
 
       description:
-        "Vorbereitung für spätere Integrationen, Schnittstellen und Datenquellen.",
+        "Standardvorlagen für wiederkehrende Tickets und Supportfälle pflegen.",
 
       href:
-        "/admin/adapters",
+        "/tickets/templates",
 
       icon:
-        "⇄",
+        "◇",
+
+      status:
+        "ready",
     },
     {
       title:
-        "Datenbank",
+        "System-Einstellungen",
 
       description:
-        "Status, Readiness und spätere Datenbank-Anbindung vorbereiten.",
-
-      href:
-        "/admin/database",
-
-      icon:
-        "◍",
-    },
-    {
-      title:
-        "Benachrichtigungen",
-
-      description:
-        "Systemmeldungen und spätere Notification-Regeln verwalten.",
-
-      href:
-        "/admin/notifications",
-
-      icon:
-        "●",
-    },
-    {
-      title:
-        "Einstellungen",
-
-      description:
-        "Design, Darstellung, Features und Systemverhalten konfigurieren.",
+        "Design, Darstellung, Features, Versionen und Intranet-Verhalten konfigurieren.",
 
       href:
         "/settings",
 
       icon:
         "◎",
+
+      status:
+        "ready",
+    },
+    {
+      title:
+        "Benachrichtigungen",
+
+      description:
+        "Systemmeldungen und spätere Notification-Regeln zentral vorbereiten.",
+
+      href:
+        "/admin/notifications",
+
+      icon:
+        "●",
+
+      status:
+        "progress",
+    },
+    {
+      title:
+        "Adapter & Schnittstellen",
+
+      description:
+        "Vorbereitung für externe Systeme, APIs, Importer und Datenquellen.",
+
+      href:
+        "/admin/adapters",
+
+      icon:
+        "⇄",
+
+      status:
+        "progress",
+    },
+    {
+      title:
+        "Datenbank",
+
+      description:
+        "Readiness, Migrationsstatus und spätere Datenbank-Anbindung prüfen.",
+
+      href:
+        "/admin/database",
+
+      icon:
+        "◍",
+
+      status:
+        "progress",
+    },
+    {
+      title:
+        "Aktivitäten & Audit",
+
+      description:
+        "Änderungen, Uploads, Benutzeraktionen und Systemereignisse nachvollziehen.",
+
+      href:
+        "/activity",
+
+      icon:
+        "≡",
+
+      status:
+        "ready",
+    },
+  ];
+
+  const metrics: AdminMetric[] = [
+    {
+      label:
+        "News",
+
+      value:
+        newsCount,
+
+      description:
+        "veröffentlichte Meldungen",
+
+      href:
+        "/admin/news",
+    },
+    {
+      label:
+        "Ungelesene News",
+
+      value:
+        unreadNewsCount,
+
+      description:
+        "für aktuellen Benutzer",
+
+      href:
+        "/",
+    },
+    {
+      label:
+        "Benutzer",
+
+      value:
+        userCount,
+
+      description:
+        "lokale Benutzerkonten",
+
+      href:
+        "/admin/users",
+    },
+    {
+      label:
+        "Firmen",
+
+      value:
+        companyCount,
+
+      description:
+        "Organisationen",
+
+      href:
+        "/admin/companies",
+    },
+    {
+      label:
+        "Abteilungen",
+
+      value:
+        departmentCount,
+
+      description:
+        "Teams und Bereiche",
+
+      href:
+        "/admin/companies",
+    },
+    {
+      label:
+        "Tickets",
+
+      value:
+        ticketCount,
+
+      description:
+        "Vorgänge gesamt",
+
+      href:
+        "/tickets",
+    },
+    {
+      label:
+        "Offene Tickets",
+
+      value:
+        openTicketCount,
+
+      description:
+        "noch offen",
+
+      href:
+        "/tickets",
+    },
+    {
+      label:
+        "Wiki-Seiten",
+
+      value:
+        wikiCount,
+
+      description:
+        "Dokumentationen",
+
+      href:
+        "/wiki",
+    },
+    {
+      label:
+        "Dateien",
+
+      value:
+        fileCount,
+
+      description:
+        "Uploads und Anhänge",
+
+      href:
+        "/admin/storage",
+    },
+    {
+      label:
+        "Aktivitäten",
+
+      value:
+        activityCount,
+
+      description:
+        "protokollierte Aktionen",
+
+      href:
+        "/activity",
     },
   ];
 
@@ -547,15 +607,15 @@ export default function AdminPage() {
       <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
         <div>
           <p className="text-sm text-zinc-500">
-            Verwaltung
+            Backend-Verwaltung
           </p>
 
           <h1 className="text-4xl font-bold mt-2">
-            Admin-Dashboard
+            Admin-Backend
           </h1>
 
-          <p className="text-zinc-500 mt-2">
-            Zentrale Verwaltung für News, Benutzer, Firmen, Dateien, Tickets, Aktivitäten und spätere Datenbank-Anbindung
+          <p className="text-zinc-500 mt-2 max-w-3xl">
+            Zentrale Oberfläche, über die Administratoren Inhalte, Benutzer, Firmen, Dateien, Tickets, Einstellungen und spätere Datenbank-/API-Anbindungen verwalten können.
           </p>
         </div>
 
@@ -568,10 +628,10 @@ export default function AdminPage() {
           </Link>
 
           <Link
-            href="/admin/users"
+            href="/settings"
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            Benutzer öffnen
+            Einstellungen
           </Link>
 
           <Link
@@ -637,58 +697,13 @@ export default function AdminPage() {
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="text-sm text-zinc-500">
-              Organisationen
+              Berechtigung
             </p>
 
             <p className="font-semibold mt-1">
-              {companyCount} / {departmentCount}
+              Admin-Zugriff
             </p>
           </div>
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">
-          Systemübersicht
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {cards.map(
-            (card) => (
-              <Link
-                key={card.title}
-                href={card.href}
-                className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:bg-zinc-50 transition min-h-[120px]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-zinc-500">
-                      {card.title}
-                    </p>
-
-                    <h2
-                      className={`text-3xl font-bold mt-3 ${
-                        card.title === "Ungelesene News" &&
-                        card.value > 0
-                          ? "text-red-600"
-                          : ""
-                      }`}
-                    >
-                      {card.value}
-                    </h2>
-                  </div>
-
-                  <div className="h-10 w-10 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-600">
-                    {card.icon}
-                  </div>
-                </div>
-
-                <p className="text-sm text-zinc-500 mt-3">
-                  {card.description}
-                </p>
-              </Link>
-            )
-          )}
         </div>
       </div>
 
@@ -697,24 +712,28 @@ export default function AdminPage() {
           Verwaltungsbereiche
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
           {modules.map(
             (module) => (
               <Link
                 key={module.href}
                 href={module.href}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+                className={`bg-white border rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition ${
+                  module.primary
+                    ? "border-zinc-300"
+                    : "border-zinc-200"
+                }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center text-lg">
                     {module.icon}
                   </div>
 
-                  {module.badge && (
-                    <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
-                      {module.badge}
-                    </span>
-                  )}
+                  <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(module.status)}`}>
+                    {getStatusLabel(
+                      module.status
+                    )}
+                  </span>
                 </div>
 
                 <h3 className="text-xl font-semibold mt-5">
@@ -730,43 +749,80 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Datenbank- und Produktivbetrieb
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">
+          Systemübersicht
         </h2>
 
-        <p className="text-zinc-500 mt-2">
-          Die wichtigsten Bereiche sind bereits über eigene Storage-/Repository-Schichten vorbereitet. Für den Produktivbetrieb können diese später schrittweise durch API-Routen, Datenbanktabellen und echte Sessions ersetzt werden.
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {metrics.map(
+            (metric) => (
+              <Link
+                key={metric.label}
+                href={metric.href}
+                className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:bg-zinc-50 transition"
+              >
+                <p className="text-sm text-zinc-500">
+                  {metric.label}
+                </p>
+
+                <h2
+                  className={`text-3xl font-bold mt-3 ${
+                    metric.label === "Ungelesene News" &&
+                    metric.value > 0
+                      ? "text-red-600"
+                      : ""
+                  }`}
+                >
+                  {metric.value}
+                </h2>
+
+                <p className="text-sm text-zinc-500 mt-2">
+                  {metric.description}
+                </p>
+              </Link>
+            )
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Ziel des Admin-Backends
+        </h2>
+
+        <p className="text-zinc-500 mt-3 leading-relaxed">
+          Dieses Backend soll später alle wichtigen Konfigurations- und Verwaltungsaufgaben abdecken. Administratoren sollen Inhalte, Benutzer, Firmen, Rollen, Dateien, Einstellungen, Benachrichtigungen, Schnittstellen und Datenbankstatus direkt über diese Oberfläche steuern können, ohne Quellcode oder Datenbankeinträge manuell zu bearbeiten.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              News Repository
+              Inhaltspflege
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              News nutzt bereits einen Repository-Layer für spätere API-/DB-Anbindung.
+              News, Wiki, Tickets, Vorlagen und Anhänge sollen zentral verwaltbar sein.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              Benutzer & Rollen
+              Systemkonfiguration
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Lokaler Login ist vorbereitet und kann später durch echte Authentifizierung ersetzt werden.
+              Design, Features, Benachrichtigungen und globale Einstellungen werden administrierbar.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              Dateien & Anhänge
+              Produktivbetrieb
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Uploads laufen aktuell lokal und können später auf Server- oder Cloud-Speicher umgestellt werden.
+              Repository-/Storage-Struktur ist vorbereitet, damit später Datenbank und API angebunden werden können.
             </p>
           </div>
         </div>
