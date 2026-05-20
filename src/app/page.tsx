@@ -3,650 +3,769 @@
 import Link from "next/link";
 
 import {
+  ChangeEvent,
   useEffect,
   useState,
 } from "react";
 
 import {
-  getTickets,
-  getTicketPriorityClass,
-  getTicketPriorityLabel,
-  getTicketStatusClass,
-  getTicketStatusLabel,
-} from "../lib/ticketStorage";
+  useSearchParams,
+} from "next/navigation";
+
+import NewsSidebar from "../components/news/NewsSidebar";
+
+import {
+  createNewsPost,
+  getLatestNewsPosts,
+  getNewsPosts,
+  getNewsPostsByCategory,
+  getOpenedNewsPostIds,
+  getPinnedNewsPosts,
+} from "../lib/newsStorage";
 
 import type {
-  Ticket,
-} from "../lib/ticketStorage";
+  NewsCategory,
+  NewsPost,
+} from "../lib/newsStorage";
 
 import {
-  getStoredPages,
-} from "../lib/wikiStorage";
+  readNewsFiles,
+  saveNewsFiles,
+} from "../lib/newsFileHelpers";
+
+import type {
+  PendingNewsFile,
+} from "../lib/newsFileHelpers";
 
 import {
-  getActivities,
-} from "../lib/activityStorage";
+  saveNewsCreatedActivity,
+} from "../lib/newsActivityHelpers";
 
 import {
+  canCreate,
   getCurrentUser,
-  getRoleLabel,
 } from "../lib/permissions";
 
-import {
-  getAppSettings,
-} from "../lib/appSettingsStorage";
+function getCategoryClass(
+  category: string
+) {
+  if (category === "Tickets") {
+    return "bg-blue-50 text-blue-700";
+  }
 
-import type {
-  AppSettings,
-} from "../lib/appSettingsStorage";
+  if (category === "Wiki") {
+    return "bg-indigo-50 text-indigo-700";
+  }
 
-import {
-  getCompanies,
-  getDepartments,
-} from "../lib/companyStorage";
+  if (category === "System") {
+    return "bg-zinc-100 text-zinc-700";
+  }
 
-import {
-  getOrganizationLabels,
-} from "../lib/organizationHelpers";
+  if (category === "Organisation") {
+    return "bg-emerald-50 text-emerald-700";
+  }
 
-type DashboardCard = {
-  label: string;
-  value: number;
-  href: string;
-  description: string;
-};
+  return "bg-amber-50 text-amber-700";
+}
 
-export default function HomePage() {
-  const [mounted, setMounted] =
+function NewsCard({
+  post,
+  featured = false,
+  opened,
+}: {
+  post: NewsPost;
+  featured?: boolean;
+  opened: boolean;
+}) {
+  return (
+    <article
+      id={`news-${post.id}`}
+      className={`bg-white border rounded-3xl shadow-sm hover:shadow-md transition ${
+        featured
+          ? "p-8"
+          : "p-6"
+      } ${
+        opened
+          ? "border-zinc-200"
+          : "border-red-200 shadow-red-50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <div className="flex flex-wrap gap-2">
+            <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(post.category)}`}>
+              {post.category}
+            </span>
+
+            {post.pinned && (
+              <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                Fixiert
+              </span>
+            )}
+
+            {!opened && (
+              <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full">
+                Neu
+              </span>
+            )}
+
+            <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
+              {post.createdAt}
+            </span>
+          </div>
+
+          <h2
+            className={`font-black tracking-tight mt-5 ${
+              featured
+                ? "text-4xl"
+                : "text-2xl"
+            }`}
+          >
+            {post.title}
+          </h2>
+
+          <p
+            className={`text-zinc-500 mt-3 leading-relaxed ${
+              featured
+                ? "text-lg"
+                : "text-base"
+            }`}
+          >
+            {post.description}
+          </p>
+
+          <p className="text-zinc-600 mt-5 leading-relaxed">
+            {post.content}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-4 mt-6 text-sm text-zinc-500">
+            <span>
+              Autor:{" "}
+              <span className="font-medium text-zinc-800">
+                {post.author}
+              </span>
+            </span>
+
+            <span
+              className={`font-mono ${
+                opened
+                  ? "text-zinc-400"
+                  : "text-red-600 font-semibold"
+              }`}
+            >
+              Beitrag #{post.id}
+            </span>
+          </div>
+        </div>
+
+        <Link
+          href={`/news/${post.id}`}
+          className="hidden md:inline-flex bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition shrink-0"
+        >
+          Öffnen
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+export default function NewsLandingPage() {
+  const searchParams =
+    useSearchParams();
+
+  const activeCategory =
+    searchParams.get("category") || "";
+
+  const [posts, setPosts] =
+    useState<NewsPost[]>([]);
+
+  const [openedIds, setOpenedIds] =
+    useState<string[]>([]);
+
+  const [showForm, setShowForm] =
     useState(false);
 
-  const [tickets, setTickets] =
-    useState<Ticket[]>([]);
+  const [title, setTitle] =
+    useState("");
 
-  const [wikiCount, setWikiCount] =
-    useState(0);
+  const [description, setDescription] =
+    useState("");
 
-  const [activityCount, setActivityCount] =
-    useState(0);
+  const [content, setContent] =
+    useState("");
 
-  const [companyCount, setCompanyCount] =
-    useState(0);
+  const [category, setCategory] =
+    useState<NewsCategory>("Allgemein");
 
-  const [departmentCount, setDepartmentCount] =
-    useState(0);
+  const [pinned, setPinned] =
+    useState(false);
 
-  const [settings, setSettings] =
-    useState<AppSettings | null>(null);
+  const [pendingFiles, setPendingFiles] =
+    useState<PendingNewsFile[]>([]);
 
   useEffect(() => {
-    setMounted(true);
+    loadNewsData();
 
-    loadDashboard();
+    function handleNewsUpdated() {
+      loadNewsData();
+    }
 
-    function handleUpdate() {
-      loadDashboard();
+    function handleNewsOpenedUpdated() {
+      loadOpenedIds();
     }
 
     window.addEventListener(
-      "ticketsUpdated",
-      handleUpdate
+      "newsUpdated",
+      handleNewsUpdated
     );
 
     window.addEventListener(
-      "wikiPagesUpdated",
-      handleUpdate
+      "newsOpenedUpdated",
+      handleNewsOpenedUpdated
     );
 
     window.addEventListener(
-      "activityUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "companiesUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "departmentsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "appSettingsUpdated",
-      handleUpdate
+      "userUpdated",
+      handleNewsUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "ticketsUpdated",
-        handleUpdate
+        "newsUpdated",
+        handleNewsUpdated
       );
 
       window.removeEventListener(
-        "wikiPagesUpdated",
-        handleUpdate
+        "newsOpenedUpdated",
+        handleNewsOpenedUpdated
       );
 
       window.removeEventListener(
-        "activityUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "companiesUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "departmentsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "appSettingsUpdated",
-        handleUpdate
+        "userUpdated",
+        handleNewsUpdated
       );
     };
   }, []);
 
-  function loadDashboard() {
-    setTickets(
-      getTickets()
+  function loadNewsData() {
+    setPosts(
+      getNewsPosts()
     );
 
-    setWikiCount(
-      getStoredPages().length
-    );
+    loadOpenedIds();
+  }
 
-    setActivityCount(
-      getActivities().length
-    );
-
-    setCompanyCount(
-      getCompanies().length
-    );
-
-    setDepartmentCount(
-      getDepartments().length
-    );
-
-    setSettings(
-      getAppSettings()
+  function loadOpenedIds() {
+    setOpenedIds(
+      getOpenedNewsPostIds()
     );
   }
 
-  if (!mounted) {
-    return null;
+  function resetForm() {
+    setTitle("");
+    setDescription("");
+    setContent("");
+    setCategory("Allgemein");
+    setPinned(false);
+    setPendingFiles([]);
+    setShowForm(false);
   }
 
-  const user =
-    getCurrentUser();
-
-  const openTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "open"
-    );
-
-  const inProgressTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "in_progress"
-    );
-
-  const waitingTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "waiting"
-    );
-
-  const doneTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "done" ||
-        ticket.status === "closed"
-    );
-
-  const urgentTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.priority === "urgent" ||
-        ticket.priority === "high"
-    );
-
-  const latestTickets =
-    [...tickets]
-      .sort(
-        (a, b) =>
-          new Date(
-            b.updatedAt
-          ).getTime() -
-          new Date(
-            a.updatedAt
-          ).getTime()
-      )
-      .slice(
-        0,
-        5
+  function openCreateForm() {
+    if (!canCreate()) {
+      alert(
+        "Du hast keine Berechtigung, News zu erstellen."
       );
 
-  const cards: DashboardCard[] = [
-    {
-      label:
-        "Tickets gesamt",
+      return;
+    }
 
-      value:
-        tickets.length,
+    setShowForm(true);
+  }
 
-      href:
-        "/tickets",
+  async function handleNewsFilesChange(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files =
+      await readNewsFiles(
+        event.target.files
+      );
 
-      description:
-        "Alle aktuellen Tickets im System",
-    },
+    setPendingFiles(
+      (currentFiles) => [
+        ...currentFiles,
+        ...files,
+      ]
+    );
 
-    {
-      label:
-        "Offene Tickets",
+    event.target.value =
+      "";
+  }
 
-      value:
-        openTickets.length,
+  function removePendingFile(
+    index: number
+  ) {
+    setPendingFiles(
+      (currentFiles) =>
+        currentFiles.filter(
+          (_file, fileIndex) =>
+            fileIndex !== index
+        )
+    );
+  }
 
-      href:
-        "/tickets",
+  function handleCreateNews() {
+    if (!canCreate()) {
+      alert(
+        "Du hast keine Berechtigung, News zu erstellen."
+      );
 
-      description:
-        "Tickets, die noch nicht bearbeitet werden",
-    },
+      return;
+    }
 
-    {
-      label:
-        "In Bearbeitung",
+    if (!title.trim()) {
+      alert(
+        "Bitte einen Titel eingeben."
+      );
 
-      value:
-        inProgressTickets.length,
+      return;
+    }
 
-      href:
-        "/tickets",
+    if (!description.trim()) {
+      alert(
+        "Bitte eine Kurzbeschreibung eingeben."
+      );
 
-      description:
-        "Aktive Vorgänge und Aufgaben",
-    },
+      return;
+    }
 
-    {
-      label:
-        "Wartend",
+    if (!content.trim()) {
+      alert(
+        "Bitte einen Inhalt eingeben."
+      );
 
-      value:
-        waitingTickets.length,
+      return;
+    }
 
-      href:
-        "/tickets",
+    const user =
+      getCurrentUser();
 
-      description:
-        "Tickets mit Rückfrage oder Wartezustand",
-    },
+    const newPost =
+      createNewsPost({
+        title:
+          title.trim(),
 
-    {
-      label:
-        "Erledigt",
+        description:
+          description.trim(),
 
-      value:
-        doneTickets.length,
+        content:
+          content.trim(),
 
-      href:
-        "/tickets",
+        category,
 
-      description:
-        "Abgeschlossene Vorgänge",
-    },
+        author:
+          user?.name ||
+          "Unbekannt",
 
-    {
-      label:
-        "Hohe Priorität",
+        pinned,
+      });
 
-      value:
-        urgentTickets.length,
+    saveNewsCreatedActivity(
+      newPost
+    );
 
-      href:
-        "/tickets",
+    if (pendingFiles.length > 0) {
+      saveNewsFiles(
+        newPost.id,
+        pendingFiles
+      );
+    }
 
-      description:
-        "Dringende oder wichtige Tickets",
-    },
+    resetForm();
+  }
 
-    {
-      label:
-        "Wiki-Dokumente",
+  const visiblePosts =
+    activeCategory
+      ? posts.filter(
+          (post) =>
+            post.category === activeCategory
+        )
+      : posts;
 
-      value:
-        wikiCount,
+  const pinnedPosts =
+    getPinnedNewsPosts();
 
-      href:
-        "/wiki",
+  const latestPosts =
+    getLatestNewsPosts(
+      3
+    );
 
-      description:
-        "Interne Dokumentationen und Anleitungen",
-    },
+  const featuredPost =
+    activeCategory
+      ? visiblePosts[0]
+      : pinnedPosts[0] ||
+        visiblePosts[0];
 
-    {
-      label:
-        "Aktivitäten",
+  const normalPosts =
+    visiblePosts.filter(
+      (post) =>
+        post.id !== featuredPost?.id
+    );
 
-      value:
-        activityCount,
-
-      href:
-        "/activity",
-
-      description:
-        "Letzte Änderungen und Systemaktionen",
-    },
-  ];
+  const unreadCount =
+    posts.filter(
+      (post) =>
+        !openedIds.includes(
+          post.id
+        )
+    ).length;
 
   return (
-    <div className="space-y-8">
-      {/* HEADER */}
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <p className="text-sm text-zinc-500">
-            Willkommen zurück
-          </p>
+    <div className="w-full">
+      <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
+        <NewsSidebar />
 
-          <h1 className="text-4xl font-bold mt-2">
-            {settings?.appName ||
-              "DMS Intranet"}
-          </h1>
+        <div className="min-w-0 space-y-8">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-bold">
+                News
+              </h1>
 
-          <p className="text-zinc-500 mt-2">
-            Dashboard für Dokumente, Tickets, Aktivitäten, Firmen und spätere Datenbank-Anbindung
-          </p>
-        </div>
+              <p className="text-zinc-500 mt-2">
+                Interne Neuigkeiten, Ankündigungen und wichtige Informationen
+              </p>
 
-        <div className="flex flex-wrap gap-3 justify-end">
-          <Link
-            href="/wiki/create"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Dokument erstellen
-          </Link>
-
-          <Link
-            href="/tickets"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Tickets öffnen
-          </Link>
-        </div>
-      </div>
-
-      {/* USER CONTEXT */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Aktueller Kontext
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Benutzer
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.name ||
-                "Unbekannt"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Rolle
-            </p>
-
-            <p className="font-semibold mt-1">
-              {getRoleLabel(
-                user?.role ||
-                  "viewer"
+              {activeCategory && (
+                <p className="text-sm text-zinc-500 mt-3">
+                  Gefiltert nach Kategorie:{" "}
+                  <span className="font-semibold text-zinc-900">
+                    {activeCategory}
+                  </span>
+                </p>
               )}
-            </p>
+            </div>
+
+            {canCreate() && (
+              <button
+                type="button"
+                onClick={openCreateForm}
+                className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+              >
+                News erstellen
+              </button>
+            )}
           </div>
 
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Firma
-            </p>
+          {showForm && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/60 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-4xl bg-white border border-zinc-200 rounded-3xl p-8 shadow-2xl">
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <h2 className="text-2xl font-semibold">
+                      News erstellen
+                    </h2>
 
-            <p className="font-semibold mt-1">
-              {user?.company ||
-                "Intern"}
-            </p>
-          </div>
+                    <p className="text-zinc-500 mt-2">
+                      Erstelle eine interne Meldung für die Startseite.
+                    </p>
+                  </div>
 
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Abteilung
-            </p>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="h-11 w-11 rounded-2xl bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition"
+                    aria-label="Fenster schließen"
+                  >
+                    ×
+                  </button>
+                </div>
 
-            <p className="font-semibold mt-1">
-              {user?.department ||
-                "Allgemein"}
-            </p>
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">
+                      Titel
+                    </label>
 
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Organisationen
-            </p>
+                    <input
+                      value={title}
+                      onChange={(event) =>
+                        setTitle(
+                          event.target.value
+                        )
+                      }
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                      placeholder="Titel der News"
+                    />
+                  </div>
 
-            <p className="font-semibold mt-1">
-              {companyCount} / {departmentCount}
-            </p>
-          </div>
-        </div>
-      </div>
+                  <div>
+                    <label className="block mb-2 font-medium">
+                      Kategorie
+                    </label>
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {cards.map(
-          (card) => (
-            <Link
-              key={card.label}
-              href={card.href}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-            >
+                    <select
+                      value={category}
+                      onChange={(event) =>
+                        setCategory(
+                          event.target.value as NewsCategory
+                        )
+                      }
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                    >
+                      <option value="Allgemein">
+                        Allgemein
+                      </option>
+
+                      <option value="System">
+                        System
+                      </option>
+
+                      <option value="Tickets">
+                        Tickets
+                      </option>
+
+                      <option value="Wiki">
+                        Wiki
+                      </option>
+
+                      <option value="Organisation">
+                        Organisation
+                      </option>
+                    </select>
+                  </div>
+
+                  <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
+                    <span>
+                      <span className="block font-medium">
+                        Fixieren
+                      </span>
+
+                      <span className="block text-sm text-zinc-500 mt-1">
+                        Beitrag als wichtige Meldung markieren.
+                      </span>
+                    </span>
+
+                    <input
+                      type="checkbox"
+                      checked={pinned}
+                      onChange={(event) =>
+                        setPinned(
+                          event.target.checked
+                        )
+                      }
+                      className="h-5 w-5"
+                    />
+                  </label>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">
+                      Kurzbeschreibung
+                    </label>
+
+                    <textarea
+                      value={description}
+                      onChange={(event) =>
+                        setDescription(
+                          event.target.value
+                        )
+                      }
+                      rows={3}
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                      placeholder="Kurze Zusammenfassung..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">
+                      Inhalt
+                    </label>
+
+                    <textarea
+                      value={content}
+                      onChange={(event) =>
+                        setContent(
+                          event.target.value
+                        )
+                      }
+                      rows={7}
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                      placeholder="Vollständiger Inhalt der News..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block mb-2 font-medium">
+                      Dateien & Anhänge
+                    </label>
+
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleNewsFilesChange}
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                    />
+
+                    <p className="text-sm text-zinc-500 mt-2">
+                      Dateien und Anhänge werden beim Veröffentlichen der News zugeordnet.
+                    </p>
+
+                    {pendingFiles.length > 0 && (
+                      <div className="grid gap-2 mt-4">
+                        {pendingFiles.map(
+                          (file, index) => (
+                            <div
+                              key={`${file.name}-${index}`}
+                              className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl px-4 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">
+                                  {file.name}
+                                </p>
+
+                                <p className="text-xs text-zinc-500">
+                                  {Math.round(
+                                    file.size / 1024
+                                  )} KB
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removePendingFile(
+                                    index
+                                  )
+                                }
+                                className="text-sm bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
+                              >
+                                Entfernen
+                              </button>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-3 mt-8 pt-6 border-t border-zinc-200">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+                  >
+                    Abbrechen
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCreateNews}
+                    className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+                  >
+                    News veröffentlichen
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
               <p className="text-sm text-zinc-500">
-                {card.label}
+                News gesamt
               </p>
 
               <h2 className="text-4xl font-bold mt-3">
-                {card.value}
+                {posts.length}
               </h2>
 
-              <p className="text-sm text-zinc-500 mt-3">
-                {card.description}
+              <p className="text-sm text-zinc-500 mt-2">
+                veröffentlichte Meldungen
               </p>
-            </Link>
-          )
-        )}
-      </div>
+            </div>
 
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-8">
-        {/* LATEST TICKETS */}
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
+            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+              <p className="text-sm text-zinc-500">
+                Ungelesen
+              </p>
+
+              <h2 className="text-4xl font-bold mt-3 text-red-600">
+                {unreadCount}
+              </h2>
+
+              <p className="text-sm text-zinc-500 mt-2">
+                noch nicht geöffnete Beiträge
+              </p>
+            </div>
+
+            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+              <p className="text-sm text-zinc-500">
+                Neueste
+              </p>
+
+              <h2 className="text-4xl font-bold mt-3">
+                {latestPosts.length}
+              </h2>
+
+              <p className="text-sm text-zinc-500 mt-2">
+                aktuelle Einträge
+              </p>
+            </div>
+          </div>
+
+          {featuredPost && (
             <div>
-              <h2 className="text-2xl font-semibold">
-                Letzte Tickets
-              </h2>
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h2 className="text-2xl font-semibold">
+                  Hervorgehobene Meldung
+                </h2>
 
-              <p className="text-zinc-500 mt-2">
-                Schnellüberblick über die zuletzt aktualisierten Vorgänge
-              </p>
-            </div>
-
-            <Link
-              href="/tickets"
-              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-            >
-              Alle Tickets
-            </Link>
-          </div>
-
-          <div className="grid gap-4 mt-6">
-            {latestTickets.length === 0 && (
-              <div className="border border-zinc-200 rounded-2xl p-5">
-                <p className="text-zinc-500">
-                  Noch keine Tickets vorhanden.
-                </p>
-              </div>
-            )}
-
-            {latestTickets.map(
-              (ticket) => {
-                const organization =
-                  getOrganizationLabels(
-                    ticket
-                  );
-
-                return (
-                  <div
-                    key={ticket.id}
-                    className="border border-zinc-200 rounded-2xl p-5"
+                {activeCategory && (
+                  <Link
+                    href="/"
+                    className="text-sm bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(
-                              ticket.status
-                            )}`}
-                          >
-                            {getTicketStatusLabel(
-                              ticket.status
-                            )}
-                          </span>
+                    Filter entfernen
+                  </Link>
+                )}
+              </div>
 
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(
-                              ticket.priority
-                            )}`}
-                          >
-                            {getTicketPriorityLabel(
-                              ticket.priority
-                            )}
-                          </span>
-
-                          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                            {organization.companyName}
-                          </span>
-
-                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                            {organization.departmentName}
-                          </span>
-                        </div>
-
-                        <h3 className="font-semibold text-lg mt-4">
-                          {ticket.title}
-                        </h3>
-
-                        <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
-                          {ticket.description}
-                        </p>
-
-                        <p className="text-xs text-zinc-400 mt-4">
-                          Aktualisiert: {ticket.updatedAt}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-            )}
-          </div>
-        </div>
-
-        {/* QUICK LINKS */}
-        <div className="space-y-6">
-          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <h2 className="text-2xl font-semibold">
-              Schnellzugriff
-            </h2>
-
-            <div className="grid gap-3 mt-6">
-              <Link
-                href="/wiki"
-                className="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 hover:bg-zinc-100 transition"
-              >
-                Wiki öffnen
-              </Link>
-
-              <Link
-                href="/tickets"
-                className="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 hover:bg-zinc-100 transition"
-              >
-                Tickets öffnen
-              </Link>
-
-              <Link
-                href="/activity"
-                className="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 hover:bg-zinc-100 transition"
-              >
-                Aktivitäten ansehen
-              </Link>
-
-              <Link
-                href="/admin"
-                className="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 hover:bg-zinc-100 transition"
-              >
-                Admin-Dashboard
-              </Link>
-
-              <Link
-                href="/admin/companies"
-                className="bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 hover:bg-zinc-100 transition"
-              >
-                Firmen & Abteilungen
-              </Link>
+              <NewsCard
+                post={featuredPost}
+                featured
+                opened={openedIds.includes(
+                  featuredPost.id
+                )}
+              />
             </div>
-          </div>
+          )}
 
-          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <h2 className="text-2xl font-semibold">
-              Nächste Schritte
+          <div>
+            <h2 className="text-2xl font-semibold mb-4">
+              Weitere Beiträge
             </h2>
 
-            <div className="grid gap-4 mt-6">
-              <div className="border border-zinc-200 rounded-2xl p-5">
-                <p className="font-semibold">
-                  Firmenstruktur verbinden
-                </p>
+            <div className="grid gap-4">
+              {normalPosts.length === 0 && (
+                <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+                  <p className="text-zinc-500">
+                    Keine weiteren News vorhanden.
+                  </p>
+                </div>
+              )}
 
-                <p className="text-sm text-zinc-500 mt-2">
-                  Tickets, Benutzer und später Wiki-Dokumente nutzen vorbereitete Firmen- und Abteilungs-IDs.
-                </p>
-              </div>
-
-              <div className="border border-zinc-200 rounded-2xl p-5">
-                <p className="font-semibold">
-                  Datenbank vorbereiten
-                </p>
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  LocalStorage wird Schritt für Schritt über Repository/API-Layer ersetzt.
-                </p>
-              </div>
-
-              <div className="border border-zinc-200 rounded-2xl p-5">
-                <p className="font-semibold">
-                  Echtes Benutzersystem
-                </p>
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  Login, Sessions und serverseitige Rechteprüfung kommen später dazu.
-                </p>
-              </div>
+              {normalPosts.map(
+                (post) => (
+                  <NewsCard
+                    key={post.id}
+                    post={post}
+                    opened={openedIds.includes(
+                      post.id
+                    )}
+                  />
+                )
+              )}
             </div>
           </div>
         </div>

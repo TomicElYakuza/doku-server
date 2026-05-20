@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import {
-  ChangeEvent,
   use,
   useEffect,
   useState,
@@ -25,17 +24,6 @@ import {
   canDelete,
   canEdit,
 } from "../../../lib/permissions";
-
-import NewsFileList from "../../../components/news/NewsFileList";
-
-import {
-  readNewsFiles,
-  saveNewsFiles,
-} from "../../../lib/newsFileHelpers";
-
-import type {
-  PendingNewsFile,
-} from "../../../lib/newsFileHelpers";
 
 type NewsDetailPageProps = {
   params: Promise<{
@@ -98,9 +86,6 @@ export default function NewsDetailPage({
   const [pinned, setPinned] =
     useState(false);
 
-  const [pendingFiles, setPendingFiles] =
-    useState<PendingNewsFile[]>([]);
-
   useEffect(() => {
     setMounted(true);
 
@@ -145,40 +130,7 @@ export default function NewsDetailPage({
           foundPost.pinned
         )
       );
-
-      setPendingFiles([]);
     }
-  }
-
-  async function handleNewsFilesChange(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const files =
-      await readNewsFiles(
-        event.target.files
-      );
-
-    setPendingFiles(
-      (currentFiles) => [
-        ...currentFiles,
-        ...files,
-      ]
-    );
-
-    event.target.value =
-      "";
-  }
-
-  function removePendingFile(
-    index: number
-  ) {
-    setPendingFiles(
-      (currentFiles) =>
-        currentFiles.filter(
-          (_file, fileIndex) =>
-            fileIndex !== index
-        )
-    );
   }
 
   function handleSaveNews() {
@@ -237,20 +189,11 @@ export default function NewsDetailPage({
         }
       );
 
-if (updatedPost) {
-  if (pendingFiles.length > 0) {
-    saveNewsFiles(
-      post.id,
-      pendingFiles
-    );
-
-    setPendingFiles([]);
-  }
-
-  setPost(
-    updatedPost
-  );
-}
+    if (updatedPost) {
+      setPost(
+        updatedPost
+      );
+    }
 
     setShowEditForm(
       false
@@ -488,60 +431,6 @@ if (updatedPost) {
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
                 />
               </div>
-
-              <div className="md:col-span-2">
-                <label className="block mb-2 font-medium">
-                  Dateien & Anhänge hinzufügen
-                </label>
-
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleNewsFilesChange}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                />
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  Neue Dateien und Anhänge werden beim Speichern der News hinzugefügt.
-                </p>
-
-                {pendingFiles.length > 0 && (
-                  <div className="grid gap-2 mt-4">
-                    {pendingFiles.map(
-                      (file, index) => (
-                        <div
-                          key={`${file.name}-${index}`}
-                          className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl px-4 py-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">
-                              {file.name}
-                            </p>
-
-                            <p className="text-xs text-zinc-500">
-                              {Math.round(
-                                file.size / 1024
-                              )} KB
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removePendingFile(
-                                index
-                              )
-                            }
-                            className="text-sm bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
-                          >
-                            Entfernen
-                          </button>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
 
             <div className="flex flex-wrap justify-end gap-3 mt-8 pt-6 border-t border-zinc-200">
@@ -611,13 +500,6 @@ if (updatedPost) {
           {post.content}
         </div>
       </article>
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <NewsFileList
-          newsId={post.id}
-          editable={canEdit()}
-        />
-      </div>
     </div>
   );
 }

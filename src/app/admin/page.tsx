@@ -9,11 +9,21 @@ import {
 
 import {
   canViewAdmin,
+  getCurrentUser,
+  getRoleLabel,
 } from "../../lib/permissions";
 
 import {
-  getAdminUsers,
-} from "../../lib/adminUserStorage";
+  getTickets,
+} from "../../lib/ticketStorage";
+
+import {
+  getStoredPages,
+} from "../../lib/wikiStorage";
+
+import {
+  getActivities,
+} from "../../lib/activityStorage";
 
 import {
   getCompanies,
@@ -21,55 +31,50 @@ import {
 } from "../../lib/companyStorage";
 
 import {
-  getTickets,
-} from "../../lib/ticketStorage";
+  getAdminUsers,
+} from "../../lib/adminUserStorage";
 
 import {
-  getActivities,
-} from "../../lib/activityStorage";
+  getNewsPosts,
+  getOpenedNewsPostIds,
+} from "../../lib/newsStorage";
 
 import {
-  getNotifications,
-} from "../../lib/notificationHelpers";
-
-import {
-  formatStorageSize,
-  getStorageInfo,
-  getTotalStorageSize,
-} from "../../lib/storageManager";
-
-import {
-  getAllDataAdapterMeta,
-  getLocalStorageAdapterCount,
-} from "../../lib/dataAdapterRegistry";
-
-import {
-  useAppSettings,
-} from "../../hooks/useAppSettings";
+  getFiles,
+} from "../../lib/fileStorage";
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
 type AdminCard = {
   title: string;
+  value: number;
   description: string;
   href: string;
   icon: string;
-  value: string | number;
-  meta: string;
+};
+
+type AdminModule = {
+  title: string;
+  description: string;
+  href: string;
+  icon: string;
+  badge?: string;
 };
 
 export default function AdminPage() {
-  const {
-    mounted: settingsMounted,
-    enableActivityLog,
-    enableTicketTemplates,
-    enableTicketComments,
-  } = useAppSettings();
-
   const [mounted, setMounted] =
     useState(false);
 
-  const [userCount, setUserCount] =
+  const [ticketCount, setTicketCount] =
+    useState(0);
+
+  const [openTicketCount, setOpenTicketCount] =
+    useState(0);
+
+  const [wikiCount, setWikiCount] =
+    useState(0);
+
+  const [activityCount, setActivityCount] =
     useState(0);
 
   const [companyCount, setCompanyCount] =
@@ -78,38 +83,39 @@ export default function AdminPage() {
   const [departmentCount, setDepartmentCount] =
     useState(0);
 
-  const [ticketCount, setTicketCount] =
+  const [userCount, setUserCount] =
     useState(0);
 
-  const [activityCount, setActivityCount] =
+  const [newsCount, setNewsCount] =
     useState(0);
 
-  const [notificationCount, setNotificationCount] =
+  const [unreadNewsCount, setUnreadNewsCount] =
     useState(0);
 
-  const [storageAreaCount, setStorageAreaCount] =
-    useState(0);
-
-  const [storageSize, setStorageSize] =
-    useState(0);
-
-  const [adapterCount, setAdapterCount] =
-    useState(0);
-
-  const [localStorageAdapterCount, setLocalStorageAdapterCount] =
+  const [fileCount, setFileCount] =
     useState(0);
 
   useEffect(() => {
     setMounted(true);
 
-    loadData();
+    loadAdminData();
 
     function handleUpdate() {
-      loadData();
+      loadAdminData();
     }
 
     window.addEventListener(
-      "adminUsersUpdated",
+      "ticketsUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleUpdate
+    );
+
+    window.addEventListener(
+      "activityUpdated",
       handleUpdate
     );
 
@@ -124,33 +130,38 @@ export default function AdminPage() {
     );
 
     window.addEventListener(
-      "ticketsUpdated",
+      "adminUsersUpdated",
       handleUpdate
     );
 
     window.addEventListener(
-      "activityUpdated",
+      "newsUpdated",
       handleUpdate
     );
 
     window.addEventListener(
-      "notificationsUpdated",
+      "newsOpenedUpdated",
       handleUpdate
     );
 
     window.addEventListener(
-      "storageManagerUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "appSettingsUpdated",
+      "filesUpdated",
       handleUpdate
     );
 
     return () => {
       window.removeEventListener(
-        "adminUsersUpdated",
+        "ticketsUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleUpdate
+      );
+
+      window.removeEventListener(
+        "activityUpdated",
         handleUpdate
       );
 
@@ -165,35 +176,54 @@ export default function AdminPage() {
       );
 
       window.removeEventListener(
-        "ticketsUpdated",
+        "adminUsersUpdated",
         handleUpdate
       );
 
       window.removeEventListener(
-        "activityUpdated",
+        "newsUpdated",
         handleUpdate
       );
 
       window.removeEventListener(
-        "notificationsUpdated",
+        "newsOpenedUpdated",
         handleUpdate
       );
 
       window.removeEventListener(
-        "storageManagerUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "appSettingsUpdated",
+        "filesUpdated",
         handleUpdate
       );
     };
   }, []);
 
-  function loadData() {
-    setUserCount(
-      getAdminUsers().length
+  function loadAdminData() {
+    const tickets =
+      getTickets();
+
+    const news =
+      getNewsPosts();
+
+    const openedNewsIds =
+      getOpenedNewsPostIds();
+
+    setTicketCount(
+      tickets.length
+    );
+
+    setOpenTicketCount(
+      tickets.filter(
+        (ticket) =>
+          ticket.status === "open"
+      ).length
+    );
+
+    setWikiCount(
+      getStoredPages().length
+    );
+
+    setActivityCount(
+      getActivities().length
     );
 
     setCompanyCount(
@@ -204,369 +234,539 @@ export default function AdminPage() {
       getDepartments().length
     );
 
-    setTicketCount(
-      getTickets().length
+    setUserCount(
+      getAdminUsers().length
     );
 
-    setActivityCount(
-      getActivities().length
+    setNewsCount(
+      news.length
     );
 
-    setNotificationCount(
-      getNotifications().length
-    );
-
-    setStorageAreaCount(
-      getStorageInfo().filter(
-        (item) =>
-          item.exists
+    setUnreadNewsCount(
+      news.filter(
+        (post) =>
+          !openedNewsIds.includes(
+            post.id
+          )
       ).length
     );
 
-    setStorageSize(
-      getTotalStorageSize()
-    );
-
-    setAdapterCount(
-      getAllDataAdapterMeta().length
-    );
-
-    setLocalStorageAdapterCount(
-      getLocalStorageAdapterCount()
+    setFileCount(
+      getFiles().length
     );
   }
 
-  if (!mounted || !settingsMounted) {
+  if (!mounted) {
     return null;
   }
 
   if (!canViewAdmin()) {
     return (
-      <AccessDeniedCard
-        description="Du hast mit deiner aktuellen Rolle keine Berechtigung für das Admin-Dashboard."
-      />
+      <AccessDeniedCard />
     );
   }
+
+  const user =
+    getCurrentUser();
 
   const cards: AdminCard[] = [
     {
       title:
-        "Benutzer",
+        "News",
+
+      value:
+        newsCount,
 
       description:
-        "Benutzer, Rollen, Status, Firmen und Abteilungen verwalten.",
+        "Interne Meldungen und Ankündigungen",
+
+      href:
+        "/admin/news",
+
+      icon:
+        "◌",
+    },
+    {
+      title:
+        "Ungelesene News",
+
+      value:
+        unreadNewsCount,
+
+      description:
+        "Für aktuellen Benutzer noch nicht geöffnet",
+
+      href:
+        "/",
+
+      icon:
+        "●",
+    },
+    {
+      title:
+        "Tickets",
+
+      value:
+        ticketCount,
+
+      description:
+        "Alle Vorgänge im System",
+
+      href:
+        "/tickets",
+
+      icon:
+        "◆",
+    },
+    {
+      title:
+        "Offene Tickets",
+
+      value:
+        openTicketCount,
+
+      description:
+        "Noch nicht bearbeitete Tickets",
+
+      href:
+        "/tickets",
+
+      icon:
+        "◇",
+    },
+    {
+      title:
+        "Wiki-Dokumente",
+
+      value:
+        wikiCount,
+
+      description:
+        "Interne Dokumentationen",
+
+      href:
+        "/wiki",
+
+      icon:
+        "◫",
+    },
+    {
+      title:
+        "Benutzer",
+
+      value:
+        userCount,
+
+      description:
+        "Lokale Benutzerverwaltung",
 
       href:
         "/admin/users",
 
       icon:
         "◉",
-
-      value:
-        userCount,
-
-      meta:
-        "Benutzer im System",
     },
-
     {
       title:
-        "Firmen & Abteilungen",
+        "Firmen",
+
+      value:
+        companyCount,
 
       description:
-        "Organisationsstruktur für spätere Datenbank und Rechteverwaltung.",
+        "Organisationen / Mandanten",
 
       href:
         "/admin/companies",
 
       icon:
         "▦",
-
-      value:
-        companyCount,
-
-      meta:
-        `${departmentCount} Abteilungen`,
     },
-
     {
       title:
-        "Speicher",
+        "Abteilungen",
+
+      value:
+        departmentCount,
 
       description:
-        "Lokale Browser-Daten exportieren, importieren und bereinigen.",
+        "Interne Bereiche und Teams",
+
+      href:
+        "/admin/companies",
+
+      icon:
+        "▥",
+    },
+    {
+      title:
+        "Dateien",
+
+      value:
+        fileCount,
+
+      description:
+        "Anhänge und Uploads",
 
       href:
         "/admin/storage",
 
       icon:
         "▣",
-
-      value:
-        storageAreaCount,
-
-      meta:
-        formatStorageSize(
-          storageSize
-        ),
     },
-
     {
       title:
-        "Daten-Adapter",
+        "Aktivitäten",
+
+      value:
+        activityCount,
 
       description:
-        "Vorbereitete Datenschicht für LocalStorage, spätere API und Datenbank.",
+        "Protokollierte Systemaktionen",
+
+      href:
+        "/activity",
+
+      icon:
+        "≡",
+    },
+  ];
+
+  const modules: AdminModule[] = [
+    {
+      title:
+        "News verwalten",
+
+      description:
+        "Interne Meldungen erstellen, bearbeiten, löschen, fixieren und mit Anhängen versehen.",
+
+      href:
+        "/admin/news",
+
+      icon:
+        "◌",
+
+      badge:
+        "Neu",
+    },
+    {
+      title:
+        "Benutzerverwaltung",
+
+      description:
+        "Benutzer, Rollen, Firmen- und Abteilungszuordnung verwalten.",
+
+      href:
+        "/admin/users",
+
+      icon:
+        "◉",
+    },
+    {
+      title:
+        "Firmen & Abteilungen",
+
+      description:
+        "Organisationen, Firmen, Standorte und interne Abteilungen vorbereiten.",
+
+      href:
+        "/admin/companies",
+
+      icon:
+        "▦",
+    },
+    {
+      title:
+        "Speicher",
+
+      description:
+        "Dateien, Anhänge und gespeicherte Uploads prüfen.",
+
+      href:
+        "/admin/storage",
+
+      icon:
+        "▣",
+    },
+    {
+      title:
+        "Adapter",
+
+      description:
+        "Vorbereitung für spätere Integrationen, Schnittstellen und Datenquellen.",
 
       href:
         "/admin/adapters",
 
       icon:
         "⇄",
-
-      value:
-        adapterCount,
-
-      meta:
-        `${localStorageAdapterCount} LocalStorage`,
     },
-
     {
       title:
         "Datenbank",
 
       description:
-        "Readiness-Check für spätere API- und Datenbank-Anbindung.",
+        "Status, Readiness und spätere Datenbank-Anbindung vorbereiten.",
 
       href:
         "/admin/database",
 
       icon:
         "◍",
-
-      value:
-        "Ready",
-
-      meta:
-        "Vorbereitung",
     },
-
     {
       title:
         "Benachrichtigungen",
 
       description:
-        "Gespeicherte Systemmeldungen und Toasts anzeigen und verwalten.",
+        "Systemmeldungen und spätere Notification-Regeln verwalten.",
 
       href:
         "/admin/notifications",
 
       icon:
         "●",
-
-      value:
-        notificationCount,
-
-      meta:
-        "Meldungen",
     },
-
     {
       title:
         "Einstellungen",
 
       description:
-        "App-Name, Theme, Dark Mode, Feature-Schalter und Standardwerte.",
+        "Design, Darstellung, Features und Systemverhalten konfigurieren.",
 
       href:
         "/settings",
 
       icon:
         "◎",
-
-      value:
-        "System",
-
-      meta:
-        "Konfiguration",
     },
   ];
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          admin
-        </span>
-      </div>
-
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-bold">
+          <p className="text-sm text-zinc-500">
+            Verwaltung
+          </p>
+
+          <h1 className="text-4xl font-bold mt-2">
             Admin-Dashboard
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Verwaltung, Systemstatus, lokale Daten und Vorbereitung für echte Datenbank-Anbindung
+            Zentrale Verwaltung für News, Benutzer, Firmen, Dateien, Tickets, Aktivitäten und spätere Datenbank-Anbindung
           </p>
         </div>
 
-        <Link
-          href="/settings"
-          className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Einstellungen
-        </Link>
-      </div>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/admin/news"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            News verwalten
+          </Link>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Tickets
-          </p>
+          <Link
+            href="/admin/users"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Benutzer öffnen
+          </Link>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {ticketCount}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Support & Aufgaben
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Aktivitäten
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {enableActivityLog
-              ? activityCount
-              : "Aus"}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Audit-Log
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Ticket-Vorlagen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {enableTicketTemplates
-              ? "Aktiv"
-              : "Aus"}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Feature-Schalter
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Kommentare
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {enableTicketComments
-              ? "Aktiv"
-              : "Aus"}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Ticket-Kommentare
-          </p>
+          <Link
+            href="/dashboard"
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Dashboard
+          </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-7 gap-6">
-        {cards.map(
-          (card) => (
-            <Link
-              key={card.href}
-              href={card.href}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition group"
-            >
-              <div className="flex items-start justify-between gap-6">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-100 text-zinc-700 flex items-center justify-center text-xl group-hover:bg-zinc-900 group-hover:text-white transition">
-                  {card.icon}
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">
+          Aktueller Admin-Kontext
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Benutzer
+            </p>
+
+            <p className="font-semibold mt-1">
+              {user?.name ||
+                "Unbekannt"}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Rolle
+            </p>
+
+            <p className="font-semibold mt-1">
+              {getRoleLabel(
+                user?.role ||
+                  "viewer"
+              )}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Firma
+            </p>
+
+            <p className="font-semibold mt-1">
+              {user?.company ||
+                "Intern"}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Abteilung
+            </p>
+
+            <p className="font-semibold mt-1">
+              {user?.department ||
+                "Allgemein"}
+            </p>
+          </div>
+
+          <div className="border border-zinc-200 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Organisationen
+            </p>
+
+            <p className="font-semibold mt-1">
+              {companyCount} / {departmentCount}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">
+          Systemübersicht
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+          {cards.map(
+            (card) => (
+              <Link
+                key={card.title}
+                href={card.href}
+                className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:bg-zinc-50 transition min-h-[120px]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-zinc-500">
+                      {card.title}
+                    </p>
+
+                    <h2
+                      className={`text-3xl font-bold mt-3 ${
+                        card.title === "Ungelesene News" &&
+                        card.value > 0
+                          ? "text-red-600"
+                          : ""
+                      }`}
+                    >
+                      {card.value}
+                    </h2>
+                  </div>
+
+                  <div className="h-10 w-10 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-600">
+                    {card.icon}
+                  </div>
                 </div>
 
-                <div className="text-right">
-                  <p className="text-3xl font-bold">
-                    {card.value}
-                  </p>
+                <p className="text-sm text-zinc-500 mt-3">
+                  {card.description}
+                </p>
+              </Link>
+            )
+          )}
+        </div>
+      </div>
 
-                  <p className="text-xs text-zinc-500 mt-1">
-                    {card.meta}
-                  </p>
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">
+          Verwaltungsbereiche
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          {modules.map(
+            (module) => (
+              <Link
+                key={module.href}
+                href={module.href}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center text-lg">
+                    {module.icon}
+                  </div>
+
+                  {module.badge && (
+                    <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                      {module.badge}
+                    </span>
+                  )}
                 </div>
-              </div>
 
-              <h2 className="text-2xl font-bold mt-6">
-                {card.title}
-              </h2>
+                <h3 className="text-xl font-semibold mt-5">
+                  {module.title}
+                </h3>
 
-              <p className="text-zinc-500 mt-2 leading-relaxed">
-                {card.description}
-              </p>
-            </Link>
-          )
-        )}
+                <p className="text-zinc-500 mt-2 leading-relaxed">
+                  {module.description}
+                </p>
+              </Link>
+            )
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
-          Nächste technische Schritte
+          Datenbank- und Produktivbetrieb
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Die App ist jetzt stärker modularisiert. Lokaler Speicher, Settings, Feature-Flags, Aktivitäten, Benachrichtigungen und Daten-Adapter sind vorbereitet, damit später eine echte Datenbank und ein echtes Benutzersystem angebunden werden können.
+          Die wichtigsten Bereiche sind bereits über eigene Storage-/Repository-Schichten vorbereitet. Für den Produktivbetrieb können diese später schrittweise durch API-Routen, Datenbanktabellen und echte Sessions ersetzt werden.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              Datenbank
+              News Repository
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Storage-Funktionen später durch API/DB ersetzen.
+              News nutzt bereits einen Repository-Layer für spätere API-/DB-Anbindung.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              Authentifizierung
+              Benutzer & Rollen
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Demo-Rollen später durch echte Sessions ersetzen.
+              Lokaler Login ist vorbereitet und kann später durch echte Authentifizierung ersetzt werden.
             </p>
           </div>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <p className="font-semibold">
-              Adapter-Schicht
+              Dateien & Anhänge
             </p>
 
             <p className="text-sm text-zinc-500 mt-2">
-              Seiten später systematisch von Storage auf Adapter umstellen.
+              Uploads laufen aktuell lokal und können später auf Server- oder Cloud-Speicher umgestellt werden.
             </p>
           </div>
         </div>

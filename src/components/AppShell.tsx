@@ -10,6 +10,7 @@ import {
 
 import {
   usePathname,
+  useRouter,
 } from "next/navigation";
 
 import {
@@ -17,6 +18,10 @@ import {
   canViewAdmin,
   getCurrentUser,
 } from "../lib/permissions";
+
+import {
+  clearUser,
+} from "../lib/userStorage";
 
 import {
   useAppSettings,
@@ -46,6 +51,11 @@ type NavItem = {
 const mainNavItems: NavItem[] = [
   {
     href: "/",
+    label: "News",
+    icon: "◌",
+  },
+  {
+    href: "/dashboard",
     label: "Dashboard",
     icon: "⌂",
   },
@@ -81,42 +91,6 @@ const adminNavItems: NavItem[] = [
     icon: "⚙",
     adminOnly: true,
   },
-  {
-    href: "/admin/users",
-    label: "Benutzer",
-    icon: "◉",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/companies",
-    label: "Firmen",
-    icon: "▦",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/storage",
-    label: "Speicher",
-    icon: "▣",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/adapters",
-    label: "Adapter",
-    icon: "⇄",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/database",
-    label: "Datenbank",
-    icon: "◍",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/notifications",
-    label: "Benachrichtigungen",
-    icon: "●",
-    adminOnly: true,
-  },
 ];
 
 const systemNavItems: NavItem[] = [
@@ -142,7 +116,7 @@ function getRoleLabel(
     return "Leser";
   }
 
-  return "Unbekannt";
+  return "Nicht angemeldet";
 }
 
 function isActivePath(
@@ -155,7 +129,9 @@ function isActivePath(
 
   return (
     pathname === href ||
-    pathname.startsWith(`${href}/`)
+    pathname.startsWith(
+      `${href}/`
+    )
   );
 }
 
@@ -233,12 +209,12 @@ function NavSection({
   }
 
   return (
-    <section>
-      <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mb-3">
+    <div>
+      <p className="px-4 text-xs uppercase tracking-widest text-zinc-500 mb-3">
         {title}
       </p>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {items.map(
           (item) => {
             const active =
@@ -259,7 +235,7 @@ function NavSection({
                   {item.icon}
                 </span>
 
-                <span className="font-medium text-sm">
+                <span className="font-medium">
                   {item.label}
                 </span>
               </Link>
@@ -267,7 +243,7 @@ function NavSection({
           }
         )}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -276,6 +252,9 @@ export default function AppShell({
 }: AppShellProps) {
   const pathname =
     usePathname();
+
+  const router =
+    useRouter();
 
   const {
     mounted,
@@ -324,6 +303,18 @@ export default function AppShell({
       );
     };
   }, []);
+
+  function handleLogout() {
+    clearUser();
+
+    setUser(
+      null
+    );
+
+    router.push(
+      "/login"
+    );
+  }
 
   if (!mounted) {
     return (
@@ -403,23 +394,23 @@ export default function AppShell({
 
   const topbar = (
     <header className="h-20 shrink-0 bg-white/90 dark:bg-[#070A18]/95 backdrop-blur border-b border-zinc-200 dark:border-white/10 px-8 flex items-center justify-between">
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
-          {companyName || "Intern"}
-        </p>
+      <div className="min-w-0 flex items-center gap-4">
+        <div className="h-11 w-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold shadow-sm">
+          {(user?.name || "U")
+            .slice(0, 1)
+            .toUpperCase()}
+        </div>
 
-        <h1 className="truncate text-xl font-black tracking-tight text-zinc-950 dark:text-white">
-          Intranet
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="hidden sm:block text-right">
-          <p className="text-sm font-bold text-zinc-950 dark:text-white">
-            {user?.name || "Unbekannt"}
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
+            Angemeldet als
           </p>
 
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <h1 className="truncate text-lg font-black tracking-tight text-zinc-950 dark:text-white">
+            {user?.name || "Nicht angemeldet"}
+          </h1>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {getRoleLabel(
               user?.role
             )}
@@ -428,12 +419,25 @@ export default function AppShell({
               : ""}
           </p>
         </div>
+      </div>
 
-        <div className="h-11 w-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold shadow-sm">
-          {(user?.name || "U")
-            .slice(0, 1)
-            .toUpperCase()}
-        </div>
+      <div className="flex items-center gap-3">
+        {user ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex bg-white border border-zinc-200 text-zinc-700 px-4 py-2 rounded-2xl hover:bg-zinc-100 transition dark:bg-white/10 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
+          >
+            Logout
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className="inline-flex bg-zinc-900 text-white px-4 py-2 rounded-2xl hover:bg-zinc-700 transition dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          >
+            Login
+          </Link>
+        )}
       </div>
     </header>
   );

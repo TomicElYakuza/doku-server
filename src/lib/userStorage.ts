@@ -7,10 +7,8 @@ export type User = {
   name: string;
   email: string;
   role: UserRole;
-
   companyId?: string;
   departmentId?: string;
-
   company?: string;
   department?: string;
 };
@@ -47,7 +45,15 @@ function dispatchUserUpdated() {
   }
 
   window.dispatchEvent(
-    new Event("userUpdated")
+    new Event(
+      "userUpdated"
+    )
+  );
+
+  window.dispatchEvent(
+    new Event(
+      "dataUpdated"
+    )
   );
 }
 
@@ -115,33 +121,30 @@ export function getUser(): User | null {
     );
 
   if (!raw) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(
-        defaultUser
-      )
-    );
-
-    return defaultUser;
+    return null;
   }
 
   try {
     const parsed =
-      JSON.parse(raw);
+      JSON.parse(
+        raw
+      );
 
     if (
       !parsed ||
       typeof parsed !== "object" ||
-      Array.isArray(parsed)
+      Array.isArray(
+        parsed
+      )
     ) {
-      return defaultUser;
+      return null;
     }
 
     return normalizeUser(
       parsed
     );
   } catch {
-    return defaultUser;
+    return null;
   }
 }
 
@@ -157,16 +160,14 @@ export function getUserRole(): UserRole {
 export function saveUser(
   user: User
 ): User {
-  if (typeof window === "undefined") {
-    return normalizeUser(
-      user
-    );
-  }
-
   const normalizedUser =
     normalizeUser(
       user
     );
+
+  if (typeof window === "undefined") {
+    return normalizedUser;
+  }
 
   localStorage.setItem(
     STORAGE_KEY,
@@ -226,7 +227,7 @@ export function getRoleLabel(
     return "Leser";
   }
 
-  return "Unbekannt";
+  return "Nicht angemeldet";
 }
 
 export function isAdminUser(

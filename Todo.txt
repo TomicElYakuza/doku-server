@@ -1,25 +1,20 @@
 Ticket:
--	Drop Down bei rest
+-	Drop Down bei allem
 
 Grundlegendes zum Intranet:
 -	Berechtigungen
-
-Weitere mögliche Features:
--	Anstehende Projekte
--	Neuigkeiten
-
-Rechte Vergabe:
--	Firmen und Abteilungen können nur eigene sehen
--	Auch Vergabe von Sidebar Features
+	-	Firmen und Abteilungen können nur eigene sehen
+	-	Auch Vergabe von Sidebar Features
 
 Admin Dashboard:
+-	Developer Rolle mit allen Rechten
 -	Rechte Vergabe (auch Abteilungen und Firmen, können auch mehr sein)übers Admin 	Backend
 -	UI Anpassungen, damit man nicht mehr im Quellcode oder DB was ändern muss
 
 Wichtig:
 -	AD Integration mit E-Mail und Telefon
 -	Externer Firmenzugang
--	Ticket/Wiki nur zugewissene Sachen sichtbar sprich Abteilung Firmen usw.
+-	Cookies
 
 
 
@@ -42,7 +37,8 @@ Kennwort:
 adsh02evm$2öR-3
 
 Domainadmin:
-
+smmdc01 / 02
+smkdc01
 Benutzer:
 domadm_hoertht
 Kennwort:
