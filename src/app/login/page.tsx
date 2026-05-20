@@ -8,6 +8,10 @@ import {
 } from "react";
 
 import {
+  useRouter,
+} from "next/navigation";
+
+import {
   getUser,
   saveUser,
 } from "../../lib/userStorage";
@@ -18,25 +22,16 @@ import type {
 } from "../../lib/userStorage";
 
 import {
-  getRoleLabel,
-} from "../../lib/permissions";
-
-import {
-  getAdminUsers,
-  updateAdminUserLastLogin,
-} from "../../lib/adminUserStorage";
+  adminUserRepository,
+} from "../../lib/adminUserRepository";
 
 import type {
   AdminUser,
 } from "../../lib/adminUserStorage";
 
 import {
-  getActiveCompanies,
-  getActiveDepartments,
-  getActiveDepartmentsByCompanyId,
-  getCompanies,
-  getDepartments,
-} from "../../lib/companyStorage";
+  companyRepository,
+} from "../../lib/companyRepository";
 
 import type {
   Company,
@@ -44,34 +39,51 @@ import type {
 } from "../../lib/companyStorage";
 
 import {
-  notifySuccess,
-  notifyWarning,
-} from "../../lib/notificationHelpers";
+  getRoleLabel,
+} from "../../lib/permissions";
+
+type LoginMode =
+  | "quick"
+  | "manual";
+
+function getRoleClass(
+  role: UserRole
+) {
+  if (role === "admin") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (role === "editor") {
+    return "bg-indigo-50 text-indigo-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
+}
+
+function getStatusClass(
+  status?: string
+) {
+  if (status === "active") {
+    return "bg-green-50 text-green-700";
+  }
+
+  if (status === "invited") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  if (status === "inactive") {
+    return "bg-zinc-100 text-zinc-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
+}
 
 export default function LoginPage() {
+  const router =
+    useRouter();
+
   const [mounted, setMounted] =
     useState(false);
-
-  const [name, setName] =
-    useState("");
-
-  const [email, setEmail] =
-    useState("");
-
-  const [role, setRole] =
-    useState<UserRole>("admin");
-
-  const [companyId, setCompanyId] =
-    useState("");
-
-  const [departmentId, setDepartmentId] =
-    useState("");
-
-  const [company, setCompany] =
-    useState("Intern");
-
-  const [department, setDepartment] =
-    useState("IT");
 
   const [currentUser, setCurrentUser] =
     useState<User | null>(null);
@@ -85,34 +97,46 @@ export default function LoginPage() {
   const [departments, setDepartments] =
     useState<Department[]>([]);
 
-  const [selectedAdminUserId, setSelectedAdminUserId] =
+  const [loginMode, setLoginMode] =
+    useState<LoginMode>("quick");
+
+  const [name, setName] =
     useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [role, setRole] =
+    useState<UserRole>("viewer");
+
+  const [companyId, setCompanyId] =
+    useState("");
+
+  const [departmentId, setDepartmentId] =
+    useState("");
+
+  const [company, setCompany] =
+    useState("Intern");
+
+  const [department, setDepartment] =
+    useState("Allgemein");
 
   useEffect(() => {
     setMounted(true);
 
     loadData();
 
-    function handleUserUpdated() {
-      loadUser();
-    }
-
     function handleAdminUsersUpdated() {
-      loadAdminUsers();
+      loadData();
     }
 
     function handleCompaniesUpdated() {
-      loadCompaniesAndDepartments();
+      loadData();
     }
 
     function handleDepartmentsUpdated() {
-      loadCompaniesAndDepartments();
+      loadData();
     }
-
-    window.addEventListener(
-      "userUpdated",
-      handleUserUpdated
-    );
 
     window.addEventListener(
       "adminUsersUpdated",
@@ -131,11 +155,6 @@ export default function LoginPage() {
 
     return () => {
       window.removeEventListener(
-        "userUpdated",
-        handleUserUpdated
-      );
-
-      window.removeEventListener(
         "adminUsersUpdated",
         handleAdminUsersUpdated
       );
@@ -153,87 +172,102 @@ export default function LoginPage() {
   }, []);
 
   function loadData() {
-    loadCompaniesAndDepartments();
-
-    loadUser();
-
-    loadAdminUsers();
-  }
-
-  function loadCompaniesAndDepartments() {
-    setCompanies(
-      getCompanies()
-    );
-
-    setDepartments(
-      getDepartments()
-    );
-  }
-
-  function loadUser() {
     const user =
       getUser();
 
-    const activeCompanies =
-      getActiveCompanies();
+    const nextAdminUsers =
+      adminUserRepository.list();
 
-    const activeDepartments =
-      getActiveDepartments();
+    const nextCompanies =
+      companyRepository.listCompanies();
 
-    const fallbackCompany =
-      activeCompanies[0];
-
-    const fallbackDepartment =
-      activeDepartments[0];
+    const nextDepartments =
+      companyRepository.listDepartments();
 
     setCurrentUser(
       user
     );
 
-    setName(
-      user?.name ||
-      "Admin"
-    );
-
-    setEmail(
-      user?.email ||
-      "admin@local"
-    );
-
-    setRole(
-      user?.role ||
-      "admin"
-    );
-
-    setCompanyId(
-      user?.companyId ||
-      fallbackCompany?.id ||
-      "company-intern"
-    );
-
-    setDepartmentId(
-      user?.departmentId ||
-      fallbackDepartment?.id ||
-      "department-it"
-    );
-
-    setCompany(
-      user?.company ||
-      fallbackCompany?.name ||
-      "Intern"
-    );
-
-    setDepartment(
-      user?.department ||
-      fallbackDepartment?.name ||
-      "IT"
-    );
-  }
-
-  function loadAdminUsers() {
     setAdminUsers(
-      getAdminUsers()
+      nextAdminUsers
     );
+
+    setCompanies(
+      nextCompanies
+    );
+
+    setDepartments(
+      nextDepartments
+    );
+
+    if (user) {
+      setName(
+        user.name ||
+          ""
+      );
+
+      setEmail(
+        user.email ||
+          ""
+      );
+
+      setRole(
+        user.role ||
+          "viewer"
+      );
+
+      setCompanyId(
+        user.companyId ||
+          ""
+      );
+
+      setDepartmentId(
+        user.departmentId ||
+          ""
+      );
+
+      setCompany(
+        user.company ||
+          "Intern"
+      );
+
+      setDepartment(
+        user.department ||
+          "Allgemein"
+      );
+
+      return;
+    }
+
+    const firstActiveCompany =
+      companyRepository.listActiveCompanies()[0];
+
+    const firstActiveDepartment =
+      firstActiveCompany
+        ? companyRepository.listActiveDepartmentsByCompanyId(
+            firstActiveCompany.id
+          )[0]
+        : companyRepository.listActiveDepartments()[0];
+
+    if (firstActiveCompany) {
+      setCompanyId(
+        firstActiveCompany.id
+      );
+
+      setCompany(
+        firstActiveCompany.name
+      );
+    }
+
+    if (firstActiveDepartment) {
+      setDepartmentId(
+        firstActiveDepartment.id
+      );
+
+      setDepartment(
+        firstActiveDepartment.name
+      );
+    }
   }
 
   function getCompanyName(
@@ -268,10 +302,10 @@ export default function LoginPage() {
 
   function getSelectableDepartments() {
     if (!companyId) {
-      return getActiveDepartments();
+      return companyRepository.listActiveDepartments();
     }
 
-    return getActiveDepartmentsByCompanyId(
+    return companyRepository.listActiveDepartmentsByCompanyId(
       companyId
     );
   }
@@ -291,11 +325,11 @@ export default function LoginPage() {
 
     setCompany(
       selectedCompany?.name ||
-      "Intern"
+        "Intern"
     );
 
     const nextDepartments =
-      getActiveDepartmentsByCompanyId(
+      companyRepository.listActiveDepartmentsByCompanyId(
         nextCompanyId
       );
 
@@ -304,12 +338,12 @@ export default function LoginPage() {
 
     setDepartmentId(
       firstDepartment?.id ||
-      ""
+        ""
     );
 
     setDepartment(
       firstDepartment?.name ||
-      "Allgemein"
+        "Allgemein"
     );
   }
 
@@ -328,14 +362,70 @@ export default function LoginPage() {
 
     setDepartment(
       selectedDepartment?.name ||
-      "Allgemein"
+        "Allgemein"
     );
   }
 
-  function handleSaveUser() {
+  function loginAsAdminUser(
+    adminUser: AdminUser
+  ) {
+    if (adminUser.status === "inactive") {
+      alert(
+        "Dieser Benutzer ist inaktiv."
+      );
+
+      return;
+    }
+
+    const nextUser: User = {
+      name:
+        adminUser.name,
+
+      email:
+        adminUser.email,
+
+      role:
+        adminUser.role,
+
+      companyId:
+        adminUser.companyId ||
+        "",
+
+      departmentId:
+        adminUser.departmentId ||
+        "",
+
+      company:
+        adminUser.company ||
+        getCompanyName(
+          adminUser.companyId
+        ) ||
+        "Intern",
+
+      department:
+        adminUser.department ||
+        getDepartmentName(
+          adminUser.departmentId
+        ) ||
+        "Allgemein",
+    };
+
+    saveUser(
+      nextUser
+    );
+
+    adminUserRepository.updateLastLogin(
+      adminUser.email
+    );
+
+    router.push(
+      "/"
+    );
+  }
+
+  function handleManualLogin() {
     if (!name.trim()) {
-      notifyWarning(
-        "Name fehlt",
+      alert(
         "Bitte einen Namen eingeben."
       );
 
@@ -343,9 +433,21 @@ export default function LoginPage() {
     }
 
     if (!email.trim()) {
-      notifyWarning(
-        "E-Mail fehlt",
+      alert(
         "Bitte eine E-Mail-Adresse eingeben."
+      );
+
+      return;
+    }
+
+    const adminUser =
+      adminUserRepository.findByEmail(
+        email.trim()
+      );
+
+    if (adminUser) {
+      loginAsAdminUser(
+        adminUser
       );
 
       return;
@@ -365,798 +467,430 @@ export default function LoginPage() {
       department.trim() ||
       "Allgemein";
 
-    const savedUser =
-      saveUser({
-        name:
-          name.trim(),
+    const nextUser: User = {
+      name:
+        name.trim(),
 
-        email:
-          email.trim(),
+      email:
+        email.trim(),
 
-        role,
+      role,
 
-        companyId,
+      companyId,
 
-        departmentId,
+      departmentId,
 
-        company:
-          selectedCompanyName,
+      company:
+        selectedCompanyName,
 
-        department:
-          selectedDepartmentName,
-      });
+      department:
+        selectedDepartmentName,
+    };
 
-    updateAdminUserLastLogin(
-      email.trim()
+    saveUser(
+      nextUser
     );
 
-    setCurrentUser(
-      savedUser || null
-    );
-
-    loadAdminUsers();
-
-    notifySuccess(
-      "Login gespeichert",
-      `${savedUser.name} ist jetzt der aktuelle Benutzer.`
+    router.push(
+      "/"
     );
   }
 
-  function applyAdminUser(
-    userId: string
-  ) {
-    setSelectedAdminUserId(
-      userId
-    );
-
-    const adminUser =
-      adminUsers.find(
-        (item) =>
-          item.id === userId
-      );
-
-    if (!adminUser) {
-      return;
-    }
-
-    setName(
-      adminUser.name
-    );
-
-    setEmail(
-      adminUser.email
-    );
-
-    setRole(
-      adminUser.role
-    );
-
-    setCompanyId(
-      adminUser.companyId ||
-      ""
-    );
-
-    setDepartmentId(
-      adminUser.departmentId ||
-      ""
-    );
-
-    setCompany(
-      adminUser.company ||
-      getCompanyName(
-        adminUser.companyId
-      ) ||
-      "Intern"
-    );
-
-    setDepartment(
-      adminUser.department ||
-      getDepartmentName(
-        adminUser.departmentId
-      ) ||
-      "Allgemein"
-    );
-  }
-
-  function loginAsAdminUser(
-    adminUser: AdminUser
-  ) {
-    if (adminUser.status === "inactive") {
-      notifyWarning(
-        "Benutzer inaktiv",
-        "Dieser Benutzer ist inaktiv und kann nicht angemeldet werden."
-      );
-
-      return;
-    }
-
-    const savedUser =
-      saveUser({
-        name:
-          adminUser.name,
-
-        email:
-          adminUser.email,
-
-        role:
-          adminUser.role,
-
-        companyId:
-          adminUser.companyId ||
-          "",
-
-        departmentId:
-          adminUser.departmentId ||
-          "",
-
-        company:
-          adminUser.company ||
-          getCompanyName(
-            adminUser.companyId
-          ) ||
-          "Intern",
-
-        department:
-          adminUser.department ||
-          getDepartmentName(
-            adminUser.departmentId
-          ) ||
-          "Allgemein",
-      });
-
-    updateAdminUserLastLogin(
-      adminUser.email
-    );
-
-    setCurrentUser(
-      savedUser || null
-    );
-
-    setName(
-      savedUser.name
-    );
-
-    setEmail(
-      savedUser.email
-    );
-
-    setRole(
-      savedUser.role
-    );
-
-    setCompanyId(
-      savedUser.companyId ||
-      ""
-    );
-
-    setDepartmentId(
-      savedUser.departmentId ||
-      ""
-    );
-
-    setCompany(
-      savedUser.company ||
-      "Intern"
-    );
-
-    setDepartment(
-      savedUser.department ||
-      "Allgemein"
-    );
-
-    setSelectedAdminUserId(
-      adminUser.id
-    );
-
-    loadAdminUsers();
-
-    notifySuccess(
-      "Angemeldet",
-      `${adminUser.name} wurde als aktueller Benutzer gesetzt.`
-    );
-  }
-
-  function setDemoAdmin() {
-    setName(
-      "Admin"
-    );
-
-    setEmail(
-      "admin@local"
-    );
-
-    setRole(
-      "admin"
-    );
-
-    setCompanyId(
-      "company-intern"
-    );
-
-    setDepartmentId(
-      "department-it"
-    );
-
-    setCompany(
-      "Intern"
-    );
-
-    setDepartment(
-      "IT"
-    );
-
-    setSelectedAdminUserId(
-      ""
-    );
-  }
-
-  function setDemoEditor() {
-    setName(
-      "Editor"
-    );
-
-    setEmail(
-      "editor@local"
-    );
-
-    setRole(
-      "editor"
-    );
-
-    setCompanyId(
-      "company-intern"
-    );
-
-    setDepartmentId(
-      "department-support"
-    );
-
-    setCompany(
-      "Intern"
-    );
-
-    setDepartment(
-      "Support"
-    );
-
-    setSelectedAdminUserId(
-      ""
-    );
-  }
-
-  function setDemoViewer() {
-    setName(
-      "Viewer"
-    );
-
-    setEmail(
-      "viewer@local"
-    );
-
-    setRole(
-      "viewer"
-    );
-
-    setCompanyId(
-      "company-intern"
-    );
-
-    setDepartmentId(
-      "department-office"
-    );
-
-    setCompany(
-      "Intern"
-    );
-
-    setDepartment(
-      "Office"
-    );
-
-    setSelectedAdminUserId(
-      ""
-    );
-  }
-
-  function getStatusLabel(
-    status: string
-  ) {
-    if (status === "active") {
-      return "Aktiv";
-    }
-
-    if (status === "inactive") {
-      return "Inaktiv";
-    }
-
-    if (status === "invited") {
-      return "Eingeladen";
-    }
-
-    return "Unbekannt";
-  }
-
-  function getStatusClass(
-    status: string
-  ) {
-    if (status === "active") {
-      return "bg-green-50 text-green-700";
-    }
-
-    if (status === "inactive") {
-      return "bg-zinc-100 text-zinc-700";
-    }
-
-    if (status === "invited") {
-      return "bg-blue-50 text-blue-700";
-    }
-
-    return "bg-zinc-100 text-zinc-700";
-  }
-
-  function getRoleClass(
-    value: string
-  ) {
-    if (value === "admin") {
-      return "bg-red-50 text-red-700";
-    }
-
-    if (value === "editor") {
-      return "bg-indigo-50 text-indigo-700";
-    }
-
-    return "bg-zinc-100 text-zinc-700";
-  }
+function handleLogout() {
+  localStorage.removeItem(
+    "dms-user"
+  );
+
+  window.dispatchEvent(
+    new Event(
+      "userUpdated"
+    )
+  );
+
+  setCurrentUser(
+    null
+  );
+
+  setName("");
+  setEmail("");
+  setRole("viewer");
+
+  router.push(
+    "/login"
+  );
+}
 
   if (!mounted) {
     return null;
   }
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Dashboard
-        </Link>
-      </div>
+  const activeAdminUsers =
+    adminUsers.filter(
+      (user) =>
+        user.status !== "inactive"
+    );
 
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Login
+  const activeCompanies =
+    companyRepository.listActiveCompanies();
+
+  return (
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+      <div className="w-full max-w-6xl grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
+        <div className="bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
+          <p className="text-sm text-zinc-300">
+            Anmeldung
+          </p>
+
+          <h1 className="text-4xl font-black tracking-tight mt-3">
+            Intranet Login
           </h1>
 
-          <p className="text-zinc-500 mt-2">
-            Aktuellen Benutzer auswählen oder Demo-Login für die lokale Entwicklung setzen
+          <p className="text-zinc-300 mt-4 leading-relaxed">
+            Diese Seite dient aktuell als lokaler Login-Ersatz. Später wird daraus die echte Anmeldung mit Benutzerkonto, Rollen, Firmen und Abteilungen.
           </p>
-        </div>
 
-        <Link
-          href="/admin/users"
-          className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Benutzerverwaltung
-        </Link>
-      </div>
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Aktueller Benutzer
-        </h2>
-
-        {!currentUser && (
-          <p className="text-zinc-500 mt-4">
-            Kein Benutzer geladen.
-          </p>
-        )}
-
-        {currentUser && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
-            <div className="border border-zinc-200 rounded-2xl p-5">
-              <p className="text-sm text-zinc-500">
-                Name
+          <div className="grid gap-4 mt-8">
+            <div className="bg-white/10 rounded-2xl p-5">
+              <p className="text-sm text-zinc-300">
+                Aktueller Benutzer
               </p>
 
-              <p className="font-semibold mt-1">
-                {currentUser.name}
+              <p className="text-xl font-semibold mt-2">
+                {currentUser?.name ||
+                  "Nicht angemeldet"}
               </p>
+
+              {currentUser && (
+                <p className="text-sm text-zinc-300 mt-2">
+                  {getRoleLabel(
+                    currentUser.role
+                  )} ·{" "}
+                  {currentUser.company ||
+                    "Intern"}{" "}
+                  ·{" "}
+                  {currentUser.department ||
+                    "Allgemein"}
+                </p>
+              )}
             </div>
 
-            <div className="border border-zinc-200 rounded-2xl p-5">
-              <p className="text-sm text-zinc-500">
-                E-Mail
+            <div className="bg-white/10 rounded-2xl p-5">
+              <p className="text-sm text-zinc-300">
+                Vorbereitet für
               </p>
 
-              <p className="font-semibold mt-1 truncate">
-                {currentUser.email}
-              </p>
-            </div>
+              <ul className="text-sm text-zinc-300 mt-3 space-y-2">
+                <li>
+                  Benutzerverwaltung
+                </li>
 
-            <div className="border border-zinc-200 rounded-2xl p-5">
-              <p className="text-sm text-zinc-500">
-                Rolle
-              </p>
+                <li>
+                  Rollen & Rechte
+                </li>
 
-              <p className="font-semibold mt-1">
-                {getRoleLabel(
-                  currentUser.role
-                )}
-              </p>
-            </div>
+                <li>
+                  Firmen & Abteilungen
+                </li>
 
-            <div className="border border-zinc-200 rounded-2xl p-5">
-              <p className="text-sm text-zinc-500">
-                Firma
-              </p>
-
-              <p className="font-semibold mt-1">
-                {currentUser.company ||
-                  getCompanyName(
-                    currentUser.companyId
-                  ) ||
-                  "Intern"}
-              </p>
-            </div>
-
-            <div className="border border-zinc-200 rounded-2xl p-5">
-              <p className="text-sm text-zinc-500">
-                Abteilung
-              </p>
-
-              <p className="font-semibold mt-1">
-                {currentUser.department ||
-                  getDepartmentName(
-                    currentUser.departmentId
-                  ) ||
-                  "Allgemein"}
-              </p>
+                <li>
+                  spätere Datenbank-Anmeldung
+                </li>
+              </ul>
             </div>
           </div>
-        )}
-      </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Aus Benutzerverwaltung anmelden
-        </h2>
-
-        <p className="text-zinc-500 mt-2">
-          Wähle einen Benutzer aus der Admin-Verwaltung aus und setze ihn als aktuellen lokalen Benutzer.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <select
-            value={selectedAdminUserId}
-            onChange={(event) =>
-              applyAdminUser(
-                event.target.value
-              )
-            }
-            className="md:col-span-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="">
-              Benutzer auswählen
-            </option>
-
-            {adminUsers.map(
-              (adminUser) => (
-                <option
-                  key={adminUser.id}
-                  value={adminUser.id}
-                >
-                  {adminUser.name} · {adminUser.email} ·{" "}
-                  {getRoleLabel(
-                    adminUser.role
-                  )}
-                </option>
-              )
-            )}
-          </select>
-
-          <button
-            type="button"
-            onClick={handleSaveUser}
-            className="bg-zinc-900 text-white px-5 py-4 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Auswahl anmelden
-          </button>
+          {currentUser && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full bg-white text-zinc-900 px-5 py-4 rounded-2xl hover:bg-zinc-100 transition mt-8"
+            >
+              Lokal abmelden
+            </button>
+          )}
         </div>
 
-        <div className="grid gap-3 mt-6">
-          {adminUsers.length === 0 && (
-            <p className="text-zinc-500">
-              Noch keine Admin-Benutzer vorhanden.
-            </p>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+            <div>
+              <h2 className="text-3xl font-bold">
+                Benutzer wählen
+              </h2>
+
+              <p className="text-zinc-500 mt-2">
+                Schnell als vorhandener Admin-Benutzer anmelden oder manuell einen lokalen Benutzer setzen.
+              </p>
+            </div>
+
+            <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setLoginMode(
+                    "quick"
+                  )
+                }
+                className={`px-4 py-2 rounded-xl transition ${
+                  loginMode === "quick"
+                    ? "bg-white shadow-sm"
+                    : "hover:bg-zinc-200"
+                }`}
+              >
+                Schnell
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setLoginMode(
+                    "manual"
+                  )
+                }
+                className={`px-4 py-2 rounded-xl transition ${
+                  loginMode === "manual"
+                    ? "bg-white shadow-sm"
+                    : "hover:bg-zinc-200"
+                }`}
+              >
+                Manuell
+              </button>
+            </div>
+          </div>
+
+          {loginMode === "quick" && (
+            <div className="grid gap-4 mt-8">
+              {activeAdminUsers.length === 0 && (
+                <div className="border border-zinc-200 rounded-2xl p-6">
+                  <p className="text-zinc-500">
+                    Noch keine aktiven Admin-Benutzer vorhanden.
+                  </p>
+
+                  <Link
+                    href="/admin/users"
+                    className="inline-flex mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+                  >
+                    Benutzerverwaltung öffnen
+                  </Link>
+                </div>
+              )}
+
+              {activeAdminUsers.map(
+                (adminUser) => (
+                  <button
+                    key={adminUser.id}
+                    type="button"
+                    onClick={() =>
+                      loginAsAdminUser(
+                        adminUser
+                      )
+                    }
+                    className="text-left border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl font-semibold">
+                          {adminUser.name}
+                        </h3>
+
+                        <p className="text-zinc-500 mt-1">
+                          {adminUser.email}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`text-xs px-3 py-1 rounded-full ${getRoleClass(adminUser.role)}`}>
+                          {getRoleLabel(
+                            adminUser.role
+                          )}
+                        </span>
+
+                        <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(adminUser.status)}`}>
+                          {adminUser.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 mt-4 text-sm text-zinc-500">
+                      <span>
+                        {adminUser.company ||
+                          getCompanyName(
+                            adminUser.companyId
+                          ) ||
+                          "Intern"}
+                      </span>
+
+                      <span>
+                        ·
+                      </span>
+
+                      <span>
+                        {adminUser.department ||
+                          getDepartmentName(
+                            adminUser.departmentId
+                          ) ||
+                          "Allgemein"}
+                      </span>
+
+                      <span>
+                        ·
+                      </span>
+
+                      <span>
+                        Letzter Login:{" "}
+                        {adminUser.lastLoginAt ||
+                          "Noch nie"}
+                      </span>
+                    </div>
+                  </button>
+                )
+              )}
+            </div>
           )}
 
-          {adminUsers.map(
-            (adminUser) => (
-              <div
-                key={adminUser.id}
-                className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getRoleClass(adminUser.role)}`}>
-                      {getRoleLabel(
-                        adminUser.role
-                      )}
-                    </span>
+          {loginMode === "manual" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Name
+                </label>
 
-                    <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(adminUser.status)}`}>
-                      {getStatusLabel(
-                        adminUser.status
-                      )}
-                    </span>
-
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {adminUser.company ||
-                        getCompanyName(
-                          adminUser.companyId
-                        ) ||
-                        "Intern"}
-                    </span>
-
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {adminUser.department ||
-                        getDepartmentName(
-                          adminUser.departmentId
-                        ) ||
-                        "Allgemein"}
-                    </span>
-                  </div>
-
-                  <h3 className="font-semibold mt-3">
-                    {adminUser.name}
-                  </h3>
-
-                  <p className="text-sm text-zinc-500">
-                    {adminUser.email}
-                  </p>
-
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Letzter Login:{" "}
-                    {adminUser.lastLoginAt ||
-                      "Noch nie"}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    loginAsAdminUser(
-                      adminUser
+                <input
+                  value={name}
+                  onChange={(event) =>
+                    setName(
+                      event.target.value
                     )
                   }
-                  className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition shrink-0"
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Max Mustermann"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  E-Mail
+                </label>
+
+                <input
+                  value={email}
+                  onChange={(event) =>
+                    setEmail(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="max@firma.at"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Rolle
+                </label>
+
+                <select
+                  value={role}
+                  onChange={(event) =>
+                    setRole(
+                      event.target.value as UserRole
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="admin">
+                    Administrator
+                  </option>
+
+                  <option value="editor">
+                    Bearbeiter
+                  </option>
+
+                  <option value="viewer">
+                    Leser
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firma
+                </label>
+
+                <select
+                  value={companyId}
+                  onChange={(event) =>
+                    handleCompanyChange(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="">
+                    Firma auswählen
+                  </option>
+
+                  {activeCompanies.map(
+                    (item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                      >
+                        {item.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Abteilung
+                </label>
+
+                <select
+                  value={departmentId}
+                  onChange={(event) =>
+                    handleDepartmentChange(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="">
+                    Abteilung auswählen
+                  </option>
+
+                  {getSelectableDepartments().map(
+                    (item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                      >
+                        {item.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div className="md:col-span-2 flex flex-wrap gap-3 mt-3">
+                <button
+                  type="button"
+                  onClick={handleManualLogin}
+                  className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
                 >
                   Anmelden
                 </button>
+
+                <Link
+                  href="/"
+                  className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+                >
+                  Zurück
+                </Link>
               </div>
-            )
+            </div>
           )}
-        </div>
-      </div>
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Benutzer manuell setzen
-        </h2>
-
-        <p className="text-zinc-500 mt-2">
-          Diese lokale Demo-Version speichert den Benutzer im Browser. Später wird dieser Bereich durch echtes Login mit Sessions ersetzt.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-          <div>
-            <label className="block mb-2 font-medium">
-              Name
-            </label>
-
-            <input
-              value={name}
-              onChange={(event) =>
-                setName(
-                  event.target.value
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              placeholder="Name"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              E-Mail
-            </label>
-
-            <input
-              value={email}
-              onChange={(event) =>
-                setEmail(
-                  event.target.value
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              placeholder="email@firma.at"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Rolle
-            </label>
-
-            <select
-              value={role}
-              onChange={(event) =>
-                setRole(
-                  event.target.value as UserRole
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="admin">
-                Administrator
-              </option>
-
-              <option value="editor">
-                Bearbeiter
-              </option>
-
-              <option value="viewer">
-                Leser
-              </option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Firma
-            </label>
-
-            <select
-              value={companyId}
-              onChange={(event) =>
-                handleCompanyChange(
-                  event.target.value
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Firma auswählen
-              </option>
-
-              {getActiveCompanies().map(
-                (item) => (
-                  <option
-                    key={item.id}
-                    value={item.id}
-                  >
-                    {item.name}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Abteilung
-            </label>
-
-            <select
-              value={departmentId}
-              onChange={(event) =>
-                handleDepartmentChange(
-                  event.target.value
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Abteilung auswählen
-              </option>
-
-              {getSelectableDepartments().map(
-                (item) => (
-                  <option
-                    key={item.id}
-                    value={item.id}
-                  >
-                    {item.name}
-                  </option>
-                )
-              )}
-            </select>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Aktuelle Auswahl
-            </p>
-
-            <p className="font-semibold mt-1">
-              {company || "Keine Firma"} /{" "}
-              {department || "Keine Abteilung"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 mt-6">
-          <button
-            type="button"
-            onClick={handleSaveUser}
-            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Benutzer anmelden
-          </button>
-
-          <button
-            type="button"
-            onClick={loadData}
-            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Aktuelle Daten neu laden
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Demo-Rollen
-        </h2>
-
-        <p className="text-zinc-500 mt-2">
-          Schnell zwischen Rollen wechseln und danach anmelden.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <button
-            type="button"
-            onClick={setDemoAdmin}
-            className="border border-zinc-200 rounded-2xl p-5 text-left hover:bg-zinc-50 transition"
-          >
-            <p className="font-semibold">
-              Admin
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-1">
-              Admin · Intern / IT
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={setDemoEditor}
-            className="border border-zinc-200 rounded-2xl p-5 text-left hover:bg-zinc-50 transition"
-          >
-            <p className="font-semibold">
-              Editor
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-1">
-              Editor · Intern / Support
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={setDemoViewer}
-            className="border border-zinc-200 rounded-2xl p-5 text-left hover:bg-zinc-50 transition"
-          >
-            <p className="font-semibold">
-              Viewer
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-1">
-              Viewer · Intern / Office
-            </p>
-          </button>
         </div>
       </div>
     </div>

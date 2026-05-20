@@ -13,15 +13,8 @@ import {
 } from "../../../lib/permissions";
 
 import {
-  createCompany,
-  createDepartment,
-  deleteCompany,
-  deleteDepartment,
-  getCompanies,
-  getDepartments,
-  updateCompany,
-  updateDepartment,
-} from "../../../lib/companyStorage";
+  companyRepository,
+} from "../../../lib/companyRepository";
 
 import type {
   Company,
@@ -39,9 +32,43 @@ import {
   saveDepartmentUpdatedActivity,
 } from "../../../lib/organizationActivityHelpers";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+
 type ViewMode =
   | "companies"
   | "departments";
+
+function createSlug(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getStatusClass(
+  status: string
+) {
+  if (status === "active") {
+    return "bg-green-50 text-green-700";
+  }
+
+  if (status === "inactive") {
+    return "bg-zinc-100 text-zinc-700";
+  }
+
+  if (status === "archived") {
+    return "bg-yellow-100 text-yellow-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
+}
 
 export default function AdminCompaniesPage() {
   const [mounted, setMounted] =
@@ -142,10 +169,10 @@ export default function AdminCompaniesPage() {
 
   function loadData() {
     const nextCompanies =
-      getCompanies();
+      companyRepository.listCompanies();
 
     const nextDepartments =
-      getDepartments();
+      companyRepository.listDepartments();
 
     setCompanies(
       nextCompanies
@@ -163,20 +190,6 @@ export default function AdminCompaniesPage() {
         nextCompanies[0].id
       );
     }
-  }
-
-  function createSlug(
-    value: string
-  ) {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
   }
 
   function getCompanyName(
@@ -203,71 +216,25 @@ export default function AdminCompaniesPage() {
     ).length;
   }
 
-  function getStatusLabel(
-    status: string
-  ) {
-    if (status === "active") {
-      return "Aktiv";
-    }
-
-    if (status === "inactive") {
-      return "Inaktiv";
-    }
-
-    if (status === "archived") {
-      return "Archiviert";
-    }
-
-    return "Unbekannt";
-  }
-
-  function getStatusClass(
-    status: string
-  ) {
-    if (status === "active") {
-      return "bg-green-50 text-green-700";
-    }
-
-    if (status === "inactive") {
-      return "bg-zinc-100 text-zinc-700";
-    }
-
-    if (status === "archived") {
-      return "bg-yellow-100 text-yellow-700";
-    }
-
-    return "bg-zinc-100 text-zinc-700";
-  }
-
   function resetCompanyForm() {
     setEditingCompanyId("");
-
     setCompanyName("");
-
     setCompanySlug("");
-
     setCompanyDescription("");
-
     setCompanyStatus("active");
-
     setShowCompanyForm(false);
   }
 
   function resetDepartmentForm() {
     setEditingDepartmentId("");
-
     setDepartmentCompanyId(
-      companies[0]?.id || ""
+      companies[0]?.id ||
+        ""
     );
-
     setDepartmentName("");
-
     setDepartmentSlug("");
-
     setDepartmentDescription("");
-
     setDepartmentStatus("active");
-
     setShowDepartmentForm(false);
   }
 
@@ -275,9 +242,7 @@ export default function AdminCompaniesPage() {
     resetCompanyForm();
 
     setShowCompanyForm(true);
-
     setShowDepartmentForm(false);
-
     setViewMode("companies");
   }
 
@@ -285,9 +250,7 @@ export default function AdminCompaniesPage() {
     resetDepartmentForm();
 
     setShowDepartmentForm(true);
-
     setShowCompanyForm(false);
-
     setViewMode("departments");
   }
 
@@ -307,7 +270,8 @@ export default function AdminCompaniesPage() {
     );
 
     setCompanyDescription(
-      company.description || ""
+      company.description ||
+        ""
     );
 
     setCompanyStatus(
@@ -315,14 +279,15 @@ export default function AdminCompaniesPage() {
     );
 
     setShowCompanyForm(true);
-
     setShowDepartmentForm(false);
-
     setViewMode("companies");
 
     window.scrollTo({
-      top: 0,
-      behavior: "smooth",
+      top:
+        0,
+
+      behavior:
+        "smooth",
     });
   }
 
@@ -346,7 +311,8 @@ export default function AdminCompaniesPage() {
     );
 
     setDepartmentDescription(
-      department.description || ""
+      department.description ||
+        ""
     );
 
     setDepartmentStatus(
@@ -354,14 +320,15 @@ export default function AdminCompaniesPage() {
     );
 
     setShowDepartmentForm(true);
-
     setShowCompanyForm(false);
-
     setViewMode("departments");
 
     window.scrollTo({
-      top: 0,
-      behavior: "smooth",
+      top:
+        0,
+
+      behavior:
+        "smooth",
     });
   }
 
@@ -390,7 +357,7 @@ export default function AdminCompaniesPage() {
 
     if (editingCompanyId) {
       const updatedCompany =
-        updateCompany(
+        companyRepository.updateCompany(
           editingCompanyId,
           {
             name:
@@ -419,7 +386,7 @@ export default function AdminCompaniesPage() {
     }
 
     const newCompany =
-      createCompany({
+      companyRepository.createCompany({
         name:
           companyName.trim(),
 
@@ -478,7 +445,7 @@ export default function AdminCompaniesPage() {
 
     if (editingDepartmentId) {
       const updatedDepartment =
-        updateDepartment(
+        companyRepository.updateDepartment(
           editingDepartmentId,
           {
             companyId:
@@ -511,7 +478,7 @@ export default function AdminCompaniesPage() {
     }
 
     const newDepartment =
-      createDepartment({
+      companyRepository.createDepartment({
         companyId:
           departmentCompanyId,
 
@@ -567,7 +534,7 @@ export default function AdminCompaniesPage() {
       company
     );
 
-    deleteCompany(
+    companyRepository.deleteCompany(
       company.id
     );
   }
@@ -599,16 +566,14 @@ export default function AdminCompaniesPage() {
       )
     );
 
-    deleteDepartment(
+    companyRepository.deleteDepartment(
       department.id
     );
   }
 
   function resetFilters() {
     setSearch("");
-
     setStatusFilter("");
-
     setCompanyFilter("");
   }
 
@@ -618,56 +583,7 @@ export default function AdminCompaniesPage() {
 
   if (!canViewAdmin()) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            dashboard
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <Link
-            href="/admin"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            admin
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            firmen
-          </span>
-        </div>
-
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Admin-Dashboard
-        </Link>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
-            🔒
-          </div>
-
-          <h1 className="text-4xl font-bold">
-            Kein Zugriff
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du hast mit deiner aktuellen Rolle keine Berechtigung für die Firmenverwaltung.
-          </p>
-        </div>
-      </div>
+      <AccessDeniedCard />
     );
   }
 
@@ -696,15 +612,22 @@ export default function AdminCompaniesPage() {
           search.toLowerCase();
 
         const matchesSearch =
+          !query ||
           company.name
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           company.slug
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           company.description
             ?.toLowerCase()
-            .includes(query);
+            .includes(
+              query
+            );
 
         const matchesStatus =
           !statusFilter ||
@@ -729,18 +652,27 @@ export default function AdminCompaniesPage() {
           );
 
         const matchesSearch =
+          !query ||
           department.name
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           department.slug
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           department.description
             ?.toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           companyName
             .toLowerCase()
-            .includes(query);
+            .includes(
+              query
+            );
 
         const matchesStatus =
           !statusFilter ||
@@ -760,36 +692,6 @@ export default function AdminCompaniesPage() {
 
   return (
     <div className="space-y-8">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <Link
-          href="/admin"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          admin
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          firmen
-        </span>
-      </div>
-
-      {/* BACK */}
       <div>
         <Link
           href="/admin"
@@ -799,7 +701,6 @@ export default function AdminCompaniesPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
@@ -812,8 +713,9 @@ export default function AdminCompaniesPage() {
         </div>
 
         {canManageSystem() && (
-          <div className="flex flex-wrap gap-3 justify-end">
+          <div className="flex flex-wrap gap-3">
             <button
+              type="button"
               onClick={openCompanyForm}
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
             >
@@ -821,6 +723,7 @@ export default function AdminCompaniesPage() {
             </button>
 
             <button
+              type="button"
               onClick={openDepartmentForm}
               className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
@@ -830,11 +733,13 @@ export default function AdminCompaniesPage() {
         )}
       </div>
 
-      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
+          type="button"
           onClick={() =>
-            setViewMode("companies")
+            setViewMode(
+              "companies"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
@@ -848,8 +753,11 @@ export default function AdminCompaniesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setStatusFilter("active")
+            setStatusFilter(
+              "active"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
         >
@@ -863,8 +771,11 @@ export default function AdminCompaniesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setStatusFilter("inactive")
+            setStatusFilter(
+              "inactive"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
@@ -878,8 +789,11 @@ export default function AdminCompaniesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setViewMode("departments")
+            setViewMode(
+              "departments"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
         >
@@ -893,9 +807,15 @@ export default function AdminCompaniesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() => {
-            setViewMode("departments");
-            setStatusFilter("active");
+            setViewMode(
+              "departments"
+            );
+
+            setStatusFilter(
+              "active"
+            );
           }}
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
         >
@@ -909,7 +829,6 @@ export default function AdminCompaniesPage() {
         </button>
       </div>
 
-      {/* COMPANY FORM */}
       {showCompanyForm && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
@@ -931,11 +850,15 @@ export default function AdminCompaniesPage() {
                   const value =
                     event.target.value;
 
-                  setCompanyName(value);
+                  setCompanyName(
+                    value
+                  );
 
                   if (!editingCompanyId) {
                     setCompanySlug(
-                      createSlug(value)
+                      createSlug(
+                        value
+                      )
                     );
                   }
                 }}
@@ -1013,6 +936,7 @@ export default function AdminCompaniesPage() {
 
           <div className="flex flex-wrap gap-3 mt-6">
             <button
+              type="button"
               onClick={handleSaveCompany}
               className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
             >
@@ -1022,6 +946,7 @@ export default function AdminCompaniesPage() {
             </button>
 
             <button
+              type="button"
               onClick={resetCompanyForm}
               className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
             >
@@ -1031,7 +956,6 @@ export default function AdminCompaniesPage() {
         </div>
       )}
 
-      {/* DEPARTMENT FORM */}
       {showDepartmentForm && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
@@ -1084,11 +1008,15 @@ export default function AdminCompaniesPage() {
                   const value =
                     event.target.value;
 
-                  setDepartmentName(value);
+                  setDepartmentName(
+                    value
+                  );
 
                   if (!editingDepartmentId) {
                     setDepartmentSlug(
-                      createSlug(value)
+                      createSlug(
+                        value
+                      )
                     );
                   }
                 }}
@@ -1166,6 +1094,7 @@ export default function AdminCompaniesPage() {
 
           <div className="flex flex-wrap gap-3 mt-6">
             <button
+              type="button"
               onClick={handleSaveDepartment}
               className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
             >
@@ -1175,6 +1104,7 @@ export default function AdminCompaniesPage() {
             </button>
 
             <button
+              type="button"
               onClick={resetDepartmentForm}
               className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
             >
@@ -1184,7 +1114,6 @@ export default function AdminCompaniesPage() {
         </div>
       )}
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex items-start justify-between gap-6">
           <div>
@@ -1199,8 +1128,11 @@ export default function AdminCompaniesPage() {
 
           <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
             <button
+              type="button"
               onClick={() =>
-                setViewMode("companies")
+                setViewMode(
+                  "companies"
+                )
               }
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "companies"
@@ -1212,8 +1144,11 @@ export default function AdminCompaniesPage() {
             </button>
 
             <button
+              type="button"
               onClick={() =>
-                setViewMode("departments")
+                setViewMode(
+                  "departments"
+                )
               }
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "departments"
@@ -1301,6 +1236,7 @@ export default function AdminCompaniesPage() {
           </p>
 
           <button
+            type="button"
             onClick={resetFilters}
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
@@ -1309,7 +1245,6 @@ export default function AdminCompaniesPage() {
         </div>
       </div>
 
-      {/* COMPANIES */}
       {viewMode === "companies" && (
         <div className="grid gap-4">
           {filteredCompanies.length === 0 && (
@@ -1329,12 +1264,8 @@ export default function AdminCompaniesPage() {
                 <div className="flex items-start justify-between gap-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
-                          company.status
-                        )}`}
-                      >
-                        {getStatusLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(company.status)}`}>
+                        {companyRepository.getCompanyStatusLabel(
                           company.status
                         )}
                       </span>
@@ -1346,7 +1277,8 @@ export default function AdminCompaniesPage() {
                       <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
                         {getDepartmentCount(
                           company.id
-                        )} Abteilungen
+                        )}{" "}
+                        Abteilungen
                       </span>
                     </div>
 
@@ -1375,6 +1307,7 @@ export default function AdminCompaniesPage() {
                   {canManageSystem() && (
                     <div className="flex flex-wrap gap-3 justify-end shrink-0">
                       <button
+                        type="button"
                         onClick={() =>
                           startEditCompany(
                             company
@@ -1386,6 +1319,7 @@ export default function AdminCompaniesPage() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() =>
                           handleDeleteCompany(
                             company
@@ -1404,7 +1338,6 @@ export default function AdminCompaniesPage() {
         </div>
       )}
 
-      {/* DEPARTMENTS */}
       {viewMode === "departments" && (
         <div className="grid gap-4">
           {filteredDepartments.length === 0 && (
@@ -1424,12 +1357,8 @@ export default function AdminCompaniesPage() {
                 <div className="flex items-start justify-between gap-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
-                          department.status
-                        )}`}
-                      >
-                        {getStatusLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(department.status)}`}>
+                        {companyRepository.getDepartmentStatusLabel(
                           department.status
                         )}
                       </span>
@@ -1470,6 +1399,7 @@ export default function AdminCompaniesPage() {
                   {canManageSystem() && (
                     <div className="flex flex-wrap gap-3 justify-end shrink-0">
                       <button
+                        type="button"
                         onClick={() =>
                           startEditDepartment(
                             department
@@ -1481,6 +1411,7 @@ export default function AdminCompaniesPage() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() =>
                           handleDeleteDepartment(
                             department

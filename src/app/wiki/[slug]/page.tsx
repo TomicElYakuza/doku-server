@@ -20,9 +20,16 @@ import FileList from "../../../components/wiki/FileList";
 import Comments from "../../../components/wiki/Comments";
 
 import {
-  getStoredPages,
-  savePages,
-} from "../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../lib/wikiRepository";
+
+import type {
+  WikiPage,
+} from "../../../lib/wikiRepository";
+
+import {
+  activityRepository,
+} from "../../../lib/activityRepository";
 
 import {
   addTrashPage,
@@ -40,10 +47,6 @@ import {
 } from "../../../lib/recentStorage";
 
 import {
-  saveActivity,
-} from "../../../lib/activityStorage";
-
-import {
   getUser,
 } from "../../../lib/userStorage";
 
@@ -51,18 +54,6 @@ import {
   canDelete,
   canEdit,
 } from "../../../lib/permissions";
-
-type WikiPage = {
-  title: string;
-  slug: string;
-  description?: string;
-  content?: string;
-  company?: string;
-  category?: string;
-  author?: string;
-  updatedAt?: string;
-  tags?: string[];
-};
 
 function normalizeSlug(
   value: string
@@ -76,6 +67,103 @@ function normalizeSlug(
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function getPageTitle(
+  page: WikiPage
+) {
+  return String(
+    page.title ||
+      "Unbenanntes Dokument"
+  );
+}
+
+function getPageSlug(
+  page: WikiPage
+) {
+  return String(
+    page.slug ||
+      normalizeSlug(
+        getPageTitle(
+          page
+        )
+      )
+  );
+}
+
+function getPageDescription(
+  page: WikiPage
+) {
+  return String(
+    page.description ||
+      page.excerpt ||
+      ""
+  );
+}
+
+function getPageContent(
+  page: WikiPage
+) {
+  return String(
+    page.content ||
+      ""
+  );
+}
+
+function getPageCompany(
+  page: WikiPage
+) {
+  return String(
+    page.company ||
+      "Intern"
+  );
+}
+
+function getPageDepartment(
+  page: WikiPage
+) {
+  return String(
+    page.department ||
+      page.category ||
+      "Allgemein"
+  );
+}
+
+function getPageAuthor(
+  page: WikiPage
+) {
+  return String(
+    page.author ||
+      "Unbekannt"
+  );
+}
+
+function getPageUpdatedAt(
+  page: WikiPage
+) {
+  return String(
+    page.updatedAt ||
+      "Unbekannt"
+  );
+}
+
+function getPageTags(
+  page: WikiPage
+) {
+  if (
+    Array.isArray(
+      page.tags
+    )
+  ) {
+    return page.tags.map(
+      (tag) =>
+        String(
+          tag
+        )
+    );
+  }
+
+  return [];
 }
 
 function wikiCompanyHref(
@@ -132,7 +220,6 @@ export default function WikiDetailPage() {
     );
 
     loadPage();
-
     loadFavorites();
 
     function handleFavoritesUpdated() {
@@ -176,26 +263,41 @@ export default function WikiDetailPage() {
 
   function loadPage() {
     const allPages =
-      getStoredPages();
+      wikiRepository.list();
 
     const foundPage =
       allPages.find(
-        (item: any) =>
-          item.slug === rawSlug ||
-          item.slug === decodedSlug ||
-          encodeURIComponent(
-            item.slug
-          ) === rawSlug ||
-          normalizeSlug(
-            item.slug
-          ) === normalizeSlug(
-            decodedSlug
-          ) ||
-          normalizeSlug(
-            item.title || ""
-          ) === normalizeSlug(
-            decodedSlug
-          )
+        (item) => {
+          const itemSlug =
+            getPageSlug(
+              item
+            );
+
+          const itemTitle =
+            getPageTitle(
+              item
+            );
+
+          return (
+            itemSlug === rawSlug ||
+            itemSlug === decodedSlug ||
+            encodeURIComponent(
+              itemSlug
+            ) === rawSlug ||
+            normalizeSlug(
+              itemSlug
+            ) ===
+              normalizeSlug(
+                decodedSlug
+              ) ||
+            normalizeSlug(
+              itemTitle
+            ) ===
+              normalizeSlug(
+                decodedSlug
+              )
+          );
+        }
       ) || null;
 
     setPage(
@@ -208,7 +310,9 @@ export default function WikiDetailPage() {
 
     if (foundPage) {
       saveRecentPage(
-        foundPage.slug
+        getPageSlug(
+          foundPage
+        )
       );
     }
   }
@@ -218,33 +322,38 @@ export default function WikiDetailPage() {
       return;
     }
 
-    let updated =
+    const slug =
+      getPageSlug(
+        page
+      );
+
+    let updatedFavorites =
       [
         ...favorites,
       ];
 
     if (
-      updated.includes(
-        page.slug
+      updatedFavorites.includes(
+        slug
       )
     ) {
-      updated =
-        updated.filter(
+      updatedFavorites =
+        updatedFavorites.filter(
           (favoriteSlug) =>
-            favoriteSlug !== page.slug
+            favoriteSlug !== slug
         );
     } else {
-      updated.push(
-        page.slug
+      updatedFavorites.push(
+        slug
       );
     }
 
     setFavorites(
-      updated
+      updatedFavorites
     );
 
     saveFavorites(
-      updated
+      updatedFavorites
     );
   }
 
@@ -274,13 +383,14 @@ export default function WikiDetailPage() {
       return;
     }
 
-    const allPages =
-      getStoredPages();
+    const slug =
+      getPageSlug(
+        page
+      );
 
     const pageToDelete =
-      allPages.find(
-        (item: any) =>
-          item.slug === page.slug
+      wikiRepository.findBySlug(
+        slug
       );
 
     if (!pageToDelete) {
@@ -295,34 +405,31 @@ export default function WikiDetailPage() {
       pageToDelete
     );
 
-    const updatedPages =
-      allPages.filter(
-        (item: any) =>
-          item.slug !== pageToDelete.slug
-      );
-
-    savePages(
-      updatedPages
+    wikiRepository.delete(
+      slug
     );
 
     removeFavorite(
-      pageToDelete.slug
+      slug
     );
 
     removeRecentPage(
-      pageToDelete.slug
+      slug
     );
 
-    saveActivity({
+    activityRepository.create({
       type:
         "deleted",
 
       title:
-        pageToDelete.title,
+        getPageTitle(
+          pageToDelete
+        ),
 
       company:
-        pageToDelete.company ||
-        "Intern",
+        getPageCompany(
+          pageToDelete
+        ),
 
       user:
         getUser()?.name ||
@@ -345,21 +452,19 @@ export default function WikiDetailPage() {
 
   if (!page) {
     return (
-      <div className="w-full max-w-[1800px] space-y-8">
-        <div className="flex items-center gap-3 text-sm">
+      <div className="space-y-8">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
           <Link
             href="/wiki"
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            className="hover:text-zinc-900 transition"
           >
-            wiki
+            Wiki
           </Link>
 
-          <span className="text-zinc-400">
-            /
-          </span>
+          <span>/</span>
 
-          <span className="text-zinc-900">
-            nicht gefunden
+          <span>
+            Nicht gefunden
           </span>
         </div>
 
@@ -370,7 +475,7 @@ export default function WikiDetailPage() {
 
           <p className="text-zinc-500 mt-3">
             Die Wiki-Seite mit dem Slug{" "}
-            <span className="font-semibold text-zinc-900">
+            <span className="font-mono text-zinc-700">
               {decodedSlug}
             </span>{" "}
             existiert nicht mehr oder wurde gelöscht.
@@ -396,236 +501,307 @@ export default function WikiDetailPage() {
     );
   }
 
+  const slug =
+    getPageSlug(
+      page
+    );
+
+  const title =
+    getPageTitle(
+      page
+    );
+
+  const description =
+    getPageDescription(
+      page
+    );
+
+  const content =
+    getPageContent(
+      page
+    );
+
   const company =
-    page.company ||
-    "Intern";
+    getPageCompany(
+      page
+    );
 
   const department =
-    page.category ||
-    "Allgemein";
+    getPageDepartment(
+      page
+    );
+
+  const author =
+    getPageAuthor(
+      page
+    );
+
+  const updatedAt =
+    getPageUpdatedAt(
+      page
+    );
+
+  const tags =
+    getPageTags(
+      page
+    );
 
   const isFavorite =
     favorites.includes(
-      page.slug
+      slug
     );
 
   return (
-    <div className="w-full max-w-[1800px] space-y-6">
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
         <Link
           href={wikiCompanyHref(
             company
           )}
-          className="app-accent-text hover:underline"
+          className="hover:text-zinc-900 transition"
         >
           {company}
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
         <Link
           href={wikiDepartmentHref(
             department
           )}
-          className="app-accent-text hover:underline"
+          className="hover:text-zinc-900 transition"
         >
           {department}
         </Link>
       </div>
 
-      <div>
+      <div className="flex items-center justify-between gap-4">
         <Link
           href="/wiki"
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
           ← Zurück zur Übersicht
         </Link>
+
+        <div className="flex flex-wrap gap-3">
+          {canEdit() && (
+            <Link
+              href={`/wiki/${encodeURIComponent(
+                slug
+              )}/edit`}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Bearbeiten
+            </Link>
+          )}
+
+          <Link
+            href={`/wiki/${encodeURIComponent(
+              slug
+            )}/history`}
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Historie
+          </Link>
+
+          <button
+            type="button"
+            onClick={toggleFavorite}
+            className={`px-5 py-3 rounded-2xl transition ${
+              isFavorite
+                ? "bg-yellow-500 text-white hover:bg-yellow-400"
+                : "bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
+            }`}
+          >
+            {isFavorite
+              ? "Favorisiert"
+              : "Favorit"}
+          </button>
+
+          {canDelete() && (
+            <button
+              type="button"
+              onClick={handleDeleteDocument}
+              className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
+            >
+              Löschen
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
-        <div className="min-w-0 space-y-6">
-          <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
-              <div className="min-w-0">
-                <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-6">
+        <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm min-w-0">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={wikiCompanyHref(
+                company
+              )}
+              className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+            >
+              {company}
+            </Link>
+
+            <Link
+              href={wikiDepartmentHref(
+                department
+              )}
+              className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+            >
+              {department}
+            </Link>
+
+            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+              Dokument
+            </span>
+
+            {isFavorite && (
+              <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
+                Favorit
+              </span>
+            )}
+          </div>
+
+          <h1 className="text-5xl font-black tracking-tight mt-6">
+            {title}
+          </h1>
+
+          {description && (
+            <p className="text-xl text-zinc-500 mt-4 leading-relaxed">
+              {description}
+            </p>
+          )}
+
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-6">
+              {tags.map(
+                (tag) => (
                   <Link
-                    href={wikiCompanyHref(
-                      company
+                    key={tag}
+                    href={wikiTagHref(
+                      tag
                     )}
-                    className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
                   >
-                    {company}
+                    #{tag}
                   </Link>
-
-                  <Link
-                    href={wikiDepartmentHref(
-                      department
-                    )}
-                    className="bg-indigo-50 text-indigo-700 text-xs px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                  >
-                    {department}
-                  </Link>
-                </div>
-
-                <h1 className="text-5xl font-black tracking-tight mt-5">
-                  {page.title}
-                </h1>
-
-                {page.description && (
-                  <p className="text-xl text-zinc-500 mt-4">
-                    {page.description}
-                  </p>
-                )}
-
-                {page.tags &&
-                  page.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-5">
-                      {page.tags.map(
-                        (tag: string) => (
-                          <Link
-                            key={tag}
-                            href={wikiTagHref(
-                              tag
-                            )}
-                            className="bg-zinc-100 text-zinc-700 text-sm px-3 py-1 rounded-full hover:bg-zinc-200 transition"
-                          >
-                            #{tag}
-                          </Link>
-                        )
-                      )}
-                    </div>
-                  )}
-              </div>
-
-              <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
-                {canEdit() && (
-                  <Link
-                    href={`/wiki/edit/${encodeURIComponent(
-                      page.slug
-                    )}`}
-                    className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-                  >
-                    Bearbeiten
-                  </Link>
-                )}
-
-                <Link
-                  href={`/wiki/history/${encodeURIComponent(
-                    page.slug
-                  )}`}
-                  className="bg-blue-600 text-white px-5 py-3 rounded-2xl hover:bg-blue-500 transition"
-                >
-                  Historie
-                </Link>
-
-                {canDelete() && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteDocument}
-                    className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
-                  >
-                    Löschen
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={toggleFavorite}
-                  className={`px-5 py-3 rounded-2xl transition ${
-                    isFavorite
-                      ? "bg-amber-500 text-white hover:bg-amber-400"
-                      : "bg-white border border-zinc-200 text-zinc-900 hover:bg-zinc-100"
-                  }`}
-                >
-                  {isFavorite
-                    ? "Favorisiert"
-                    : "Favorit"}
-                </button>
-              </div>
+                )
+              )}
             </div>
+          )}
 
-            <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-500 mt-8 border-b border-zinc-200 pb-6">
-              <p>
-                Firma:{" "}
-                <Link
-                  href={wikiCompanyHref(
-                    company
-                  )}
-                  className="app-accent-text hover:underline"
-                >
-                  {company}
-                </Link>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8 pt-6 border-t border-zinc-200">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Firma
               </p>
 
-              <p>
-                Abteilung:{" "}
-                <Link
-                  href={wikiDepartmentHref(
-                    department
-                  )}
-                  className="app-accent-text hover:underline"
-                >
-                  {department}
-                </Link>
-              </p>
-
-              <p>
-                Autor:{" "}
-                {page.author ||
-                  "Unbekannt"}
-              </p>
-
-              <p>
-                Zuletzt aktualisiert:{" "}
-                {page.updatedAt ||
-                  "Unbekannt"}
-              </p>
-
-              <p>
-                Version: 1.0
+              <p className="font-semibold mt-1">
+                {company}
               </p>
             </div>
 
-            <div className="mt-8 max-w-none text-zinc-900 leading-relaxed">
-              <ReactMarkdown>
-                {page.content ||
-                  ""}
-              </ReactMarkdown>
+            <div>
+              <p className="text-sm text-zinc-500">
+                Abteilung
+              </p>
+
+              <p className="font-semibold mt-1">
+                {department}
+              </p>
             </div>
 
-            <div className="mt-10">
-              <FileList
-                slug={page.slug}
-                editable={canEdit()}
+            <div>
+              <p className="text-sm text-zinc-500">
+                Autor
+              </p>
+
+              <p className="font-semibold mt-1">
+                {author}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm text-zinc-500">
+                Aktualisiert
+              </p>
+
+              <p className="font-semibold mt-1">
+                {updatedAt}
+              </p>
+            </div>
+          </div>
+
+          <div className="wiki-content prose prose-zinc max-w-none mt-10">
+            <ReactMarkdown>
+              {content}
+            </ReactMarkdown>
+          </div>
+        </article>
+
+        <aside className="space-y-6">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Inhaltsverzeichnis
+            </h2>
+
+            <div className="mt-4">
+              <TableOfContents
+                content={content}
               />
             </div>
-          </article>
+          </div>
 
-          <Comments
-            slug={page.slug}
-          />
-        </div>
-
-        <aside className="hidden 2xl:block sticky top-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <TableOfContents
-              content={page.content || ""}
-            />
+            <h2 className="text-xl font-semibold">
+              Dokumentinfo
+            </h2>
+
+            <div className="space-y-4 mt-4 text-sm">
+              <div>
+                <p className="text-zinc-500">
+                  Slug
+                </p>
+
+                <p className="font-mono text-zinc-700 break-all mt-1">
+                  {slug}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-zinc-500">
+                  Version
+                </p>
+
+                <p className="font-semibold mt-1">
+                  1.0
+                </p>
+              </div>
+            </div>
           </div>
         </aside>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <FileList
+          slug={slug}
+          editable={canEdit()}
+        />
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <Comments
+          slug={slug}
+        />
       </div>
     </div>
   );

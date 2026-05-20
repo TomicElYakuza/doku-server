@@ -8,24 +8,32 @@ import {
 } from "react";
 
 import {
-  getTickets,
-  getTicketPriorityClass,
-  getTicketPriorityLabel,
-  getTicketStatusClass,
-  getTicketStatusLabel,
-} from "../../lib/ticketStorage";
+  ticketRepository,
+} from "../../lib/ticketRepository";
 
 import type {
   Ticket,
 } from "../../lib/ticketStorage";
 
 import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  wikiRepository,
+} from "../../lib/wikiRepository";
 
 import {
-  getActivities,
-} from "../../lib/activityStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
+
+import {
+  companyRepository,
+} from "../../lib/companyRepository";
+
+import {
+  newsRepository,
+} from "../../lib/newsRepository";
+
+import type {
+  NewsPost,
+} from "../../lib/newsStorage";
 
 import {
   getCurrentUser,
@@ -33,31 +41,16 @@ import {
 } from "../../lib/permissions";
 
 import {
-  getAppSettings,
-} from "../../lib/appSettingsStorage";
+  appSettingsRepository,
+} from "../../lib/appSettingsRepository";
 
 import type {
   AppSettings,
 } from "../../lib/appSettingsStorage";
 
 import {
-  getCompanies,
-  getDepartments,
-} from "../../lib/companyStorage";
-
-import {
   getOrganizationLabels,
 } from "../../lib/organizationHelpers";
-
-import {
-  getLatestNewsPosts,
-  getNewsPosts,
-  getOpenedNewsPostIds,
-} from "../../lib/newsStorage";
-
-import type {
-  NewsPost,
-} from "../../lib/newsStorage";
 
 type DashboardCard = {
   label: string;
@@ -213,17 +206,17 @@ export default function DashboardPage() {
 
   function loadDashboard() {
     const news =
-      getNewsPosts();
+      newsRepository.list();
 
     const openedNewsIds =
-      getOpenedNewsPostIds();
+      newsRepository.getOpenedIds();
 
     setTickets(
-      getTickets()
+      ticketRepository.list()
     );
 
     setLatestNews(
-      getLatestNewsPosts(
+      newsRepository.listLatest(
         5
       )
     );
@@ -242,23 +235,23 @@ export default function DashboardPage() {
     );
 
     setWikiCount(
-      getStoredPages().length
+      wikiRepository.countAll()
     );
 
     setActivityCount(
-      getActivities().length
+      activityRepository.countAll()
     );
 
     setCompanyCount(
-      getCompanies().length
+      companyRepository.countCompanies()
     );
 
     setDepartmentCount(
-      getDepartments().length
+      companyRepository.countDepartments()
     );
 
     setSettings(
-      getAppSettings()
+      appSettingsRepository.get()
     );
   }
 
@@ -270,21 +263,18 @@ export default function DashboardPage() {
     getCurrentUser();
 
   const openTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "open"
+    ticketRepository.listByStatus(
+      "open"
     );
 
   const inProgressTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "in_progress"
+    ticketRepository.listByStatus(
+      "in_progress"
     );
 
   const waitingTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "waiting"
+    ticketRepository.listByStatus(
+      "waiting"
     );
 
   const doneTickets =
@@ -295,11 +285,7 @@ export default function DashboardPage() {
     );
 
   const urgentTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.priority === "urgent" ||
-        ticket.priority === "high"
-    );
+    ticketRepository.listHighOrUrgent();
 
   const latestTickets =
     [
@@ -563,7 +549,7 @@ export default function DashboardPage() {
           Übersicht
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {cards.map(
             (card) => (
               <Link
@@ -637,14 +623,14 @@ export default function DashboardPage() {
                     className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
                   >
                     <div className="flex flex-wrap gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
-                        {getTicketStatusLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${ticketRepository.getStatusClass(ticket.status)}`}>
+                        {ticketRepository.getStatusLabel(
                           ticket.status
                         )}
                       </span>
 
-                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
-                        {getTicketPriorityLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${ticketRepository.getPriorityClass(ticket.priority)}`}>
+                        {ticketRepository.getPriorityLabel(
                           ticket.priority
                         )}
                       </span>

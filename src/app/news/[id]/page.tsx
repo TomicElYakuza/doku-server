@@ -9,11 +9,8 @@ import {
 } from "react";
 
 import {
-  deleteNewsPost,
-  getNewsPostById,
-  markNewsPostOpened,
-  updateNewsPost,
-} from "../../../lib/newsStorage";
+  newsRepository,
+} from "../../../lib/newsRepository";
 
 import type {
   NewsCategory,
@@ -96,18 +93,18 @@ export default function NewsDetailPage({
 
   function loadPost() {
     const foundPost =
-      getNewsPostById(
-        id
-      );
+        newsRepository.findById(
+    id
+  );
 
     setPost(
       foundPost
     );
 
     if (foundPost) {
-      markNewsPostOpened(
+      newsRepository.markOpened(
         foundPost.id
-      );
+    );
 
       setTitle(
         foundPost.title
@@ -171,9 +168,9 @@ export default function NewsDetailPage({
     }
 
     const updatedPost =
-      updateNewsPost(
-        post.id,
-        {
+    newsRepository.update(
+    post.id,
+    {
           title:
             title.trim(),
 
@@ -222,8 +219,8 @@ export default function NewsDetailPage({
       return;
     }
 
-    deleteNewsPost(
-      post.id
+    newsRepository.delete(
+    post.id
     );
 
     window.location.href =

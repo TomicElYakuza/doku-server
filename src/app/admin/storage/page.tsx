@@ -3,151 +3,128 @@
 import Link from "next/link";
 
 import {
-  ChangeEvent,
   useEffect,
-  useRef,
   useState,
 } from "react";
 
 import {
-  canManageSystem,
+  canDelete,
   canViewAdmin,
 } from "../../../lib/permissions";
 
 import {
-  clearAllDmsStorage,
-  clearStorageKey,
-  downloadStorageExport,
-  formatStorageSize,
-  getStorageInfo,
-  getTotalStorageItemCount,
-  getTotalStorageSize,
-  importStorageFromFile,
-} from "../../../lib/storageManager";
+  fileRepository,
+} from "../../../lib/fileRepository";
 
 import type {
-  StorageInfo,
-} from "../../../lib/storageManager";
-
-import {
-  saveStorageAllClearedActivity,
-  saveStorageExportedActivity,
-  saveStorageImportedActivity,
-  saveStorageKeyClearedActivity,
-} from "../../../lib/storageActivityHelpers";
-
-import {
-  confirmClearAllStorage,
-  confirmDeleteStorageKey,
-  confirmImportStorage,
-} from "../../../lib/confirmHelpers";
-
-import {
-  notifyError,
-  notifySuccess,
-  notifyWarning,
-} from "../../../lib/notificationHelpers";
+  StoredFile,
+} from "../../../lib/fileRepository";
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
-type ViewMode =
-  | "cards"
-  | "table";
+type FileSearchResult = {
+  key: string;
+  index: number;
+  file: StoredFile;
+};
+
+function formatFileSize(
+  size: number
+) {
+  if (!size) {
+    return "0 KB";
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.round(
+      size / 1024
+    )} KB`;
+  }
+
+  return `${(
+    size /
+    1024 /
+    1024
+  ).toFixed(1)} MB`;
+}
+
+function getFileIcon(
+  type: string
+) {
+  if (type?.startsWith("image/")) {
+    return "🖼️";
+  }
+
+  if (type?.includes("pdf")) {
+    return "📕";
+  }
+
+  if (
+    type?.includes("word") ||
+    type?.includes("document")
+  ) {
+    return "📄";
+  }
+
+  if (
+    type?.includes("excel") ||
+    type?.includes("spreadsheet")
+  ) {
+    return "📊";
+  }
+
+  if (
+    type?.includes("zip") ||
+    type?.includes("compressed")
+  ) {
+    return "🗜️";
+  }
+
+  return "📎";
+}
 
 function getAreaLabel(
-  area: string
+  key: string
 ) {
-  if (area === "wiki") {
+  if (key.startsWith("ticket-")) {
+    return "Ticket";
+  }
+
+  if (key.startsWith("wiki-")) {
     return "Wiki";
   }
 
-  if (area === "tickets") {
-    return "Tickets";
+  if (key.startsWith("news-")) {
+    return "News";
   }
 
-  if (area === "ticketComments") {
-    return "Ticket-Kommentare";
-  }
-
-  if (area === "ticketTemplates") {
-    return "Ticket-Vorlagen";
-  }
-
-  if (area === "activities") {
-    return "Aktivitäten";
-  }
-
-  if (area === "users") {
-    return "Benutzer";
-  }
-
-  if (area === "companies") {
-    return "Firmen";
-  }
-
-  if (area === "departments") {
-    return "Abteilungen";
-  }
-
-  if (area === "settings") {
-    return "Einstellungen";
-  }
-
-  if (area === "currentUser") {
-    return "Aktueller Benutzer";
-  }
-
-  if (area === "notifications") {
-    return "Benachrichtigungen";
-  }
-
-  return "Sonstiges";
+  return "Allgemein";
 }
 
 function getAreaClass(
-  area: string
+  key: string
 ) {
-  if (
-    area === "wiki" ||
-    area === "tickets" ||
-    area === "ticketComments" ||
-    area === "ticketTemplates"
-  ) {
+  if (key.startsWith("ticket-")) {
     return "bg-blue-50 text-blue-700";
   }
 
-  if (
-    area === "users" ||
-    area === "companies" ||
-    area === "departments"
-  ) {
-    return "bg-emerald-50 text-emerald-700";
-  }
-
-  if (area === "activities") {
+  if (key.startsWith("wiki-")) {
     return "bg-indigo-50 text-indigo-700";
   }
 
-  if (
-    area === "settings" ||
-    area === "currentUser" ||
-    area === "notifications"
-  ) {
-    return "bg-zinc-100 text-zinc-700";
+  if (key.startsWith("news-")) {
+    return "bg-amber-50 text-amber-700";
   }
 
   return "bg-zinc-100 text-zinc-700";
 }
 
 export default function AdminStoragePage() {
-  const fileInputRef =
-    useRef<HTMLInputElement | null>(null);
-
   const [mounted, setMounted] =
     useState(false);
 
-  const [items, setItems] =
-    useState<StorageInfo[]>([]);
+  const [results, setResults] =
+    useState<FileSearchResult[]>([]);
 
   const [search, setSearch] =
     useState("");
@@ -155,211 +132,119 @@ export default function AdminStoragePage() {
   const [areaFilter, setAreaFilter] =
     useState("");
 
-  const [viewMode, setViewMode] =
-    useState<ViewMode>("cards");
+  const [selectedKey, setSelectedKey] =
+    useState("");
 
   useEffect(() => {
     setMounted(true);
 
-    loadData();
+    loadFiles();
 
-    function handleStorageUpdated() {
-      loadData();
+    function handleFilesUpdated() {
+      loadFiles();
     }
 
     window.addEventListener(
-      "storageManagerUpdated",
-      handleStorageUpdated
-    );
-
-    window.addEventListener(
-      "storage",
-      handleStorageUpdated
+      "filesUpdated",
+      handleFilesUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "storageManagerUpdated",
-        handleStorageUpdated
-      );
-
-      window.removeEventListener(
-        "storage",
-        handleStorageUpdated
+        "filesUpdated",
+        handleFilesUpdated
       );
     };
   }, []);
 
-  function loadData() {
-    setItems(
-      getStorageInfo()
+  function loadFiles() {
+    setResults(
+      fileRepository.search("")
     );
   }
 
   function resetFilters() {
     setSearch("");
-
     setAreaFilter("");
+    setSelectedKey("");
   }
 
-  function handleExport() {
-    try {
-      downloadStorageExport();
-
-      saveStorageExportedActivity();
-
-      notifySuccess(
-        "Export gestartet",
-        "Die lokalen DMS-Daten wurden als JSON-Datei vorbereitet."
-      );
-    } catch {
-      notifyError(
-        "Export fehlgeschlagen",
-        "Die lokalen DMS-Daten konnten nicht exportiert werden."
-      );
-    }
-  }
-
-  function handleImportClick() {
-    fileInputRef.current?.click();
-  }
-
-  async function handleImportFile(
-    event: ChangeEvent<HTMLInputElement>
+  function handleDeleteFile(
+    result: FileSearchResult
   ) {
-    const file =
-      event.target.files?.[0];
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, Dateien zu löschen."
+      );
 
-    if (!file) {
       return;
     }
 
     const confirmed =
-      confirmImportStorage();
-
-    if (!confirmed) {
-      event.target.value =
-        "";
-
-      notifyWarning(
-        "Import abgebrochen",
-        "Es wurden keine lokalen Daten verändert."
+      confirm(
+        `Datei "${result.file.name}" wirklich löschen?`
       );
 
+    if (!confirmed) {
       return;
     }
 
-    try {
-      await importStorageFromFile(
-        file
-      );
+    fileRepository.deleteFromKey(
+      result.key,
+      result.index
+    );
 
-      saveStorageImportedActivity();
-
-      loadData();
-
-      notifySuccess(
-        "Import erfolgreich",
-        "Die lokalen DMS-Daten wurden importiert."
-      );
-    } catch {
-      notifyError(
-        "Import fehlgeschlagen",
-        "Bitte prüfe, ob die Datei ein gültiger DMS-Export ist."
-      );
-    } finally {
-      event.target.value =
-        "";
-    }
+    loadFiles();
   }
 
-  function handleClearKey(
-    item: StorageInfo
+  function handleDeleteKey(
+    key: string
   ) {
-    if (!canManageSystem()) {
-      notifyError(
-        "Keine Berechtigung",
-        "Du hast keine Berechtigung, Speicherbereiche zu löschen."
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, diesen Speicherbereich zu löschen."
       );
 
       return;
     }
 
     const confirmed =
-      confirmDeleteStorageKey(
-        item.label
+      confirm(
+        `Alle Dateien im Bereich "${key}" wirklich löschen?`
       );
 
     if (!confirmed) {
-      notifyWarning(
-        "Löschen abgebrochen",
-        `"${item.label}" wurde nicht gelöscht.`
-      );
-
       return;
     }
 
-    saveStorageKeyClearedActivity({
-      key:
-        item.key,
-
-      label:
-        item.label,
-
-      area:
-        item.area,
-
-      itemCount:
-        item.itemCount,
-
-      size:
-        item.size,
-    });
-
-    clearStorageKey(
-      item.key
+    fileRepository.deleteKey(
+      key
     );
 
-    loadData();
-
-    notifySuccess(
-      "Speicherbereich gelöscht",
-      `"${item.label}" wurde aus dem lokalen Speicher entfernt.`
-    );
+    loadFiles();
   }
 
-  function handleClearAll() {
-    if (!canManageSystem()) {
-      notifyError(
-        "Keine Berechtigung",
-        "Du hast keine Berechtigung, den lokalen Speicher zu löschen."
+  function handleClearFiles() {
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, den Speicher zu leeren."
       );
 
       return;
     }
 
     const confirmed =
-      confirmClearAllStorage();
-
-    if (!confirmed) {
-      notifyWarning(
-        "Löschen abgebrochen",
-        "Der lokale DMS-Speicher wurde nicht verändert."
+      confirm(
+        "Wirklich alle gespeicherten Dateien und Anhänge löschen?"
       );
 
+    if (!confirmed) {
       return;
     }
 
-    saveStorageAllClearedActivity();
+    fileRepository.clear();
 
-    clearAllDmsStorage();
-
-    loadData();
-
-    notifySuccess(
-      "Lokaler Speicher gelöscht",
-      "Alle lokalen DMS-Daten wurden entfernt."
-    );
+    loadFiles();
   }
 
   if (!mounted) {
@@ -368,100 +253,131 @@ export default function AdminStoragePage() {
 
   if (!canViewAdmin()) {
     return (
-      <AccessDeniedCard
-        backHref="/admin"
-        backLabel="Zurück zum Admin-Dashboard"
-        description="Du hast mit deiner aktuellen Rolle keine Berechtigung für die Speicherverwaltung."
-      />
+      <AccessDeniedCard />
     );
   }
 
-  const totalSize =
-    getTotalStorageSize();
+  const keys =
+    fileRepository.listKeys();
 
-  const totalItems =
-    getTotalStorageItemCount();
+  const fileCount =
+    fileRepository.countFiles();
 
-  const existingItems =
-    items.filter(
-      (item) =>
-        item.exists
+  const ticketFileCount =
+    results.filter(
+      (result) =>
+        result.key.startsWith(
+          "ticket-"
+        )
     ).length;
 
-  const emptyItems =
-    items.length -
-    existingItems;
-
-  const areas =
-    Array.from(
-      new Set(
-        items.map(
-          (item) =>
-            item.area
+  const wikiFileCount =
+    results.filter(
+      (result) =>
+        result.key.startsWith(
+          "wiki-"
         )
-      )
-    ).sort();
+    ).length;
 
-  const filteredItems =
-    items.filter(
-      (item) => {
-        const query =
-          search.toLowerCase();
+  const newsFileCount =
+    results.filter(
+      (result) =>
+        result.key.startsWith(
+          "news-"
+        )
+    ).length;
+
+  const filteredResults =
+    results.filter(
+      (result) => {
+        const normalizedSearch =
+          search
+            .trim()
+            .toLowerCase();
 
         const matchesSearch =
-          item.label
+          !normalizedSearch ||
+          result.key
             .toLowerCase()
-            .includes(query) ||
-          item.key
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.name
             .toLowerCase()
-            .includes(query) ||
-          getAreaLabel(
-            item.area
-          )
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.type
             .toLowerCase()
-            .includes(query);
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.uploadedBy
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.uploadedAt
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            );
 
         const matchesArea =
           !areaFilter ||
-          item.area === areaFilter;
+          (
+            areaFilter === "ticket" &&
+            result.key.startsWith(
+              "ticket-"
+            )
+          ) ||
+          (
+            areaFilter === "wiki" &&
+            result.key.startsWith(
+              "wiki-"
+            )
+          ) ||
+          (
+            areaFilter === "news" &&
+            result.key.startsWith(
+              "news-"
+            )
+          ) ||
+          (
+            areaFilter === "general" &&
+            !result.key.startsWith(
+              "ticket-"
+            ) &&
+            !result.key.startsWith(
+              "wiki-"
+            ) &&
+            !result.key.startsWith(
+              "news-"
+            )
+          );
+
+        const matchesKey =
+          !selectedKey ||
+          result.key === selectedKey;
 
         return (
           matchesSearch &&
-          matchesArea
+          matchesArea &&
+          matchesKey
         );
       }
     );
 
+  const totalSize =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        result.file.size,
+      0
+    );
+
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <Link
-          href="/admin"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          admin
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          speicher
-        </span>
-      </div>
-
       <div>
         <Link
           href="/admin"
@@ -474,65 +390,106 @@ export default function AdminStoragePage() {
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
-            Speicherverwaltung
+            Speicher & Dateien
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Lokale Browser-Daten anzeigen, exportieren, importieren und löschen
+            Anhänge und Uploads aus News, Wiki, Tickets und anderen Bereichen verwalten
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-end">
+        {canDelete() && (
           <button
-            onClick={handleExport}
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            type="button"
+            onClick={handleClearFiles}
+            className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
           >
-            Exportieren
+            Speicher leeren
           </button>
-
-          {canManageSystem() && (
-            <>
-              <button
-                onClick={handleImportClick}
-                className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                Importieren
-              </button>
-
-              <button
-                onClick={handleClearAll}
-                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
-              >
-                Alles löschen
-              </button>
-            </>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            onChange={handleImportFile}
-            className="hidden"
-          />
-        </div>
+        )}
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl p-6 shadow-sm">
-        <h2 className="font-semibold">
-          Hinweis zu lokalen Daten
-        </h2>
-
-        <p className="text-sm mt-2 leading-relaxed">
-          Diese App verwendet aktuell localStorage im Browser. Die Daten sind nur in diesem Browser vorhanden.
-          Später kann dieser Bereich als Vorlage für Datenbank-Migration, Backups und Admin-Wartung dienen.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
+          type="button"
           onClick={() =>
             setAreaFilter("")
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Dateien gesamt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {fileCount}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            {formatFileSize(
+              totalSize
+            )}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "ticket"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Ticket-Dateien
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {ticketFileCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "wiki"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Wiki-Dateien
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {wikiFileCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "news"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-amber-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            News-Dateien
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {newsFileCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setSelectedKey("")
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
@@ -541,50 +498,9 @@ export default function AdminStoragePage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {items.length}
+            {keys.length}
           </h2>
         </button>
-
-        <button
-          onClick={() =>
-            setSearch("")
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Vorhanden
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {existingItems}
-          </h2>
-        </button>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Einträge
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {totalItems}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Größe
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {formatStorageSize(
-              totalSize
-            )}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-2">
-            Leer: {emptyItems}
-          </p>
-        </div>
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -595,53 +511,28 @@ export default function AdminStoragePage() {
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Filtere lokale Speicherbereiche nach Name, Key oder Bereich.
+              Filtere Dateien nach Name, Bereich, Typ, Speicher-Key oder Benutzer.
             </p>
           </div>
 
-          <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
-            <button
-              onClick={() =>
-                setViewMode(
-                  "cards"
-                )
-              }
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "cards"
-                  ? "bg-white shadow-sm"
-                  : "hover:bg-zinc-200"
-              }`}
-            >
-              Karten
-            </button>
-
-            <button
-              onClick={() =>
-                setViewMode(
-                  "table"
-                )
-              }
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "table"
-                  ? "bg-white shadow-sm"
-                  : "hover:bg-zinc-200"
-              }`}
-            >
-              Tabelle
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Filter zurücksetzen
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
           <input
-            type="text"
             value={search}
             onChange={(event) =>
               setSearch(
                 event.target.value
               )
             }
-            placeholder="Nach Label, Key oder Bereich suchen..."
+            placeholder="Dateien durchsuchen..."
             className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
@@ -658,256 +549,255 @@ export default function AdminStoragePage() {
               Alle Bereiche
             </option>
 
-            {areas.map(
-              (area) => (
+            <option value="ticket">
+              Tickets
+            </option>
+
+            <option value="wiki">
+              Wiki
+            </option>
+
+            <option value="news">
+              News
+            </option>
+
+            <option value="general">
+              Allgemein
+            </option>
+          </select>
+
+          <select
+            value={selectedKey}
+            onChange={(event) =>
+              setSelectedKey(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Speicherbereiche
+            </option>
+
+            {keys.map(
+              (key) => (
                 <option
-                  key={area}
-                  value={area}
+                  key={key}
+                  value={key}
                 >
-                  {getAreaLabel(
-                    area
-                  )}
+                  {key}
                 </option>
               )
             )}
           </select>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 mt-5">
-          <p className="text-sm text-zinc-500">
-            {filteredItems.length} von{" "}
-            {items.length} Speicherbereichen gefunden
-          </p>
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredResults.length} von{" "}
+          {results.length} Dateien gefunden
+        </p>
+      </div>
 
-          <button
-            onClick={resetFilters}
-            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-          >
-            Filter zurücksetzen
-          </button>
+      <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-zinc-50 border-b border-zinc-200">
+              <tr>
+                <th className="px-5 py-4 font-semibold">
+                  Datei
+                </th>
+
+                <th className="px-5 py-4 font-semibold">
+                  Bereich
+                </th>
+
+                <th className="px-5 py-4 font-semibold">
+                  Speicher-Key
+                </th>
+
+                <th className="px-5 py-4 font-semibold">
+                  Typ
+                </th>
+
+                <th className="px-5 py-4 font-semibold">
+                  Größe
+                </th>
+
+                <th className="px-5 py-4 font-semibold">
+                  Hochgeladen
+                </th>
+
+                <th className="px-5 py-4 font-semibold text-right">
+                  Aktionen
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredResults.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-8 text-zinc-500"
+                  >
+                    Keine Dateien gefunden.
+                  </td>
+                </tr>
+              )}
+
+              {filteredResults.map(
+                (result) => (
+                  <tr
+                    key={`${result.key}-${result.index}-${result.file.name}`}
+                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
+                  >
+                    <td className="px-5 py-4 min-w-[260px]">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-zinc-100 flex items-center justify-center shrink-0">
+                          {getFileIcon(
+                            result.file.type
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">
+                            {result.file.name}
+                          </p>
+
+                          <p className="text-xs text-zinc-500 mt-1">
+                            Index #{result.index}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span className={`text-xs px-3 py-1 rounded-full ${getAreaClass(result.key)}`}>
+                        {getAreaLabel(
+                          result.key
+                        )}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 font-mono text-xs text-zinc-500 whitespace-nowrap">
+                      {result.key}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {result.file.type ||
+                        "Unbekannt"}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600 whitespace-nowrap">
+                      {formatFileSize(
+                        result.file.size
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
+                      <p>
+                        {result.file.uploadedAt ||
+                          "Unbekannt"}
+                      </p>
+
+                      <p className="text-xs text-zinc-400 mt-1">
+                        {result.file.uploadedBy ||
+                          "Unbekannt"}
+                      </p>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        {result.file.data && (
+                          <a
+                            href={result.file.data}
+                            download={
+                              result.file.name ||
+                              "datei"
+                            }
+                            className="bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
+                          >
+                            Download
+                          </a>
+                        )}
+
+                        {canDelete() && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteFile(
+                                result
+                              )
+                            }
+                            className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
+                          >
+                            Löschen
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {viewMode === "cards" && (
-        <div className="grid gap-4">
-          {filteredItems.length === 0 && (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-              <p className="text-zinc-500">
-                Keine Speicherbereiche gefunden.
-              </p>
-            </div>
-          )}
+      {keys.length > 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold">
+            Speicherbereiche
+          </h2>
 
-          {filteredItems.map(
-            (item) => (
-              <div
-                key={item.key}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-6">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getAreaClass(
-                          item.area
-                        )}`}
-                      >
+          <p className="text-zinc-500 mt-2">
+            Übersicht über alle Keys, unter denen Dateien aktuell lokal gespeichert sind.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-5">
+            {keys.map(
+              (key) => (
+                <div
+                  key={key}
+                  className="border border-zinc-200 rounded-2xl p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className={`text-xs px-3 py-1 rounded-full ${getAreaClass(key)}`}>
                         {getAreaLabel(
-                          item.area
+                          key
                         )}
                       </span>
 
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${
-                          item.exists
-                            ? "bg-green-50 text-green-700"
-                            : "bg-zinc-100 text-zinc-700"
-                        }`}
+                      <p className="font-mono text-sm text-zinc-700 mt-3 truncate">
+                        {key}
+                      </p>
+
+                      <p className="text-sm text-zinc-500 mt-2">
+                        {fileRepository.countFilesForKey(
+                          key
+                        )}{" "}
+                        Dateien
+                      </p>
+                    </div>
+
+                    {canDelete() && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeleteKey(
+                            key
+                          )
+                        }
+                        className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition shrink-0"
                       >
-                        {item.exists
-                          ? "Vorhanden"
-                          : "Leer"}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl font-bold mt-4">
-                      {item.label}
-                    </h2>
-
-                    <p className="text-zinc-500 mt-2 break-all">
-                      {item.key}
-                    </p>
-
-                    <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                      <p>
-                        Einträge:{" "}
-                        {item.itemCount}
-                      </p>
-
-                      <p>
-                        Größe:{" "}
-                        {formatStorageSize(
-                          item.size
-                        )}
-                      </p>
-
-                      <p>
-                        Status:{" "}
-                        {item.exists
-                          ? "Gespeichert"
-                          : "Nicht vorhanden"}
-                      </p>
-                    </div>
+                        Löschen
+                      </button>
+                    )}
                   </div>
-
-                  {canManageSystem() && (
-                    <button
-                      onClick={() =>
-                        handleClearKey(
-                          item
-                        )
-                      }
-                      disabled={!item.exists}
-                      className={`px-4 py-2 rounded-xl transition shrink-0 ${
-                        item.exists
-                          ? "bg-red-600 text-white hover:bg-red-500"
-                          : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-                      }`}
-                    >
-                      Löschen
-                    </button>
-                  )}
                 </div>
-              </div>
-            )
-          )}
-        </div>
-      )}
-
-      {viewMode === "table" && (
-        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Bereich
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Label
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Key
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Einträge
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Größe
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Status
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold text-right">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredItems.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-8 text-zinc-500"
-                    >
-                      Keine Speicherbereiche gefunden.
-                    </td>
-                  </tr>
-                )}
-
-                {filteredItems.map(
-                  (item) => (
-                    <tr
-                      key={item.key}
-                      className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
-                    >
-                      <td className="px-5 py-4">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full ${getAreaClass(
-                            item.area
-                          )}`}
-                        >
-                          {getAreaLabel(
-                            item.area
-                          )}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 font-semibold whitespace-nowrap">
-                        {item.label}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-500 break-all">
-                        {item.key}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600">
-                        {item.itemCount}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600 whitespace-nowrap">
-                        {formatStorageSize(
-                          item.size
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full ${
-                            item.exists
-                              ? "bg-green-50 text-green-700"
-                              : "bg-zinc-100 text-zinc-700"
-                          }`}
-                        >
-                          {item.exists
-                            ? "Vorhanden"
-                            : "Leer"}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end">
-                          {canManageSystem() && (
-                            <button
-                              onClick={() =>
-                                handleClearKey(
-                                  item
-                                )
-                              }
-                              disabled={!item.exists}
-                              className={`px-3 py-2 rounded-xl transition ${
-                                item.exists
-                                  ? "bg-red-600 text-white hover:bg-red-500"
-                                  : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-                              }`}
-                            >
-                              Löschen
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
+              )
+            )}
           </div>
         </div>
       )}

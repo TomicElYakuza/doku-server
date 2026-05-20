@@ -1,24 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Link from "next/link";
+
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   useSearchParams,
 } from "next/navigation";
 
 import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  wikiRepository,
+} from "../../lib/wikiRepository";
+
+import type {
+  WikiPage as StoredWikiPage,
+} from "../../lib/wikiRepository";
 
 import {
-  canCreate,
-} from "../../lib/permissions";
-
-import {
-  getUser,
-} from "../../lib/userStorage";
+  fileRepository,
+} from "../../lib/fileRepository";
 
 import {
   getVersions,
@@ -33,12 +36,206 @@ import {
 } from "../../lib/commentStorage";
 
 import {
-  getFiles,
-} from "../../lib/fileStorage";
+  canCreate,
+} from "../../lib/permissions";
+
+import {
+  getUser,
+} from "../../lib/userStorage";
+
+type ViewMode =
+  | "cards"
+  | "table";
+
+type WikiPageItem =
+  StoredWikiPage & {
+    slug: string;
+    title: string;
+    description?: string;
+    content?: string;
+    company?: string;
+    category?: string;
+    department?: string;
+    author?: string;
+    updatedAt?: string;
+    createdAt?: string;
+    tags?: string[];
+  };
+
+type CurrentUser = {
+  name?: string;
+  email?: string;
+  role?: string;
+} | null;
+
+type CommentMap = Record<
+  string,
+  unknown[]
+>;
+
+type VersionMap = Record<
+  string,
+  unknown[]
+>;
+
+function normalizeSlug(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getPageSlug(
+  page: WikiPageItem
+) {
+  return (
+    page.slug ||
+    normalizeSlug(
+      page.title ||
+        "unbenannt"
+    )
+  );
+}
+
+function getPageTitle(
+  page: WikiPageItem
+) {
+  return (
+    page.title ||
+    "Unbenanntes Dokument"
+  );
+}
+
+function getPageDescription(
+  page: WikiPageItem
+) {
+  return (
+    page.description ||
+    page.excerpt ||
+    ""
+  );
+}
+
+function getPageCompany(
+  page: WikiPageItem
+) {
+  return (
+    page.company ||
+    "Intern"
+  );
+}
+
+function getPageDepartment(
+  page: WikiPageItem
+) {
+  return (
+    page.department ||
+    page.category ||
+    "Allgemein"
+  );
+}
+
+function getPageAuthor(
+  page: WikiPageItem
+) {
+  return (
+    page.author ||
+    "Unbekannt"
+  );
+}
+
+function getPageUpdatedAt(
+  page: WikiPageItem
+) {
+  return (
+    page.updatedAt ||
+    page.createdAt ||
+    "Unbekannt"
+  );
+}
+
+function getPageTags(
+  page: WikiPageItem
+) {
+  if (
+    Array.isArray(
+      page.tags
+    )
+  ) {
+    return page.tags;
+  }
+
+  return [];
+}
+
+function parseDate(
+  value?: string
+) {
+  if (!value) {
+    return 0;
+  }
+
+  const parts =
+    value.split(
+      "."
+    );
+
+  if (parts.length >= 3) {
+    const day =
+      Number(
+        parts[0]
+      );
+
+    const month =
+      Number(
+        parts[1]
+      ) - 1;
+
+    const year =
+      Number(
+        parts[2]
+      );
+
+    return new Date(
+      year,
+      month,
+      day
+    ).getTime();
+  }
+
+  return new Date(
+    value
+  ).getTime();
+}
 
 export default function WikiPage() {
   const searchParams =
     useSearchParams();
+
+  const [mounted, setMounted] =
+    useState(false);
+
+  const [pages, setPages] =
+    useState<WikiPageItem[]>([]);
+
+  const [user, setUser] =
+    useState<CurrentUser>(null);
+
+  const [comments, setComments] =
+    useState<CommentMap>({});
+
+  const [versions, setVersions] =
+    useState<VersionMap>({});
+
+  const [favorites, setFavorites] =
+    useState<string[]>([]);
 
   const [search, setSearch] =
     useState("");
@@ -56,7 +253,7 @@ export default function WikiPage() {
     useState("updated-desc");
 
   const [viewMode, setViewMode] =
-    useState<"cards" | "table">("cards");
+    useState<ViewMode>("cards");
 
   const [onlyMine, setOnlyMine] =
     useState(false);
@@ -64,37 +261,18 @@ export default function WikiPage() {
   const [onlyFavorites, setOnlyFavorites] =
     useState(false);
 
-  const [pages, setPages] =
-    useState<any[]>([]);
-
-  const [user, setUser] =
-    useState<any>(null);
-
-  const [mounted, setMounted] =
-    useState(false);
-
-  const [comments, setComments] =
-    useState<any>({});
-
-  const [files, setFiles] =
-    useState<any>({});
-
-  const [versions, setVersions] =
-    useState<any>({});
-
-  const [favorites, setFavorites] =
-    useState<string[]>([]);
-
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadPages();
-
-    setUser(getUser());
-
     loadFavorites();
-
     loadMetaData();
+
+    setUser(
+      getUser()
+    );
 
     function handleWikiPagesUpdated() {
       loadPages();
@@ -117,7 +295,9 @@ export default function WikiPage() {
     }
 
     function handleUserUpdated() {
-      setUser(getUser());
+      setUser(
+        getUser()
+      );
     }
 
     window.addEventListener(
@@ -185,34 +365,66 @@ export default function WikiPage() {
 
   useEffect(() => {
     applyUrlFilters();
-  }, [searchParams]);
+  }, [
+    searchParams,
+  ]);
+
+  function loadPages() {
+    setPages(
+      wikiRepository.list() as WikiPageItem[]
+    );
+  }
+
+  function loadFavorites() {
+    setFavorites(
+      getFavorites()
+    );
+  }
+
+  function loadMetaData() {
+    setComments(
+      getComments() as CommentMap
+    );
+
+    setVersions(
+      getVersions() as VersionMap
+    );
+  }
 
   function applyUrlFilters() {
     const view =
-      searchParams.get("view") ||
-      "cards";
+      searchParams.get(
+        "view"
+      ) || "cards";
 
     setSearch(
-      searchParams.get("q") || ""
+      searchParams.get(
+        "q"
+      ) || ""
     );
 
     setCompanyFilter(
-      searchParams.get("company") ||
-        ""
+      searchParams.get(
+        "company"
+      ) || ""
     );
 
     setDepartmentFilter(
-      searchParams.get("department") ||
-        ""
+      searchParams.get(
+        "department"
+      ) || ""
     );
 
     setTagFilter(
-      searchParams.get("tag") || ""
+      searchParams.get(
+        "tag"
+      ) || ""
     );
 
     setSortBy(
-      searchParams.get("sort") ||
-        "updated-desc"
+      searchParams.get(
+        "sort"
+      ) || "updated-desc"
     );
 
     setViewMode(
@@ -222,13 +434,58 @@ export default function WikiPage() {
     );
 
     setOnlyMine(
-      searchParams.get("mine") ===
-        "true"
+      searchParams.get(
+        "mine"
+      ) === "true"
     );
 
     setOnlyFavorites(
-      searchParams.get("favorites") ===
-        "true"
+      searchParams.get(
+        "favorites"
+      ) === "true"
+    );
+  }
+
+  function applyUrlFiltersFromValues(
+    nextSearch: string,
+    nextCompany: string,
+    nextDepartment: string,
+    nextTag: string,
+    nextSort: string,
+    nextView: ViewMode,
+    nextMine: boolean,
+    nextFavorites: boolean
+  ) {
+    setSearch(
+      nextSearch
+    );
+
+    setCompanyFilter(
+      nextCompany
+    );
+
+    setDepartmentFilter(
+      nextDepartment
+    );
+
+    setTagFilter(
+      nextTag
+    );
+
+    setSortBy(
+      nextSort
+    );
+
+    setViewMode(
+      nextView
+    );
+
+    setOnlyMine(
+      nextMine
+    );
+
+    setOnlyFavorites(
+      nextFavorites
     );
   }
 
@@ -238,7 +495,7 @@ export default function WikiPage() {
     nextDepartment: string,
     nextTag: string,
     nextSort: string,
-    nextView: "cards" | "table",
+    nextView: ViewMode,
     nextMine: boolean,
     nextFavorites: boolean
   ) {
@@ -334,99 +591,30 @@ export default function WikiPage() {
     );
   }
 
-  function applyUrlFiltersFromValues(
-    nextSearch: string,
-    nextCompany: string,
-    nextDepartment: string,
-    nextTag: string,
-    nextSort: string,
-    nextView: "cards" | "table",
-    nextMine: boolean,
-    nextFavorites: boolean
-  ) {
-    setSearch(nextSearch);
-
-    setCompanyFilter(nextCompany);
-
-    setDepartmentFilter(
-      nextDepartment
-    );
-
-    setTagFilter(nextTag);
-
-    setSortBy(nextSort);
-
-    setViewMode(nextView);
-
-    setOnlyMine(nextMine);
-
-    setOnlyFavorites(
-      nextFavorites
-    );
-  }
-
-  function loadPages() {
-    setPages(getStoredPages());
-  }
-
-  function loadFavorites() {
-    setFavorites(getFavorites());
-  }
-
-  function loadMetaData() {
-    setComments(getComments());
-
-    setFiles(getFiles());
-
-    setVersions(getVersions());
-  }
-
-  function parseDate(value: string) {
-    if (!value) {
-      return 0;
-    }
-
-    const parts =
-      value.split(".");
-
-    if (parts.length >= 3) {
-      const day =
-        Number(parts[0]);
-
-      const month =
-        Number(parts[1]) - 1;
-
-      const year =
-        Number(parts[2]);
-
-      return new Date(
-        year,
-        month,
-        day
-      ).getTime();
-    }
-
-    return new Date(
-      value
-    ).getTime();
-  }
-
   function getCommentCount(
     slug: string
   ) {
-    return comments[slug]?.length || 0;
+    return (
+      comments[slug]?.length ||
+      0
+    );
   }
 
   function getFileCount(
     slug: string
   ) {
-    return files[slug]?.length || 0;
+    return fileRepository.countFilesForKey(
+      slug
+    );
   }
 
   function getVersionCount(
     slug: string
   ) {
-    return versions[slug]?.length || 0;
+    return (
+      versions[slug]?.length ||
+      0
+    );
   }
 
   function resetFilters() {
@@ -446,176 +634,289 @@ export default function WikiPage() {
     return null;
   }
 
-  const companies: string[] =
+  const companies =
     Array.from(
       new Set(
         pages
           .map(
-            (page: any) =>
-              page.company || "Intern"
+            (page) =>
+              getPageCompany(
+                page
+              )
           )
           .filter(Boolean)
       )
     );
 
-  const departments: string[] =
+  const departments =
     Array.from(
       new Set(
         pages
           .map(
-            (page: any) =>
-              page.category
+            (page) =>
+              getPageDepartment(
+                page
+              )
           )
           .filter(Boolean)
       )
     );
 
-  const tags: string[] =
+  const tags =
     Array.from(
       new Set(
         pages.flatMap(
-          (page: any) =>
-            page.tags || []
+          (page) =>
+            getPageTags(
+              page
+            )
         )
       )
     );
 
-  const versionCount = (
+  const versionCount =
     Object.values(
       versions
-    ) as any[]
-  ).reduce(
-    (
-      acc: number,
-      current: any
-    ) => {
-      if (Array.isArray(current)) {
-        return acc + current.length;
-      }
+    ).reduce(
+      (acc, current) => {
+        if (
+          Array.isArray(
+            current
+          )
+        ) {
+          return (
+            acc +
+            current.length
+          );
+        }
 
-      return acc;
-    },
-    0
-  );
+        return acc;
+      },
+      0
+    );
 
   const filteredPages =
-    pages.filter((page: any) => {
-      const query =
-        search.toLowerCase();
+    pages.filter(
+      (page) => {
+        const query =
+          search.toLowerCase();
 
-      const pageCompany =
-        page.company || "Intern";
+        const pageSlug =
+          getPageSlug(
+            page
+          );
 
-      const matchesSearch =
-        page.title
-          ?.toLowerCase()
-          .includes(query) ||
-        page.description
-          ?.toLowerCase()
-          .includes(query) ||
-        pageCompany
-          ?.toLowerCase()
-          .includes(query) ||
-        page.category
-          ?.toLowerCase()
-          .includes(query) ||
-        page.content
-          ?.toLowerCase()
-          .includes(query) ||
-        page.author
-          ?.toLowerCase()
-          .includes(query) ||
-        page.tags?.some(
-          (tag: string) =>
-            tag
-              .toLowerCase()
-              .includes(query)
+        const pageTitle =
+          getPageTitle(
+            page
+          );
+
+        const pageDescription =
+          getPageDescription(
+            page
+          );
+
+        const pageCompany =
+          getPageCompany(
+            page
+          );
+
+        const pageDepartment =
+          getPageDepartment(
+            page
+          );
+
+        const pageAuthor =
+          getPageAuthor(
+            page
+          );
+
+        const pageContent =
+          String(
+            page.content ||
+              ""
+          );
+
+        const pageTags =
+          getPageTags(
+            page
+          );
+
+        const matchesSearch =
+          !query ||
+          pageSlug
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageTitle
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageDescription
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageCompany
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageDepartment
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageContent
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageAuthor
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          pageTags.some(
+            (tag) =>
+              tag
+                .toLowerCase()
+                .includes(
+                  query
+                )
+          );
+
+        const matchesCompany =
+          !companyFilter ||
+          pageCompany === companyFilter;
+
+        const matchesDepartment =
+          !departmentFilter ||
+          pageDepartment === departmentFilter;
+
+        const matchesTag =
+          !tagFilter ||
+          pageTags.includes(
+            tagFilter
+          );
+
+        const matchesMine =
+          !onlyMine ||
+          pageAuthor === user?.name;
+
+        const matchesFavorite =
+          !onlyFavorites ||
+          favorites.includes(
+            pageSlug
+          );
+
+        return (
+          matchesSearch &&
+          matchesCompany &&
+          matchesDepartment &&
+          matchesTag &&
+          matchesMine &&
+          matchesFavorite
         );
-
-      const matchesCompany =
-        !companyFilter ||
-        pageCompany ===
-          companyFilter;
-
-      const matchesDepartment =
-        !departmentFilter ||
-        page.category ===
-          departmentFilter;
-
-      const matchesTag =
-        !tagFilter ||
-        page.tags?.includes(
-          tagFilter
-        );
-
-      const matchesMine =
-        !onlyMine ||
-        page.author === user?.name;
-
-      const matchesFavorite =
-        !onlyFavorites ||
-        favorites.includes(
-          page.slug
-        );
-
-      return (
-        matchesSearch &&
-        matchesCompany &&
-        matchesDepartment &&
-        matchesTag &&
-        matchesMine &&
-        matchesFavorite
-      );
-    });
-
-  const sortedPages = [
-    ...filteredPages,
-  ].sort((a: any, b: any) => {
-    if (sortBy === "title-asc") {
-      return a.title.localeCompare(
-        b.title
-      );
-    }
-
-    if (sortBy === "title-desc") {
-      return b.title.localeCompare(
-        a.title
-      );
-    }
-
-    if (sortBy === "company-asc") {
-      return (
-        a.company || "Intern"
-      ).localeCompare(
-        b.company || "Intern"
-      );
-    }
-
-    if (sortBy === "category-asc") {
-      return a.category.localeCompare(
-        b.category
-      );
-    }
-
-    if (sortBy === "updated-asc") {
-      return (
-        parseDate(a.updatedAt) -
-        parseDate(b.updatedAt)
-      );
-    }
-
-    return (
-      parseDate(b.updatedAt) -
-      parseDate(a.updatedAt)
+      }
     );
-  });
+
+  const sortedPages =
+    [
+      ...filteredPages,
+    ].sort(
+      (a, b) => {
+        const titleA =
+          getPageTitle(
+            a
+          );
+
+        const titleB =
+          getPageTitle(
+            b
+          );
+
+        const companyA =
+          getPageCompany(
+            a
+          );
+
+        const companyB =
+          getPageCompany(
+            b
+          );
+
+        const departmentA =
+          getPageDepartment(
+            a
+          );
+
+        const departmentB =
+          getPageDepartment(
+            b
+          );
+
+        if (sortBy === "title-asc") {
+          return titleA.localeCompare(
+            titleB
+          );
+        }
+
+        if (sortBy === "title-desc") {
+          return titleB.localeCompare(
+            titleA
+          );
+        }
+
+        if (sortBy === "company-asc") {
+          return companyA.localeCompare(
+            companyB
+          );
+        }
+
+        if (sortBy === "category-asc") {
+          return departmentA.localeCompare(
+            departmentB
+          );
+        }
+
+        if (sortBy === "updated-asc") {
+          return (
+            parseDate(
+              getPageUpdatedAt(
+                a
+              )
+            ) -
+            parseDate(
+              getPageUpdatedAt(
+                b
+              )
+            )
+          );
+        }
+
+        return (
+          parseDate(
+            getPageUpdatedAt(
+              b
+            )
+          ) -
+          parseDate(
+            getPageUpdatedAt(
+              a
+            )
+          )
+        );
+      }
+    );
 
   return (
-    <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex items-start justify-between gap-6">
+    <div className="space-y-8">
+      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-4xl font-bold">
             Wiki
           </h1>
 
@@ -625,43 +926,39 @@ export default function WikiPage() {
         </div>
 
         {canCreate() && (
-          <div>
-            <Link
-              href="/wiki/create"
-              className="inline-flex bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Neue Seite
-            </Link>
-          </div>
+          <Link
+            href="/wiki/new"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Neue Seite
+          </Link>
         )}
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
-          onClick={() => {
-            resetFilters();
-          }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition"
+          type="button"
+          onClick={() =>
+            resetFilters()
+          }
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition shadow-sm"
         >
           <p className="text-sm text-zinc-500">
             Dokumente
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {pages.length}
           </h2>
         </button>
 
         <button
+          type="button"
           onClick={() => {
             if (companies.length > 0) {
-              const firstCompany =
-                companies[0];
-
               updateUrlFilters(
                 search,
-                firstCompany,
+                companies[0],
                 departmentFilter,
                 tagFilter,
                 sortBy,
@@ -671,27 +968,25 @@ export default function WikiPage() {
               );
             }
           }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition shadow-sm"
         >
           <p className="text-sm text-zinc-500">
             Firmen
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {companies.length}
           </h2>
         </button>
 
         <button
+          type="button"
           onClick={() => {
             if (departments.length > 0) {
-              const firstDepartment =
-                departments[0];
-
               updateUrlFilters(
                 search,
                 companyFilter,
-                firstDepartment,
+                departments[0],
                 tagFilter,
                 sortBy,
                 viewMode,
@@ -700,28 +995,26 @@ export default function WikiPage() {
               );
             }
           }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition"
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-indigo-50 transition shadow-sm"
         >
           <p className="text-sm text-zinc-500">
             Abteilungen
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {departments.length}
           </h2>
         </button>
 
         <button
+          type="button"
           onClick={() => {
             if (tags.length > 0) {
-              const firstTag =
-                tags[0];
-
               updateUrlFilters(
                 search,
                 companyFilter,
                 departmentFilter,
-                firstTag,
+                tags[0],
                 sortBy,
                 viewMode,
                 onlyMine,
@@ -729,38 +1022,44 @@ export default function WikiPage() {
               );
             }
           }}
-          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition"
+          className="bg-white border border-zinc-200 rounded-2xl p-6 text-left hover:bg-zinc-50 transition shadow-sm"
         >
           <p className="text-sm text-zinc-500">
             Tags
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {tags.length}
           </h2>
         </button>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Versionen
           </p>
 
-          <h2 className="text-3xl font-bold mt-2">
+          <h2 className="text-4xl font-bold mt-3">
             {versionCount}
           </h2>
         </div>
       </div>
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold">
-            Suche & Filter
-          </h2>
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Suche & Filter
+            </h2>
 
-          <div className="flex bg-zinc-100 rounded-2xl p-1">
+            <p className="text-zinc-500 mt-1">
+              Suche nach Dokumenten, Firmen, Abteilungen, Tags und Inhalten.
+            </p>
+          </div>
+
+          <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
             <button
-              onClick={() => {
+              type="button"
+              onClick={() =>
                 updateUrlFilters(
                   search,
                   companyFilter,
@@ -770,8 +1069,8 @@ export default function WikiPage() {
                   "cards",
                   onlyMine,
                   onlyFavorites
-                );
-              }}
+                )
+              }
               className={`px-4 py-2 rounded-xl text-sm transition ${
                 viewMode === "cards"
                   ? "bg-white shadow-sm"
@@ -782,7 +1081,8 @@ export default function WikiPage() {
             </button>
 
             <button
-              onClick={() => {
+              type="button"
+              onClick={() =>
                 updateUrlFilters(
                   search,
                   companyFilter,
@@ -792,8 +1092,8 @@ export default function WikiPage() {
                   "table",
                   onlyMine,
                   onlyFavorites
-                );
-              }}
+                )
+              }
               className={`px-4 py-2 rounded-xl text-sm transition ${
                 viewMode === "table"
                   ? "bg-white shadow-sm"
@@ -805,13 +1105,10 @@ export default function WikiPage() {
           </div>
         </div>
 
-        {/* QUICK FILTERS */}
-        <div className="flex flex-wrap gap-3 mt-5">
+        <div className="flex flex-wrap gap-2 mt-5">
           <button
-            onClick={() => {
-              const nextValue =
-                !onlyMine;
-
+            type="button"
+            onClick={() =>
               updateUrlFilters(
                 search,
                 companyFilter,
@@ -819,10 +1116,10 @@ export default function WikiPage() {
                 tagFilter,
                 sortBy,
                 viewMode,
-                nextValue,
+                !onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
             className={`px-4 py-2 rounded-xl text-sm transition ${
               onlyMine
                 ? "bg-zinc-900 text-white"
@@ -833,10 +1130,8 @@ export default function WikiPage() {
           </button>
 
           <button
-            onClick={() => {
-              const nextValue =
-                !onlyFavorites;
-
+            type="button"
+            onClick={() =>
               updateUrlFilters(
                 search,
                 companyFilter,
@@ -845,9 +1140,9 @@ export default function WikiPage() {
                 sortBy,
                 viewMode,
                 onlyMine,
-                nextValue
-              );
-            }}
+                !onlyFavorites
+              )
+            }
             className={`px-4 py-2 rounded-xl text-sm transition ${
               onlyFavorites
                 ? "bg-yellow-500 text-white"
@@ -860,15 +1155,10 @@ export default function WikiPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 mt-5">
           <input
-            type="text"
-            placeholder="Dokumente, Firmen, Abteilungen, Tags, Autoren oder Inhalte suchen..."
             value={search}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
+            onChange={(event) =>
               updateUrlFilters(
-                value,
+                event.target.value,
                 companyFilter,
                 departmentFilter,
                 tagFilter,
@@ -876,28 +1166,26 @@ export default function WikiPage() {
                 viewMode,
                 onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
+            placeholder="Suche nach Titel, Inhalt, Firma, Abteilung, Autor oder Tag..."
             className="lg:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           />
 
           <select
             value={companyFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
+            onChange={(event) =>
               updateUrlFilters(
                 search,
-                value,
+                event.target.value,
                 departmentFilter,
                 tagFilter,
                 sortBy,
                 viewMode,
                 onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -918,21 +1206,18 @@ export default function WikiPage() {
 
           <select
             value={departmentFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
+            onChange={(event) =>
               updateUrlFilters(
                 search,
                 companyFilter,
-                value,
+                event.target.value,
                 tagFilter,
                 sortBy,
                 viewMode,
                 onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
@@ -953,54 +1238,50 @@ export default function WikiPage() {
 
           <select
             value={tagFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
+            onChange={(event) =>
               updateUrlFilters(
                 search,
                 companyFilter,
                 departmentFilter,
-                value,
+                event.target.value,
                 sortBy,
                 viewMode,
                 onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="">
               Alle Tags
             </option>
 
-            {tags.map((tag) => (
-              <option
-                key={tag}
-                value={tag}
-              >
-                #{tag}
-              </option>
-            ))}
+            {tags.map(
+              (tag) => (
+                <option
+                  key={tag}
+                  value={tag}
+                >
+                  #{tag}
+                </option>
+              )
+            )}
           </select>
 
           <select
             value={sortBy}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
+            onChange={(event) =>
               updateUrlFilters(
                 search,
                 companyFilter,
                 departmentFilter,
                 tagFilter,
-                value,
+                event.target.value,
                 viewMode,
                 onlyMine,
                 onlyFavorites
-              );
-            }}
+              )
+            }
             className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
           >
             <option value="updated-desc">
@@ -1029,13 +1310,14 @@ export default function WikiPage() {
           </select>
         </div>
 
-        <div className="flex items-center justify-between mt-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-5">
           <p className="text-sm text-zinc-500">
             {sortedPages.length} von{" "}
             {pages.length} Dokumenten gefunden
           </p>
 
           <button
+            type="button"
             onClick={resetFilters}
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
@@ -1044,353 +1326,428 @@ export default function WikiPage() {
         </div>
       </div>
 
-      {/* EMPTY */}
       {sortedPages.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <p className="text-zinc-500">
             Keine Dokumente gefunden.
           </p>
         </div>
       )}
 
-      {/* CARDS */}
       {viewMode === "cards" && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           {sortedPages.map(
-            (page: any) => {
+            (page) => {
+              const pageSlug =
+                getPageSlug(
+                  page
+                );
+
+              const pageTitle =
+                getPageTitle(
+                  page
+                );
+
+              const pageDescription =
+                getPageDescription(
+                  page
+                );
+
               const pageCompany =
-                page.company || "Intern";
+                getPageCompany(
+                  page
+                );
+
+              const pageDepartment =
+                getPageDepartment(
+                  page
+                );
+
+              const pageAuthor =
+                getPageAuthor(
+                  page
+                );
+
+              const pageUpdatedAt =
+                getPageUpdatedAt(
+                  page
+                );
+
+              const pageTags =
+                getPageTags(
+                  page
+                );
 
               return (
-                <div
-                  key={page.slug}
-                  className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+                <Link
+                  key={pageSlug}
+                  href={`/wiki/${encodeURIComponent(
+                    pageSlug
+                  )}`}
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => {
-                          updateUrlFilters(
-                            search,
-                            pageCompany,
-                            departmentFilter,
-                            tagFilter,
-                            sortBy,
-                            viewMode,
-                            onlyMine,
-                            onlyFavorites
-                          );
-                        }}
-                        className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                      >
-                        {pageCompany}
-                      </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
 
-                      <button
-                        onClick={() => {
-                          updateUrlFilters(
-                            search,
-                            companyFilter,
-                            page.category,
-                            tagFilter,
-                            sortBy,
-                            viewMode,
-                            onlyMine,
-                            onlyFavorites
-                          );
-                        }}
-                        className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                      >
-                        {page.category}
-                      </button>
-                    </div>
+                        updateUrlFilters(
+                          search,
+                          pageCompany,
+                          departmentFilter,
+                          tagFilter,
+                          sortBy,
+                          viewMode,
+                          onlyMine,
+                          onlyFavorites
+                        );
+                      }}
+                      className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    >
+                      {pageCompany}
+                    </button>
 
-                    <div className="flex items-center gap-2">
-                      {favorites.includes(
-                        page.slug
-                      ) && (
-                        <span className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
-                          Favorit
-                        </span>
-                      )}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
 
-                      <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                        Dokument
+                        updateUrlFilters(
+                          search,
+                          companyFilter,
+                          pageDepartment,
+                          tagFilter,
+                          sortBy,
+                          viewMode,
+                          onlyMine,
+                          onlyFavorites
+                        );
+                      }}
+                      className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-100 transition"
+                    >
+                      {pageDepartment}
+                    </button>
+
+                    {favorites.includes(
+                      pageSlug
+                    ) && (
+                      <span className="text-sm bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
+                        Favorit
                       </span>
-                    </div>
+                    )}
+
+                    <span className="text-sm bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      Dokument
+                    </span>
                   </div>
 
-                  <Link
-                    href={`/wiki/${encodeURIComponent(
-                      page.slug
-                    )}`}
-                    className="block mt-3"
-                  >
-                    <h2 className="text-xl font-semibold hover:underline">
-                      {page.title}
-                    </h2>
-                  </Link>
+                  <h2 className="text-2xl font-bold mt-5">
+                    {pageTitle}
+                  </h2>
 
-                  <p className="text-zinc-600 mt-2">
-                    {page.description}
+                  <p className="text-zinc-500 mt-2 line-clamp-2">
+                    {pageDescription}
                   </p>
 
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {page.tags?.map(
-                      (tag: string) => (
-                        <button
-                          key={tag}
-                          onClick={() => {
-                            updateUrlFilters(
-                              search,
-                              companyFilter,
-                              departmentFilter,
-                              tag,
-                              sortBy,
-                              viewMode,
-                              onlyMine,
-                              onlyFavorites
-                            );
-                          }}
-                          className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
-                        >
-                          #{tag}
-                        </button>
-                      )
-                    )}
-                  </div>
+                  {pageTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {pageTags.map(
+                        (tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
 
-                  <div className="grid grid-cols-3 gap-3 mt-6">
-                    <div className="bg-zinc-50 rounded-2xl p-3">
-                      <p className="text-xs text-zinc-500">
+                              updateUrlFilters(
+                                search,
+                                companyFilter,
+                                departmentFilter,
+                                tag,
+                                sortBy,
+                                viewMode,
+                                onlyMine,
+                                onlyFavorites
+                              );
+                            }}
+                            className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                          >
+                            #{tag}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-4 mt-6 text-sm text-zinc-500">
+                    <div>
+                      <p>
                         Kommentare
                       </p>
 
-                      <p className="font-semibold mt-1">
+                      <p className="font-semibold text-zinc-900 mt-1">
                         {getCommentCount(
-                          page.slug
+                          pageSlug
                         )}
                       </p>
                     </div>
 
-                    <div className="bg-zinc-50 rounded-2xl p-3">
-                      <p className="text-xs text-zinc-500">
+                    <div>
+                      <p>
                         Anhänge
                       </p>
 
-                      <p className="font-semibold mt-1">
+                      <p className="font-semibold text-zinc-900 mt-1">
                         {getFileCount(
-                          page.slug
+                          pageSlug
                         )}
                       </p>
                     </div>
 
-                    <div className="bg-zinc-50 rounded-2xl p-3">
-                      <p className="text-xs text-zinc-500">
+                    <div>
+                      <p>
                         Versionen
                       </p>
 
-                      <p className="font-semibold mt-1">
+                      <p className="font-semibold text-zinc-900 mt-1">
                         {getVersionCount(
-                          page.slug
+                          pageSlug
                         )}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                    <p className="text-sm text-zinc-500">
-                      {page.author}
-                    </p>
+                  <div className="flex flex-wrap justify-between gap-3 text-sm text-zinc-500 mt-6 pt-4 border-t border-zinc-100">
+                    <span>
+                      {pageAuthor}
+                    </span>
 
-                    <p className="text-sm text-zinc-500">
-                      {page.updatedAt}
-                    </p>
+                    <span>
+                      {pageUpdatedAt}
+                    </span>
                   </div>
-                </div>
+                </Link>
               );
             }
           )}
         </div>
       )}
 
-      {/* TABLE */}
       {viewMode === "table" && (
-        <div className="bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="text-left px-5 py-4 font-semibold">
-                  Titel
-                </th>
+        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
+                <tr>
+                  <th className="px-5 py-4 font-semibold">
+                    Titel
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Firma
-                </th>
+                  <th className="px-5 py-4 font-semibold">
+                    Firma
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Abteilung
-                </th>
+                  <th className="px-5 py-4 font-semibold">
+                    Abteilung
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Tags
-                </th>
+                  <th className="px-5 py-4 font-semibold">
+                    Tags
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Aktivität
-                </th>
+                  <th className="px-5 py-4 font-semibold">
+                    Aktivität
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Autor
-                </th>
+                  <th className="px-5 py-4 font-semibold">
+                    Autor
+                  </th>
 
-                <th className="text-left px-5 py-4 font-semibold">
-                  Aktualisiert
-                </th>
-              </tr>
-            </thead>
+                  <th className="px-5 py-4 font-semibold">
+                    Aktualisiert
+                  </th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {sortedPages.map(
-                (page: any) => {
-                  const pageCompany =
-                    page.company || "Intern";
+              <tbody>
+                {sortedPages.map(
+                  (page) => {
+                    const pageSlug =
+                      getPageSlug(
+                        page
+                      );
 
-                  return (
-                    <tr
-                      key={page.slug}
-                      className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50 transition"
-                    >
-                      <td className="px-5 py-4">
-                        <Link
-                          href={`/wiki/${encodeURIComponent(
-                            page.slug
-                          )}`}
-                          className="font-medium hover:underline"
-                        >
-                          {page.title}
-                        </Link>
+                    const pageTitle =
+                      getPageTitle(
+                        page
+                      );
 
-                        <p className="text-zinc-500 mt-1">
-                          {page.description}
-                        </p>
+                    const pageDescription =
+                      getPageDescription(
+                        page
+                      );
 
-                        {favorites.includes(
-                          page.slug
-                        ) && (
-                          <span className="inline-block mt-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
-                            Favorit
-                          </span>
-                        )}
-                      </td>
+                    const pageCompany =
+                      getPageCompany(
+                        page
+                      );
 
-                      <td className="px-5 py-4 text-zinc-600">
-                        <button
-                          onClick={() => {
-                            updateUrlFilters(
-                              search,
-                              pageCompany,
-                              departmentFilter,
-                              tagFilter,
-                              sortBy,
-                              viewMode,
-                              onlyMine,
-                              onlyFavorites
-                            );
-                          }}
-                          className="hover:underline text-indigo-700"
-                        >
-                          {pageCompany}
-                        </button>
-                      </td>
+                    const pageDepartment =
+                      getPageDepartment(
+                        page
+                      );
 
-                      <td className="px-5 py-4 text-zinc-600">
-                        <button
-                          onClick={() => {
-                            updateUrlFilters(
-                              search,
-                              companyFilter,
-                              page.category,
-                              tagFilter,
-                              sortBy,
-                              viewMode,
-                              onlyMine,
-                              onlyFavorites
-                            );
-                          }}
-                          className="hover:underline text-indigo-700"
-                        >
-                          {page.category}
-                        </button>
-                      </td>
+                    const pageAuthor =
+                      getPageAuthor(
+                        page
+                      );
 
-                      <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {page.tags?.map(
-                            (
-                              tag: string
-                            ) => (
-                              <button
-                                key={tag}
-                                onClick={() => {
-                                  updateUrlFilters(
-                                    search,
-                                    companyFilter,
-                                    departmentFilter,
-                                    tag,
-                                    sortBy,
-                                    viewMode,
-                                    onlyMine,
-                                    onlyFavorites
-                                  );
-                                }}
-                                className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
-                              >
-                                #{tag}
-                              </button>
-                            )
+                    const pageUpdatedAt =
+                      getPageUpdatedAt(
+                        page
+                      );
+
+                    const pageTags =
+                      getPageTags(
+                        page
+                      );
+
+                    return (
+                      <tr
+                        key={pageSlug}
+                        className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
+                      >
+                        <td className="px-5 py-4 min-w-[260px]">
+                          <Link
+                            href={`/wiki/${encodeURIComponent(
+                              pageSlug
+                            )}`}
+                            className="font-semibold hover:text-zinc-600 transition"
+                          >
+                            {pageTitle}
+                          </Link>
+
+                          <p className="text-xs text-zinc-500 mt-1 line-clamp-1">
+                            {pageDescription}
+                          </p>
+
+                          {favorites.includes(
+                            pageSlug
+                          ) && (
+                            <span className="inline-flex mt-2 text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">
+                              Favorit
+                            </span>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-5 py-4 text-zinc-600">
-                        <div className="flex flex-col gap-1">
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateUrlFilters(
+                                search,
+                                pageCompany,
+                                departmentFilter,
+                                tagFilter,
+                                sortBy,
+                                viewMode,
+                                onlyMine,
+                                onlyFavorites
+                              )
+                            }
+                            className="hover:underline text-indigo-700"
+                          >
+                            {pageCompany}
+                          </button>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateUrlFilters(
+                                search,
+                                companyFilter,
+                                pageDepartment,
+                                tagFilter,
+                                sortBy,
+                                viewMode,
+                                onlyMine,
+                                onlyFavorites
+                              )
+                            }
+                            className="hover:underline text-indigo-700"
+                          >
+                            {pageDepartment}
+                          </button>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {pageTags.map(
+                              (tag) => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() =>
+                                    updateUrlFilters(
+                                      search,
+                                      companyFilter,
+                                      departmentFilter,
+                                      tag,
+                                      sortBy,
+                                      viewMode,
+                                      onlyMine,
+                                      onlyFavorites
+                                    )
+                                  }
+                                  className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
+                                >
+                                  #{tag}
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
                           <span>
                             💬{" "}
                             {getCommentCount(
-                              page.slug
+                              pageSlug
                             )}
                           </span>
 
-                          <span>
+                          <span className="ml-3">
                             📎{" "}
                             {getFileCount(
-                              page.slug
+                              pageSlug
                             )}
                           </span>
 
-                          <span>
-                            🕓{" "}
+                          <span className="ml-3">
+                            🕘{" "}
                             {getVersionCount(
-                              page.slug
+                              pageSlug
                             )}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-5 py-4 text-zinc-600">
-                        {page.author}
-                      </td>
+                        <td className="px-5 py-4 text-zinc-600">
+                          {pageAuthor}
+                        </td>
 
-                      <td className="px-5 py-4 text-zinc-600">
-                        {page.updatedAt}
-                      </td>
-                    </tr>
-                  );
-                }
-              )}
-            </tbody>
-          </table>
+                        <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
+                          {pageUpdatedAt}
+                        </td>
+                      </tr>
+                    );
+                  }
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

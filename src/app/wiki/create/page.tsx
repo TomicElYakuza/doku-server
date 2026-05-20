@@ -1,11 +1,11 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   useEffect,
   useState,
 } from "react";
-
-import Link from "next/link";
 
 import {
   useRouter,
@@ -14,13 +14,12 @@ import {
 import ReactMarkdown from "react-markdown";
 
 import {
-  getStoredPages,
-  savePages,
-} from "../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../lib/wikiRepository";
 
 import {
-  saveActivity,
-} from "../../../lib/activityStorage";
+  activityRepository,
+} from "../../../lib/activityRepository";
 
 import {
   getUser,
@@ -33,6 +32,20 @@ import {
 import FileUpload from "../../../components/wiki/FileUpload";
 
 import FileList from "../../../components/wiki/FileList";
+
+function createSlug(
+  value: string
+) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export default function CreateWikiPage() {
   const router =
@@ -66,26 +79,14 @@ export default function CreateWikiPage() {
     useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     setAllowed(
       canCreate()
     );
   }, []);
-
-  function createSlug(
-    value: string
-  ) {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  }
 
   function handleCreate() {
     if (!allowed) {
@@ -120,11 +121,10 @@ export default function CreateWikiPage() {
       return;
     }
 
-    const pages =
-      getStoredPages();
-
     const slug =
-      createSlug(title);
+      createSlug(
+        title
+      );
 
     if (!slug) {
       alert(
@@ -135,9 +135,10 @@ export default function CreateWikiPage() {
     }
 
     const exists =
-      pages.some(
-        (page: any) =>
-          page.slug === slug
+      Boolean(
+        wikiRepository.findBySlug(
+          slug
+        )
       );
 
     if (exists) {
@@ -151,54 +152,67 @@ export default function CreateWikiPage() {
     const user =
       getUser();
 
-    const newPage = {
-      slug,
+    const newPage =
+      wikiRepository.create({
+        slug,
+
+        title:
+          title.trim(),
+
+        company:
+          company.trim() ||
+          "Intern",
+
+        category:
+          category.trim(),
+
+        department:
+          category.trim(),
+
+        description:
+          description.trim(),
+
+        excerpt:
+          description.trim(),
+
+        author:
+          user?.name ||
+          "Unbekannt",
+
+        updatedAt:
+          new Date().toLocaleDateString(),
+
+        createdAt:
+          new Date().toLocaleDateString(),
+
+        tags:
+          tags
+            .split(",")
+            .map(
+              (tag) =>
+                tag.trim()
+            )
+            .filter(Boolean),
+
+        content:
+          content.trim(),
+      });
+
+    activityRepository.create({
+      type:
+        "created",
 
       title:
-        title.trim(),
+        String(
+          newPage.title ||
+            title.trim()
+        ),
 
       company:
-        company.trim() ||
-        "Intern",
-
-      category:
-        category.trim(),
-
-      description:
-        description.trim(),
-
-      author:
-        user?.name ||
-        "Unbekannt",
-
-      updatedAt:
-        new Date().toLocaleDateString(),
-
-      tags: tags
-        .split(",")
-        .map((tag) =>
-          tag.trim()
-        )
-        .filter(Boolean),
-
-      content:
-        content.trim(),
-    };
-
-    savePages([
-      newPage,
-      ...pages,
-    ]);
-
-    saveActivity({
-      type: "created",
-
-      title:
-        newPage.title,
-
-      company:
-        newPage.company ||
-        "Intern",
+        String(
+          newPage.company ||
+            "Intern"
+        ),
 
       user:
         user?.name ||
@@ -208,7 +222,9 @@ export default function CreateWikiPage() {
         new Date().toLocaleString(),
     });
 
-    setCreatedSlug(slug);
+    setCreatedSlug(
+      slug
+    );
 
     router.push(
       `/wiki/${encodeURIComponent(
@@ -223,9 +239,9 @@ export default function CreateWikiPage() {
 
   if (!allowed) {
     return (
-      <div className="max-w-2xl">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <h1 className="text-3xl font-bold">
+      <div className="space-y-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-4xl font-bold">
             Keine Berechtigung
           </h1>
 
@@ -235,7 +251,7 @@ export default function CreateWikiPage() {
 
           <Link
             href="/wiki"
-            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             ← Zurück zum Wiki
           </Link>
@@ -245,32 +261,40 @@ export default function CreateWikiPage() {
   }
 
   const previewSlug =
-    createSlug(title);
+    createSlug(
+      title
+    );
 
   const uploadSlug =
-    createdSlug || previewSlug;
+    createdSlug ||
+    previewSlug;
+
+  const previewTags =
+    tags
+      .split(",")
+      .map(
+        (tag) =>
+          tag.trim()
+      )
+      .filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
-        <span className="text-zinc-900">
-          erstellen
+        <span>
+          Erstellen
         </span>
       </div>
 
-      {/* BACK */}
       <div>
         <Link
           href="/wiki"
@@ -280,27 +304,23 @@ export default function CreateWikiPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* FORM */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold">
-              Neue Wiki Seite
-            </h1>
+          <h1 className="text-4xl font-bold">
+            Neue Wiki Seite
+          </h1>
 
-            <p className="text-zinc-500 mt-2">
-              Erstelle ein neues Dokument
-            </p>
-          </div>
+          <p className="text-zinc-500 mt-2">
+            Erstelle ein neues Dokument.
+          </p>
 
-          <div className="space-y-6">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Titel
               </label>
 
               <input
-                type="text"
                 value={title}
                 onChange={(event) =>
                   setTitle(
@@ -327,7 +347,6 @@ export default function CreateWikiPage() {
               </label>
 
               <input
-                type="text"
                 value={company}
                 onChange={(event) =>
                   setCompany(
@@ -335,7 +354,7 @@ export default function CreateWikiPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. Intern, Muster GmbH, Kunde A"
+                placeholder="Intern"
               />
             </div>
 
@@ -345,7 +364,6 @@ export default function CreateWikiPage() {
               </label>
 
               <input
-                type="text"
                 value={category}
                 onChange={(event) =>
                   setCategory(
@@ -353,17 +371,16 @@ export default function CreateWikiPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. IT"
+                placeholder="IT"
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
 
               <input
-                type="text"
                 value={description}
                 onChange={(event) =>
                   setDescription(
@@ -375,7 +392,7 @@ export default function CreateWikiPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Inhalt
               </label>
@@ -389,17 +406,16 @@ export default function CreateWikiPage() {
                 }
                 rows={20}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
-                placeholder="# Überschrift&#10;&#10;Inhalt der Wiki-Seite..."
+                placeholder="# Überschrift&#10;Inhalt der Wiki-Seite..."
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Tags
               </label>
 
               <input
-                type="text"
                 value={tags}
                 onChange={(event) =>
                   setTags(
@@ -411,52 +427,54 @@ export default function CreateWikiPage() {
               />
 
               <p className="text-sm text-zinc-500 mt-2">
-                Mit Komma trennen
+                Mit Komma trennen.
               </p>
             </div>
 
-            {uploadSlug ? (
-              <>
-                <FileUpload
-                  slug={uploadSlug}
-                />
+            <div className="md:col-span-2">
+              {uploadSlug ? (
+                <div className="space-y-4">
+                  <FileUpload
+                    slug={uploadSlug}
+                  />
 
-                <FileList
-                  slug={uploadSlug}
-                  editable={true}
-                />
-              </>
-            ) : (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-                <h3 className="font-semibold">
-                  Anhänge
-                </h3>
+                  <FileList
+                    slug={uploadSlug}
+                    editable={true}
+                  />
+                </div>
+              ) : (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
+                  <h3 className="font-semibold">
+                    Anhänge
+                  </h3>
 
-                <p className="text-sm text-zinc-500 mt-2">
-                  Gib zuerst einen Titel ein, damit Dateien einem Slug zugeordnet werden können.
-                </p>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleCreate}
-                className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                Seite erstellen
-              </button>
-
-              <Link
-                href="/wiki"
-                className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-              >
-                Abbrechen
-              </Link>
+                  <p className="text-sm text-zinc-500 mt-2">
+                    Gib zuerst einen Titel ein, damit Dateien einem Slug zugeordnet werden können.
+                  </p>
+                </div>
+              )}
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Seite erstellen
+            </button>
+
+            <Link
+              href="/wiki"
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Abbrechen
+            </Link>
           </div>
         </div>
 
-        {/* PREVIEW */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
           <div className="mb-8">
             <h2 className="text-3xl font-bold">
@@ -480,22 +498,18 @@ export default function CreateWikiPage() {
             )}
           </div>
 
-          {tags.trim() && (
+          {previewTags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-6">
-              {tags
-                .split(",")
-                .map((tag) =>
-                  tag.trim()
-                )
-                .filter(Boolean)
-                .map((tag) => (
+              {previewTags.map(
+                (tag) => (
                   <span
                     key={tag}
                     className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
                   >
                     #{tag}
                   </span>
-                ))}
+                )
+              )}
             </div>
           )}
 

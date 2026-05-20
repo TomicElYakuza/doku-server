@@ -8,15 +8,8 @@ import {
 } from "react";
 
 import {
-  createTicketTemplate,
-  deleteTicketTemplate,
-  getTicketTemplatePriorityClass,
-  getTicketTemplatePriorityLabel,
-  getTicketTemplateStatusClass,
-  getTicketTemplateStatusLabel,
-  getTicketTemplates,
-  updateTicketTemplate,
-} from "../../../lib/ticketTemplateStorage";
+  ticketTemplateRepository,
+} from "../../../lib/ticketTemplateRepository";
 
 import type {
   TicketTemplate,
@@ -25,27 +18,23 @@ import type {
 } from "../../../lib/ticketTemplateStorage";
 
 import {
-  createTicket,
-} from "../../../lib/ticketStorage";
+  ticketRepository,
+} from "../../../lib/ticketRepository";
+
+import {
+  companyRepository,
+} from "../../../lib/companyRepository";
+
+import type {
+  Company,
+  Department,
+} from "../../../lib/companyStorage";
 
 import {
   canCreate,
   canDelete,
   canEdit,
 } from "../../../lib/permissions";
-
-import {
-  getActiveCompanies,
-  getActiveDepartments,
-  getActiveDepartmentsByCompanyId,
-  getCompanies,
-  getDepartments,
-} from "../../../lib/companyStorage";
-
-import type {
-  Company,
-  Department,
-} from "../../../lib/companyStorage";
 
 import {
   saveTicketCreatedFromTemplateActivity,
@@ -129,7 +118,9 @@ export default function TicketTemplatesPage() {
     useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadData();
 
@@ -200,13 +191,13 @@ export default function TicketTemplatesPage() {
 
   function loadData() {
     const nextCompanies =
-      getCompanies();
+      companyRepository.listCompanies();
 
     const nextDepartments =
-      getDepartments();
+      companyRepository.listDepartments();
 
     setTemplates(
-      getTicketTemplates()
+      ticketTemplateRepository.list()
     );
 
     setCompanies(
@@ -276,10 +267,10 @@ export default function TicketTemplatesPage() {
 
   function getSelectableDepartments() {
     if (!companyId) {
-      return getActiveDepartments();
+      return companyRepository.listActiveDepartments();
     }
 
-    return getActiveDepartmentsByCompanyId(
+    return companyRepository.listActiveDepartmentsByCompanyId(
       companyId
     );
   }
@@ -303,7 +294,7 @@ export default function TicketTemplatesPage() {
     );
 
     const nextDepartments =
-      getActiveDepartmentsByCompanyId(
+      companyRepository.listActiveDepartmentsByCompanyId(
         nextCompanyId
       );
 
@@ -311,7 +302,8 @@ export default function TicketTemplatesPage() {
       nextDepartments[0];
 
     setDepartmentId(
-      firstDepartment?.id || ""
+      firstDepartment?.id ||
+        ""
     );
 
     setDepartment(
@@ -341,53 +333,45 @@ export default function TicketTemplatesPage() {
 
   function resetForm() {
     const activeCompanies =
-      getActiveCompanies();
+      companyRepository.listActiveCompanies();
 
     const firstCompany =
       activeCompanies[0];
 
     const activeDepartments =
       firstCompany
-        ? getActiveDepartmentsByCompanyId(
+        ? companyRepository.listActiveDepartmentsByCompanyId(
             firstCompany.id
           )
-        : getActiveDepartments();
+        : companyRepository.listActiveDepartments();
 
     const firstDepartment =
       activeDepartments[0];
 
     setEditingId("");
-
     setTitle("");
-
     setDescription("");
-
     setCategory("Allgemein");
-
     setPriority("medium");
-
     setStatus("open");
-
     setCompanyId(
-      firstCompany?.id || ""
+      firstCompany?.id ||
+        ""
     );
-
     setDepartmentId(
-      firstDepartment?.id || ""
+      firstDepartment?.id ||
+        ""
     );
-
     setCompany(
-      firstCompany?.name || "Intern"
+      firstCompany?.name ||
+        "Intern"
     );
-
     setDepartment(
-      firstDepartment?.name || "Allgemein"
+      firstDepartment?.name ||
+        "Allgemein"
     );
-
     setAssignedTo("");
-
     setTags("");
-
     setShowForm(false);
   }
 
@@ -402,7 +386,9 @@ export default function TicketTemplatesPage() {
 
     resetForm();
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
   }
 
   function startEditTemplate(
@@ -441,34 +427,46 @@ export default function TicketTemplatesPage() {
     );
 
     setCompanyId(
-      template.companyId || ""
+      template.companyId ||
+        ""
     );
 
     setDepartmentId(
-      template.departmentId || ""
+      template.departmentId ||
+        ""
     );
 
     setCompany(
-      template.company || "Intern"
+      template.company ||
+        "Intern"
     );
 
     setDepartment(
-      template.department || "Allgemein"
+      template.department ||
+        "Allgemein"
     );
 
     setAssignedTo(
-      template.assignedTo || ""
+      template.assignedTo ||
+        ""
     );
 
     setTags(
-      template.tags?.join(", ") || ""
+      template.tags?.join(
+        ", "
+      ) || ""
     );
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
 
     window.scrollTo({
-      top: 0,
-      behavior: "smooth",
+      top:
+        0,
+
+      behavior:
+        "smooth",
     });
   }
 
@@ -481,7 +479,10 @@ export default function TicketTemplatesPage() {
       return;
     }
 
-    if (!canCreate() && !editingId) {
+    if (
+      !canCreate() &&
+      !editingId
+    ) {
       alert(
         "Du hast keine Berechtigung, Vorlagen zu erstellen."
       );
@@ -489,7 +490,10 @@ export default function TicketTemplatesPage() {
       return;
     }
 
-    if (!canEdit() && editingId) {
+    if (
+      !canEdit() &&
+      editingId
+    ) {
       alert(
         "Du hast keine Berechtigung, Vorlagen zu bearbeiten."
       );
@@ -562,7 +566,7 @@ export default function TicketTemplatesPage() {
 
     if (editingId) {
       const updatedTemplate =
-        updateTicketTemplate(
+        ticketTemplateRepository.update(
           editingId,
           templateData
         );
@@ -579,7 +583,7 @@ export default function TicketTemplatesPage() {
     }
 
     const newTemplate =
-      createTicketTemplate(
+      ticketTemplateRepository.create(
         templateData
       );
 
@@ -622,7 +626,7 @@ export default function TicketTemplatesPage() {
       template
     );
 
-    deleteTicketTemplate(
+    ticketTemplateRepository.delete(
       template.id
     );
   }
@@ -647,7 +651,7 @@ export default function TicketTemplatesPage() {
     }
 
     const newTicket =
-      createTicket({
+      ticketRepository.create({
         title:
           template.title,
 
@@ -664,25 +668,31 @@ export default function TicketTemplatesPage() {
           template.category,
 
         companyId:
-          template.companyId || "",
+          template.companyId ||
+          "",
 
         departmentId:
-          template.departmentId || "",
+          template.departmentId ||
+          "",
 
         company:
-          template.company || "Intern",
+          template.company ||
+          "Intern",
 
         department:
-          template.department || "Allgemein",
+          template.department ||
+          "Allgemein",
 
         assignedTo:
-          template.assignedTo || "",
+          template.assignedTo ||
+          "",
 
         createdBy:
           "",
 
         tags:
-          template.tags || [],
+          template.tags ||
+          [],
       });
 
     saveTicketCreatedFromTemplateActivity(
@@ -697,13 +707,9 @@ export default function TicketTemplatesPage() {
 
   function resetFilters() {
     setSearch("");
-
     setPriorityFilter("");
-
     setStatusFilter("");
-
     setCompanyFilter("");
-
     setDepartmentFilter("");
   }
 
@@ -714,34 +720,6 @@ export default function TicketTemplatesPage() {
   if (!templatesEnabled) {
     return (
       <div className="space-y-8">
-        <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            dashboard
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <Link
-            href="/tickets"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            tickets
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            vorlagen
-          </span>
-        </div>
-
         <div>
           <Link
             href="/tickets"
@@ -751,7 +729,7 @@ export default function TicketTemplatesPage() {
           </Link>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Ticket-Vorlagen deaktiviert
           </h1>
@@ -792,56 +770,65 @@ export default function TicketTemplatesPage() {
           "";
 
         const matchesSearch =
+          !query ||
           template.title
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           template.description
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           template.category
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           templateCompany
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           templateDepartment
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           template.assignedTo
             ?.toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           template.tags
             ?.join(" ")
             .toLowerCase()
-            .includes(query);
+            .includes(
+              query
+            );
 
         const matchesPriority =
           !priorityFilter ||
-          template.priority ===
-            priorityFilter;
+          template.priority === priorityFilter;
 
         const matchesStatus =
           !statusFilter ||
-          template.status ===
-            statusFilter;
+          template.status === statusFilter;
 
         const matchesCompany =
           !companyFilter ||
-          template.companyId ===
-            companyFilter ||
-          template.company ===
-            getCompanyName(
-              companyFilter
-            );
+          template.companyId === companyFilter ||
+          template.company === getCompanyName(
+            companyFilter
+          );
 
         const matchesDepartment =
           !departmentFilter ||
-          template.departmentId ===
-            departmentFilter ||
-          template.department ===
-            getDepartmentName(
-              departmentFilter
-            );
+          template.departmentId === departmentFilter ||
+          template.department === getDepartmentName(
+            departmentFilter
+          );
 
         return (
           matchesSearch &&
@@ -854,50 +841,15 @@ export default function TicketTemplatesPage() {
     );
 
   const highPriorityCount =
-    templates.filter(
-      (template) =>
-        template.priority === "high" ||
-        template.priority === "urgent"
-    ).length;
+    ticketTemplateRepository.countHighOrUrgent();
 
   const openCount =
-    templates.filter(
-      (template) =>
-        template.status === "open"
-    ).length;
+    ticketTemplateRepository.countByStatus(
+      "open"
+    );
 
   return (
     <div className="space-y-8">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <Link
-          href="/tickets"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          tickets
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          vorlagen
-        </span>
-      </div>
-
-      {/* BACK */}
       <div>
         <Link
           href="/tickets"
@@ -907,7 +859,6 @@ export default function TicketTemplatesPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
@@ -921,6 +872,7 @@ export default function TicketTemplatesPage() {
 
         {canCreate() && (
           <button
+            type="button"
             onClick={openCreateForm}
             className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
@@ -929,9 +881,9 @@ export default function TicketTemplatesPage() {
         )}
       </div>
 
-      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <button
+          type="button"
           onClick={() =>
             setStatusFilter("")
           }
@@ -947,6 +899,7 @@ export default function TicketTemplatesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setStatusFilter(
               "open"
@@ -964,6 +917,7 @@ export default function TicketTemplatesPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setPriorityFilter(
               "high"
@@ -982,19 +936,18 @@ export default function TicketTemplatesPage() {
 
         <Link
           href="/tickets"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
           <p className="text-sm text-zinc-500">
             Tickets
           </p>
 
-          <h2 className="text-2xl font-bold mt-3">
+          <h2 className="text-4xl font-bold mt-3">
             Öffnen
           </h2>
         </Link>
       </div>
 
-      {/* FORM */}
       {showForm && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
@@ -1008,13 +961,12 @@ export default function TicketTemplatesPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Titel
               </label>
 
               <input
-                type="text"
                 value={title}
                 onChange={(event) =>
                   setTitle(
@@ -1032,7 +984,6 @@ export default function TicketTemplatesPage() {
               </label>
 
               <input
-                type="text"
                 value={category}
                 onChange={(event) =>
                   setCategory(
@@ -1130,16 +1081,18 @@ export default function TicketTemplatesPage() {
                   Firma auswählen
                 </option>
 
-                {getActiveCompanies().map(
-                  (item) => (
-                    <option
-                      key={item.id}
-                      value={item.id}
-                    >
-                      {item.name}
-                    </option>
-                  )
-                )}
+                {companyRepository
+                  .listActiveCompanies()
+                  .map(
+                    (item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                      >
+                        {item.name}
+                      </option>
+                    )
+                  )}
               </select>
             </div>
 
@@ -1180,7 +1133,6 @@ export default function TicketTemplatesPage() {
               </label>
 
               <input
-                type="text"
                 value={assignedTo}
                 onChange={(event) =>
                   setAssignedTo(
@@ -1198,7 +1150,6 @@ export default function TicketTemplatesPage() {
               </label>
 
               <input
-                type="text"
                 value={tags}
                 onChange={(event) =>
                   setTags(
@@ -1231,6 +1182,7 @@ export default function TicketTemplatesPage() {
 
           <div className="flex flex-wrap gap-3 mt-6">
             <button
+              type="button"
               onClick={handleSaveTemplate}
               className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
             >
@@ -1240,6 +1192,7 @@ export default function TicketTemplatesPage() {
             </button>
 
             <button
+              type="button"
               onClick={resetForm}
               className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
             >
@@ -1249,7 +1202,6 @@ export default function TicketTemplatesPage() {
         </div>
       )}
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h2 className="text-xl font-semibold">
           Suche & Filter
@@ -1257,7 +1209,6 @@ export default function TicketTemplatesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
           <input
-            type="text"
             value={search}
             onChange={(event) =>
               setSearch(
@@ -1390,6 +1341,7 @@ export default function TicketTemplatesPage() {
           </p>
 
           <button
+            type="button"
             onClick={resetFilters}
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
@@ -1398,7 +1350,6 @@ export default function TicketTemplatesPage() {
         </div>
       </div>
 
-      {/* TEMPLATES */}
       <div className="grid gap-4">
         {filteredTemplates.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
@@ -1432,22 +1383,14 @@ export default function TicketTemplatesPage() {
                 <div className="flex items-start justify-between gap-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getTicketTemplateStatusClass(
-                          template.status
-                        )}`}
-                      >
-                        {getTicketTemplateStatusLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${ticketTemplateRepository.getStatusClass(template.status)}`}>
+                        {ticketTemplateRepository.getStatusLabel(
                           template.status
                         )}
                       </span>
 
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getTicketTemplatePriorityClass(
-                          template.priority
-                        )}`}
-                      >
-                        {getTicketTemplatePriorityLabel(
+                      <span className={`text-xs px-3 py-1 rounded-full ${ticketTemplateRepository.getPriorityClass(template.priority)}`}>
+                        {ticketTemplateRepository.getPriorityLabel(
                           template.priority
                         )}
                       </span>
@@ -1513,6 +1456,7 @@ export default function TicketTemplatesPage() {
                   <div className="flex flex-wrap gap-3 justify-end shrink-0">
                     {canCreate() && (
                       <button
+                        type="button"
                         onClick={() =>
                           createTicketFromTemplate(
                             template
@@ -1526,6 +1470,7 @@ export default function TicketTemplatesPage() {
 
                     {canEdit() && (
                       <button
+                        type="button"
                         onClick={() =>
                           startEditTemplate(
                             template
@@ -1539,6 +1484,7 @@ export default function TicketTemplatesPage() {
 
                     {canDelete() && (
                       <button
+                        type="button"
                         onClick={() =>
                           handleDeleteTemplate(
                             template

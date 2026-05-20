@@ -8,10 +8,8 @@ import {
 } from "react";
 
 import {
-  getAppSettings,
-  resetAppSettings,
-  saveAppSettings,
-} from "../../lib/appSettingsStorage";
+  appSettingsRepository,
+} from "../../lib/appSettingsRepository";
 
 import type {
   AppSettings,
@@ -38,108 +36,183 @@ import {
   notifyWarning,
 } from "../../lib/notificationHelpers";
 
+type ThemeValue =
+  NonNullable<AppSettings["theme"]>;
+
+type AccentColorValue =
+  NonNullable<
+    | AppSettings["accentColor"]
+    | AppSettings["appAccentColor"]
+  >;
+
+type SidebarPositionValue =
+  NonNullable<AppSettings["sidebarPosition"]>;
+
+type UserRoleValue =
+  NonNullable<AppSettings["defaultUserRole"]>;
+
 type ThemeOption = {
-  value: NonNullable<AppSettings["theme"]>;
+  value: ThemeValue;
   label: string;
   description: string;
 };
 
 type AccentColorOption = {
-  value: NonNullable<AppSettings["accentColor"]>;
+  value: AccentColorValue;
   label: string;
   color: string;
 };
 
 type SidebarPositionOption = {
-  value: NonNullable<AppSettings["sidebarPosition"]>;
+  value: SidebarPositionValue;
   label: string;
 };
 
 type UserRoleOption = {
-  value: NonNullable<AppSettings["defaultUserRole"]>;
+  value: UserRoleValue;
   label: string;
 };
 
 const themeOptions: ThemeOption[] = [
   {
-    value: "modern",
-    label: "Modern",
-    description: "Helles, modernes Standarddesign.",
+    value:
+      "modern",
+
+    label:
+      "Modern",
+
+    description:
+      "Helles, modernes Standarddesign.",
   },
   {
-    value: "dark",
-    label: "Dark",
-    description: "Dunkles Design für die Oberfläche.",
+    value:
+      "dark",
+
+    label:
+      "Dark",
+
+    description:
+      "Dunkles Design für die Oberfläche.",
   },
   {
-    value: "system",
-    label: "System",
-    description: "Orientiert sich später an Systemeinstellungen.",
+    value:
+      "system",
+
+    label:
+      "System",
+
+    description:
+      "Orientiert sich später an Systemeinstellungen.",
   },
 ];
 
 const accentColorOptions: AccentColorOption[] = [
   {
-    value: "zinc",
-    label: "Zinc",
-    color: "#18181b",
+    value:
+      "zinc",
+
+    label:
+      "Zinc",
+
+    color:
+      "#18181b",
   },
   {
-    value: "blue",
-    label: "Blau",
-    color: "#2563eb",
+    value:
+      "blue",
+
+    label:
+      "Blau",
+
+    color:
+      "#2563eb",
   },
   {
-    value: "indigo",
-    label: "Indigo",
-    color: "#4f46e5",
+    value:
+      "indigo",
+
+    label:
+      "Indigo",
+
+    color:
+      "#4f46e5",
   },
   {
-    value: "emerald",
-    label: "Emerald",
-    color: "#059669",
+    value:
+      "emerald",
+
+    label:
+      "Emerald",
+
+    color:
+      "#059669",
   },
   {
-    value: "amber",
-    label: "Amber",
-    color: "#d97706",
+    value:
+      "amber",
+
+    label:
+      "Amber",
+
+    color:
+      "#d97706",
   },
   {
-    value: "red",
-    label: "Rot",
-    color: "#dc2626",
+    value:
+      "red",
+
+    label:
+      "Rot",
+
+    color:
+      "#dc2626",
   },
 ];
 
 const sidebarPositionOptions: SidebarPositionOption[] = [
   {
-    value: "left",
-    label: "Links",
+    value:
+      "left",
+
+    label:
+      "Links",
   },
   {
-    value: "right",
-    label: "Rechts",
+    value:
+      "right",
+
+    label:
+      "Rechts",
   },
 ];
 
 const userRoleOptions: UserRoleOption[] = [
   {
-    value: "viewer",
-    label: "Leser",
+    value:
+      "viewer",
+
+    label:
+      "Leser",
   },
   {
-    value: "editor",
-    label: "Bearbeiter",
+    value:
+      "editor",
+
+    label:
+      "Bearbeiter",
   },
   {
-    value: "admin",
-    label: "Administrator",
+    value:
+      "admin",
+
+    label:
+      "Administrator",
   },
 ];
 
 function normalizeTheme(
   value: AppSettings["theme"]
-): NonNullable<AppSettings["theme"]> {
+): ThemeValue {
   if (
     value === "dark" ||
     value === "system"
@@ -154,7 +227,7 @@ function normalizeAccentColor(
   value:
     | AppSettings["accentColor"]
     | AppSettings["appAccentColor"]
-): NonNullable<AppSettings["accentColor"]> {
+): AccentColorValue {
   if (
     value === "blue" ||
     value === "indigo" ||
@@ -170,7 +243,7 @@ function normalizeAccentColor(
 
 function normalizeSidebarPosition(
   value: AppSettings["sidebarPosition"]
-): NonNullable<AppSettings["sidebarPosition"]> {
+): SidebarPositionValue {
   if (value === "right") {
     return "right";
   }
@@ -180,7 +253,7 @@ function normalizeSidebarPosition(
 
 function normalizeDefaultRole(
   value: AppSettings["defaultUserRole"]
-): NonNullable<AppSettings["defaultUserRole"]> {
+): UserRoleValue {
   if (
     value === "admin" ||
     value === "editor"
@@ -205,16 +278,16 @@ export default function SettingsPage() {
     useState("0.1.0");
 
   const [theme, setTheme] =
-    useState<NonNullable<AppSettings["theme"]>>("modern");
+    useState<ThemeValue>("modern");
 
   const [darkMode, setDarkMode] =
     useState(false);
 
   const [accentColor, setAccentColor] =
-    useState<NonNullable<AppSettings["accentColor"]>>("zinc");
+    useState<AccentColorValue>("zinc");
 
   const [sidebarPosition, setSidebarPosition] =
-    useState<NonNullable<AppSettings["sidebarPosition"]>>("left");
+    useState<SidebarPositionValue>("left");
 
   const [showVersion, setShowVersion] =
     useState(true);
@@ -235,7 +308,7 @@ export default function SettingsPage() {
     useState(true);
 
   const [defaultUserRole, setDefaultUserRole] =
-    useState<NonNullable<AppSettings["defaultUserRole"]>>("viewer");
+    useState<UserRoleValue>("viewer");
 
   const [dataSource, setDataSource] =
     useState<AppDataSource>("localStorage");
@@ -274,22 +347,22 @@ export default function SettingsPage() {
 
   function loadSettings() {
     const loadedSettings =
-      getAppSettings();
+      appSettingsRepository.get();
 
     setAppName(
       loadedSettings.appName ||
-        "Intranet"
+      "Intranet"
     );
 
     setCompanyName(
       loadedSettings.companyName ||
-        "Intern"
+      "Intern"
     );
 
     setAppVersion(
       loadedSettings.appVersion ||
-        loadedSettings.version ||
-        "0.1.0"
+      loadedSettings.version ||
+      "0.1.0"
     );
 
     setTheme(
@@ -307,7 +380,7 @@ export default function SettingsPage() {
     setAccentColor(
       normalizeAccentColor(
         loadedSettings.accentColor ||
-          loadedSettings.appAccentColor
+        loadedSettings.appAccentColor
       )
     );
 
@@ -365,7 +438,7 @@ export default function SettingsPage() {
   }
 
   function handleSave() {
-    saveAppSettings({
+    appSettingsRepository.save({
       appName:
         appName.trim() ||
         "Intranet",
@@ -433,7 +506,7 @@ export default function SettingsPage() {
       return;
     }
 
-    resetAppSettings();
+    appSettingsRepository.reset();
 
     saveDataSource(
       "localStorage"
@@ -453,21 +526,13 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3 text-sm">
+      <div>
         <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          href="/dashboard"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
-          dashboard
+          ← Zurück zum Dashboard
         </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          einstellungen
-        </span>
       </div>
 
       <div>
@@ -481,17 +546,15 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            App-Informationen
-          </h2>
+        <h2 className="text-2xl font-semibold">
+          App-Informationen
+        </h2>
 
-          <p className="text-zinc-500 mt-2">
-            Grunddaten für Branding und Anzeige.
-          </p>
-        </div>
+        <p className="text-zinc-500 mt-2">
+          Grunddaten für Branding und Anzeige.
+        </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
           <div>
             <label className="block mb-2 font-medium">
               App-Name
@@ -546,207 +609,201 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Darstellung
-          </h2>
+        <h2 className="text-2xl font-semibold">
+          Darstellung
+        </h2>
 
-          <p className="text-zinc-500 mt-2">
-            Standarddesign, Dark Mode, Akzentfarbe und Layout.
-          </p>
+        <p className="text-zinc-500 mt-2">
+          Standarddesign, Dark Mode, Akzentfarbe und Layout.
+        </p>
+
+        <div className="mt-6">
+          <h3 className="font-semibold mb-3">
+            Theme
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {themeOptions.map(
+              (option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setTheme(
+                      option.value
+                    )
+                  }
+                  className={`text-left border rounded-2xl p-5 transition ${
+                    theme === option.value
+                      ? "border-zinc-900 bg-zinc-100"
+                      : "border-zinc-200 hover:bg-zinc-50"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {option.label}
+                  </p>
+
+                  <p className="text-sm text-zinc-500 mt-2">
+                    {option.description}
+                  </p>
+                </button>
+              )
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="space-y-3">
-            <p className="font-medium">
-              Theme
-            </p>
+        <div className="mt-8">
+          <h3 className="font-semibold mb-3">
+            Akzentfarbe
+          </h3>
 
-            <div className="grid gap-3">
-              {themeOptions.map(
-                (option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setTheme(
-                        option.value
-                      )
-                    }
-                    className={`text-left border rounded-2xl p-5 transition ${
-                      theme === option.value
-                        ? "border-zinc-900 bg-zinc-100"
-                        : "border-zinc-200 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <p className="font-semibold">
-                      {option.label}
-                    </p>
-
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {option.description}
-                    </p>
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="font-medium">
-              Akzentfarbe
-            </p>
-
-            <div className="grid grid-cols-2 gap-3">
-              {accentColorOptions.map(
-                (option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setAccentColor(
-                        option.value
-                      )
-                    }
-                    className={`flex items-center gap-3 border rounded-2xl p-4 transition ${
-                      accentColor === option.value
-                        ? "border-zinc-900 bg-zinc-100"
-                        : "border-zinc-200 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <span
-                      className="h-6 w-6 rounded-full"
-                      style={{
-                        background:
-                          option.color,
-                      }}
-                    />
-
-                    <span className="font-medium">
-                      {option.label}
-                    </span>
-                  </button>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="font-medium">
-              Layout
-            </p>
-
-            <div className="grid gap-3">
-              {sidebarPositionOptions.map(
-                (option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setSidebarPosition(
-                        option.value
-                      )
-                    }
-                    className={`text-left border rounded-2xl p-5 transition ${
-                      sidebarPosition === option.value
-                        ? "border-zinc-900 bg-zinc-100"
-                        : "border-zinc-200 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <p className="font-semibold">
-                      Sidebar {option.label}
-                    </p>
-                  </button>
-                )
-              )}
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
-                <span>
-                  <span className="block font-medium">
-                    Dark Mode
-                  </span>
-
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Dunkle Oberfläche aktivieren.
-                  </span>
-                </span>
-
-                <input
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={(event) =>
-                    setDarkMode(
-                      event.target.checked
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            {accentColorOptions.map(
+              (option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setAccentColor(
+                      option.value
                     )
                   }
-                  className="h-5 w-5"
-                />
-              </label>
+                  className={`flex items-center gap-3 border rounded-2xl p-4 transition ${
+                    accentColor === option.value
+                      ? "border-zinc-900 bg-zinc-100"
+                      : "border-zinc-200 hover:bg-zinc-50"
+                  }`}
+                >
+                  <span
+                    className="h-5 w-5 rounded-full"
+                    style={{
+                      backgroundColor:
+                        option.color,
+                    }}
+                  />
 
-              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
-                <span>
-                  <span className="block font-medium">
-                    Kompaktmodus
+                  <span className="font-medium">
+                    {option.label}
                   </span>
-
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Weniger Innenabstand im Hauptbereich.
-                  </span>
-                </span>
-
-                <input
-                  type="checkbox"
-                  checked={compactMode}
-                  onChange={(event) =>
-                    setCompactMode(
-                      event.target.checked
-                    )
-                  }
-                  className="h-5 w-5"
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-4">
-                <span>
-                  <span className="block font-medium">
-                    Version anzeigen
-                  </span>
-
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Version in der Sidebar anzeigen.
-                  </span>
-                </span>
-
-                <input
-                  type="checkbox"
-                  checked={showVersion}
-                  onChange={(event) =>
-                    setShowVersion(
-                      event.target.checked
-                    )
-                  }
-                  className="h-5 w-5"
-                />
-              </label>
-            </div>
+                </button>
+              )
+            )}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <h3 className="font-semibold mb-3">
+            Layout
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sidebarPositionOptions.map(
+              (option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setSidebarPosition(
+                      option.value
+                    )
+                  }
+                  className={`text-left border rounded-2xl p-5 transition ${
+                    sidebarPosition === option.value
+                      ? "border-zinc-900 bg-zinc-100"
+                      : "border-zinc-200 hover:bg-zinc-50"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    Sidebar {option.label}
+                  </p>
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
+            <span>
+              <span className="block font-medium">
+                Dark Mode
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Dunkle Oberfläche aktivieren.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={darkMode}
+              onChange={(event) =>
+                setDarkMode(
+                  event.target.checked
+                )
+              }
+              className="h-5 w-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
+            <span>
+              <span className="block font-medium">
+                Kompaktmodus
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Weniger Innenabstand im Hauptbereich.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={compactMode}
+              onChange={(event) =>
+                setCompactMode(
+                  event.target.checked
+                )
+              }
+              className="h-5 w-5"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
+            <span>
+              <span className="block font-medium">
+                Version anzeigen
+              </span>
+
+              <span className="block text-sm text-zinc-500 mt-1">
+                Version in der Sidebar anzeigen.
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={showVersion}
+              onChange={(event) =>
+                setShowVersion(
+                  event.target.checked
+                )
+              }
+              className="h-5 w-5"
+            />
+          </label>
         </div>
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Features
-          </h2>
+        <h2 className="text-2xl font-semibold">
+          Features
+        </h2>
 
-          <p className="text-zinc-500 mt-2">
-            Schalte optionale Bereiche der Anwendung ein oder aus.
-          </p>
-        </div>
+        <p className="text-zinc-500 mt-2">
+          Schalte optionale Bereiche der Anwendung ein oder aus.
+        </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl p-5">
             <span>
               <span className="block font-medium">
@@ -842,17 +899,15 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold">
-            Standardwerte & Datenquelle
-          </h2>
+        <h2 className="text-2xl font-semibold">
+          Standardwerte & Datenquelle
+        </h2>
 
-          <p className="text-zinc-500 mt-2">
-            Vorbereitung für Benutzerverwaltung und spätere Datenbank-Anbindung.
-          </p>
-        </div>
+        <p className="text-zinc-500 mt-2">
+          Vorbereitung für Benutzerverwaltung und spätere Datenbank-Anbindung.
+        </p>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
           <div>
             <label className="block mb-2 font-medium">
               Standardrolle für neue Benutzer
@@ -862,7 +917,7 @@ export default function SettingsPage() {
               value={defaultUserRole}
               onChange={(event) =>
                 setDefaultUserRole(
-                  event.target.value as NonNullable<AppSettings["defaultUserRole"]>
+                  event.target.value as UserRoleValue
                 )
               }
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
@@ -920,35 +975,31 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">
-              Änderungen übernehmen
-            </h2>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h2 className="text-2xl font-semibold">
+          Änderungen übernehmen
+        </h2>
 
-            <p className="text-zinc-500 mt-1">
-              Speichere die Einstellungen oder setze sie auf Standardwerte zurück.
-            </p>
-          </div>
+        <p className="text-zinc-500 mt-2">
+          Speichere die Einstellungen oder setze sie auf Standardwerte zurück.
+        </p>
 
-          <div className="flex flex-wrap gap-3 justify-end">
-            <button
-              type="button"
-              onClick={handleReset}
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Zurücksetzen
-            </button>
+        <div className="flex flex-wrap gap-3 mt-6">
+          <button
+            type="button"
+            onClick={handleReset}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Zurücksetzen
+          </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Speichern
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Speichern
+          </button>
         </div>
       </div>
     </div>

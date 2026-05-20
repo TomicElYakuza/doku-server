@@ -2,28 +2,116 @@
 
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
-
-import { useParams } from "next/navigation";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  getStoredPages,
-} from "../../../../lib/wikiStorage";
+  useParams,
+} from "next/navigation";
 
-export default function TagPage() {
-  const params = useParams();
+import {
+  wikiRepository,
+} from "../../../../lib/wikiRepository";
 
-  const tagParam =
-    params.tag as string;
+import type {
+  WikiPage,
+} from "../../../../lib/wikiRepository";
 
-  const decodedTag =
-    decodeURIComponent(tagParam);
+function getPageSlug(
+  page: WikiPage
+) {
+  return String(
+    page.slug ||
+      ""
+  );
+}
+
+function getPageTitle(
+  page: WikiPage
+) {
+  return String(
+    page.title ||
+      "Unbenanntes Dokument"
+  );
+}
+
+function getPageDescription(
+  page: WikiPage
+) {
+  return String(
+    page.description ||
+      page.excerpt ||
+      ""
+  );
+}
+
+function getPageCompany(
+  page: WikiPage
+) {
+  return String(
+    page.company ||
+      "Intern"
+  );
+}
+
+function getPageDepartment(
+  page: WikiPage
+) {
+  return String(
+    page.department ||
+      page.category ||
+      "Allgemein"
+  );
+}
+
+function getPageUpdatedAt(
+  page: WikiPage
+) {
+  return String(
+    page.updatedAt ||
+      page.createdAt ||
+      "Unbekannt"
+  );
+}
+
+function getPageTags(
+  page: WikiPage
+) {
+  if (
+    Array.isArray(
+      page.tags
+    )
+  ) {
+    return page.tags.map(
+      (tag) =>
+        String(
+          tag
+        )
+    );
+  }
+
+  return [];
+}
+
+export default function WikiTagPage() {
+  const params =
+    useParams();
+
+  const tag =
+    decodeURIComponent(
+      params.tag as string
+    );
 
   const [mounted, setMounted] =
     useState(false);
 
   const [pages, setPages] =
-    useState<any[]>([]);
+    useState<WikiPage[]>([]);
+
+  const [search, setSearch] =
+    useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -45,200 +133,256 @@ export default function TagPage() {
         handleWikiPagesUpdated
       );
     };
-  }, [decodedTag]);
+  }, [
+    tag,
+  ]);
 
   function loadPages() {
-    const allPages =
-      getStoredPages();
-
-    const filteredPages =
-      allPages.filter(
-        (page: any) =>
-          page.tags?.includes(decodedTag)
-      );
-
-    setPages(filteredPages);
+    setPages(
+      wikiRepository.listByTag(
+        tag
+      )
+    );
   }
 
   if (!mounted) {
     return null;
   }
 
-  const companies: string[] =
+  const filteredPages =
+    pages.filter(
+      (page) => {
+        const query =
+          search
+            .trim()
+            .toLowerCase();
+
+        if (!query) {
+          return true;
+        }
+
+        return [
+          getPageSlug(
+            page
+          ),
+          getPageTitle(
+            page
+          ),
+          getPageDescription(
+            page
+          ),
+          getPageCompany(
+            page
+          ),
+          getPageDepartment(
+            page
+          ),
+          getPageTags(
+            page
+          ).join(" "),
+          String(
+            page.content ||
+              ""
+          ),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(
+            query
+          );
+      }
+    );
+
+  const companies =
     Array.from(
       new Set(
-        pages
-          .map(
-            (page: any) =>
-              page.company || "Intern"
-          )
-          .filter(Boolean)
+        pages.map(
+          (page) =>
+            getPageCompany(
+              page
+            )
+        )
+      )
+    );
+
+  const departments =
+    Array.from(
+      new Set(
+        pages.map(
+          (page) =>
+            getPageDepartment(
+              page
+            )
+        )
       )
     );
 
   return (
-    <div className="space-y-6">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
+        <span>/</span>
+
+        <span>
+          Tag
         </span>
 
-        <span className="text-zinc-900">
-          tag
-        </span>
+        <span>/</span>
 
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          #{decodedTag}
+        <span>
+          #{tag}
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <Link
           href="/wiki"
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
-          ← Zurück zur Übersicht
+          ← Zurück zur Wiki-Übersicht
         </Link>
       </div>
 
-      {/* HEADER */}
       <div>
-        <p className="text-zinc-500">
-          Tag Suche
+        <p className="text-sm text-zinc-500">
+          Wiki nach Tag
         </p>
 
         <h1 className="text-4xl font-bold mt-2">
-          #{decodedTag}
+          #{tag}
         </h1>
 
-        <p className="text-zinc-500 mt-3">
-          {pages.length} Dokumente gefunden ·{" "}
-          {companies.length} Firmen
+        <p className="text-zinc-500 mt-2">
+          Alle Dokumente mit diesem Tag
         </p>
       </div>
 
-      {/* EMPTY */}
-      {pages.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
-            🔎
-          </div>
-
-          <h2 className="text-2xl font-bold">
-            Keine Dokumente gefunden
-          </h2>
-
-          <p className="text-zinc-500 mt-3">
-            Es gibt aktuell kein Dokument mit dem Tag{" "}
-            <span className="font-mono text-zinc-900">
-              #{decodedTag}
-            </span>
-            .
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Dokumente
           </p>
 
-          <Link
-            href="/wiki"
-            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Zurück zur Wiki-Übersicht
-          </Link>
+          <h2 className="text-4xl font-bold mt-3">
+            {pages.length}
+          </h2>
         </div>
-      )}
 
-      {/* DOCUMENTS */}
-      <div className="grid gap-4">
-        {pages.map(
-          (page: any) => {
-            const company =
-              page.company || "Intern";
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Firmen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Abteilungen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {departments.length}
+          </h2>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Treffer
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {filteredPages.length}
+          </h2>
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <label className="block text-sm font-medium mb-2">
+          In diesem Tag suchen
+        </label>
+
+        <input
+          value={search}
+          onChange={(event) =>
+            setSearch(
+              event.target.value
+            )
+          }
+          placeholder="Suche nach Titel, Inhalt, Firma oder Abteilung..."
+          className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {filteredPages.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <p className="text-zinc-500">
+              Keine Dokumente gefunden.
+            </p>
+          </div>
+        )}
+
+        {filteredPages.map(
+          (page) => {
+            const slug =
+              getPageSlug(
+                page
+              );
 
             return (
-              <div
-                key={page.slug}
-                className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-zinc-400 transition"
+              <Link
+                key={slug}
+                href={`/wiki/${encodeURIComponent(
+                  slug
+                )}`}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/wiki/company/${encodeURIComponent(
-                        company
-                      )}`}
-                      className="text-sm bg-blue-50 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-100 transition"
-                    >
-                      {company}
-                    </Link>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                    {getPageCompany(
+                      page
+                    )}
+                  </span>
 
-                    <Link
-                      href={`/wiki/department/${encodeURIComponent(
-                        page.category
-                      )}`}
-                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
-                    >
-                      {page.category}
-                    </Link>
-                  </div>
+                  <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                    {getPageDepartment(
+                      page
+                    )}
+                  </span>
 
-                  <span className="text-xs bg-zinc-100 px-3 py-1 rounded-full">
-                    Dokument
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    #{tag}
                   </span>
                 </div>
 
-                <Link
-                  href={`/wiki/${page.slug}`}
-                  className="block mt-3"
-                >
-                  <h2 className="text-xl font-semibold hover:underline">
-                    {page.title}
-                  </h2>
-                </Link>
+                <h2 className="text-2xl font-bold mt-5">
+                  {getPageTitle(
+                    page
+                  )}
+                </h2>
 
-                <p className="text-zinc-600 mt-2">
-                  {page.description}
+                <p className="text-zinc-500 mt-2 line-clamp-2">
+                  {getPageDescription(
+                    page
+                  )}
                 </p>
 
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {page.tags?.map(
-                    (pageTag: string) => (
-                      <Link
-                        key={pageTag}
-                        href={`/wiki/tag/${encodeURIComponent(
-                          pageTag
-                        )}`}
-                        className={`text-xs px-2 py-1 rounded-full transition ${
-                          pageTag === decodedTag
-                            ? "bg-zinc-900 text-white"
-                            : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                        }`}
-                      >
-                        #{pageTag}
-                      </Link>
-                    )
+                <p className="text-sm text-zinc-500 mt-5">
+                  Aktualisiert:{" "}
+                  {getPageUpdatedAt(
+                    page
                   )}
-                </div>
-
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100">
-                  <p className="text-sm text-zinc-500">
-                    {page.author}
-                  </p>
-
-                  <p className="text-sm text-zinc-500">
-                    {page.updatedAt}
-                  </p>
-                </div>
-              </div>
+                </p>
+              </Link>
             );
           }
         )}

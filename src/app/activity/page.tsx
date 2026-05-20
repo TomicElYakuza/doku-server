@@ -8,31 +8,26 @@ import {
 } from "react";
 
 import {
-  clearActivities,
-  deleteActivity,
-  getActivities,
-  getActivityTypeClass,
-  getActivityTypeLabel,
-} from "../../lib/activityStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
 
 import type {
   Activity,
 } from "../../lib/activityStorage";
 
 import {
-  canDelete,
-  canViewActivity,
-} from "../../lib/permissions";
-
-import {
-  getCompanies,
-  getDepartments,
-} from "../../lib/companyStorage";
+  companyRepository,
+} from "../../lib/companyRepository";
 
 import type {
   Company,
   Department,
 } from "../../lib/companyStorage";
+
+import {
+  canDelete,
+  canViewActivity,
+} from "../../lib/permissions";
 
 import {
   isActivityLogEnabled,
@@ -145,15 +140,15 @@ export default function ActivityPage() {
 
   function loadData() {
     setActivities(
-      getActivities()
+      activityRepository.list()
     );
 
     setCompanies(
-      getCompanies()
+      companyRepository.listCompanies()
     );
 
     setDepartments(
-      getDepartments()
+      companyRepository.listDepartments()
     );
   }
 
@@ -213,11 +208,8 @@ export default function ActivityPage() {
 
   function resetFilters() {
     setSearch("");
-
     setTypeFilter("");
-
     setCompanyFilter("");
-
     setDepartmentFilter("");
   }
 
@@ -241,7 +233,7 @@ export default function ActivityPage() {
       return;
     }
 
-    deleteActivity(
+    activityRepository.delete(
       activity.id
     );
   }
@@ -264,7 +256,7 @@ export default function ActivityPage() {
       return;
     }
 
-    clearActivities();
+    activityRepository.clear();
   }
 
   if (!mounted) {
@@ -274,24 +266,16 @@ export default function ActivityPage() {
   if (!activityLogEnabled) {
     return (
       <div className="space-y-8">
-        <div className="flex items-center gap-3 text-sm">
+        <div>
           <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            href="/dashboard"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            dashboard
+            ← Zurück zum Dashboard
           </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            aktivitäten
-          </span>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Aktivitätslog deaktiviert
           </h1>
@@ -313,29 +297,17 @@ export default function ActivityPage() {
 
   if (!canViewActivity()) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3 text-sm">
+      <div className="space-y-8">
+        <div>
           <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            href="/dashboard"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            dashboard
+            ← Zurück zum Dashboard
           </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            aktivitäten
-          </span>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
-            🔒
-          </div>
-
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Kein Zugriff
           </h1>
@@ -370,35 +342,55 @@ export default function ActivityPage() {
           "";
 
         const matchesSearch =
+          !query ||
           activity.title
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activity.description
+            ?.toLowerCase()
+            .includes(
+              query
+            ) ||
+          activityRepository
+            .getTypeLabel(
+              activity.type
+            )
             .toLowerCase()
-            .includes(query) ||
-          getActivityTypeLabel(
-            activity.type
-          )
-            .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activityCompany
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activityDepartment
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           user
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activity.userEmail
             ?.toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activity.entityType
             ?.toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           activity.entityId
             ?.toLowerCase()
-            .includes(query);
+            .includes(
+              query
+            );
 
         const matchesType =
           !typeFilter ||
@@ -407,18 +399,16 @@ export default function ActivityPage() {
         const matchesCompany =
           !companyFilter ||
           activity.companyId === companyFilter ||
-          activity.company ===
-            getCompanyName(
-              companyFilter
-            );
+          activity.company === getCompanyName(
+            companyFilter
+          );
 
         const matchesDepartment =
           !departmentFilter ||
           activity.departmentId === departmentFilter ||
-          activity.department ===
-            getDepartmentName(
-              departmentFilter
-            );
+          activity.department === getDepartmentName(
+            departmentFilter
+          );
 
         return (
           matchesSearch &&
@@ -432,7 +422,9 @@ export default function ActivityPage() {
   const ticketActivityCount =
     activities.filter(
       (activity) =>
-        String(activity.type).startsWith(
+        String(
+          activity.type
+        ).startsWith(
           "ticket"
         )
     ).length;
@@ -440,7 +432,9 @@ export default function ActivityPage() {
   const wikiActivityCount =
     activities.filter(
       (activity) =>
-        String(activity.type).startsWith(
+        String(
+          activity.type
+        ).startsWith(
           "wiki"
         ) ||
         activity.type === "created" ||
@@ -453,7 +447,9 @@ export default function ActivityPage() {
   const userActivityCount =
     activities.filter(
       (activity) =>
-        String(activity.type).startsWith(
+        String(
+          activity.type
+        ).startsWith(
           "user"
         )
     ).length;
@@ -461,10 +457,14 @@ export default function ActivityPage() {
   const organizationActivityCount =
     activities.filter(
       (activity) =>
-        String(activity.type).startsWith(
+        String(
+          activity.type
+        ).startsWith(
           "company"
         ) ||
-        String(activity.type).startsWith(
+        String(
+          activity.type
+        ).startsWith(
           "department"
         )
     ).length;
@@ -481,21 +481,13 @@ export default function ActivityPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3 text-sm">
+      <div>
         <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          href="/dashboard"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
-          dashboard
+          ← Zurück zum Dashboard
         </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          aktivitäten
-        </span>
       </div>
 
       <div className="flex items-start justify-between gap-6">
@@ -509,34 +501,20 @@ export default function ActivityPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-end">
-          <Link
-            href="/tickets"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        {canDelete() && (
+          <button
+            type="button"
+            onClick={handleClearActivities}
+            className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
           >
-            Tickets
-          </Link>
-
-          <Link
-            href="/wiki"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Wiki
-          </Link>
-
-          {canDelete() && (
-            <button
-              onClick={handleClearActivities}
-              className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
-            >
-              Alle löschen
-            </button>
-          )}
-        </div>
+            Alle löschen
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
+          type="button"
           onClick={() =>
             setTypeFilter("")
           }
@@ -552,6 +530,7 @@ export default function ActivityPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setSearch(
               "ticket"
@@ -569,6 +548,7 @@ export default function ActivityPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setSearch(
               "wiki"
@@ -586,6 +566,7 @@ export default function ActivityPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setSearch(
               "benutzer"
@@ -603,6 +584,7 @@ export default function ActivityPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
             setSearch(
               "firma"
@@ -634,6 +616,7 @@ export default function ActivityPage() {
 
           <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
             <button
+              type="button"
               onClick={() =>
                 setViewMode(
                   "cards"
@@ -649,6 +632,7 @@ export default function ActivityPage() {
             </button>
 
             <button
+              type="button"
               onClick={() =>
                 setViewMode(
                   "table"
@@ -667,7 +651,6 @@ export default function ActivityPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
           <input
-            type="text"
             value={search}
             onChange={(event) =>
               setSearch(
@@ -697,7 +680,7 @@ export default function ActivityPage() {
                   key={type}
                   value={type}
                 >
-                  {getActivityTypeLabel(
+                  {activityRepository.getTypeLabel(
                     type
                   )}
                 </option>
@@ -763,6 +746,7 @@ export default function ActivityPage() {
           </p>
 
           <button
+            type="button"
             onClick={resetFilters}
             className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
@@ -806,17 +790,13 @@ export default function ActivityPage() {
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full ${getActivityTypeClass(
-                            activity.type
-                          )}`}
-                        >
-                          {getActivityTypeLabel(
+                        <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                          {activityRepository.getTypeLabel(
                             activity.type
                           )}
                         </span>
 
-                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                           {activityCompany}
                         </span>
 
@@ -835,7 +815,7 @@ export default function ActivityPage() {
                         {activity.title}
                       </h2>
 
-                      <p className="text-zinc-500 mt-2 whitespace-pre-wrap">
+                      <p className="text-zinc-500 mt-2">
                         {activity.description ||
                           "Keine Beschreibung"}
                       </p>
@@ -869,6 +849,7 @@ export default function ActivityPage() {
 
                     {canDelete() && (
                       <button
+                        type="button"
                         onClick={() =>
                           handleDeleteActivity(
                             activity
@@ -961,7 +942,7 @@ export default function ActivityPage() {
                         key={activity.id}
                         className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
                       >
-                        <td className="px-5 py-4 min-w-[280px]">
+                        <td className="px-5 py-4 min-w-[260px]">
                           <p className="font-semibold">
                             {activity.title}
                           </p>
@@ -973,12 +954,8 @@ export default function ActivityPage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${getActivityTypeClass(
-                              activity.type
-                            )}`}
-                          >
-                            {getActivityTypeLabel(
+                          <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                            {activityRepository.getTypeLabel(
                               activity.type
                             )}
                           </span>
@@ -997,7 +974,8 @@ export default function ActivityPage() {
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500">
-                          {activity.entityType || "—"}
+                          {activity.entityType ||
+                            "—"}
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
@@ -1005,9 +983,10 @@ export default function ActivityPage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="flex justify-end">
-                            {canDelete() && (
+                          {canDelete() && (
+                            <div className="flex justify-end">
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleDeleteActivity(
                                     activity
@@ -1017,8 +996,8 @@ export default function ActivityPage() {
                               >
                                 Löschen
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Link from "next/link";
+
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
   useParams,
@@ -11,17 +14,20 @@ import {
 import ReactMarkdown from "react-markdown";
 
 import {
-  getStoredPages,
-  savePages,
-} from "../../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../../lib/wikiRepository";
+
+import type {
+  WikiPage,
+} from "../../../../lib/wikiRepository";
 
 import {
   saveVersion,
 } from "../../../../lib/versionStorage";
 
 import {
-  saveActivity,
-} from "../../../../lib/activityStorage";
+  activityRepository,
+} from "../../../../lib/activityRepository";
 
 import {
   getUser,
@@ -76,58 +82,112 @@ export default function EditWikiPage() {
     useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     const editAllowed =
       canEdit();
 
-    setAllowed(editAllowed);
+    setAllowed(
+      editAllowed
+    );
 
-    const pages =
-      getStoredPages();
+    loadPage();
+  }, [
+    slug,
+  ]);
 
+  function loadPage() {
     const decodedSlug =
-      decodeURIComponent(slug);
-
-    const page =
-      pages.find(
-        (page: any) =>
-          page.slug === slug ||
-          page.slug === decodedSlug
+      decodeURIComponent(
+        slug
       );
 
-    if (!page) {
-      setPageFound(false);
+    const page =
+      (
+        wikiRepository.findBySlug(
+          decodedSlug
+        ) ||
+        wikiRepository.findBySlug(
+          slug
+        )
+      ) as WikiPage | null;
 
-      setPageChecked(true);
+    if (!page) {
+      setPageFound(
+        false
+      );
+
+      setPageChecked(
+        true
+      );
 
       return;
     }
 
-    setPageFound(true);
+    setPageFound(
+      true
+    );
 
-    setDocumentSlug(page.slug);
+    setDocumentSlug(
+      String(
+        page.slug ||
+          decodedSlug
+      )
+    );
 
-    setTitle(page.title || "");
+    setTitle(
+      String(
+        page.title ||
+          ""
+      )
+    );
 
     setCompany(
-      page.company || "Intern"
+      String(
+        page.company ||
+          "Intern"
+      )
     );
 
-    setCategory(page.category || "");
+    setCategory(
+      String(
+        page.category ||
+          page.department ||
+          ""
+      )
+    );
 
     setDescription(
-      page.description || ""
+      String(
+        page.description ||
+          page.excerpt ||
+          ""
+      )
     );
 
-    setContent(page.content || "");
+    setContent(
+      String(
+        page.content ||
+          ""
+      )
+    );
 
     setTags(
-      page.tags?.join(", ") || ""
+      Array.isArray(
+        page.tags
+      )
+        ? page.tags.join(
+            ", "
+          )
+        : ""
     );
 
-    setPageChecked(true);
-  }, [slug]);
+    setPageChecked(
+      true
+    );
+  }
 
   function getDocumentHref() {
     if (!documentSlug) {
@@ -177,19 +237,23 @@ export default function EditWikiPage() {
       return;
     }
 
-    const pages =
-      getStoredPages();
-
     const decodedSlug =
-      decodeURIComponent(slug);
+      decodeURIComponent(
+        slug
+      );
 
     const existingPage =
-      pages.find(
-        (page: any) =>
-          page.slug === slug ||
-          page.slug === decodedSlug ||
-          page.slug === documentSlug
-      );
+      (
+        wikiRepository.findBySlug(
+          documentSlug
+        ) ||
+        wikiRepository.findBySlug(
+          decodedSlug
+        ) ||
+        wikiRepository.findBySlug(
+          slug
+        )
+      ) as WikiPage | null;
 
     if (!existingPage) {
       alert(
@@ -199,45 +263,51 @@ export default function EditWikiPage() {
       return;
     }
 
-    saveVersion(existingPage.slug, {
-      title:
-        existingPage.title,
+    const existingSlug =
+      String(
+        existingPage.slug ||
+          documentSlug ||
+          decodedSlug
+      );
 
-      company:
-        existingPage.company ||
-        "Intern",
+    saveVersion(
+      existingSlug,
+      {
+        title:
+          existingPage.title,
 
-      category:
-        existingPage.category,
+        company:
+          existingPage.company ||
+          "Intern",
 
-      description:
-        existingPage.description,
+        category:
+          existingPage.category,
 
-      tags:
-        existingPage.tags || [],
+        description:
+          existingPage.description ||
+          existingPage.excerpt ||
+          "",
 
-      content:
-        existingPage.content || "",
+        tags:
+          existingPage.tags ||
+          [],
 
-      updatedAt:
-        existingPage.updatedAt,
+        content:
+          existingPage.content ||
+          "",
 
-      savedAt:
-        new Date().toLocaleString(),
-    });
+        updatedAt:
+          existingPage.updatedAt,
 
-    const updatedPages =
-      pages.map((page: any) => {
-        if (
-          page.slug !==
-          existingPage.slug
-        ) {
-          return page;
-        }
+        savedAt:
+          new Date().toLocaleString(),
+      }
+    );
 
-        return {
-          ...page,
-
+    const updatedPage =
+      wikiRepository.update(
+        existingSlug,
+        {
           title:
             title.trim(),
 
@@ -248,28 +318,35 @@ export default function EditWikiPage() {
           category:
             category.trim(),
 
+          department:
+            category.trim(),
+
           description:
             description.trim(),
 
-          tags: tags
-            .split(",")
-            .map((tag) =>
-              tag.trim()
-            )
-            .filter(Boolean),
+          excerpt:
+            description.trim(),
+
+          tags:
+            tags
+              .split(",")
+              .map(
+                (tag) =>
+                  tag.trim()
+              )
+              .filter(Boolean),
 
           content:
             content.trim(),
 
           updatedAt:
             new Date().toLocaleDateString(),
-        };
-      });
+        }
+      );
 
-    savePages(updatedPages);
-
-    saveActivity({
-      type: "edited",
+    activityRepository.create({
+      type:
+        "edited",
 
       title:
         title.trim(),
@@ -288,19 +365,25 @@ export default function EditWikiPage() {
 
     window.location.href =
       `/wiki/${encodeURIComponent(
-        existingPage.slug
+        String(
+          updatedPage?.slug ||
+            existingSlug
+        )
       )}`;
   }
 
-  if (!mounted || !pageChecked) {
+  if (
+    !mounted ||
+    !pageChecked
+  ) {
     return null;
   }
 
   if (!allowed) {
     return (
-      <div className="max-w-2xl">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <h1 className="text-3xl font-bold">
+      <div className="space-y-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-4xl font-bold">
             Keine Berechtigung
           </h1>
 
@@ -308,12 +391,12 @@ export default function EditWikiPage() {
             Du darfst dieses Dokument nicht bearbeiten.
           </p>
 
-          <button
-            onClick={goToDocument}
-            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          <Link
+            href={getDocumentHref()}
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             ← Zurück zum Dokument
-          </button>
+          </Link>
         </div>
       </div>
     );
@@ -321,38 +404,36 @@ export default function EditWikiPage() {
 
   if (!pageFound) {
     return (
-      <div className="max-w-3xl">
-        <div className="flex items-center gap-3 mb-6 text-sm">
+      <div className="space-y-8">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
           <Link
             href="/wiki"
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            className="hover:text-zinc-900 transition"
           >
-            wiki
+            Wiki
           </Link>
 
-          <span className="text-zinc-400">
-            /
-          </span>
+          <span>/</span>
 
-          <span className="text-zinc-900">
-            bearbeiten
+          <span>
+            Bearbeiten
           </span>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Dokument nicht gefunden
           </h1>
 
           <p className="text-zinc-500 mt-3">
             Die Seite mit dem Slug{" "}
-            <span className="font-mono text-zinc-900">
+            <span className="font-mono text-zinc-700">
               {slug}
             </span>{" "}
             kann nicht bearbeitet werden.
           </p>
 
-          <div className="flex flex-wrap gap-3 mt-8">
+          <div className="flex flex-wrap gap-3 mt-6">
             <Link
               href="/wiki"
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
@@ -375,45 +456,41 @@ export default function EditWikiPage() {
   const previewTags =
     tags
       .split(",")
-      .map((tag) =>
-        tag.trim()
+      .map(
+        (tag) =>
+          tag.trim()
       )
       .filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
-        <button
-          onClick={goToDocument}
-          className="text-zinc-500 hover:text-zinc-900 transition"
+        <Link
+          href={getDocumentHref()}
+          className="hover:text-zinc-900 transition"
         >
           {documentSlug || slug}
-        </button>
+        </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
-        <span className="text-zinc-900">
-          bearbeiten
+        <span>
+          Bearbeiten
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <button
+          type="button"
           onClick={goToDocument}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
@@ -421,27 +498,23 @@ export default function EditWikiPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* EDITOR */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold">
-              Wiki Seite bearbeiten
-            </h1>
+          <h1 className="text-4xl font-bold">
+            Wiki Seite bearbeiten
+          </h1>
 
-            <p className="text-zinc-500 mt-2">
-              Dokument aktualisieren
-            </p>
-          </div>
+          <p className="text-zinc-500 mt-2">
+            Dokument aktualisieren.
+          </p>
 
-          <div className="space-y-6">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Titel
               </label>
 
               <input
-                type="text"
                 value={title}
                 onChange={(event) =>
                   setTitle(
@@ -458,7 +531,6 @@ export default function EditWikiPage() {
               </label>
 
               <input
-                type="text"
                 value={company}
                 onChange={(event) =>
                   setCompany(
@@ -466,7 +538,6 @@ export default function EditWikiPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. Intern, Muster GmbH, Kunde A"
               />
             </div>
 
@@ -476,7 +547,6 @@ export default function EditWikiPage() {
               </label>
 
               <input
-                type="text"
                 value={category}
                 onChange={(event) =>
                   setCategory(
@@ -487,13 +557,12 @@ export default function EditWikiPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
 
               <input
-                type="text"
                 value={description}
                 onChange={(event) =>
                   setDescription(
@@ -504,7 +573,7 @@ export default function EditWikiPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Inhalt
               </label>
@@ -521,13 +590,12 @@ export default function EditWikiPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
                 Tags
               </label>
 
               <input
-                type="text"
                 value={tags}
                 onChange={(event) =>
                   setTags(
@@ -539,38 +607,41 @@ export default function EditWikiPage() {
               />
 
               <p className="text-sm text-zinc-500 mt-2">
-                Mit Komma trennen
+                Mit Komma trennen.
               </p>
             </div>
 
-            <FileUpload
-              slug={documentSlug || slug}
-            />
+            <div className="md:col-span-2 space-y-4">
+              <FileUpload
+                slug={documentSlug || slug}
+              />
 
-            <FileList
-              slug={documentSlug || slug}
-              editable={true}
-            />
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleSave}
-                className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                Änderungen speichern
-              </button>
-
-              <button
-                onClick={goToDocument}
-                className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-              >
-                Abbrechen
-              </button>
+              <FileList
+                slug={documentSlug || slug}
+                editable={true}
+              />
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Änderungen speichern
+            </button>
+
+            <button
+              type="button"
+              onClick={goToDocument}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Abbrechen
+            </button>
           </div>
         </div>
 
-        {/* PREVIEW */}
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
           <div className="mb-8">
             <h2 className="text-3xl font-bold">

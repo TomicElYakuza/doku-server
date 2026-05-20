@@ -13,15 +13,8 @@ import {
 } from "../../../lib/permissions";
 
 import {
-  createAdminUser,
-  deleteAdminUser,
-  getAdminUserRoleClass,
-  getAdminUserRoleLabel,
-  getAdminUserStatusClass,
-  getAdminUserStatusLabel,
-  getAdminUsers,
-  updateAdminUser,
-} from "../../../lib/adminUserStorage";
+  adminUserRepository,
+} from "../../../lib/adminUserRepository";
 
 import type {
   AdminUser,
@@ -33,12 +26,8 @@ import type {
 } from "../../../lib/userStorage";
 
 import {
-  getActiveCompanies,
-  getActiveDepartments,
-  getActiveDepartmentsByCompanyId,
-  getCompanies,
-  getDepartments,
-} from "../../../lib/companyStorage";
+  companyRepository,
+} from "../../../lib/companyRepository";
 
 import type {
   Company,
@@ -50,6 +39,8 @@ import {
   saveUserDeletedActivity,
   saveUserUpdatedActivity,
 } from "../../../lib/userActivityHelpers";
+
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
 type ViewMode =
   | "cards"
@@ -84,7 +75,7 @@ export default function AdminUsersPage() {
     useState("");
 
   const [viewMode, setViewMode] =
-    useState<ViewMode>("cards");
+    useState<ViewMode>("table");
 
   const [showForm, setShowForm] =
     useState(false);
@@ -121,60 +112,52 @@ export default function AdminUsersPage() {
 
     loadData();
 
-    function handleAdminUsersUpdated() {
-      loadData();
-    }
-
-    function handleCompaniesUpdated() {
-      loadData();
-    }
-
-    function handleDepartmentsUpdated() {
+    function handleUpdate() {
       loadData();
     }
 
     window.addEventListener(
       "adminUsersUpdated",
-      handleAdminUsersUpdated
+      handleUpdate
     );
 
     window.addEventListener(
       "companiesUpdated",
-      handleCompaniesUpdated
+      handleUpdate
     );
 
     window.addEventListener(
       "departmentsUpdated",
-      handleDepartmentsUpdated
+      handleUpdate
     );
 
     return () => {
       window.removeEventListener(
         "adminUsersUpdated",
-        handleAdminUsersUpdated
+        handleUpdate
       );
 
       window.removeEventListener(
         "companiesUpdated",
-        handleCompaniesUpdated
+        handleUpdate
       );
 
       window.removeEventListener(
         "departmentsUpdated",
-        handleDepartmentsUpdated
+        handleUpdate
       );
     };
   }, []);
 
   function loadData() {
     const nextCompanies =
-      getCompanies();
+      companyRepository.listCompanies();
 
     const nextDepartments =
-      getDepartments();
+      companyRepository.listDepartments();
 
     setUsers(
-      getAdminUsers()
+      adminUserRepository.list()
     );
 
     setCompanies(
@@ -244,10 +227,10 @@ export default function AdminUsersPage() {
 
   function getSelectableDepartments() {
     if (!companyId) {
-      return getActiveDepartments();
+      return companyRepository.listActiveDepartments();
     }
 
-    return getActiveDepartmentsByCompanyId(
+    return companyRepository.listActiveDepartmentsByCompanyId(
       companyId
     );
   }
@@ -271,7 +254,7 @@ export default function AdminUsersPage() {
     );
 
     const nextDepartments =
-      getActiveDepartmentsByCompanyId(
+      companyRepository.listActiveDepartmentsByCompanyId(
         nextCompanyId
       );
 
@@ -279,7 +262,8 @@ export default function AdminUsersPage() {
       nextDepartments[0];
 
     setDepartmentId(
-      firstDepartment?.id || ""
+      firstDepartment?.id ||
+        ""
     );
 
     setDepartment(
@@ -309,54 +293,51 @@ export default function AdminUsersPage() {
 
   function resetForm() {
     const activeCompanies =
-      getActiveCompanies();
+      companyRepository.listActiveCompanies();
 
     const firstCompany =
       activeCompanies[0];
 
     const activeDepartments =
       firstCompany
-        ? getActiveDepartmentsByCompanyId(
+        ? companyRepository.listActiveDepartmentsByCompanyId(
             firstCompany.id
           )
-        : getActiveDepartments();
+        : companyRepository.listActiveDepartments();
 
     const firstDepartment =
       activeDepartments[0];
 
     setEditingId("");
-
     setName("");
-
     setEmail("");
-
     setRole("viewer");
-
     setStatus("active");
-
     setCompanyId(
-      firstCompany?.id || ""
+      firstCompany?.id ||
+        ""
     );
-
     setDepartmentId(
-      firstDepartment?.id || ""
+      firstDepartment?.id ||
+        ""
     );
-
     setCompany(
-      firstCompany?.name || "Intern"
+      firstCompany?.name ||
+        "Intern"
     );
-
     setDepartment(
-      firstDepartment?.name || "Allgemein"
+      firstDepartment?.name ||
+        "Allgemein"
     );
-
     setShowForm(false);
   }
 
   function openCreateForm() {
     resetForm();
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
   }
 
   function startEditUser(
@@ -383,26 +364,35 @@ export default function AdminUsersPage() {
     );
 
     setCompanyId(
-      user.companyId || ""
+      user.companyId ||
+        ""
     );
 
     setDepartmentId(
-      user.departmentId || ""
+      user.departmentId ||
+        ""
     );
 
     setCompany(
-      user.company || "Intern"
+      user.company ||
+        "Intern"
     );
 
     setDepartment(
-      user.department || "Allgemein"
+      user.department ||
+        "Allgemein"
     );
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
 
     window.scrollTo({
-      top: 0,
-      behavior: "smooth",
+      top:
+        0,
+
+      behavior:
+        "smooth",
     });
   }
 
@@ -472,7 +462,7 @@ export default function AdminUsersPage() {
 
     if (editingId) {
       const updatedUser =
-        updateAdminUser(
+        adminUserRepository.update(
           editingId,
           userData
         );
@@ -489,7 +479,7 @@ export default function AdminUsersPage() {
     }
 
     const newUser =
-      createAdminUser(
+      adminUserRepository.create(
         userData
       );
 
@@ -524,20 +514,16 @@ export default function AdminUsersPage() {
       user
     );
 
-    deleteAdminUser(
+    adminUserRepository.delete(
       user.id
     );
   }
 
   function resetFilters() {
     setSearch("");
-
     setRoleFilter("");
-
     setStatusFilter("");
-
     setCompanyFilter("");
-
     setDepartmentFilter("");
   }
 
@@ -571,75 +557,29 @@ export default function AdminUsersPage() {
 
   if (!canViewAdmin()) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3 text-sm">
-          <Link
-            href="/"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            dashboard
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <Link
-            href="/admin"
-            className="text-zinc-500 hover:text-zinc-900 transition"
-          >
-            admin
-          </Link>
-
-          <span className="text-zinc-400">
-            /
-          </span>
-
-          <span className="text-zinc-900">
-            benutzer
-          </span>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center text-2xl mb-6">
-            🔒
-          </div>
-
-          <h1 className="text-4xl font-bold">
-            Kein Zugriff
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du hast mit deiner aktuellen Rolle keine Berechtigung für die Benutzerverwaltung.
-          </p>
-        </div>
-      </div>
+      <AccessDeniedCard />
     );
   }
 
   const adminCount =
-    users.filter(
-      (user) =>
-        user.role === "admin"
-    ).length;
+    adminUserRepository.countByRole(
+      "admin"
+    );
 
   const editorCount =
-    users.filter(
-      (user) =>
-        user.role === "editor"
-    ).length;
+    adminUserRepository.countByRole(
+      "editor"
+    );
 
   const viewerCount =
-    users.filter(
-      (user) =>
-        user.role === "viewer"
-    ).length;
+    adminUserRepository.countByRole(
+      "viewer"
+    );
 
   const activeCount =
-    users.filter(
-      (user) =>
-        user.status === "active"
-    ).length;
+    adminUserRepository.countByStatus(
+      "active"
+    );
 
   const filteredUsers =
     users.filter(
@@ -658,28 +598,43 @@ export default function AdminUsersPage() {
           );
 
         const matchesSearch =
+          !query ||
           user.name
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           user.email
             .toLowerCase()
-            .includes(query) ||
-          getAdminUserRoleLabel(
-            user.role
-          )
+            .includes(
+              query
+            ) ||
+          adminUserRepository
+            .getRoleLabel(
+              user.role
+            )
             .toLowerCase()
-            .includes(query) ||
-          getAdminUserStatusLabel(
-            user.status
-          )
+            .includes(
+              query
+            ) ||
+          adminUserRepository
+            .getStatusLabel(
+              user.status
+            )
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           userCompany
             .toLowerCase()
-            .includes(query) ||
+            .includes(
+              query
+            ) ||
           userDepartment
             .toLowerCase()
-            .includes(query);
+            .includes(
+              query
+            );
 
         const matchesRole =
           !roleFilter ||
@@ -692,18 +647,16 @@ export default function AdminUsersPage() {
         const matchesCompany =
           !companyFilter ||
           user.companyId === companyFilter ||
-          user.company ===
-            getCompanyName(
-              companyFilter
-            );
+          user.company === getCompanyName(
+            companyFilter
+          );
 
         const matchesDepartment =
           !departmentFilter ||
           user.departmentId === departmentFilter ||
-          user.department ===
-            getDepartmentName(
-              departmentFilter
-            );
+          user.department === getDepartmentName(
+            departmentFilter
+          );
 
         return (
           matchesSearch &&
@@ -717,36 +670,6 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-8">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
-        <Link
-          href="/"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          dashboard
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <Link
-          href="/admin"
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          admin
-        </Link>
-
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          benutzer
-        </span>
-      </div>
-
-      {/* BACK */}
       <div>
         <Link
           href="/admin"
@@ -756,7 +679,6 @@ export default function AdminUsersPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
       <div className="flex items-start justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold">
@@ -770,6 +692,7 @@ export default function AdminUsersPage() {
 
         {canManageSystem() && (
           <button
+            type="button"
             onClick={openCreateForm}
             className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
@@ -778,9 +701,9 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
+          type="button"
           onClick={() =>
             setRoleFilter("")
           }
@@ -796,8 +719,11 @@ export default function AdminUsersPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setRoleFilter("admin")
+            setRoleFilter(
+              "admin"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
         >
@@ -811,8 +737,11 @@ export default function AdminUsersPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setRoleFilter("editor")
+            setRoleFilter(
+              "editor"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
         >
@@ -826,8 +755,11 @@ export default function AdminUsersPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setRoleFilter("viewer")
+            setRoleFilter(
+              "viewer"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
@@ -841,8 +773,11 @@ export default function AdminUsersPage() {
         </button>
 
         <button
+          type="button"
           onClick={() =>
-            setStatusFilter("active")
+            setStatusFilter(
+              "active"
+            )
           }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
         >
@@ -856,7 +791,6 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
-      {/* FORM */}
       {showForm && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
@@ -872,7 +806,6 @@ export default function AdminUsersPage() {
               </label>
 
               <input
-                type="text"
                 value={name}
                 onChange={(event) =>
                   setName(
@@ -890,7 +823,6 @@ export default function AdminUsersPage() {
               </label>
 
               <input
-                type="email"
                 value={email}
                 onChange={(event) =>
                   setEmail(
@@ -976,16 +908,18 @@ export default function AdminUsersPage() {
                   Firma auswählen
                 </option>
 
-                {getActiveCompanies().map(
-                  (item) => (
-                    <option
-                      key={item.id}
-                      value={item.id}
-                    >
-                      {item.name}
-                    </option>
-                  )
-                )}
+                {companyRepository
+                  .listActiveCompanies()
+                  .map(
+                    (item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                      >
+                        {item.name}
+                      </option>
+                    )
+                  )}
               </select>
             </div>
 
@@ -1023,6 +957,7 @@ export default function AdminUsersPage() {
 
           <div className="flex flex-wrap gap-3 mt-6">
             <button
+              type="button"
               onClick={handleSaveUser}
               className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
             >
@@ -1032,6 +967,7 @@ export default function AdminUsersPage() {
             </button>
 
             <button
+              type="button"
               onClick={resetForm}
               className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
             >
@@ -1041,7 +977,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex items-start justify-between gap-6">
           <div>
@@ -1056,8 +991,11 @@ export default function AdminUsersPage() {
 
           <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
             <button
+              type="button"
               onClick={() =>
-                setViewMode("cards")
+                setViewMode(
+                  "cards"
+                )
               }
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "cards"
@@ -1069,8 +1007,11 @@ export default function AdminUsersPage() {
             </button>
 
             <button
+              type="button"
               onClick={() =>
-                setViewMode("table")
+                setViewMode(
+                  "table"
+                )
               }
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "table"
@@ -1083,9 +1024,8 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
           <input
-            type="text"
             value={search}
             onChange={(event) =>
               setSearch(
@@ -1172,7 +1112,9 @@ export default function AdminUsersPage() {
               )
             )}
           </select>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <select
             value={departmentFilter}
             onChange={(event) =>
@@ -1197,24 +1139,22 @@ export default function AdminUsersPage() {
               )
             )}
           </select>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 mt-5">
-          <p className="text-sm text-zinc-500">
-            {filteredUsers.length} von{" "}
-            {users.length} Benutzern gefunden
-          </p>
 
           <button
+            type="button"
             onClick={resetFilters}
-            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+            className="bg-zinc-100 hover:bg-zinc-200 px-5 py-4 rounded-2xl transition"
           >
             Filter zurücksetzen
           </button>
         </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredUsers.length} von{" "}
+          {users.length} Benutzern gefunden
+        </p>
       </div>
 
-      {/* CARDS */}
       {viewMode === "cards" && (
         <div className="grid gap-4">
           {filteredUsers.length === 0 && (
@@ -1245,22 +1185,14 @@ export default function AdminUsersPage() {
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full ${getAdminUserRoleClass(
-                            user.role
-                          )}`}
-                        >
-                          {getAdminUserRoleLabel(
+                        <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getRoleClass(user.role)}`}>
+                          {adminUserRepository.getRoleLabel(
                             user.role
                           )}
                         </span>
 
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full ${getAdminUserStatusClass(
-                            user.status
-                          )}`}
-                        >
-                          {getAdminUserStatusLabel(
+                        <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getStatusClass(user.status)}`}>
+                          {adminUserRepository.getStatusLabel(
                             user.status
                           )}
                         </span>
@@ -1304,6 +1236,7 @@ export default function AdminUsersPage() {
                     {canManageSystem() && (
                       <div className="flex flex-wrap gap-3 justify-end shrink-0">
                         <button
+                          type="button"
                           onClick={() =>
                             startEditUser(
                               user
@@ -1315,6 +1248,7 @@ export default function AdminUsersPage() {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() =>
                             handleDeleteUser(
                               user
@@ -1334,7 +1268,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* TABLE */}
       {viewMode === "table" && (
         <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -1400,7 +1333,7 @@ export default function AdminUsersPage() {
                         key={user.id}
                         className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
                       >
-                        <td className="px-5 py-4 min-w-[240px]">
+                        <td className="px-5 py-4 min-w-[260px]">
                           <p className="font-semibold">
                             {user.name}
                           </p>
@@ -1411,24 +1344,16 @@ export default function AdminUsersPage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${getAdminUserRoleClass(
-                              user.role
-                            )}`}
-                          >
-                            {getAdminUserRoleLabel(
+                          <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getRoleClass(user.role)}`}>
+                            {adminUserRepository.getRoleLabel(
                               user.role
                             )}
                           </span>
                         </td>
 
                         <td className="px-5 py-4">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full ${getAdminUserStatusClass(
-                              user.status
-                            )}`}
-                          >
-                            {getAdminUserStatusLabel(
+                          <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getStatusClass(user.status)}`}>
+                            {adminUserRepository.getStatusLabel(
                               user.status
                             )}
                           </span>
@@ -1448,33 +1373,33 @@ export default function AdminUsersPage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2">
-                            {canManageSystem() && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    startEditUser(
-                                      user
-                                    )
-                                  }
-                                  className="bg-zinc-900 text-white px-3 py-2 rounded-xl hover:bg-zinc-700 transition"
-                                >
-                                  Bearbeiten
-                                </button>
+                          {canManageSystem() && (
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startEditUser(
+                                    user
+                                  )
+                                }
+                                className="bg-zinc-900 text-white px-3 py-2 rounded-xl hover:bg-zinc-700 transition"
+                              >
+                                Bearbeiten
+                              </button>
 
-                                <button
-                                  onClick={() =>
-                                    handleDeleteUser(
-                                      user
-                                    )
-                                  }
-                                  className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
-                                >
-                                  Löschen
-                                </button>
-                              </>
-                            )}
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDeleteUser(
+                                    user
+                                  )
+                                }
+                                className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
+                              >
+                                Löschen
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

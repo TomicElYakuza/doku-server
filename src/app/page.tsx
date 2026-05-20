@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import {
-  ChangeEvent,
   useEffect,
   useState,
 } from "react";
@@ -15,35 +14,15 @@ import {
 import NewsSidebar from "../components/news/NewsSidebar";
 
 import {
-  createNewsPost,
-  getLatestNewsPosts,
-  getNewsPosts,
-  getNewsPostsByCategory,
-  getOpenedNewsPostIds,
-  getPinnedNewsPosts,
-} from "../lib/newsStorage";
+  newsRepository,
+} from "../lib/newsRepository";
 
 import type {
-  NewsCategory,
   NewsPost,
 } from "../lib/newsStorage";
 
 import {
-  readNewsFiles,
-  saveNewsFiles,
-} from "../lib/newsFileHelpers";
-
-import type {
-  PendingNewsFile,
-} from "../lib/newsFileHelpers";
-
-import {
-  saveNewsCreatedActivity,
-} from "../lib/newsActivityHelpers";
-
-import {
   canCreate,
-  getCurrentUser,
 } from "../lib/permissions";
 
 function getCategoryClass(
@@ -182,26 +161,8 @@ export default function NewsLandingPage() {
   const [openedIds, setOpenedIds] =
     useState<string[]>([]);
 
-  const [showForm, setShowForm] =
-    useState(false);
-
-  const [title, setTitle] =
+  const [search, setSearch] =
     useState("");
-
-  const [description, setDescription] =
-    useState("");
-
-  const [content, setContent] =
-    useState("");
-
-  const [category, setCategory] =
-    useState<NewsCategory>("Allgemein");
-
-  const [pinned, setPinned] =
-    useState(false);
-
-  const [pendingFiles, setPendingFiles] =
-    useState<PendingNewsFile[]>([]);
 
   useEffect(() => {
     loadNewsData();
@@ -249,7 +210,7 @@ export default function NewsLandingPage() {
 
   function loadNewsData() {
     setPosts(
-      getNewsPosts()
+      newsRepository.list()
     );
 
     loadOpenedIds();
@@ -257,151 +218,53 @@ export default function NewsLandingPage() {
 
   function loadOpenedIds() {
     setOpenedIds(
-      getOpenedNewsPostIds()
+      newsRepository.getOpenedIds()
     );
   }
 
-  function resetForm() {
-    setTitle("");
-    setDescription("");
-    setContent("");
-    setCategory("Allgemein");
-    setPinned(false);
-    setPendingFiles([]);
-    setShowForm(false);
+  function handleMarkAllRead() {
+    newsRepository.markAllOpened();
+
+    loadOpenedIds();
   }
 
-  function openCreateForm() {
-    if (!canCreate()) {
-      alert(
-        "Du hast keine Berechtigung, News zu erstellen."
-      );
-
-      return;
-    }
-
-    setShowForm(true);
+  function resetSearch() {
+    setSearch("");
   }
 
-  async function handleNewsFilesChange(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const files =
-      await readNewsFiles(
-        event.target.files
-      );
-
-    setPendingFiles(
-      (currentFiles) => [
-        ...currentFiles,
-        ...files,
-      ]
-    );
-
-    event.target.value =
-      "";
-  }
-
-  function removePendingFile(
-    index: number
-  ) {
-    setPendingFiles(
-      (currentFiles) =>
-        currentFiles.filter(
-          (_file, fileIndex) =>
-            fileIndex !== index
-        )
-    );
-  }
-
-  function handleCreateNews() {
-    if (!canCreate()) {
-      alert(
-        "Du hast keine Berechtigung, News zu erstellen."
-      );
-
-      return;
-    }
-
-    if (!title.trim()) {
-      alert(
-        "Bitte einen Titel eingeben."
-      );
-
-      return;
-    }
-
-    if (!description.trim()) {
-      alert(
-        "Bitte eine Kurzbeschreibung eingeben."
-      );
-
-      return;
-    }
-
-    if (!content.trim()) {
-      alert(
-        "Bitte einen Inhalt eingeben."
-      );
-
-      return;
-    }
-
-    const user =
-      getCurrentUser();
-
-    const newPost =
-      createNewsPost({
-        title:
-          title.trim(),
-
-        description:
-          description.trim(),
-
-        content:
-          content.trim(),
-
-        category,
-
-        author:
-          user?.name ||
-          "Unbekannt",
-
-        pinned,
-      });
-
-    saveNewsCreatedActivity(
-      newPost
-    );
-
-    if (pendingFiles.length > 0) {
-      saveNewsFiles(
-        newPost.id,
-        pendingFiles
-      );
-    }
-
-    resetForm();
-  }
-
-  const visiblePosts =
-    activeCategory
-      ? posts.filter(
-          (post) =>
-            post.category === activeCategory
+  const searchedPosts =
+    search.trim()
+      ? newsRepository.search(
+          search
         )
       : posts;
 
+  const visiblePosts =
+    activeCategory
+      ? searchedPosts.filter(
+          (post) =>
+            post.category === activeCategory
+        )
+      : searchedPosts;
+
   const pinnedPosts =
-    getPinnedNewsPosts();
+    newsRepository
+      .listPinned()
+      .filter(
+        (post) =>
+          visiblePosts.some(
+            (visiblePost) =>
+              visiblePost.id === post.id
+          )
+      );
 
   const latestPosts =
-    getLatestNewsPosts(
-      3
+    newsRepository.listLatest(
+      5
     );
 
   const featuredPost =
-    activeCategory
+    activeCategory || search.trim()
       ? visiblePosts[0]
       : pinnedPosts[0] ||
         visiblePosts[0];
@@ -446,229 +309,56 @@ export default function NewsLandingPage() {
               )}
             </div>
 
-            {canCreate() && (
-              <button
-                type="button"
-                onClick={openCreateForm}
-                className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                News erstellen
-              </button>
-            )}
+            <div className="flex flex-wrap gap-3">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="bg-white border border-zinc-200 text-zinc-700 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                >
+                  Alle als gelesen markieren
+                </button>
+              )}
+
+              {canCreate() && (
+                <Link
+                  href="/admin/news"
+                  className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+                >
+                  News verwalten
+                </Link>
+              )}
+            </div>
           </div>
 
-          {showForm && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/60 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-4xl bg-white border border-zinc-200 rounded-3xl p-8 shadow-2xl">
-                <div className="flex items-start justify-between gap-6">
-                  <div>
-                    <h2 className="text-2xl font-semibold">
-                      News erstellen
-                    </h2>
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-2">
+                  News durchsuchen
+                </label>
 
-                    <p className="text-zinc-500 mt-2">
-                      Erstelle eine interne Meldung für die Startseite.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="h-11 w-11 rounded-2xl bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition"
-                    aria-label="Fenster schließen"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                  <div className="md:col-span-2">
-                    <label className="block mb-2 font-medium">
-                      Titel
-                    </label>
-
-                    <input
-                      value={title}
-                      onChange={(event) =>
-                        setTitle(
-                          event.target.value
-                        )
-                      }
-                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                      placeholder="Titel der News"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block mb-2 font-medium">
-                      Kategorie
-                    </label>
-
-                    <select
-                      value={category}
-                      onChange={(event) =>
-                        setCategory(
-                          event.target.value as NewsCategory
-                        )
-                      }
-                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                    >
-                      <option value="Allgemein">
-                        Allgemein
-                      </option>
-
-                      <option value="System">
-                        System
-                      </option>
-
-                      <option value="Tickets">
-                        Tickets
-                      </option>
-
-                      <option value="Wiki">
-                        Wiki
-                      </option>
-
-                      <option value="Organisation">
-                        Organisation
-                      </option>
-                    </select>
-                  </div>
-
-                  <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
-                    <span>
-                      <span className="block font-medium">
-                        Fixieren
-                      </span>
-
-                      <span className="block text-sm text-zinc-500 mt-1">
-                        Beitrag als wichtige Meldung markieren.
-                      </span>
-                    </span>
-
-                    <input
-                      type="checkbox"
-                      checked={pinned}
-                      onChange={(event) =>
-                        setPinned(
-                          event.target.checked
-                        )
-                      }
-                      className="h-5 w-5"
-                    />
-                  </label>
-
-                  <div className="md:col-span-2">
-                    <label className="block mb-2 font-medium">
-                      Kurzbeschreibung
-                    </label>
-
-                    <textarea
-                      value={description}
-                      onChange={(event) =>
-                        setDescription(
-                          event.target.value
-                        )
-                      }
-                      rows={3}
-                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                      placeholder="Kurze Zusammenfassung..."
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block mb-2 font-medium">
-                      Inhalt
-                    </label>
-
-                    <textarea
-                      value={content}
-                      onChange={(event) =>
-                        setContent(
-                          event.target.value
-                        )
-                      }
-                      rows={7}
-                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                      placeholder="Vollständiger Inhalt der News..."
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block mb-2 font-medium">
-                      Dateien & Anhänge
-                    </label>
-
-                    <input
-                      type="file"
-                      multiple
-                      onChange={handleNewsFilesChange}
-                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                    />
-
-                    <p className="text-sm text-zinc-500 mt-2">
-                      Dateien und Anhänge werden beim Veröffentlichen der News zugeordnet.
-                    </p>
-
-                    {pendingFiles.length > 0 && (
-                      <div className="grid gap-2 mt-4">
-                        {pendingFiles.map(
-                          (file, index) => (
-                            <div
-                              key={`${file.name}-${index}`}
-                              className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl px-4 py-3"
-                            >
-                              <div className="min-w-0">
-                                <p className="font-medium truncate">
-                                  {file.name}
-                                </p>
-
-                                <p className="text-xs text-zinc-500">
-                                  {Math.round(
-                                    file.size / 1024
-                                  )} KB
-                                </p>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removePendingFile(
-                                    index
-                                  )
-                                }
-                                className="text-sm bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
-                              >
-                                Entfernen
-                              </button>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap justify-end gap-3 mt-8 pt-6 border-t border-zinc-200">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-                  >
-                    Abbrechen
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCreateNews}
-                    className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-                  >
-                    News veröffentlichen
-                  </button>
-                </div>
+                <input
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Suche nach Titel, Inhalt, Kategorie, Autor oder ID..."
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                />
               </div>
+
+              <button
+                type="button"
+                onClick={resetSearch}
+                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-5 py-4 rounded-2xl transition"
+              >
+                Suche zurücksetzen
+              </button>
             </div>
-          )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -701,15 +391,15 @@ export default function NewsLandingPage() {
 
             <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
               <p className="text-sm text-zinc-500">
-                Neueste
+                Treffer
               </p>
 
               <h2 className="text-4xl font-bold mt-3">
-                {latestPosts.length}
+                {visiblePosts.length}
               </h2>
 
               <p className="text-sm text-zinc-500 mt-2">
-                aktuelle Einträge
+                passende Beiträge
               </p>
             </div>
           </div>
@@ -721,9 +411,10 @@ export default function NewsLandingPage() {
                   Hervorgehobene Meldung
                 </h2>
 
-                {activeCategory && (
+                {(activeCategory || search.trim()) && (
                   <Link
                     href="/"
+                    onClick={resetSearch}
                     className="text-sm bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
                   >
                     Filter entfernen
@@ -741,33 +432,71 @@ export default function NewsLandingPage() {
             </div>
           )}
 
-          <div>
-            <h2 className="text-2xl font-semibold mb-4">
-              Weitere Beiträge
-            </h2>
-
-            <div className="grid gap-4">
-              {normalPosts.length === 0 && (
-                <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-                  <p className="text-zinc-500">
-                    Keine weiteren News vorhanden.
-                  </p>
-                </div>
-              )}
-
-              {normalPosts.map(
-                (post) => (
-                  <NewsCard
-                    key={post.id}
-                    post={post}
-                    opened={openedIds.includes(
-                      post.id
-                    )}
-                  />
-                )
-              )}
+          {!featuredPost && (
+            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+              <p className="text-zinc-500">
+                Keine News gefunden.
+              </p>
             </div>
-          </div>
+          )}
+
+          {featuredPost && (
+            <div>
+              <h2 className="text-2xl font-semibold mb-4">
+                Weitere Beiträge
+              </h2>
+
+              <div className="grid gap-4">
+                {normalPosts.length === 0 && (
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+                    <p className="text-zinc-500">
+                      Keine weiteren News vorhanden.
+                    </p>
+                  </div>
+                )}
+
+                {normalPosts.map(
+                  (post) => (
+                    <NewsCard
+                      key={post.id}
+                      post={post}
+                      opened={openedIds.includes(
+                        post.id
+                      )}
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
+          {latestPosts.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+              <h2 className="text-2xl font-semibold">
+                Neueste Beiträge
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-5">
+                {latestPosts.map(
+                  (post) => (
+                    <Link
+                      key={post.id}
+                      href={`/news/${post.id}`}
+                      className="border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
+                    >
+                      <p className="text-xs text-zinc-500">
+                        #{post.id} · {post.category}
+                      </p>
+
+                      <p className="font-semibold mt-2 line-clamp-2">
+                        {post.title}
+                      </p>
+                    </Link>
+                  )
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  getStoredPages,
-  savePages,
-} from "../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../lib/wikiRepository";
 
 import {
   getTrashPages,
@@ -15,8 +17,8 @@ import {
 } from "../../../lib/trashStorage";
 
 import {
-  saveActivity,
-} from "../../../lib/activityStorage";
+  activityRepository,
+} from "../../../lib/activityRepository";
 
 import {
   getUser,
@@ -46,15 +48,32 @@ import {
   deleteVersionsForPage,
 } from "../../../lib/versionStorage";
 
+type TrashPageItem = {
+  slug: string;
+  title?: string;
+  category?: string;
+  department?: string;
+  company?: string;
+  description?: string;
+  excerpt?: string;
+  author?: string;
+  updatedAt?: string;
+  deletedAt?: string;
+  tags?: string[];
+  content?: string;
+};
+
 export default function TrashPage() {
   const [mounted, setMounted] =
     useState(false);
 
   const [trashPages, setTrashPages] =
-    useState<any[]>([]);
+    useState<TrashPageItem[]>([]);
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadTrash();
 
@@ -77,25 +96,37 @@ export default function TrashPage() {
 
   function loadTrash() {
     setTrashPages(
-      getTrashPages()
+      getTrashPages() as TrashPageItem[]
     );
   }
 
   function removeRelatedData(
     slug: string
   ) {
-    removeFavorite(slug);
+    removeFavorite(
+      slug
+    );
 
-    removeRecentPage(slug);
+    removeRecentPage(
+      slug
+    );
 
-    deleteCommentsForPage(slug);
+    deleteCommentsForPage(
+      slug
+    );
 
-    deleteFilesForPage(slug);
+    deleteFilesForPage(
+      slug
+    );
 
-    deleteVersionsForPage(slug);
+    deleteVersionsForPage(
+      slug
+    );
   }
 
-  function restorePage(page: any) {
+  function restorePage(
+    page: TrashPageItem
+  ) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente wiederherstellen."
@@ -104,21 +135,20 @@ export default function TrashPage() {
       return;
     }
 
-    const confirmed = confirm(
-      "Dokument wirklich wiederherstellen?"
-    );
+    const confirmed =
+      confirm(
+        "Dokument wirklich wiederherstellen?"
+      );
 
     if (!confirmed) {
       return;
     }
 
-    const currentPages =
-      getStoredPages();
-
     const pageExists =
-      currentPages.some(
-        (item: any) =>
-          item.slug === page.slug
+      Boolean(
+        wikiRepository.findBySlug(
+          page.slug
+        )
       );
 
     if (pageExists) {
@@ -129,45 +159,82 @@ export default function TrashPage() {
       return;
     }
 
-    const restoredPage = {
-      slug: page.slug,
+    const restoredPage =
+      wikiRepository.create({
+        slug:
+          page.slug,
+
+        title:
+          page.title ||
+          "Ohne Titel",
+
+        company:
+          page.company ||
+          "Intern",
+
+        category:
+          page.category ||
+          page.department ||
+          "Allgemein",
+
+        department:
+          page.department ||
+          page.category ||
+          "Allgemein",
+
+        description:
+          page.description ||
+          page.excerpt ||
+          "",
+
+        excerpt:
+          page.description ||
+          page.excerpt ||
+          "",
+
+        author:
+          page.author ||
+          "Unbekannt",
+
+        updatedAt:
+          new Date().toLocaleDateString(),
+
+        createdAt:
+          page.updatedAt ||
+          new Date().toLocaleDateString(),
+
+        tags:
+          Array.isArray(
+            page.tags
+          )
+            ? page.tags
+            : [],
+
+        content:
+          page.content ||
+          "",
+      });
+
+    removeTrashPage(
+      page.slug
+    );
+
+    activityRepository.create({
+      type:
+        "restored",
 
       title:
-        page.title || "Ohne Titel",
+        String(
+          restoredPage.title ||
+            page.title ||
+            page.slug
+        ),
 
-      category:
-        page.category || "Allgemein",
-
-      description:
-        page.description || "",
-
-      author:
-        page.author || "Unbekannt",
-
-      updatedAt:
-        new Date().toLocaleDateString(),
-
-      tags:
-        Array.isArray(page.tags)
-          ? page.tags
-          : [],
-
-      content:
-        page.content || "",
-    };
-
-    savePages([
-      ...currentPages,
-      restoredPage,
-    ]);
-
-    removeTrashPage(page.slug);
-
-    saveActivity({
-      type: "restored",
-
-      title:
-        restoredPage.title,
+      company:
+        String(
+          restoredPage.company ||
+            "Intern"
+        ),
 
       user:
         getUser()?.name ||
@@ -182,10 +249,14 @@ export default function TrashPage() {
     );
 
     window.location.href =
-      `/wiki/${page.slug}`;
+      `/wiki/${encodeURIComponent(
+        page.slug
+      )}`;
   }
 
-  function deleteForever(page: any) {
+  function deleteForever(
+    page: TrashPageItem
+  ) {
     if (!isAdmin()) {
       alert(
         "Nur Admins dürfen Dokumente endgültig löschen."
@@ -194,23 +265,34 @@ export default function TrashPage() {
       return;
     }
 
-    const confirmed = confirm(
-      "Dokument endgültig löschen? Kommentare, Anhänge und Versionen werden ebenfalls entfernt."
-    );
+    const confirmed =
+      confirm(
+        "Dokument endgültig löschen? Kommentare, Anhänge und Versionen werden ebenfalls entfernt."
+      );
 
     if (!confirmed) {
       return;
     }
 
-    removeTrashPage(page.slug);
+    removeTrashPage(
+      page.slug
+    );
 
-    removeRelatedData(page.slug);
+    removeRelatedData(
+      page.slug
+    );
 
-    saveActivity({
-      type: "deletedForever",
+    activityRepository.create({
+      type:
+        "deletedForever",
 
       title:
-        page.title || page.slug,
+        page.title ||
+        page.slug,
+
+      company:
+        page.company ||
+        "Intern",
 
       user:
         getUser()?.name ||
@@ -223,6 +305,8 @@ export default function TrashPage() {
     alert(
       "Dokument wurde endgültig gelöscht."
     );
+
+    loadTrash();
   }
 
   if (!mounted) {
@@ -231,9 +315,9 @@ export default function TrashPage() {
 
   if (!isAdmin()) {
     return (
-      <div className="max-w-2xl">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <h1 className="text-3xl font-bold">
+      <div className="space-y-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-4xl font-bold">
             Keine Berechtigung
           </h1>
 
@@ -243,7 +327,7 @@ export default function TrashPage() {
 
           <Link
             href="/wiki"
-            className="inline-flex mt-8 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             ← Zurück zum Wiki
           </Link>
@@ -253,26 +337,22 @@ export default function TrashPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
-        <span className="text-zinc-900">
-          papierkorb
+        <span>
+          Papierkorb
         </span>
       </div>
 
-      {/* BACK */}
       <div>
         <Link
           href="/wiki"
@@ -282,101 +362,128 @@ export default function TrashPage() {
         </Link>
       </div>
 
-      {/* HEADER */}
-      <div>
-        <h1 className="text-4xl font-bold">
-          Papierkorb
-        </h1>
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold">
+            Papierkorb
+          </h1>
 
-        <p className="text-zinc-500 mt-2">
-          Gelöschte Dokumente wiederherstellen oder endgültig entfernen
-        </p>
+          <p className="text-zinc-500 mt-2">
+            Gelöschte Dokumente wiederherstellen oder endgültig entfernen
+          </p>
+        </div>
 
-        <p className="text-sm text-zinc-400 mt-2">
-          Einträge im Papierkorb:{" "}
-          {trashPages.length}
-        </p>
+        <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Einträge im Papierkorb
+          </p>
+
+          <p className="text-2xl font-bold mt-1">
+            {trashPages.length}
+          </p>
+        </div>
       </div>
 
-      {/* EMPTY */}
       {trashPages.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <p className="text-zinc-500">
             Der Papierkorb ist leer.
           </p>
         </div>
       )}
 
-      {/* LIST */}
       <div className="grid gap-4">
         {trashPages.map(
-          (page: any) => (
-            <div
-              key={page.slug}
-              className="bg-white border border-zinc-200 rounded-3xl p-6"
-            >
-              <div className="flex items-start justify-between gap-6">
-                <div>
-                  <p className="text-sm text-zinc-500">
-                    {page.category ||
-                      "Allgemein"}
-                  </p>
+          (page) => {
+            const tags =
+              Array.isArray(
+                page.tags
+              )
+                ? page.tags
+                : [];
 
-                  <h2 className="text-2xl font-bold mt-2">
-                    {page.title ||
-                      "Ohne Titel"}
-                  </h2>
+            return (
+              <div
+                key={page.slug}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                        {page.category ||
+                          page.department ||
+                          "Allgemein"}
+                      </span>
 
-                  <p className="text-zinc-600 mt-2">
-                    {page.description ||
-                      "Keine Beschreibung"}
-                  </p>
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {page.company ||
+                          "Intern"}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {Array.isArray(
-                      page.tags
-                    ) &&
-                      page.tags.map(
-                        (tag: string) => (
-                          <span
-                            key={tag}
-                            className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                          >
-                            #{tag}
-                          </span>
-                        )
-                      )}
+                    <h2 className="text-2xl font-bold mt-4">
+                      {page.title ||
+                        "Ohne Titel"}
+                    </h2>
+
+                    <p className="text-zinc-500 mt-2">
+                      {page.description ||
+                        page.excerpt ||
+                        "Keine Beschreibung"}
+                    </p>
+
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {tags.map(
+                          (tag) => (
+                            <span
+                              key={tag}
+                              className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
+                            >
+                              #{tag}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-sm text-zinc-500 mt-5">
+                      Gelöscht am:{" "}
+                      {page.deletedAt ||
+                        "Unbekannt"}
+                    </p>
                   </div>
 
-                  <p className="text-sm text-zinc-500 mt-4">
-                    Gelöscht am:{" "}
-                    {page.deletedAt ||
-                      "Unbekannt"}
-                  </p>
-                </div>
+                  <div className="flex flex-wrap gap-3 justify-end shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        restorePage(
+                          page
+                        )
+                      }
+                      className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
+                    >
+                      Wiederherstellen
+                    </button>
 
-                <div className="flex flex-wrap gap-3 justify-end">
-                  <button
-                    onClick={() =>
-                      restorePage(page)
-                    }
-                    className="bg-blue-600 text-white px-5 py-3 rounded-xl hover:bg-blue-500 transition"
-                  >
-                    Wiederherstellen
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      deleteForever(page)
-                    }
-                    className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
-                  >
-                    Endgültig löschen
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteForever(
+                          page
+                        )
+                      }
+                      className="bg-red-600 text-white px-5 py-3 rounded-xl hover:bg-red-500 transition"
+                    >
+                      Endgültig löschen
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )
+            );
+          }
         )}
       </div>
     </div>

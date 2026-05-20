@@ -17,17 +17,37 @@ import {
 } from "../../../../lib/versionStorage";
 
 import {
-  getStoredPages,
-  savePages,
-} from "../../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../../lib/wikiRepository";
+
+import type {
+  WikiPage,
+} from "../../../../lib/wikiRepository";
 
 import {
-  saveActivity,
-} from "../../../../lib/activityStorage";
+  activityRepository,
+} from "../../../../lib/activityRepository";
 
 import {
   getUser,
 } from "../../../../lib/userStorage";
+
+type WikiVersion = {
+  title?: string;
+  company?: string;
+  category?: string;
+  department?: string;
+  description?: string;
+  tags?: string[];
+  content?: string;
+  updatedAt?: string;
+  savedAt?: string;
+};
+
+type VersionMap = Record<
+  string,
+  WikiVersion[]
+>;
 
 export default function HistoryPage() {
   const params =
@@ -61,10 +81,12 @@ export default function HistoryPage() {
     useState("");
 
   const [versions, setVersions] =
-    useState<any[]>([]);
+    useState<WikiVersion[]>([]);
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
     loadData();
 
@@ -97,60 +119,91 @@ export default function HistoryPage() {
         handleWikiPagesUpdated
       );
     };
-  }, [slug]);
+  }, [
+    slug,
+  ]);
 
   function loadData() {
-    const pages =
-      getStoredPages();
-
     const decodedSlug =
-      decodeURIComponent(slug);
-
-    const page =
-      pages.find(
-        (item: any) =>
-          item.slug === slug ||
-          item.slug === decodedSlug
+      decodeURIComponent(
+        slug
       );
 
+    const page =
+      (
+        wikiRepository.findBySlug(
+          decodedSlug
+        ) ||
+        wikiRepository.findBySlug(
+          slug
+        )
+      ) as WikiPage | null;
+
     const allVersions =
-      getVersions();
+      getVersions() as VersionMap;
 
     const versionKey =
-      page?.slug ||
-      decodedSlug ||
-      slug;
+      String(
+        page?.slug ||
+          decodedSlug ||
+          slug
+      );
 
     setVersions(
       allVersions[versionKey] ||
-        allVersions[slug] ||
-        allVersions[decodedSlug] ||
-        []
+      allVersions[slug] ||
+      allVersions[decodedSlug] ||
+      []
     );
 
     if (!page) {
-      setPageFound(false);
+      setPageFound(
+        false
+      );
 
-      setPageChecked(true);
+      setPageChecked(
+        true
+      );
 
       return;
     }
 
-    setPageFound(true);
+    setPageFound(
+      true
+    );
 
-    setDocumentSlug(page.slug);
+    setDocumentSlug(
+      String(
+        page.slug ||
+          decodedSlug
+      )
+    );
 
-    setPageTitle(page.title);
+    setPageTitle(
+      String(
+        page.title ||
+          ""
+      )
+    );
 
     setPageCompany(
-      page.company || "Intern"
+      String(
+        page.company ||
+          "Intern"
+      )
     );
 
     setPageCategory(
-      page.category || ""
+      String(
+        page.category ||
+          page.department ||
+          ""
+      )
     );
 
-    setPageChecked(true);
+    setPageChecked(
+      true
+    );
   }
 
   function getDocumentHref() {
@@ -163,22 +216,6 @@ export default function HistoryPage() {
     )}`;
   }
 
-  function wikiCompanyHref(
-    company: string
-  ) {
-    return `/wiki?company=${encodeURIComponent(
-      company
-    )}`;
-  }
-
-  function wikiDepartmentHref(
-    department: string
-  ) {
-    return `/wiki?department=${encodeURIComponent(
-      department
-    )}`;
-  }
-
   function goToDocument() {
     router.push(
       getDocumentHref()
@@ -186,7 +223,7 @@ export default function HistoryPage() {
   }
 
   function restoreVersion(
-    version: any
+    version: WikiVersion
   ) {
     const confirmed =
       confirm(
@@ -197,19 +234,23 @@ export default function HistoryPage() {
       return;
     }
 
-    const pages =
-      getStoredPages();
-
     const decodedSlug =
-      decodeURIComponent(slug);
+      decodeURIComponent(
+        slug
+      );
 
     const existingPage =
-      pages.find(
-        (page: any) =>
-          page.slug === slug ||
-          page.slug === decodedSlug ||
-          page.slug === documentSlug
-      );
+      (
+        wikiRepository.findBySlug(
+          documentSlug
+        ) ||
+        wikiRepository.findBySlug(
+          decodedSlug
+        ) ||
+        wikiRepository.findBySlug(
+          slug
+        )
+      ) as WikiPage | null;
 
     if (!existingPage) {
       alert(
@@ -219,67 +260,76 @@ export default function HistoryPage() {
       return;
     }
 
-    const updatedPages =
-      pages.map((page: any) => {
-        if (
-          page.slug !==
-          existingPage.slug
-        ) {
-          return page;
-        }
+    const existingSlug =
+      String(
+        existingPage.slug ||
+          documentSlug ||
+          decodedSlug
+      );
 
-        return {
-          ...page,
+    wikiRepository.update(
+      existingSlug,
+      {
+        title:
+          version.title ||
+          existingPage.title,
 
-          title:
-            version.title ||
-            page.title,
+        company:
+          version.company ||
+          existingPage.company ||
+          "Intern",
 
-          company:
-            version.company ||
-            page.company ||
-            "Intern",
+        category:
+          version.category ||
+          version.department ||
+          existingPage.category,
 
-          category:
-            version.category ||
-            page.category,
+        department:
+          version.department ||
+          version.category ||
+          existingPage.department,
 
-          description:
-            version.description ||
-            "",
+        description:
+          version.description ||
+          "",
 
-          tags:
-            Array.isArray(
-              version.tags
-            )
-              ? version.tags
-              : [],
+        excerpt:
+          version.description ||
+          "",
 
-          content:
-            version.content ||
-            "",
+        tags:
+          Array.isArray(
+            version.tags
+          )
+            ? version.tags
+            : [],
 
-          updatedAt:
-            new Date().toLocaleDateString(),
-        };
-      });
+        content:
+          version.content ||
+          "",
 
-    savePages(
-      updatedPages
+        updatedAt:
+          new Date().toLocaleDateString(),
+      }
     );
 
-    saveActivity({
-      type: "restored",
+    activityRepository.create({
+      type:
+        "restored",
 
       title:
         version.title ||
-        existingPage.title ||
-        existingPage.slug,
+        String(
+          existingPage.title ||
+            existingSlug
+        ),
 
       company:
         version.company ||
-        existingPage.company ||
-        "Intern",
+        String(
+          existingPage.company ||
+            "Intern"
+        ),
 
       user:
         getUser()?.name ||
@@ -295,47 +345,44 @@ export default function HistoryPage() {
 
     router.push(
       `/wiki/${encodeURIComponent(
-        existingPage.slug
+        existingSlug
       )}`
     );
   }
 
-  if (!mounted || !pageChecked) {
+  if (
+    !mounted ||
+    !pageChecked
+  ) {
     return null;
   }
 
   if (!pageFound) {
     return (
-      <div className="max-w-3xl">
-        <div className="flex items-center gap-3 mb-6 text-sm">
+      <div className="space-y-8">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
           <Link
             href="/wiki"
-            className="text-zinc-500 hover:text-zinc-900 transition"
+            className="hover:text-zinc-900 transition"
           >
-            wiki
+            Wiki
           </Link>
 
-          <span className="text-zinc-400">
-            /
-          </span>
+          <span>/</span>
 
-          <span className="text-zinc-900">
-            historie
+          <span>
+            Historie
           </span>
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-10 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-100 flex items-center justify-center text-2xl mb-6">
-            🔎
-          </div>
-
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-4xl font-bold">
             Dokument nicht gefunden
           </h1>
 
           <p className="text-zinc-500 mt-3">
             Die Historie für{" "}
-            <span className="font-mono text-zinc-900">
+            <span className="font-mono text-zinc-700">
               {decodeURIComponent(
                 slug
               )}
@@ -344,15 +391,12 @@ export default function HistoryPage() {
           </p>
 
           {versions.length > 0 && (
-            <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-              <p className="text-yellow-800">
-                Für dieses Dokument sind noch{" "}
-                {versions.length} alte Versionen gespeichert, aber das aktive Dokument existiert nicht mehr.
-              </p>
-            </div>
+            <p className="text-zinc-500 mt-3">
+              Für dieses Dokument sind noch {versions.length} alte Versionen gespeichert, aber das aktive Dokument existiert nicht mehr.
+            </p>
           )}
 
-          <div className="flex flex-wrap gap-3 mt-8">
+          <div className="flex flex-wrap gap-3 mt-6">
             <Link
               href="/wiki"
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
@@ -372,74 +416,57 @@ export default function HistoryPage() {
     );
   }
 
-  const reversedVersions = [
-    ...versions,
-  ].reverse();
+  const reversedVersions =
+    [
+      ...versions,
+    ].reverse();
 
   return (
-    <div className="space-y-6">
-      {/* TOP NAV */}
-      <div className="flex items-center gap-3 text-sm">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
         <Link
           href="/wiki"
-          className="text-zinc-500 hover:text-zinc-900 transition"
+          className="hover:text-zinc-900 transition"
         >
-          wiki
+          Wiki
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
+        <span>/</span>
 
         <Link
-          href={wikiCompanyHref(
+          href={`/wiki?company=${encodeURIComponent(
             pageCompany
-          )}
-          className="text-indigo-600 hover:text-indigo-900 transition"
+          )}`}
+          className="hover:text-zinc-900 transition"
         >
           {pageCompany}
         </Link>
 
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        {pageCategory ? (
+        {pageCategory && (
           <>
+            <span>/</span>
+
             <Link
-              href={wikiDepartmentHref(
+              href={`/wiki?department=${encodeURIComponent(
                 pageCategory
-              )}
-              className="text-indigo-600 hover:text-indigo-900 transition"
+              )}`}
+              className="hover:text-zinc-900 transition"
             >
               {pageCategory}
             </Link>
-
-            <span className="text-zinc-400">
-              /
-            </span>
           </>
-        ) : null}
+        )}
 
-        <button
-          onClick={goToDocument}
-          className="text-zinc-500 hover:text-zinc-900 transition"
-        >
-          {pageTitle || documentSlug || slug}
-        </button>
+        <span>/</span>
 
-        <span className="text-zinc-400">
-          /
-        </span>
-
-        <span className="text-zinc-900">
-          historie
+        <span>
+          Historie
         </span>
       </div>
 
-      {/* BACK BUTTON */}
       <div>
         <button
+          type="button"
           onClick={goToDocument}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
@@ -447,45 +474,44 @@ export default function HistoryPage() {
         </button>
       </div>
 
-      {/* HEADER */}
-      <div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={wikiCompanyHref(
-              pageCompany
-            )}
-            className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-          >
-            {pageCompany}
-          </Link>
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+              {pageCompany}
+            </span>
 
-          {pageCategory && (
-            <Link
-              href={wikiDepartmentHref(
-                pageCategory
-              )}
-              className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-            >
-              {pageCategory}
-            </Link>
-          )}
+            {pageCategory && (
+              <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                {pageCategory}
+              </span>
+            )}
+          </div>
+
+          <p className="text-sm text-zinc-500 mt-5">
+            Versionshistorie
+          </p>
+
+          <h1 className="text-4xl font-bold mt-2">
+            {pageTitle ||
+              documentSlug ||
+              slug}
+          </h1>
         </div>
 
-        <p className="text-zinc-500 mt-5">
-          Versionshistorie
-        </p>
+        <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-4 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Versionen
+          </p>
 
-        <h1 className="text-4xl font-bold mt-2">
-          {pageTitle || documentSlug || slug}
-        </h1>
-
-        <p className="text-zinc-500 mt-3">
-          {versions.length} Versionen
-        </p>
+          <p className="text-2xl font-bold mt-1">
+            {versions.length}
+          </p>
+        </div>
       </div>
 
       {versions.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <p className="text-zinc-500">
             Noch keine Versionen vorhanden.
           </p>
@@ -494,10 +520,7 @@ export default function HistoryPage() {
 
       <div className="grid gap-4">
         {reversedVersions.map(
-          (
-            version: any,
-            index: number
-          ) => {
+          (version, index) => {
             const versionNumber =
               versions.length - index;
 
@@ -508,28 +531,36 @@ export default function HistoryPage() {
 
             const versionCategory =
               version.category ||
+              version.department ||
               pageCategory ||
               "Keine Kategorie";
 
+            const versionTags =
+              Array.isArray(
+                version.tags
+              )
+                ? version.tags
+                : [];
+
             return (
               <div
-                key={`${version.savedAt}-${index}`}
-                className="bg-white border border-zinc-200 rounded-2xl p-6"
+                key={`${version.savedAt}-${versionNumber}`}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
-                <div className="flex items-center justify-between gap-6">
+                <div className="flex items-start justify-between gap-6">
                   <div>
-                    <h2 className="text-xl font-semibold">
-                      Version{" "}
-                      {versionNumber}
+                    <h2 className="text-2xl font-bold">
+                      Version {versionNumber}
                     </h2>
 
-                    <p className="text-sm text-zinc-500 mt-1">
+                    <p className="text-zinc-500 mt-2">
                       {version.savedAt ||
                         "Unbekannt"}
                     </p>
                   </div>
 
                   <button
+                    type="button"
                     onClick={() =>
                       restoreVersion(
                         version
@@ -541,13 +572,13 @@ export default function HistoryPage() {
                   </button>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div>
                     <p className="text-sm text-zinc-500">
                       Titel
                     </p>
 
-                    <p className="font-medium">
+                    <p className="font-semibold mt-1">
                       {version.title ||
                         "Ohne Titel"}
                     </p>
@@ -558,14 +589,9 @@ export default function HistoryPage() {
                       Firma
                     </p>
 
-                    <Link
-                      href={wikiCompanyHref(
-                        versionCompany
-                      )}
-                      className="inline-block mt-1 bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                    >
+                    <p className="font-semibold mt-1">
                       {versionCompany}
-                    </Link>
+                    </p>
                   </div>
 
                   <div>
@@ -573,68 +599,57 @@ export default function HistoryPage() {
                       Kategorie / Abteilung
                     </p>
 
-                    <Link
-                      href={wikiDepartmentHref(
-                        versionCategory
-                      )}
-                      className="inline-block mt-1 bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full hover:bg-indigo-100 transition"
-                    >
+                    <p className="font-semibold mt-1">
                       {versionCategory}
-                    </Link>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-zinc-500">
-                      Beschreibung
-                    </p>
-
-                    <p className="font-medium">
-                      {version.description ||
-                        "Keine Beschreibung"}
                     </p>
                   </div>
+                </div>
 
-                  <div>
-                    <p className="text-sm text-zinc-500 mb-2">
-                      Tags
-                    </p>
+                <div className="mt-6">
+                  <p className="text-sm text-zinc-500">
+                    Beschreibung
+                  </p>
 
-                    <div className="flex flex-wrap gap-2">
-                      {version.tags?.length >
-                      0 ? (
-                        version.tags.map(
-                          (
-                            tag: string
-                          ) => (
-                            <Link
-                              key={tag}
-                              href={`/wiki?tag=${encodeURIComponent(
-                                tag
-                              )}`}
-                              className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full hover:bg-zinc-200 transition"
-                            >
-                              #{tag}
-                            </Link>
-                          )
+                  <p className="mt-1">
+                    {version.description ||
+                      "Keine Beschreibung"}
+                  </p>
+                </div>
+
+                <div className="mt-6">
+                  <p className="text-sm text-zinc-500">
+                    Tags
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {versionTags.length > 0 ? (
+                      versionTags.map(
+                        (tag) => (
+                          <span
+                            key={tag}
+                            className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
+                          >
+                            #{tag}
+                          </span>
                         )
-                      ) : (
-                        <p className="text-sm text-zinc-400">
-                          Keine Tags
-                        </p>
-                      )}
-                    </div>
+                      )
+                    ) : (
+                      <span className="text-zinc-500">
+                        Keine Tags
+                      </span>
+                    )}
                   </div>
+                </div>
 
-                  <div>
-                    <p className="text-sm text-zinc-500 mb-2">
-                      Inhalt Vorschau
-                    </p>
+                <div className="mt-6">
+                  <p className="text-sm text-zinc-500 mb-2">
+                    Inhalt Vorschau
+                  </p>
 
-                    <div className="bg-zinc-50 rounded-2xl p-4 text-sm text-zinc-700 max-h-48 overflow-hidden whitespace-pre-wrap">
-                      {version.content ||
-                        "Kein Inhalt"}
-                    </div>
-                  </div>
+                  <pre className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm whitespace-pre-wrap overflow-x-auto">
+                    {version.content ||
+                      "Kein Inhalt"}
+                  </pre>
                 </div>
               </div>
             );

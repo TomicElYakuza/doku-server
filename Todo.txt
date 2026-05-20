@@ -18,6 +18,13 @@ Wichtig:
 
 
 
+Einstellungen und Tickets und Aktivitäten, zurück zum Dashboard button weg
+
+bei erstellen immer fenster aufplopen:
+-	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen
+
+
+
 
 
 

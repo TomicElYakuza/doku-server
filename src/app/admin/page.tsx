@@ -14,34 +14,32 @@ import {
 } from "../../lib/permissions";
 
 import {
-  getTickets,
-} from "../../lib/ticketStorage";
+  ticketRepository,
+} from "../../lib/ticketRepository";
 
 import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  wikiRepository,
+} from "../../lib/wikiRepository";
 
 import {
-  getActivities,
-} from "../../lib/activityStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
 
 import {
-  getCompanies,
-  getDepartments,
-} from "../../lib/companyStorage";
+  companyRepository,
+} from "../../lib/companyRepository";
 
 import {
-  getAdminUsers,
-} from "../../lib/adminUserStorage";
+  adminUserRepository,
+} from "../../lib/adminUserRepository";
 
 import {
-  getNewsPosts,
-  getOpenedNewsPostIds,
-} from "../../lib/newsStorage";
+  newsRepository,
+} from "../../lib/newsRepository";
 
 import {
-  getFiles,
-} from "../../lib/fileStorage";
+  fileRepository,
+} from "../../lib/fileRepository";
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
@@ -226,44 +224,40 @@ export default function AdminPage() {
   }, []);
 
   function loadAdminData() {
-    const tickets =
-      getTickets();
-
     const news =
-      getNewsPosts();
+      newsRepository.list();
 
     const openedNewsIds =
-      getOpenedNewsPostIds();
+      newsRepository.getOpenedIds();
 
     setTicketCount(
-      tickets.length
+      ticketRepository.countAll()
     );
 
     setOpenTicketCount(
-      tickets.filter(
-        (ticket) =>
-          ticket.status === "open"
-      ).length
+      ticketRepository.countByStatus(
+        "open"
+      )
     );
 
     setWikiCount(
-      getStoredPages().length
+      wikiRepository.countAll()
     );
 
     setActivityCount(
-      getActivities().length
+      activityRepository.countAll()
     );
 
     setCompanyCount(
-      getCompanies().length
+      companyRepository.countCompanies()
     );
 
     setDepartmentCount(
-      getDepartments().length
+      companyRepository.countDepartments()
     );
 
     setUserCount(
-      getAdminUsers().length
+      adminUserRepository.countAll()
     );
 
     setNewsCount(
@@ -280,7 +274,7 @@ export default function AdminPage() {
     );
 
     setFileCount(
-      getFiles().length
+      fileRepository.countFiles()
     );
   }
 

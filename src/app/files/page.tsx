@@ -2,44 +2,174 @@
 
 import Link from "next/link";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  getFiles,
-} from "../../lib/fileStorage";
+  fileRepository,
+} from "../../lib/fileRepository";
+
+import type {
+  StoredFile,
+} from "../../lib/fileRepository";
 
 import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  wikiRepository,
+} from "../../lib/wikiRepository";
+
+type FileSearchResult = {
+  key: string;
+  index: number;
+  file: StoredFile;
+};
+
+function formatFileSize(
+  size: number
+) {
+  if (!size) {
+    return "0 KB";
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.round(
+      size / 1024
+    )} KB`;
+  }
+
+  return `${(
+    size /
+    1024 /
+    1024
+  ).toFixed(1)} MB`;
+}
+
+function getFileIcon(
+  type: string
+) {
+  if (type?.startsWith("image/")) {
+    return "🖼️";
+  }
+
+  if (type?.includes("pdf")) {
+    return "📕";
+  }
+
+  if (
+    type?.includes("word") ||
+    type?.includes("document")
+  ) {
+    return "📄";
+  }
+
+  if (
+    type?.includes("excel") ||
+    type?.includes("spreadsheet")
+  ) {
+    return "📊";
+  }
+
+  if (
+    type?.includes("zip") ||
+    type?.includes("compressed")
+  ) {
+    return "🗜️";
+  }
+
+  return "📎";
+}
+
+function getAreaLabel(
+  key: string
+) {
+  if (key.startsWith("ticket-")) {
+    return "Ticket";
+  }
+
+  if (key.startsWith("wiki-")) {
+    return "Wiki";
+  }
+
+  if (key.startsWith("news-")) {
+    return "News";
+  }
+
+  return "Wiki";
+}
+
+function getAreaHref(
+  key: string
+) {
+  if (key.startsWith("ticket-")) {
+    return `/tickets/${key.replace(
+      "ticket-",
+      ""
+    )}`;
+  }
+
+  if (key.startsWith("news-")) {
+    return `/news/${key.replace(
+      "news-",
+      ""
+    )}`;
+  }
+
+  if (key.startsWith("wiki-")) {
+    return `/wiki/${encodeURIComponent(
+      key.replace(
+        "wiki-",
+        ""
+      )
+    )}`;
+  }
+
+  return `/wiki/${encodeURIComponent(
+    key
+  )}`;
+}
+
+function getPageTitle(
+  key: string
+) {
+  const normalizedKey =
+    key.startsWith("wiki-")
+      ? key.replace(
+          "wiki-",
+          ""
+        )
+      : key;
+
+  const page =
+    wikiRepository.findBySlug(
+      normalizedKey
+    );
+
+  return String(
+    page?.title ||
+      normalizedKey
+  );
+}
 
 export default function FilesPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [files, setFiles] =
-    useState<any[]>([]);
+  const [results, setResults] =
+    useState<FileSearchResult[]>([]);
 
   const [search, setSearch] =
     useState("");
 
-  const [companyFilter, setCompanyFilter] =
-    useState("");
-
-  const [typeFilter, setTypeFilter] =
+  const [areaFilter, setAreaFilter] =
     useState("");
 
   useEffect(() => {
     setMounted(true);
 
-    applyUrlFilters();
-
     loadFiles();
 
     function handleFilesUpdated() {
-      loadFiles();
-    }
-
-    function handleWikiPagesUpdated() {
       loadFiles();
     }
 
@@ -48,685 +178,442 @@ export default function FilesPage() {
       handleFilesUpdated
     );
 
-    window.addEventListener(
-      "wikiPagesUpdated",
-      handleWikiPagesUpdated
-    );
-
     return () => {
       window.removeEventListener(
         "filesUpdated",
         handleFilesUpdated
       );
-
-      window.removeEventListener(
-        "wikiPagesUpdated",
-        handleWikiPagesUpdated
-      );
     };
   }, []);
 
-  function applyUrlFilters() {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    setSearch(
-      params.get("q") || ""
-    );
-
-    setCompanyFilter(
-      params.get("company") || ""
-    );
-
-    setTypeFilter(
-      params.get("type") || ""
-    );
-  }
-
-  function updateUrlFilters(
-    nextSearch: string,
-    nextCompany: string,
-    nextType: string
-  ) {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const params =
-      new URLSearchParams();
-
-    if (nextSearch) {
-      params.set(
-        "q",
-        nextSearch
-      );
-    }
-
-    if (nextCompany) {
-      params.set(
-        "company",
-        nextCompany
-      );
-    }
-
-    if (nextType) {
-      params.set(
-        "type",
-        nextType
-      );
-    }
-
-    const query =
-      params.toString();
-
-    const nextUrl =
-      query
-        ? `/files?${query}`
-        : "/files";
-
-    window.history.replaceState(
-      null,
-      "",
-      nextUrl
-    );
-  }
-
   function loadFiles() {
-    const storedFiles =
-      getFiles();
-
-    const pages =
-      getStoredPages();
-
-    const allFiles =
-      Object.entries(
-        storedFiles
-      ).flatMap(
-        ([slug, fileList]: any) => {
-          if (!Array.isArray(fileList)) {
-            return [];
-          }
-
-          const page =
-            pages.find(
-              (item: any) =>
-                item.slug === slug
-            );
-
-          return fileList.map(
-            (
-              file: any,
-              index: number
-            ) => ({
-              ...file,
-
-              slug,
-
-              fileIndex:
-                index,
-
-              pageTitle:
-                page?.title || slug,
-
-              company:
-                page?.company || "Intern",
-
-              category:
-                page?.category || "Allgemein",
-            })
-          );
-        }
-      );
-
-    setFiles(allFiles);
-  }
-
-  function formatSize(size: number) {
-    if (!size) {
-      return "0 KB";
-    }
-
-    if (size < 1024 * 1024) {
-      return `${Math.round(
-        size / 1024
-      )} KB`;
-    }
-
-    return `${(
-      size /
-      1024 /
-      1024
-    ).toFixed(1)} MB`;
-  }
-
-  function getFileIcon(type: string) {
-    if (type?.startsWith("image/")) {
-      return "🖼️";
-    }
-
-    if (type?.includes("pdf")) {
-      return "📄";
-    }
-
-    if (
-      type?.includes("word") ||
-      type?.includes("document")
-    ) {
-      return "📝";
-    }
-
-    if (
-      type?.includes("excel") ||
-      type?.includes("spreadsheet")
-    ) {
-      return "📊";
-    }
-
-    if (type?.includes("zip")) {
-      return "🗜️";
-    }
-
-    return "📎";
-  }
-
-  function getFileTypeLabel(type: string) {
-    if (type?.startsWith("image/")) {
-      return "Bild";
-    }
-
-    if (type?.includes("pdf")) {
-      return "PDF";
-    }
-
-    if (
-      type?.includes("word") ||
-      type?.includes("document")
-    ) {
-      return "Dokument";
-    }
-
-    if (
-      type?.includes("excel") ||
-      type?.includes("spreadsheet")
-    ) {
-      return "Tabelle";
-    }
-
-    if (type?.includes("zip")) {
-      return "Archiv";
-    }
-
-    return "Sonstige";
+    setResults(
+      fileRepository.search("")
+    );
   }
 
   function resetFilters() {
     setSearch("");
-
-    setCompanyFilter("");
-
-    setTypeFilter("");
-
-    updateUrlFilters(
-      "",
-      "",
-      ""
-    );
+    setAreaFilter("");
   }
-
-  const companies: string[] =
-    Array.from(
-      new Set(
-        files
-          .map(
-            (file: any) =>
-              file.company || "Intern"
-          )
-          .filter(Boolean)
-      )
-    );
-
-  const fileTypes: string[] =
-    Array.from(
-      new Set(
-        files.map((file: any) =>
-          getFileTypeLabel(
-            file.type
-          )
-        )
-      )
-    );
-
-  const filteredFiles =
-    files.filter((file: any) => {
-      const query =
-        search.toLowerCase();
-
-      const typeLabel =
-        getFileTypeLabel(
-          file.type
-        );
-
-      const fileCompany =
-        file.company || "Intern";
-
-      const matchesSearch =
-        file.name
-          ?.toLowerCase()
-          .includes(query) ||
-        file.slug
-          ?.toLowerCase()
-          .includes(query) ||
-        file.pageTitle
-          ?.toLowerCase()
-          .includes(query) ||
-        fileCompany
-          ?.toLowerCase()
-          .includes(query) ||
-        file.category
-          ?.toLowerCase()
-          .includes(query) ||
-        file.uploadedBy
-          ?.toLowerCase()
-          .includes(query) ||
-        file.uploadedAt
-          ?.toLowerCase()
-          .includes(query) ||
-        typeLabel
-          .toLowerCase()
-          .includes(query);
-
-      const matchesCompany =
-        !companyFilter ||
-        fileCompany ===
-          companyFilter;
-
-      const matchesType =
-        !typeFilter ||
-        typeLabel ===
-          typeFilter;
-
-      return (
-        matchesSearch &&
-        matchesCompany &&
-        matchesType
-      );
-    });
-
-  const imageCount =
-    files.filter((file) =>
-      file.type?.startsWith("image/")
-    ).length;
-
-  const totalSize =
-    files.reduce(
-      (sum, file) =>
-        sum + (file.size || 0),
-      0
-    );
 
   if (!mounted) {
     return null;
   }
 
+  const filteredResults =
+    results.filter(
+      (result) => {
+        const normalizedSearch =
+          search
+            .trim()
+            .toLowerCase();
+
+        const pageTitle =
+          getPageTitle(
+            result.key
+          );
+
+        const matchesSearch =
+          !normalizedSearch ||
+          result.key
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.name
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.type
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          result.file.uploadedBy
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            ) ||
+          pageTitle
+            .toLowerCase()
+            .includes(
+              normalizedSearch
+            );
+
+        const matchesArea =
+          !areaFilter ||
+          (
+            areaFilter === "ticket" &&
+            result.key.startsWith(
+              "ticket-"
+            )
+          ) ||
+          (
+            areaFilter === "wiki" &&
+            (
+              result.key.startsWith(
+                "wiki-"
+              ) ||
+              !result.key.startsWith(
+                "ticket-"
+              ) &&
+              !result.key.startsWith(
+                "news-"
+              )
+            )
+          ) ||
+          (
+            areaFilter === "news" &&
+            result.key.startsWith(
+              "news-"
+            )
+          );
+
+        return (
+          matchesSearch &&
+          matchesArea
+        );
+      }
+    );
+
+  const totalSize =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        result.file.size,
+      0
+    );
+
   return (
     <div className="space-y-8">
-      {/* HEADER */}
+      <div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Dashboard
+        </Link>
+      </div>
+
       <div>
         <h1 className="text-4xl font-bold">
           Dateien
         </h1>
 
         <p className="text-zinc-500 mt-2">
-          Alle Wiki-Anhänge gesammelt an einem Ort
+          Übersicht über gespeicherte Anhänge und Uploads
         </p>
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <button
+          type="button"
+          onClick={() =>
+            setAreaFilter("")
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Dateien gesamt
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {files.length}
+            {results.length}
           </h2>
-        </div>
+
+          <p className="text-sm text-zinc-500 mt-2">
+            {formatFileSize(
+              totalSize
+            )}
+          </p>
+        </button>
 
         <button
-          onClick={() => {
-            if (companies.length > 0) {
-              const firstCompany =
-                companies[0];
-
-              setCompanyFilter(
-                firstCompany
-              );
-
-              updateUrlFilters(
-                search,
-                firstCompany,
-                typeFilter
-              );
-            }
-          }}
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "wiki"
+            )
+          }
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Firmen
+            Wiki
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {companies.length}
+            {
+              results.filter(
+                (result) =>
+                  result.key.startsWith(
+                    "wiki-"
+                  ) ||
+                  !result.key.startsWith(
+                    "ticket-"
+                  ) &&
+                  !result.key.startsWith(
+                    "news-"
+                  )
+              ).length
+            }
           </h2>
         </button>
 
         <button
-          onClick={() => {
-            setTypeFilter("Bild");
-
-            updateUrlFilters(
-              search,
-              companyFilter,
-              "Bild"
-            );
-          }}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "ticket"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Bilder
+            Tickets
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {imageCount}
+            {
+              results.filter(
+                (result) =>
+                  result.key.startsWith(
+                    "ticket-"
+                  )
+              ).length
+            }
           </h2>
         </button>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <button
+          type="button"
+          onClick={() =>
+            setAreaFilter(
+              "news"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-amber-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Dateitypen
+            News
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {fileTypes.length}
+            {
+              results.filter(
+                (result) =>
+                  result.key.startsWith(
+                    "news-"
+                  )
+              ).length
+            }
           </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Speichergröße
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {formatSize(
-              totalSize
-            )}
-          </h2>
-        </div>
+        </button>
       </div>
 
-      {/* FILTER */}
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Suche & Filter
-        </h2>
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-2">
+              Dateien suchen
+            </label>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
-          <input
-            type="text"
-            placeholder="Nach Datei, Firma, Dokument, Benutzer oder Datum suchen..."
-            value={search}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setSearch(value);
-
-              updateUrlFilters(
-                value,
-                companyFilter,
-                typeFilter
-              );
-            }}
-            className="md:col-span-2 w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-          />
+            <input
+              value={search}
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+              placeholder="Suche nach Datei, Bereich, Typ, Benutzer oder Wiki-Seite..."
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            />
+          </div>
 
           <select
-            value={companyFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setCompanyFilter(value);
-
-              updateUrlFilters(
-                search,
-                value,
-                typeFilter
-              );
-            }}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            value={areaFilter}
+            onChange={(event) =>
+              setAreaFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
-              Alle Firmen
+              Alle Bereiche
             </option>
 
-            {companies.map(
-              (company: string) => (
-                <option
-                  key={company}
-                  value={company}
-                >
-                  {company}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={typeFilter}
-            onChange={(event) => {
-              const value =
-                event.target.value;
-
-              setTypeFilter(value);
-
-              updateUrlFilters(
-                search,
-                companyFilter,
-                value
-              );
-            }}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">
-              Alle Typen
+            <option value="wiki">
+              Wiki
             </option>
 
-            {fileTypes.map(
-              (type: string) => (
-                <option
-                  key={type}
-                  value={type}
-                >
-                  {type}
-                </option>
-              )
-            )}
-          </select>
-        </div>
+            <option value="ticket">
+              Tickets
+            </option>
 
-        <div className="flex items-center justify-between mt-5">
-          <p className="text-sm text-zinc-500">
-            {filteredFiles.length} von{" "}
-            {files.length} Dateien gefunden
-          </p>
+            <option value="news">
+              News
+            </option>
+          </select>
 
           <button
+            type="button"
             onClick={resetFilters}
-            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-5 py-4 rounded-2xl transition"
           >
             Filter zurücksetzen
           </button>
         </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredResults.length} von{" "}
+          {results.length} Dateien gefunden
+        </p>
       </div>
 
-      {/* FILE LIST */}
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Anhänge
-        </h2>
+      <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-zinc-50 border-b border-zinc-200">
+              <tr>
+                <th className="px-5 py-4 font-semibold">
+                  Datei
+                </th>
 
-        <div className="mt-6 space-y-4">
-          {filteredFiles.length === 0 && (
-            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-              <p className="text-zinc-500">
-                Keine Dateien gefunden.
-              </p>
+                <th className="px-5 py-4 font-semibold">
+                  Bereich
+                </th>
 
-              <Link
-                href="/wiki"
-                className="inline-flex mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                Wiki öffnen
-              </Link>
-            </div>
-          )}
+                <th className="px-5 py-4 font-semibold">
+                  Zugeordnet zu
+                </th>
 
-          {filteredFiles.map(
-            (
-              file: any,
-              index: number
-            ) => (
-              <div
-                key={`${file.slug}-${file.name || "file"}-${file.fileIndex}-${index}`}
-                className="flex items-center justify-between border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition gap-4"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                    {getFileIcon(
-                      file.type
-                    )}
-                  </div>
+                <th className="px-5 py-4 font-semibold">
+                  Typ
+                </th>
 
-                  <div className="min-w-0">
-                    {file.data ? (
-                      <a
-                        href={file.data}
-                        download={
-                          file.name ||
-                          "download"
-                        }
-                        className="font-semibold hover:underline break-all"
-                      >
-                        {file.name ||
-                          "Unbenannte Datei"}
-                      </a>
-                    ) : (
-                      <p className="font-semibold break-all">
-                        {file.name ||
-                          "Unbenannte Datei"}
-                      </p>
-                    )}
+                <th className="px-5 py-4 font-semibold">
+                  Größe
+                </th>
 
-                    <p className="text-sm text-zinc-500 mt-1">
-                      <button
-                        onClick={() => {
-                          const fileCompany =
-                            file.company ||
-                            "Intern";
+                <th className="px-5 py-4 font-semibold">
+                  Hochgeladen
+                </th>
 
-                          setCompanyFilter(
-                            fileCompany
-                          );
+                <th className="px-5 py-4 font-semibold text-right">
+                  Aktionen
+                </th>
+              </tr>
+            </thead>
 
-                          updateUrlFilters(
-                            search,
-                            fileCompany,
-                            typeFilter
-                          );
-                        }}
-                        className="text-indigo-700 hover:underline"
-                      >
-                        {file.company ||
-                          "Intern"}
-                      </button>{" "}
-                      ·{" "}
-                      {file.category ||
-                        "Allgemein"}{" "}
-                      ·{" "}
-                      <button
-                        onClick={() => {
-                          const label =
-                            getFileTypeLabel(
-                              file.type
-                            );
-
-                          setTypeFilter(
-                            label
-                          );
-
-                          updateUrlFilters(
-                            search,
-                            companyFilter,
-                            label
-                          );
-                        }}
-                        className="text-zinc-700 hover:underline"
-                      >
-                        {getFileTypeLabel(
-                          file.type
-                        )}
-                      </button>{" "}
-                      ·{" "}
-                      {formatSize(
-                        file.size
-                      )}{" "}
-                      ·{" "}
-                      {file.uploadedAt ||
-                        "Unbekannt"}
-                    </p>
-
-                    {file.uploadedBy && (
-                      <p className="text-xs text-zinc-400 mt-1">
-                        Hochgeladen von{" "}
-                        {file.uploadedBy}
-                      </p>
-                    )}
-
-                    <Link
-                      href={`/wiki/${encodeURIComponent(
-                        file.slug
-                      )}`}
-                      className="text-sm text-indigo-700 hover:underline mt-1 inline-block"
-                    >
-                      {file.pageTitle ||
-                        "Zugehöriges Dokument öffnen"}
-                    </Link>
-                  </div>
-                </div>
-
-                {file.data && (
-                  <a
-                    href={file.data}
-                    download={
-                      file.name ||
-                      "download"
-                    }
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition shrink-0"
+            <tbody>
+              {filteredResults.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-5 py-8 text-zinc-500"
                   >
-                    Download
-                  </a>
-                )}
-              </div>
-            )
-          )}
+                    Keine Dateien gefunden.
+                  </td>
+                </tr>
+              )}
+
+              {filteredResults.map(
+                (result) => (
+                  <tr
+                    key={`${result.key}-${result.index}-${result.file.name}`}
+                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
+                  >
+                    <td className="px-5 py-4 min-w-[260px]">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-zinc-100 flex items-center justify-center shrink-0">
+                          {getFileIcon(
+                            result.file.type
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">
+                            {result.file.name}
+                          </p>
+
+                          <p className="text-xs text-zinc-500 mt-1">
+                            Index #{result.index}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {getAreaLabel(
+                          result.key
+                        )}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <Link
+                        href={getAreaHref(
+                          result.key
+                        )}
+                        className="font-medium hover:text-zinc-600 transition"
+                      >
+                        {getPageTitle(
+                          result.key
+                        )}
+                      </Link>
+
+                      <p className="font-mono text-xs text-zinc-400 mt-1">
+                        {result.key}
+                      </p>
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600">
+                      {result.file.type ||
+                        "Unbekannt"}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-600 whitespace-nowrap">
+                      {formatFileSize(
+                        result.file.size
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
+                      <p>
+                        {result.file.uploadedAt ||
+                          "Unbekannt"}
+                      </p>
+
+                      <p className="text-xs text-zinc-400 mt-1">
+                        {result.file.uploadedBy ||
+                          "Unbekannt"}
+                      </p>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        {result.file.data && (
+                          <a
+                            href={result.file.data}
+                            download={
+                              result.file.name ||
+                              "datei"
+                            }
+                            className="bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

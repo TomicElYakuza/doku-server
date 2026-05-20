@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -13,8 +14,12 @@ import {
 } from "next/navigation";
 
 import {
-  getStoredPages,
-} from "../../../lib/wikiStorage";
+  wikiRepository,
+} from "../../../lib/wikiRepository";
+
+import type {
+  WikiPage,
+} from "../../../lib/wikiRepository";
 
 import {
   getFavorites,
@@ -28,176 +33,136 @@ import {
   getTrashPages,
 } from "../../../lib/trashStorage";
 
-import {
-  isAdmin,
-} from "../../../lib/permissions";
+type WikiSidebarProps = {
+  className?: string;
+};
 
-function SectionTitle({
-  icon,
-  title,
-}: {
-  icon: string;
-  title: string;
-}) {
-  return (
-    <h3 className="flex items-center gap-2 text-sm font-semibold app-accent-text uppercase mb-3">
-      <span className="text-base leading-none">
-        {icon}
-      </span>
-
-      <span>
-        {title}
-      </span>
-    </h3>
+function getPageSlug(
+  page: WikiPage
+) {
+  return String(
+    page.slug ||
+      ""
   );
 }
 
-export default function WikiSidebar() {
+function getPageTitle(
+  page: WikiPage
+) {
+  return String(
+    page.title ||
+      "Unbenannt"
+  );
+}
+
+function getPageCompany(
+  page: WikiPage
+) {
+  return String(
+    page.company ||
+      "Intern"
+  );
+}
+
+function getPageDepartment(
+  page: WikiPage
+) {
+  return String(
+    page.department ||
+      page.category ||
+      "Allgemein"
+  );
+}
+
+function getPageTags(
+  page: WikiPage
+) {
+  if (
+    Array.isArray(
+      page.tags
+    )
+  ) {
+    return page.tags.map(
+      (tag) =>
+        String(
+          tag
+        )
+    );
+  }
+
+  return [];
+}
+
+function getLinkClass(
+  active: boolean
+) {
+  if (active) {
+    return "flex items-center justify-between gap-3 rounded-2xl bg-zinc-900 px-4 py-3 text-white";
+  }
+
+  return "flex items-center justify-between gap-3 rounded-2xl px-4 py-3 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 transition";
+}
+
+function getBadgeClass(
+  active: boolean
+) {
+  if (active) {
+    return "rounded-full bg-white/15 px-2.5 py-1 text-xs text-white";
+  }
+
+  return "rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-500";
+}
+
+export default function WikiSidebar({
+  className = "",
+}: WikiSidebarProps) {
   const pathname =
     usePathname();
 
   const searchParams =
     useSearchParams();
 
-  const activeCompany =
-    searchParams.get("company") || "";
-
-  const activeDepartment =
-    searchParams.get("department") || "";
-
-  const activeTag =
-    searchParams.get("tag") || "";
+  const [pages, setPages] =
+    useState<WikiPage[]>([]);
 
   const [favorites, setFavorites] =
     useState<string[]>([]);
 
-  const [mounted, setMounted] =
-    useState(false);
-
-  const [pages, setPages] =
-    useState<any[]>([]);
-
   const [recentPages, setRecentPages] =
-    useState<any[]>([]);
+    useState<string[]>([]);
 
   const [trashCount, setTrashCount] =
     useState(0);
 
-  const [tagsOpen, setTagsOpen] =
-    useState(false);
-
-  const [admin, setAdmin] =
-    useState(false);
-
-  function loadPages() {
-    const allPages =
-      getStoredPages();
-
-    setPages(
-      allPages
-    );
-
-    loadRecentPages(
-      allPages
-    );
-  }
-
-  function loadFavorites() {
-    setFavorites(
-      getFavorites()
-    );
-  }
-
-  function loadRecentPages(
-    allPages: any[] = getStoredPages()
-  ) {
-    const recentSlugs =
-      getRecentPages();
-
-    const recent =
-      recentSlugs
-        .map(
-          (slug: string) =>
-            allPages.find(
-              (page: any) =>
-                page.slug === slug
-            )
-        )
-        .filter(Boolean);
-
-    setRecentPages(
-      recent
-    );
-  }
-
-  function loadTrashCount() {
-    setTrashCount(
-      getTrashPages().length
-    );
-  }
-
-  function loadAdminStatus() {
-    setAdmin(
-      isAdmin()
-    );
-  }
-
-  function wikiCompanyHref(
-    company: string
-  ) {
-    return `/wiki?company=${encodeURIComponent(
-      company
-    )}`;
-  }
-
-  function wikiDepartmentHref(
-    department: string
-  ) {
-    return `/wiki?department=${encodeURIComponent(
-      department
-    )}`;
-  }
-
-  function wikiTagHref(
-    tag: string
-  ) {
-    return `/wiki?tag=${encodeURIComponent(
-      tag
-    )}`;
-  }
-
   useEffect(() => {
-    setMounted(
-      true
-    );
+    loadData();
 
-    loadAdminStatus();
-
-    loadPages();
-
-    loadFavorites();
-
-    loadTrashCount();
+    function handleWikiPagesUpdated() {
+      loadData();
+    }
 
     function handleFavoritesUpdated() {
-      loadFavorites();
+      setFavorites(
+        getFavorites()
+      );
     }
 
     function handleRecentUpdated() {
-      loadRecentPages();
+      setRecentPages(
+        getRecentPages()
+      );
     }
 
     function handleTrashUpdated() {
-      loadTrashCount();
+      setTrashCount(
+        getTrashPages().length
+      );
     }
 
-    function handleWikiPagesUpdated() {
-      loadPages();
-    }
-
-    function handleUserUpdated() {
-      loadAdminStatus();
-    }
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated
+    );
 
     window.addEventListener(
       "favoritesUpdated",
@@ -214,17 +179,12 @@ export default function WikiSidebar() {
       handleTrashUpdated
     );
 
-    window.addEventListener(
-      "wikiPagesUpdated",
-      handleWikiPagesUpdated
-    );
-
-    window.addEventListener(
-      "userUpdated",
-      handleUserUpdated
-    );
-
     return () => {
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated
+      );
+
       window.removeEventListener(
         "favoritesUpdated",
         handleFavoritesUpdated
@@ -239,307 +199,456 @@ export default function WikiSidebar() {
         "trashUpdated",
         handleTrashUpdated
       );
-
-      window.removeEventListener(
-        "wikiPagesUpdated",
-        handleWikiPagesUpdated
-      );
-
-      window.removeEventListener(
-        "userUpdated",
-        handleUserUpdated
-      );
     };
   }, []);
 
-  if (!mounted) {
-    return null;
+  function loadData() {
+    setPages(
+      wikiRepository.list()
+    );
+
+    setFavorites(
+      getFavorites()
+    );
+
+    setRecentPages(
+      getRecentPages()
+    );
+
+    setTrashCount(
+      getTrashPages().length
+    );
   }
 
-  const companies: string[] =
-    Array.from(
-      new Set(
-        pages
-          .map(
-            (page: any) =>
-              page.company || "Intern"
+  const companyParam =
+    searchParams.get("company") || "";
+
+  const departmentParam =
+    searchParams.get("department") || "";
+
+  const tagParam =
+    searchParams.get("tag") || "";
+
+  const favoritesParam =
+    searchParams.get("favorites") === "true";
+
+  const companies =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            pages.map(
+              (page) =>
+                getPageCompany(
+                  page
+                )
+            )
           )
-          .filter(Boolean)
-      )
+        ),
+      [
+        pages,
+      ]
     );
 
-  const departments: string[] =
-    Array.from(
-      new Set(
-        pages
-          .map(
-            (page: any) =>
-              page.category
+  const departments =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            pages.map(
+              (page) =>
+                getPageDepartment(
+                  page
+                )
+            )
           )
-          .filter(Boolean)
-      )
+        ),
+      [
+        pages,
+      ]
     );
 
-  const allTags: string[] =
-    Array.from(
-      new Set(
-        pages.flatMap(
-          (page: any) =>
-            page.tags || []
-        )
-      )
+  const tags =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            pages.flatMap(
+              (page) =>
+                getPageTags(
+                  page
+                )
+            )
+          )
+        ),
+      [
+        pages,
+      ]
     );
 
-  const favoritePages =
-    pages.filter(
-      (page: any) =>
-        favorites.includes(
-          page.slug
-        )
-    );
+  const recentPageItems =
+    recentPages
+      .map(
+        (slug) =>
+          pages.find(
+            (page) =>
+              getPageSlug(
+                page
+              ) === slug
+          )
+      )
+      .filter(Boolean)
+      .slice(
+        0,
+        5
+      ) as WikiPage[];
+
+  const favoritePageItems =
+    favorites
+      .map(
+        (slug) =>
+          pages.find(
+            (page) =>
+              getPageSlug(
+                page
+              ) === slug
+          )
+      )
+      .filter(Boolean)
+      .slice(
+        0,
+        5
+      ) as WikiPage[];
 
   return (
-    <aside className="w-72 bg-white border border-zinc-200 rounded-3xl p-6 sticky top-6 h-fit">
-      <h2 className="text-xl font-bold mb-6">
-        Wiki
-      </h2>
+    <aside className={`space-y-6 ${className}`}>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-bold">
+              Wiki
+            </h2>
 
-      {/* ALLE DOKUMENTE */}
-      <div className="mb-8">
-        <Link
-          href="/wiki"
-          className={`block p-3 rounded-xl transition ${
-            pathname === "/wiki" &&
-            !activeCompany &&
-            !activeDepartment &&
-            !activeTag
-              ? "bg-zinc-900 text-white"
-              : "hover:bg-zinc-100"
-          }`}
-        >
-          📚 Alle Dokumente
-        </Link>
-      </div>
-
-      {/* FAVORITEN */}
-      {favoritePages.length > 0 && (
-        <div className="mb-8">
-          <SectionTitle
-            icon="⭐"
-            title="Favoriten"
-          />
-
-          <div className="flex flex-col gap-1">
-            {favoritePages.map(
-              (page: any) => (
-                <Link
-                  key={page.slug}
-                  href={`/wiki/${encodeURIComponent(
-                    page.slug
-                  )}`}
-                  className={`p-3 rounded-xl transition ${
-                    pathname ===
-                    `/wiki/${page.slug}`
-                      ? "bg-zinc-900 text-white"
-                      : "text-zinc-700 hover:bg-zinc-100"
-                  }`}
-                >
-                  {page.title}
-                </Link>
-              )
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* FIRMEN */}
-      <div className="mb-8">
-        <SectionTitle
-          icon="🏢"
-          title="Firmen"
-        />
-
-        <div className="flex flex-col gap-1">
-          {companies.length === 0 && (
-            <p className="text-sm text-zinc-400 px-3">
-              Keine Firmen
+            <p className="text-sm text-zinc-500 mt-1">
+              Dokumentation
             </p>
-          )}
-
-          {companies.map(
-            (company: string) => (
-              <Link
-                key={company}
-                href={wikiCompanyHref(
-                  company
-                )}
-                className={`p-3 rounded-xl transition ${
-                  activeCompany === company
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-700 hover:bg-zinc-100"
-                }`}
-              >
-                {company}
-              </Link>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* ABTEILUNGEN */}
-      <div className="mb-8">
-        <SectionTitle
-          icon="👥"
-          title="Abteilungen"
-        />
-
-        <div className="flex flex-col gap-1">
-          {departments.length === 0 && (
-            <p className="text-sm text-zinc-400 px-3">
-              Keine Abteilungen
-            </p>
-          )}
-
-          {departments.map(
-            (department: string) => (
-              <Link
-                key={department}
-                href={wikiDepartmentHref(
-                  department
-                )}
-                className={`p-3 rounded-xl transition ${
-                  activeDepartment === department
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-700 hover:bg-zinc-100"
-                }`}
-              >
-                {department}
-              </Link>
-            )
-          )}
-        </div>
-      </div>
-
-      {/* ZULETZT GEÖFFNET */}
-      {recentPages.length > 0 && (
-        <div className="mb-8">
-          <SectionTitle
-            icon="🕒"
-            title="Zuletzt geöffnet"
-          />
-
-          <div className="flex flex-col gap-1">
-            {recentPages.map(
-              (page: any) => (
-                <Link
-                  key={page.slug}
-                  href={`/wiki/${encodeURIComponent(
-                    page.slug
-                  )}`}
-                  className={`p-3 rounded-xl transition ${
-                    pathname ===
-                    `/wiki/${page.slug}`
-                      ? "bg-zinc-900 text-white"
-                      : "text-zinc-700 hover:bg-zinc-100"
-                  }`}
-                >
-                  {page.title}
-                </Link>
-              )
-            )}
           </div>
-        </div>
-      )}
 
-      {/* TAGS */}
-      <div className="mb-8">
-        <button
-          type="button"
-          onClick={() =>
-            setTagsOpen(
-              !tagsOpen
-            )
-          }
-          className="w-full flex items-center justify-between mb-3"
-        >
-          <h3 className="flex items-center gap-2 text-sm font-semibold app-accent-text uppercase">
-            <span className="text-base leading-none">
-              #
-            </span>
-
-            <span>
-              Tags
-            </span>
-          </h3>
-
-          <span className="text-zinc-500">
-            {tagsOpen
-              ? "−"
-              : "+"}
+          <span className="h-11 w-11 rounded-2xl bg-zinc-900 text-white flex items-center justify-center">
+            ◫
           </span>
-        </button>
+        </div>
 
-        {tagsOpen && (
-          <div className="flex flex-wrap gap-2">
-            {allTags.length === 0 && (
-              <p className="text-sm text-zinc-400 px-3">
-                Keine Tags
-              </p>
-            )}
+        <div className="grid grid-cols-2 gap-3 mt-5">
+          <div className="rounded-2xl bg-zinc-50 p-4">
+            <p className="text-xs text-zinc-500">
+              Seiten
+            </p>
 
-            {allTags.map(
-              (tag: string) => (
-                <Link
-                  key={tag}
-                  href={wikiTagHref(
-                    tag
-                  )}
-                  className={`text-sm px-3 py-1 rounded-full transition ${
-                    activeTag === tag
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
-                  }`}
-                >
-                  #{tag}
-                </Link>
-              )
-            )}
+            <p className="text-2xl font-bold mt-1">
+              {pages.length}
+            </p>
           </div>
-        )}
-      </div>
 
-      {/* ADMIN */}
-      {admin && (
-        <div>
-          <SectionTitle
-            icon="🛡️"
-            title="Admin"
-          />
+          <div className="rounded-2xl bg-zinc-50 p-4">
+            <p className="text-xs text-zinc-500">
+              Favoriten
+            </p>
+
+            <p className="text-2xl font-bold mt-1">
+              {favorites.length}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-1 mt-5">
+          <Link
+            href="/wiki"
+            className={getLinkClass(
+              pathname === "/wiki" &&
+              !companyParam &&
+              !departmentParam &&
+              !tagParam &&
+              !favoritesParam
+            )}
+          >
+            <span>
+              Alle Dokumente
+            </span>
+
+            <span className={getBadgeClass(false)}>
+              {pages.length}
+            </span>
+          </Link>
+
+          <Link
+            href="/wiki?favorites=true"
+            className={getLinkClass(
+              favoritesParam
+            )}
+          >
+            <span>
+              Favoriten
+            </span>
+
+            <span className={getBadgeClass(
+              favoritesParam
+            )}
+            >
+              {favorites.length}
+            </span>
+          </Link>
 
           <Link
             href="/wiki/trash"
-            className={`flex items-center justify-between p-3 rounded-xl transition ${
+            className={getLinkClass(
               pathname === "/wiki/trash"
-                ? "bg-zinc-900 text-white"
-                : "hover:bg-zinc-100 text-zinc-700"
-            }`}
+            )}
           >
             <span>
-              🗑️ Papierkorb
+              Papierkorb
             </span>
 
-            <span
-              className={`text-xs px-2 py-1 rounded-full ${
-                pathname === "/wiki/trash"
-                  ? "bg-white text-zinc-900"
-                  : "bg-zinc-100 text-zinc-600"
-              }`}
+            <span className={getBadgeClass(
+              pathname === "/wiki/trash"
+            )}
             >
               {trashCount}
             </span>
           </Link>
         </div>
-      )}
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Firmen
+        </h3>
+
+        <div className="space-y-1 mt-4">
+          {companies.length === 0 && (
+            <p className="text-sm text-zinc-500 px-4 py-3">
+              Keine Firmen vorhanden.
+            </p>
+          )}
+
+          {companies.map(
+            (company) => {
+              const active =
+                companyParam === company;
+
+              const count =
+                pages.filter(
+                  (page) =>
+                    getPageCompany(
+                      page
+                    ) === company
+                ).length;
+
+              return (
+                <Link
+                  key={company}
+                  href={`/wiki?company=${encodeURIComponent(
+                    company
+                  )}`}
+                  className={getLinkClass(
+                    active
+                  )}
+                >
+                  <span className="truncate">
+                    {company}
+                  </span>
+
+                  <span className={getBadgeClass(active)}>
+                    {count}
+                  </span>
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Abteilungen
+        </h3>
+
+        <div className="space-y-1 mt-4">
+          {departments.length === 0 && (
+            <p className="text-sm text-zinc-500 px-4 py-3">
+              Keine Abteilungen vorhanden.
+            </p>
+          )}
+
+          {departments.map(
+            (department) => {
+              const active =
+                departmentParam === department;
+
+              const count =
+                pages.filter(
+                  (page) =>
+                    getPageDepartment(
+                      page
+                    ) === department
+                ).length;
+
+              return (
+                <Link
+                  key={department}
+                  href={`/wiki?department=${encodeURIComponent(
+                    department
+                  )}`}
+                  className={getLinkClass(
+                    active
+                  )}
+                >
+                  <span className="truncate">
+                    {department}
+                  </span>
+
+                  <span className={getBadgeClass(active)}>
+                    {count}
+                  </span>
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Zuletzt geöffnet
+        </h3>
+
+        <div className="space-y-3 mt-4">
+          {recentPageItems.length === 0 && (
+            <p className="text-sm text-zinc-500">
+              Noch keine Seiten geöffnet.
+            </p>
+          )}
+
+          {recentPageItems.map(
+            (page) => {
+              const slug =
+                getPageSlug(
+                  page
+                );
+
+              return (
+                <Link
+                  key={slug}
+                  href={`/wiki/${encodeURIComponent(
+                    slug
+                  )}`}
+                  className="block rounded-2xl border border-zinc-100 p-4 hover:bg-zinc-50 transition"
+                >
+                  <p className="font-medium line-clamp-2">
+                    {getPageTitle(
+                      page
+                    )}
+                  </p>
+
+                  <p className="text-xs text-zinc-500 mt-2">
+                    {getPageCompany(
+                      page
+                    )} ·{" "}
+                    {getPageDepartment(
+                      page
+                    )}
+                  </p>
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Favoriten
+        </h3>
+
+        <div className="space-y-3 mt-4">
+          {favoritePageItems.length === 0 && (
+            <p className="text-sm text-zinc-500">
+              Noch keine Favoriten.
+            </p>
+          )}
+
+          {favoritePageItems.map(
+            (page) => {
+              const slug =
+                getPageSlug(
+                  page
+                );
+
+              return (
+                <Link
+                  key={slug}
+                  href={`/wiki/${encodeURIComponent(
+                    slug
+                  )}`}
+                  className="block rounded-2xl border border-zinc-100 p-4 hover:bg-zinc-50 transition"
+                >
+                  <p className="font-medium line-clamp-2">
+                    {getPageTitle(
+                      page
+                    )}
+                  </p>
+
+                  <p className="text-xs text-zinc-500 mt-2">
+                    {getPageCompany(
+                      page
+                    )} ·{" "}
+                    {getPageDepartment(
+                      page
+                    )}
+                  </p>
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <h3 className="font-semibold">
+          Tags
+        </h3>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          {tags.length === 0 && (
+            <p className="text-sm text-zinc-500">
+              Keine Tags vorhanden.
+            </p>
+          )}
+
+          {tags.map(
+            (tag) => {
+              const active =
+                tagParam === tag;
+
+              return (
+                <Link
+                  key={tag}
+                  href={`/wiki?tag=${encodeURIComponent(
+                    tag
+                  )}`}
+                  className={`text-xs px-3 py-1 rounded-full transition ${
+                    active
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                  }`}
+                >
+                  #{tag}
+                </Link>
+              );
+            }
+          )}
+        </div>
+      </div>
     </aside>
   );
 }
