@@ -9,7 +9,6 @@ import {
   loadCurrentUser,
 } from "../lib/currentUserRepository";
 import type { User } from "../types/user";
-import { useAppSettings } from "../hooks/useAppSettings";
 import Topbar from "./layout/Topbar";
 
 type AppShellProps = {
@@ -22,8 +21,11 @@ type NavItem = {
   icon: string;
   adminOnly?: boolean;
   editorOnly?: boolean;
-  feature?: "ticketTemplates" | "activityLog";
 };
+
+const APP_NAME = "Intranet";
+const COMPANY_NAME = "Intern";
+const APP_VERSION = "0.1.0";
 
 const mainNavItems: NavItem[] = [
   {
@@ -47,12 +49,6 @@ const mainNavItems: NavItem[] = [
     icon: "◆",
   },
   {
-    href: "/tickets/templates",
-    label: "Ticket-Vorlagen",
-    icon: "◇",
-    feature: "ticketTemplates",
-  },
-  {
     href: "/files",
     label: "Dateien",
     icon: "▣",
@@ -60,13 +56,6 @@ const mainNavItems: NavItem[] = [
 ];
 
 const managementNavItems: NavItem[] = [
-  {
-    href: "/activity",
-    label: "Aktivitäten",
-    icon: "≡",
-    editorOnly: true,
-    feature: "activityLog",
-  },
   {
     href: "/admin/users",
     label: "Benutzer",
@@ -80,28 +69,16 @@ const managementNavItems: NavItem[] = [
     adminOnly: true,
   },
   {
-    href: "/admin/storage",
-    label: "Speicher",
-    icon: "▣",
+    href: "/admin/news",
+    label: "News verwalten",
+    icon: "◎",
     adminOnly: true,
   },
   {
-    href: "/admin/adapters",
-    label: "Adapter",
-    icon: "⇄",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/database",
-    label: "Datenbank",
-    icon: "◍",
-    adminOnly: true,
-  },
-  {
-    href: "/admin/notifications",
-    label: "Benachrichtigungen",
-    icon: "●",
-    adminOnly: true,
+    href: "/activity",
+    label: "Aktivitäten",
+    icon: "≡",
+    editorOnly: true,
   },
 ];
 
@@ -139,20 +116,12 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function canShowItem(item: NavItem, user: User | null, settings: any) {
+function canShowItem(item: NavItem, user: User | null) {
   if (item.adminOnly && user?.role !== "admin") {
     return false;
   }
 
   if (item.editorOnly && user?.role !== "admin" && user?.role !== "editor") {
-    return false;
-  }
-
-  if (item.feature === "ticketTemplates" && !settings.enableTicketTemplates) {
-    return false;
-  }
-
-  if (item.feature === "activityLog" && !settings.enableActivityLog) {
     return false;
   }
 
@@ -218,14 +187,12 @@ export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const { settings, loading: settingsLoading } = useAppSettings();
-
   const [user, setUser] = useState<User | null>(getCachedCurrentUser());
-  const [userLoading, setUserLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (isPublicPath(pathname)) {
-      setUserLoading(false);
+      setLoading(false);
       return;
     }
 
@@ -244,7 +211,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   async function ensureUser() {
     try {
-      setUserLoading(true);
+      setLoading(true);
 
       const nextUser = await loadCurrentUser();
 
@@ -258,30 +225,30 @@ export default function AppShell({ children }: AppShellProps) {
       setUser(null);
       router.push("/login");
     } finally {
-      setUserLoading(false);
+      setLoading(false);
     }
   }
 
   const visibleMainItems = useMemo(
-    () => mainNavItems.filter((item) => canShowItem(item, user, settings)),
-    [user, settings]
+    () => mainNavItems.filter((item) => canShowItem(item, user)),
+    [user]
   );
 
   const visibleManagementItems = useMemo(
-    () => managementNavItems.filter((item) => canShowItem(item, user, settings)),
-    [user, settings]
+    () => managementNavItems.filter((item) => canShowItem(item, user)),
+    [user]
   );
 
   const visibleSystemItems = useMemo(
-    () => systemNavItems.filter((item) => canShowItem(item, user, settings)),
-    [user, settings]
+    () => systemNavItems.filter((item) => canShowItem(item, user)),
+    [user]
   );
 
   if (isPublicPath(pathname)) {
     return <>{children}</>;
   }
 
-  if (userLoading || settingsLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-100 text-zinc-500">
         Anwendung wird geladen...
@@ -312,27 +279,18 @@ export default function AppShell({ children }: AppShellProps) {
     );
   }
 
-  const sidebarPosition = settings.sidebarPosition || "left";
-  const companyName = settings.companyName || "Intern";
-  const appName = settings.appName || "Intranet";
-  const appVersion = settings.appVersion || settings.version || "0.1.0";
-
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-950">
-      <aside
-        className={`fixed inset-y-0 z-40 hidden w-72 flex-col bg-zinc-950 text-white lg:flex ${
-          sidebarPosition === "right" ? "right-0" : "left-0"
-        }`}
-      >
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-zinc-950 text-white lg:flex">
         <div className="flex h-full flex-col px-4 py-5">
           <Link
             href="/"
             className="mb-8 block rounded-3xl bg-white/5 p-5 ring-1 ring-white/10 transition hover:bg-white/10"
           >
-            <p className="text-sm text-zinc-400">{companyName}</p>
+            <p className="text-sm text-zinc-400">{COMPANY_NAME}</p>
 
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">
-              {appName}
+              {APP_NAME}
             </h1>
           </Link>
 
@@ -356,39 +314,22 @@ export default function AppShell({ children }: AppShellProps) {
             />
           </div>
 
-          {settings.showVersion && (
-            <div className="mt-6 rounded-3xl bg-white/5 p-4 ring-1 ring-white/10">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Version
-              </p>
+          <div className="mt-6 rounded-3xl bg-white/5 p-4 ring-1 ring-white/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Version
+            </p>
 
-              <p className="mt-1 text-sm font-medium text-zinc-300">
-                {appVersion}
-              </p>
-            </div>
-          )}
+            <p className="mt-1 text-sm font-medium text-zinc-300">
+              {APP_VERSION}
+            </p>
+          </div>
         </div>
       </aside>
 
-      <div
-        className={
-          sidebarPosition === "right"
-            ? "min-h-screen lg:mr-72"
-            : "min-h-screen lg:ml-72"
-        }
-      >
-        <Topbar
-          user={user}
-          appName={appName}
-          companyName={companyName}
-          sidebarPosition={sidebarPosition}
-        />
+      <div className="min-h-screen lg:ml-72">
+        <Topbar user={user} appName={APP_NAME} companyName={COMPANY_NAME} />
 
-        <main
-          className={`app-page-content mx-auto w-full max-w-7xl px-4 py-6 md:px-8 ${
-            settings.compactMode ? "space-y-4" : "space-y-6"
-          }`}
-        >
+        <main className="app-page-content w-full px-4 py-6 md:px-8 2xl:px-10">
           {children}
         </main>
       </div>

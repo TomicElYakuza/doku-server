@@ -4,13 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logoutCurrentUser } from "../../lib/currentUserRepository";
 import type { User } from "../../types/user";
-import type { SidebarPosition } from "../../types/settings";
 
 type TopbarProps = {
   user: User | null;
   appName: string;
   companyName: string;
-  sidebarPosition: SidebarPosition;
 };
 
 function getRoleLabel(role?: string) {
@@ -55,11 +53,7 @@ async function clearBrowserCaches() {
   }
 }
 
-export default function Topbar({
-  user,
-  appName,
-  companyName,
-}: TopbarProps) {
+export default function Topbar({ user, appName, companyName }: TopbarProps) {
   const router = useRouter();
 
   const [logoutLoading, setLogoutLoading] = useState(false);
