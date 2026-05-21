@@ -19,7 +19,7 @@ import {
 
 import type {
   NewsPost,
-} from "../lib/newsStorage";
+} from "../types/news";
 
 import {
   canCreate,

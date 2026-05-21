@@ -15,7 +15,7 @@ import {
 import type {
   NewsCategory,
   NewsPost,
-} from "../../../lib/newsStorage";
+} from "../../../types/news";
 
 import {
   canDelete,

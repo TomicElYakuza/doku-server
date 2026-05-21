@@ -5,7 +5,7 @@ import {
 import type {
   Company,
   Department,
-} from "./companyStorage";
+} from "../types/company";
 
 import {
   getCurrentUser,

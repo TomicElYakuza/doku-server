@@ -1,137 +1,409 @@
 import {
-  createNewsPost,
-  deleteNewsPost,
-  getLatestNewsPosts,
-  getNewsCategories,
-  getNewsPostById,
-  getNewsPosts,
-  getNewsPostsByCategory,
-  getOpenedNewsPostIds,
-  getPinnedNewsPosts,
-  markAllNewsPostsOpened,
-  markNewsPostOpened,
-  resetNewsPosts,
-  saveNewsPosts,
-  searchNewsPosts,
-  updateNewsPost,
-} from "./newsStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
+  NewsCategory,
+  NewsCreateInput,
   NewsPost,
-} from "./newsStorage";
-
-export type NewsPostCreateInput = Omit<
-  NewsPost,
-  "id" | "createdAt"
->;
-
-export type NewsPostUpdateInput =
-  Partial<NewsPost>;
+  NewsUpdateInput,
+} from "../types/news";
 
 export type NewsRepository = {
-  list: () => NewsPost[];
-  search: (query: string) => NewsPost[];
-  listPinned: () => NewsPost[];
-  listLatest: (limit?: number) => NewsPost[];
-  listCategories: () => string[];
-  listByCategory: (category: string) => NewsPost[];
-  findById: (id: string) => NewsPost | null;
-  create: (post: NewsPostCreateInput) => NewsPost;
+  list: () => Promise<NewsPost[]>;
+  search: (query: string) => Promise<NewsPost[]>;
+  findById: (id: string) => Promise<NewsPost | null>;
+  create: (post: NewsCreateInput) => Promise<NewsPost>;
   update: (
     id: string,
-    updates: NewsPostUpdateInput
-  ) => NewsPost | null;
-  delete: (id: string) => void;
-  saveAll: (posts: NewsPost[]) => void;
-  reset: () => void;
-  getOpenedIds: () => string[];
-  markOpened: (id: string) => void;
-  markAllOpened: () => void;
+    updates: NewsUpdateInput
+  ) => Promise<NewsPost | null>;
+  delete: (id: string) => Promise<void>;
+  saveAll: (posts: NewsPost[]) => Promise<void>;
+
+  listByCategory: (category: NewsCategory | string) => Promise<NewsPost[]>;
+  listCategories: () => Promise<Array<NewsCategory | string>>;
+  listPinned: () => Promise<NewsPost[]>;
+  listLatest: (limit?: number) => Promise<NewsPost[]>;
+
+  countAll: () => Promise<number>;
+  countByCategory: (category: NewsCategory | string) => Promise<number>;
+  countPinned: () => Promise<number>;
+
+  getOpenedIds: (userEmail?: string) => Promise<string[]>;
+  markOpened: (id: string, userEmail?: string) => Promise<void>;
+  markAllOpened: (userEmail?: string) => Promise<void>;
+  countUnread: (userEmail?: string) => Promise<number>;
 };
 
-export const localNewsRepository: NewsRepository = {
-  list() {
-    return getNewsPosts();
-  },
+function dispatchNewsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
 
-  search(query: string) {
-    return searchNewsPosts(
+  window.dispatchEvent(
+    new Event(
+      "newsUpdated"
+    )
+  );
+}
+
+function dispatchNewsOpenedUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "newsOpenedUpdated"
+    )
+  );
+}
+
+function normalizeQuery(
+  query: string
+) {
+  return query
+    .trim()
+    .toLowerCase();
+}
+
+function postMatchesQuery(
+  post: NewsPost,
+  query: string
+) {
+  const normalizedQuery =
+    normalizeQuery(
       query
+    );
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const haystack = [
+    post.id,
+    post.title,
+    post.description,
+    post.content,
+    post.category,
+    post.author,
+    post.createdAt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(
+    normalizedQuery
+  );
+}
+
+function getUserEmail(
+  value?: string
+) {
+  return (
+    value?.trim().toLowerCase() ||
+    "anonymous"
+  );
+}
+
+export const postgresNewsRepository: NewsRepository = {
+  async list() {
+    return requestJson<NewsPost[]>(
+      "/api/news"
     );
   },
 
-  listPinned() {
-    return getPinnedNewsPosts();
+  async search(
+    query: string
+  ) {
+    const posts =
+      await postgresNewsRepository.list();
+
+    return posts.filter(
+      (post) =>
+        postMatchesQuery(
+          post,
+          query
+        )
+    );
   },
 
-  listLatest(limit = 5) {
-    return getLatestNewsPosts(
+  async findById(
+    id: string
+  ) {
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<NewsPost>(
+        `/api/news/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
+  },
+
+  async create(
+    post: NewsCreateInput
+  ) {
+    const createdPost =
+      await requestJson<NewsPost>(
+        "/api/news",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              post
+            ),
+        }
+      );
+
+    dispatchNewsUpdated();
+
+    return createdPost;
+  },
+
+  async update(
+    id: string,
+    updates: NewsUpdateInput
+  ) {
+    if (!id) {
+      return null;
+    }
+
+    const updatedPost =
+      await requestJson<NewsPost>(
+        `/api/news/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchNewsUpdated();
+
+    return updatedPost;
+  },
+
+  async delete(
+    id: string
+  ) {
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/news/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
+    );
+
+    dispatchNewsUpdated();
+  },
+
+  async saveAll(
+    posts: NewsPost[]
+  ) {
+    await Promise.all(
+      posts.map(
+        async (post) => {
+          if (post.id) {
+            await postgresNewsRepository.update(
+              post.id,
+              post
+            );
+
+            return;
+          }
+
+          await postgresNewsRepository.create(
+            post
+          );
+        }
+      )
+    );
+
+    dispatchNewsUpdated();
+  },
+
+  async listByCategory(
+    category: NewsCategory | string
+  ) {
+    return requestJson<NewsPost[]>(
+      `/api/news?category=${encodeURIComponent(
+        String(
+          category
+        )
+      )}`
+    );
+  },
+
+  async listCategories() {
+    const posts =
+      await postgresNewsRepository.list();
+
+    return Array.from(
+      new Set(
+        posts
+          .map(
+            (post) =>
+              post.category
+          )
+          .filter(Boolean)
+      )
+    );
+  },
+
+  async listPinned() {
+    return requestJson<NewsPost[]>(
+      "/api/news?pinned=true"
+    );
+  },
+
+  async listLatest(
+    limit = 5
+  ) {
+    const posts =
+      await postgresNewsRepository.list();
+
+    return posts.slice(
+      0,
       limit
     );
   },
 
-  listCategories() {
-    return getNewsCategories();
+  async countAll() {
+    const posts =
+      await postgresNewsRepository.list();
+
+    return posts.length;
   },
 
-  listByCategory(category: string) {
-    return getNewsPostsByCategory(
-      category
-    );
-  },
-
-  findById(id: string) {
-    return getNewsPostById(
-      id
-    );
-  },
-
-  create(post: NewsPostCreateInput) {
-    return createNewsPost(
-      post
-    );
-  },
-
-  update(
-    id: string,
-    updates: NewsPostUpdateInput
+  async countByCategory(
+    category: NewsCategory | string
   ) {
-    return updateNewsPost(
-      id,
-      updates
+    const posts =
+      await postgresNewsRepository.listByCategory(
+        category
+      );
+
+    return posts.length;
+  },
+
+  async countPinned() {
+    const posts =
+      await postgresNewsRepository.listPinned();
+
+    return posts.length;
+  },
+
+  async getOpenedIds(
+    userEmail?: string
+  ) {
+    return requestJson<string[]>(
+      `/api/news/opened?userEmail=${encodeURIComponent(
+        getUserEmail(
+          userEmail
+        )
+      )}`
     );
   },
 
-  delete(id: string) {
-    deleteNewsPost(
-      id
+  async markOpened(
+    id: string,
+    userEmail?: string
+  ) {
+    await requestJson<{
+      ok: boolean;
+    }>(
+      "/api/news/opened",
+      {
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            id,
+            userEmail:
+              getUserEmail(
+                userEmail
+              ),
+          }),
+      }
     );
+
+    dispatchNewsOpenedUpdated();
   },
 
-  saveAll(posts: NewsPost[]) {
-    saveNewsPosts(
-      posts
+  async markAllOpened(
+    userEmail?: string
+  ) {
+    await requestJson<{
+      ok: boolean;
+    }>(
+      "/api/news/opened",
+      {
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            all:
+              true,
+
+            userEmail:
+              getUserEmail(
+                userEmail
+              ),
+          }),
+      }
     );
+
+    dispatchNewsOpenedUpdated();
   },
 
-  reset() {
-    resetNewsPosts();
-  },
+  async countUnread(
+    userEmail?: string
+  ) {
+    const [
+      posts,
+      openedIds,
+    ] =
+      await Promise.all([
+        postgresNewsRepository.list(),
+        postgresNewsRepository.getOpenedIds(
+          userEmail
+        ),
+      ]);
 
-  getOpenedIds() {
-    return getOpenedNewsPostIds();
-  },
-
-  markOpened(id: string) {
-    markNewsPostOpened(
-      id
-    );
-  },
-
-  markAllOpened() {
-    markAllNewsPostsOpened();
+    return posts.filter(
+      (post) =>
+        !openedIds.includes(
+          post.id
+        )
+    ).length;
   },
 };
 
 export const newsRepository =
-  localNewsRepository;
+  postgresNewsRepository;

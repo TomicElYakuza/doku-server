@@ -21,7 +21,7 @@ import type {
   CompanyStatus,
   Department,
   DepartmentStatus,
-} from "../../../lib/companyStorage";
+} from "../../../types/company";
 
 import {
   saveCompanyCreatedActivity,
@@ -72,6 +72,9 @@ function getStatusClass(
 
 export default function AdminCompaniesPage() {
   const [mounted, setMounted] =
+    useState(false);
+
+  const [loading, setLoading] =
     useState(false);
 
   const [companies, setCompanies] =
@@ -134,14 +137,14 @@ export default function AdminCompaniesPage() {
   useEffect(() => {
     setMounted(true);
 
-    loadData();
+    void loadData();
 
     function handleCompaniesUpdated() {
-      loadData();
+      void loadData();
     }
 
     function handleDepartmentsUpdated() {
-      loadData();
+      void loadData();
     }
 
     window.addEventListener(
@@ -167,28 +170,47 @@ export default function AdminCompaniesPage() {
     };
   }, []);
 
-  function loadData() {
-    const nextCompanies =
-      companyRepository.listCompanies();
+  async function loadData() {
+    try {
+      setLoading(true);
 
-    const nextDepartments =
-      companyRepository.listDepartments();
+      const [
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-    setCompanies(
-      nextCompanies
-    );
-
-    setDepartments(
-      nextDepartments
-    );
-
-    if (
-      !departmentCompanyId &&
-      nextCompanies.length > 0
-    ) {
-      setDepartmentCompanyId(
-        nextCompanies[0].id
+      setCompanies(
+        nextCompanies
       );
+
+      setDepartments(
+        nextDepartments
+      );
+
+      if (
+        !departmentCompanyId &&
+        nextCompanies.length > 0
+      ) {
+        setDepartmentCompanyId(
+          nextCompanies[0].id
+        );
+      }
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Firmen und Abteilungen konnten nicht geladen werden."
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -332,7 +354,7 @@ export default function AdminCompaniesPage() {
     });
   }
 
-  function handleSaveCompany() {
+  async function handleSaveCompany() {
     if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, Firmen zu verwalten."
@@ -355,59 +377,75 @@ export default function AdminCompaniesPage() {
         companyName
       );
 
-    if (editingCompanyId) {
-      const updatedCompany =
-        companyRepository.updateCompany(
-          editingCompanyId,
-          {
-            name:
-              companyName.trim(),
+    try {
+      if (editingCompanyId) {
+        const updatedCompany =
+          await companyRepository.updateCompany(
+            editingCompanyId,
+            {
+              name:
+                companyName.trim(),
 
-            slug:
-              nextSlug,
+              slug:
+                nextSlug,
 
-            description:
-              companyDescription.trim(),
+              description:
+                companyDescription.trim(),
 
-            status:
-              companyStatus,
-          }
-        );
+              status:
+                companyStatus,
+            }
+          );
 
-      if (updatedCompany) {
-        saveCompanyUpdatedActivity(
-          updatedCompany
-        );
+        if (updatedCompany) {
+          saveCompanyUpdatedActivity(
+            updatedCompany
+          );
+        }
+
+        resetCompanyForm();
+
+        await loadData();
+
+        return;
       }
+
+      const newCompany =
+        await companyRepository.createCompany({
+          name:
+            companyName.trim(),
+
+          slug:
+            nextSlug,
+
+          description:
+            companyDescription.trim(),
+
+          status:
+            companyStatus,
+        });
+
+      saveCompanyCreatedActivity(
+        newCompany
+      );
 
       resetCompanyForm();
 
-      return;
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Firma konnte nicht gespeichert werden."
+      );
     }
-
-    const newCompany =
-      companyRepository.createCompany({
-        name:
-          companyName.trim(),
-
-        slug:
-          nextSlug,
-
-        description:
-          companyDescription.trim(),
-
-        status:
-          companyStatus,
-      });
-
-    saveCompanyCreatedActivity(
-      newCompany
-    );
-
-    resetCompanyForm();
   }
 
-  function handleSaveDepartment() {
+  async function handleSaveDepartment() {
     if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, Abteilungen zu verwalten."
@@ -443,67 +481,83 @@ export default function AdminCompaniesPage() {
         departmentCompanyId
       );
 
-    if (editingDepartmentId) {
-      const updatedDepartment =
-        companyRepository.updateDepartment(
-          editingDepartmentId,
-          {
-            companyId:
-              departmentCompanyId,
+    try {
+      if (editingDepartmentId) {
+        const updatedDepartment =
+          await companyRepository.updateDepartment(
+            editingDepartmentId,
+            {
+              companyId:
+                departmentCompanyId,
 
-            name:
-              departmentName.trim(),
+              name:
+                departmentName.trim(),
 
-            slug:
-              nextSlug,
+              slug:
+                nextSlug,
 
-            description:
-              departmentDescription.trim(),
+              description:
+                departmentDescription.trim(),
 
-            status:
-              departmentStatus,
-          }
-        );
+              status:
+                departmentStatus,
+            }
+          );
 
-      if (updatedDepartment) {
-        saveDepartmentUpdatedActivity(
-          updatedDepartment,
-          companyNameForActivity
-        );
+        if (updatedDepartment) {
+          saveDepartmentUpdatedActivity(
+            updatedDepartment,
+            companyNameForActivity
+          );
+        }
+
+        resetDepartmentForm();
+
+        await loadData();
+
+        return;
       }
+
+      const newDepartment =
+        await companyRepository.createDepartment({
+          companyId:
+            departmentCompanyId,
+
+          name:
+            departmentName.trim(),
+
+          slug:
+            nextSlug,
+
+          description:
+            departmentDescription.trim(),
+
+          status:
+            departmentStatus,
+        });
+
+      saveDepartmentCreatedActivity(
+        newDepartment,
+        companyNameForActivity
+      );
 
       resetDepartmentForm();
 
-      return;
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Abteilung konnte nicht gespeichert werden."
+      );
     }
-
-    const newDepartment =
-      companyRepository.createDepartment({
-        companyId:
-          departmentCompanyId,
-
-        name:
-          departmentName.trim(),
-
-        slug:
-          nextSlug,
-
-        description:
-          departmentDescription.trim(),
-
-        status:
-          departmentStatus,
-      });
-
-    saveDepartmentCreatedActivity(
-      newDepartment,
-      companyNameForActivity
-    );
-
-    resetDepartmentForm();
   }
 
-  function handleDeleteCompany(
+  async function handleDeleteCompany(
     company: Company
   ) {
     if (!canManageSystem()) {
@@ -530,16 +584,30 @@ export default function AdminCompaniesPage() {
       return;
     }
 
-    saveCompanyDeletedActivity(
-      company
-    );
+    try {
+      saveCompanyDeletedActivity(
+        company
+      );
 
-    companyRepository.deleteCompany(
-      company.id
-    );
+      await companyRepository.deleteCompany(
+        company.id
+      );
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Firma konnte nicht gelöscht werden."
+      );
+    }
   }
 
-  function handleDeleteDepartment(
+  async function handleDeleteDepartment(
     department: Department
   ) {
     if (!canManageSystem()) {
@@ -559,16 +627,30 @@ export default function AdminCompaniesPage() {
       return;
     }
 
-    saveDepartmentDeletedActivity(
-      department,
-      getCompanyName(
-        department.companyId
-      )
-    );
+    try {
+      saveDepartmentDeletedActivity(
+        department,
+        getCompanyName(
+          department.companyId
+        )
+      );
 
-    companyRepository.deleteDepartment(
-      department.id
-    );
+      await companyRepository.deleteDepartment(
+        department.id
+      );
+
+      await loadData();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Abteilung konnte nicht gelöscht werden."
+      );
+    }
   }
 
   function resetFilters() {
@@ -708,7 +790,7 @@ export default function AdminCompaniesPage() {
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Organisationsstruktur für Benutzer, Tickets, Wiki und spätere Datenbank verwalten
+            Organisationsstruktur für Benutzer, Tickets, Wiki und PostgreSQL verwalten
           </p>
         </div>
 
@@ -732,6 +814,12 @@ export default function AdminCompaniesPage() {
           </div>
         )}
       </div>
+
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm text-zinc-500">
+          Daten werden geladen...
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <button
@@ -1321,7 +1409,7 @@ export default function AdminCompaniesPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleDeleteCompany(
+                          void handleDeleteCompany(
                             company
                           )
                         }
@@ -1413,7 +1501,7 @@ export default function AdminCompaniesPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleDeleteDepartment(
+                          void handleDeleteDepartment(
                             department
                           )
                         }

@@ -4,7 +4,7 @@ import {
 
 import type {
   AdminUser,
-} from "./adminUserStorage";
+} from "../types/user";
 
 import {
   getCurrentUser,

@@ -19,20 +19,17 @@ import {
 import type {
   AdminUser,
   AdminUserStatus,
-} from "../../../lib/adminUserStorage";
-
-import type {
   UserRole,
-} from "../../../lib/userStorage";
-
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
+} from "../../../types/user";
 
 import type {
   Company,
   Department,
-} from "../../../lib/companyStorage";
+} from "../../../types/company";
+
+import {
+  companyRepository,
+} from "../../../lib/companyRepository";
 
 import {
   saveUserCreatedActivity,

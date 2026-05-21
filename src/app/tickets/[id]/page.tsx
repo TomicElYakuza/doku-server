@@ -17,16 +17,16 @@ import type {
   Ticket,
   TicketPriority,
   TicketStatus,
-} from "../../../lib/ticketStorage";
-
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
+} from "../../../types/ticket";
 
 import type {
   Company,
   Department,
-} from "../../../lib/companyStorage";
+} from "../../../types/company";
+
+import {
+  companyRepository,
+} from "../../../lib/companyRepository";
 
 import {
   canDelete,

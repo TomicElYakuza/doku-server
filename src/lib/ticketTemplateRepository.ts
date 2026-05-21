@@ -1,57 +1,51 @@
 import {
-  createTicketTemplate,
-  deleteTicketTemplate,
-  getTicketTemplatePriorityClass,
-  getTicketTemplatePriorityLabel,
-  getTicketTemplates,
-  getTicketTemplateStatusClass,
-  getTicketTemplateStatusLabel,
-  updateTicketTemplate,
-} from "./ticketTemplateStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
   TicketTemplate,
+  TicketTemplateCreateInput,
   TicketTemplatePriority,
   TicketTemplateStatus,
-} from "./ticketTemplateStorage";
-
-export type TicketTemplateCreateInput = Omit<
-  TicketTemplate,
-  "id" | "createdAt" | "updatedAt"
->;
-
-export type TicketTemplateUpdateInput =
-  Partial<
-    Omit<
-      TicketTemplate,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
+  TicketTemplateUpdateInput,
+} from "../types/ticketTemplate";
 
 export type TicketTemplateRepository = {
-  list: () => TicketTemplate[];
-  search: (query: string) => TicketTemplate[];
-  findById: (id: string) => TicketTemplate | null;
-  create: (template: TicketTemplateCreateInput) => TicketTemplate;
+  list: () => Promise<TicketTemplate[]>;
+  search: (query: string) => Promise<TicketTemplate[]>;
+  findById: (id: string) => Promise<TicketTemplate | null>;
+  create: (template: TicketTemplateCreateInput) => Promise<TicketTemplate>;
   update: (
     id: string,
     updates: TicketTemplateUpdateInput
-  ) => TicketTemplate | null;
-  delete: (id: string) => void;
+  ) => Promise<TicketTemplate | null>;
+  delete: (id: string) => Promise<void>;
 
-  listByStatus: (status: TicketTemplateStatus) => TicketTemplate[];
-  listByPriority: (priority: TicketTemplatePriority) => TicketTemplate[];
-  listHighOrUrgent: () => TicketTemplate[];
+  listByStatus: (status: TicketTemplateStatus) => Promise<TicketTemplate[]>;
+  listByPriority: (priority: TicketTemplatePriority) => Promise<TicketTemplate[]>;
+  listHighOrUrgent: () => Promise<TicketTemplate[]>;
 
-  countAll: () => number;
-  countByStatus: (status: TicketTemplateStatus) => number;
-  countHighOrUrgent: () => number;
+  countAll: () => Promise<number>;
+  countByStatus: (status: TicketTemplateStatus) => Promise<number>;
+  countHighOrUrgent: () => Promise<number>;
 
   getStatusLabel: (status: TicketTemplateStatus | string) => string;
   getStatusClass: (status: TicketTemplateStatus | string) => string;
   getPriorityLabel: (priority: TicketTemplatePriority | string) => string;
   getPriorityClass: (priority: TicketTemplatePriority | string) => string;
 };
+
+function dispatchTicketTemplatesUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "ticketTemplatesUpdated"
+    )
+  );
+}
 
 function templateMatchesQuery(
   template: TicketTemplate,
@@ -91,15 +85,20 @@ function templateMatchesQuery(
   );
 }
 
-export const localTicketTemplateRepository: TicketTemplateRepository = {
-  list() {
-    return getTicketTemplates();
+export const postgresTicketTemplateRepository: TicketTemplateRepository = {
+  async list() {
+    return requestJson<TicketTemplate[]>(
+      "/api/ticket-templates"
+    );
   },
 
-  search(
+  async search(
     query: string
   ) {
-    return getTicketTemplates().filter(
+    const templates =
+      await postgresTicketTemplateRepository.list();
+
+    return templates.filter(
       (template) =>
         templateMatchesQuery(
           template,
@@ -108,117 +107,255 @@ export const localTicketTemplateRepository: TicketTemplateRepository = {
     );
   },
 
-  findById(
+  async findById(
     id: string
   ) {
-    return (
-      getTicketTemplates().find(
-        (template) =>
-          template.id === id
-      ) || null
-    );
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<TicketTemplate>(
+        `/api/ticket-templates/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  create(
+  async create(
     template: TicketTemplateCreateInput
   ) {
-    return createTicketTemplate(
-      template
-    );
+    const createdTemplate =
+      await requestJson<TicketTemplate>(
+        "/api/ticket-templates",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              template
+            ),
+        }
+      );
+
+    dispatchTicketTemplatesUpdated();
+
+    return createdTemplate;
   },
 
-  update(
+  async update(
     id: string,
     updates: TicketTemplateUpdateInput
   ) {
-    return updateTicketTemplate(
-      id,
-      updates
-    );
+    if (!id) {
+      return null;
+    }
+
+    const updatedTemplate =
+      await requestJson<TicketTemplate>(
+        `/api/ticket-templates/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchTicketTemplatesUpdated();
+
+    return updatedTemplate;
   },
 
-  delete(
+  async delete(
     id: string
   ) {
-    deleteTicketTemplate(
-      id
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/ticket-templates/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
     );
+
+    dispatchTicketTemplatesUpdated();
   },
 
-  listByStatus(
+  async listByStatus(
     status: TicketTemplateStatus
   ) {
-    return getTicketTemplates().filter(
-      (template) =>
-        template.status === status
+    return requestJson<TicketTemplate[]>(
+      `/api/ticket-templates?status=${encodeURIComponent(
+        status
+      )}`
     );
   },
 
-  listByPriority(
+  async listByPriority(
     priority: TicketTemplatePriority
   ) {
-    return getTicketTemplates().filter(
-      (template) =>
-        template.priority === priority
+    return requestJson<TicketTemplate[]>(
+      `/api/ticket-templates?priority=${encodeURIComponent(
+        priority
+      )}`
     );
   },
 
-  listHighOrUrgent() {
-    return getTicketTemplates().filter(
+  async listHighOrUrgent() {
+    const templates =
+      await postgresTicketTemplateRepository.list();
+
+    return templates.filter(
       (template) =>
         template.priority === "high" ||
         template.priority === "urgent"
     );
   },
 
-  countAll() {
-    return getTicketTemplates().length;
+  async countAll() {
+    const templates =
+      await postgresTicketTemplateRepository.list();
+
+    return templates.length;
   },
 
-  countByStatus(
+  async countByStatus(
     status: TicketTemplateStatus
   ) {
-    return localTicketTemplateRepository.listByStatus(
-      status
-    ).length;
+    const templates =
+      await postgresTicketTemplateRepository.listByStatus(
+        status
+      );
+
+    return templates.length;
   },
 
-  countHighOrUrgent() {
-    return localTicketTemplateRepository.listHighOrUrgent().length;
+  async countHighOrUrgent() {
+    const templates =
+      await postgresTicketTemplateRepository.listHighOrUrgent();
+
+    return templates.length;
   },
 
   getStatusLabel(
     status: TicketTemplateStatus | string
   ) {
-    return getTicketTemplateStatusLabel(
-      status
+    if (status === "open") {
+      return "Offen";
+    }
+
+    if (status === "in_progress") {
+      return "In Bearbeitung";
+    }
+
+    if (status === "waiting") {
+      return "Wartend";
+    }
+
+    if (status === "done") {
+      return "Erledigt";
+    }
+
+    if (status === "closed") {
+      return "Geschlossen";
+    }
+
+    return String(
+      status ||
+        "Unbekannt"
     );
   },
 
   getStatusClass(
     status: TicketTemplateStatus | string
   ) {
-    return getTicketTemplateStatusClass(
-      status
-    );
+    if (status === "open") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "in_progress") {
+      return "bg-yellow-100 text-yellow-700";
+    }
+
+    if (status === "waiting") {
+      return "bg-orange-100 text-orange-700";
+    }
+
+    if (status === "done") {
+      return "bg-green-50 text-green-700";
+    }
+
+    if (status === "closed") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 
   getPriorityLabel(
     priority: TicketTemplatePriority | string
   ) {
-    return getTicketTemplatePriorityLabel(
-      priority
+    if (priority === "low") {
+      return "Niedrig";
+    }
+
+    if (priority === "medium") {
+      return "Mittel";
+    }
+
+    if (priority === "high") {
+      return "Hoch";
+    }
+
+    if (priority === "urgent") {
+      return "Dringend";
+    }
+
+    return String(
+      priority ||
+        "Unbekannt"
     );
   },
 
   getPriorityClass(
     priority: TicketTemplatePriority | string
   ) {
-    return getTicketTemplatePriorityClass(
-      priority
-    );
+    if (priority === "low") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    if (priority === "medium") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (priority === "high") {
+      return "bg-orange-100 text-orange-700";
+    }
+
+    if (priority === "urgent") {
+      return "bg-red-50 text-red-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 };
 
 export const ticketTemplateRepository =
-  localTicketTemplateRepository;
+  postgresTicketTemplateRepository;

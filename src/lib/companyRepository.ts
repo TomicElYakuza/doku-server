@@ -1,102 +1,100 @@
-import {
-  createCompany,
-  createDepartment,
-  deleteCompany,
-  deleteDepartment,
-  getActiveCompanies,
-  getActiveDepartments,
-  getActiveDepartmentsByCompanyId,
-  getCompanies,
-  getCompanyById,
-  getCompanyStatusLabel,
-  getDepartmentById,
-  getDepartmentStatusLabel,
-  getDepartments,
-  getDepartmentsByCompanyId,
-  resetCompanies,
-  resetDepartments,
-  saveCompanies,
-  saveDepartments,
-  updateCompany,
-  updateDepartment,
-} from "./companyStorage";
-
 import type {
   Company,
+  CompanyCreateInput,
   CompanyStatus,
+  CompanyUpdateInput,
   Department,
+  DepartmentCreateInput,
   DepartmentStatus,
-} from "./companyStorage";
-
-export type CompanyCreateInput = Omit<
-  Company,
-  "id" | "createdAt" | "updatedAt"
->;
-
-export type CompanyUpdateInput =
-  Partial<
-    Omit<
-      Company,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
-
-export type DepartmentCreateInput = Omit<
-  Department,
-  "id" | "createdAt" | "updatedAt"
->;
-
-export type DepartmentUpdateInput =
-  Partial<
-    Omit<
-      Department,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
+  DepartmentUpdateInput,
+} from "../types/company";
 
 export type CompanyRepository = {
-  listCompanies: () => Company[];
-  listDepartments: () => Department[];
+  listCompanies: () => Promise<Company[]>;
+  listDepartments: () => Promise<Department[]>;
 
-  searchCompanies: (query: string) => Company[];
-  searchDepartments: (query: string) => Department[];
+  searchCompanies: (query: string) => Promise<Company[]>;
+  searchDepartments: (query: string) => Promise<Department[]>;
 
-  findCompanyById: (id: string) => Company | null;
-  findDepartmentById: (id: string) => Department | null;
+  findCompanyById: (id: string) => Promise<Company | null>;
+  findDepartmentById: (id: string) => Promise<Department | null>;
 
-  createCompany: (company: CompanyCreateInput) => Company;
+  createCompany: (company: CompanyCreateInput) => Promise<Company>;
   updateCompany: (
     id: string,
     updates: CompanyUpdateInput
-  ) => Company | null;
-  deleteCompany: (id: string) => void;
+  ) => Promise<Company | null>;
+  deleteCompany: (id: string) => Promise<void>;
 
-  createDepartment: (department: DepartmentCreateInput) => Department;
+  createDepartment: (department: DepartmentCreateInput) => Promise<Department>;
   updateDepartment: (
     id: string,
     updates: DepartmentUpdateInput
-  ) => Department | null;
-  deleteDepartment: (id: string) => void;
+  ) => Promise<Department | null>;
+  deleteDepartment: (id: string) => Promise<void>;
 
-  saveCompanies: (companies: Company[]) => void;
-  saveDepartments: (departments: Department[]) => void;
+  saveCompanies: (companies: Company[]) => Promise<void>;
+  saveDepartments: (departments: Department[]) => Promise<void>;
 
-  resetCompanies: () => void;
-  resetDepartments: () => void;
+  resetCompanies: () => Promise<void>;
+  resetDepartments: () => Promise<void>;
 
-  listActiveCompanies: () => Company[];
-  listActiveDepartments: () => Department[];
-  listDepartmentsByCompanyId: (companyId: string) => Department[];
-  listActiveDepartmentsByCompanyId: (companyId: string) => Department[];
+  listActiveCompanies: () => Promise<Company[]>;
+  listActiveDepartments: () => Promise<Department[]>;
+  listDepartmentsByCompanyId: (companyId: string) => Promise<Department[]>;
+  listActiveDepartmentsByCompanyId: (companyId: string) => Promise<Department[]>;
 
-  countCompanies: () => number;
-  countDepartments: () => number;
-  countActiveCompanies: () => number;
-  countActiveDepartments: () => number;
+  countCompanies: () => Promise<number>;
+  countDepartments: () => Promise<number>;
+  countActiveCompanies: () => Promise<number>;
+  countActiveDepartments: () => Promise<number>;
 
   getCompanyStatusLabel: (status: CompanyStatus | string) => string;
   getDepartmentStatusLabel: (status: DepartmentStatus | string) => string;
 };
+
+async function requestJson<T>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...(options?.headers || {}),
+        },
+      }
+    );
+
+  if (!response.ok) {
+    let message =
+      "Anfrage fehlgeschlagen.";
+
+    try {
+      const body =
+        await response.json();
+
+      message =
+        body.message ||
+        body.error ||
+        message;
+    } catch {
+      // Keine JSON-Antwort vorhanden.
+    }
+
+    throw new Error(
+      message
+    );
+  }
+
+  return response.json() as Promise<T>;
+}
 
 function matchesQuery(
   values: unknown[],
@@ -120,19 +118,50 @@ function matchesQuery(
     );
 }
 
-export const localCompanyRepository: CompanyRepository = {
-  listCompanies() {
-    return getCompanies();
+function dispatchCompaniesUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "companiesUpdated"
+    )
+  );
+}
+
+function dispatchDepartmentsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "departmentsUpdated"
+    )
+  );
+}
+
+export const postgresCompanyRepository: CompanyRepository = {
+  async listCompanies() {
+    return requestJson<Company[]>(
+      "/api/companies"
+    );
   },
 
-  listDepartments() {
-    return getDepartments();
+  async listDepartments() {
+    return requestJson<Department[]>(
+      "/api/departments"
+    );
   },
 
-  searchCompanies(
+  async searchCompanies(
     query: string
   ) {
-    return getCompanies().filter(
+    const companies =
+      await postgresCompanyRepository.listCompanies();
+
+    return companies.filter(
       (company) =>
         matchesQuery(
           [
@@ -149,10 +178,13 @@ export const localCompanyRepository: CompanyRepository = {
     );
   },
 
-  searchDepartments(
+  async searchDepartments(
     query: string
   ) {
-    return getDepartments().filter(
+    const departments =
+      await postgresCompanyRepository.listDepartments();
+
+    return departments.filter(
       (department) =>
         matchesQuery(
           [
@@ -170,154 +202,365 @@ export const localCompanyRepository: CompanyRepository = {
     );
   },
 
-  findCompanyById(
+  async findCompanyById(
     id: string
   ) {
-    return getCompanyById(
-      id
-    );
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<Company>(
+        `/api/companies/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  findDepartmentById(
+  async findDepartmentById(
     id: string
   ) {
-    return getDepartmentById(
-      id
-    );
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<Department>(
+        `/api/departments/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  createCompany(
+  async createCompany(
     company: CompanyCreateInput
   ) {
-    return createCompany(
-      company
-    );
+    const createdCompany =
+      await requestJson<Company>(
+        "/api/companies",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              company
+            ),
+        }
+      );
+
+    dispatchCompaniesUpdated();
+
+    return createdCompany;
   },
 
-  updateCompany(
+  async updateCompany(
     id: string,
     updates: CompanyUpdateInput
   ) {
-    return updateCompany(
-      id,
-      updates
-    );
+    if (!id) {
+      return null;
+    }
+
+    const updatedCompany =
+      await requestJson<Company>(
+        `/api/companies/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchCompaniesUpdated();
+
+    return updatedCompany;
   },
 
-  deleteCompany(
+  async deleteCompany(
     id: string
   ) {
-    deleteCompany(
-      id
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/companies/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
     );
+
+    dispatchCompaniesUpdated();
+    dispatchDepartmentsUpdated();
   },
 
-  createDepartment(
+  async createDepartment(
     department: DepartmentCreateInput
   ) {
-    return createDepartment(
-      department
-    );
+    const createdDepartment =
+      await requestJson<Department>(
+        "/api/departments",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              department
+            ),
+        }
+      );
+
+    dispatchDepartmentsUpdated();
+
+    return createdDepartment;
   },
 
-  updateDepartment(
+  async updateDepartment(
     id: string,
     updates: DepartmentUpdateInput
   ) {
-    return updateDepartment(
-      id,
-      updates
-    );
+    if (!id) {
+      return null;
+    }
+
+    const updatedDepartment =
+      await requestJson<Department>(
+        `/api/departments/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchDepartmentsUpdated();
+
+    return updatedDepartment;
   },
 
-  deleteDepartment(
+  async deleteDepartment(
     id: string
   ) {
-    deleteDepartment(
-      id
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/departments/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
     );
+
+    dispatchDepartmentsUpdated();
   },
 
-  saveCompanies(
+  async saveCompanies(
     companies: Company[]
   ) {
-    saveCompanies(
-      companies
+    await Promise.all(
+      companies.map(
+        async (company) => {
+          if (company.id) {
+            await postgresCompanyRepository.updateCompany(
+              company.id,
+              company
+            );
+
+            return;
+          }
+
+          await postgresCompanyRepository.createCompany(
+            company
+          );
+        }
+      )
     );
+
+    dispatchCompaniesUpdated();
   },
 
-  saveDepartments(
+  async saveDepartments(
     departments: Department[]
   ) {
-    saveDepartments(
-      departments
+    await Promise.all(
+      departments.map(
+        async (department) => {
+          if (department.id) {
+            await postgresCompanyRepository.updateDepartment(
+              department.id,
+              department
+            );
+
+            return;
+          }
+
+          await postgresCompanyRepository.createDepartment(
+            department
+          );
+        }
+      )
+    );
+
+    dispatchDepartmentsUpdated();
+  },
+
+  async resetCompanies() {
+    throw new Error(
+      "resetCompanies ist für PostgreSQL nicht verfügbar."
     );
   },
 
-  resetCompanies() {
-    resetCompanies();
+  async resetDepartments() {
+    throw new Error(
+      "resetDepartments ist für PostgreSQL nicht verfügbar."
+    );
   },
 
-  resetDepartments() {
-    resetDepartments();
+  async listActiveCompanies() {
+    const companies =
+      await postgresCompanyRepository.listCompanies();
+
+    return companies.filter(
+      (company) =>
+        company.status === "active"
+    );
   },
 
-  listActiveCompanies() {
-    return getActiveCompanies();
+  async listActiveDepartments() {
+    return requestJson<Department[]>(
+      "/api/departments?active=true"
+    );
   },
 
-  listActiveDepartments() {
-    return getActiveDepartments();
-  },
-
-  listDepartmentsByCompanyId(
+  async listDepartmentsByCompanyId(
     companyId: string
   ) {
-    return getDepartmentsByCompanyId(
-      companyId
+    if (!companyId) {
+      return postgresCompanyRepository.listDepartments();
+    }
+
+    return requestJson<Department[]>(
+      `/api/departments?companyId=${encodeURIComponent(
+        companyId
+      )}`
     );
   },
 
-  listActiveDepartmentsByCompanyId(
+  async listActiveDepartmentsByCompanyId(
     companyId: string
   ) {
-    return getActiveDepartmentsByCompanyId(
-      companyId
+    if (!companyId) {
+      return postgresCompanyRepository.listActiveDepartments();
+    }
+
+    return requestJson<Department[]>(
+      `/api/departments?companyId=${encodeURIComponent(
+        companyId
+      )}&active=true`
     );
   },
 
-  countCompanies() {
-    return getCompanies().length;
+  async countCompanies() {
+    const companies =
+      await postgresCompanyRepository.listCompanies();
+
+    return companies.length;
   },
 
-  countDepartments() {
-    return getDepartments().length;
+  async countDepartments() {
+    const departments =
+      await postgresCompanyRepository.listDepartments();
+
+    return departments.length;
   },
 
-  countActiveCompanies() {
-    return getActiveCompanies().length;
+  async countActiveCompanies() {
+    const companies =
+      await postgresCompanyRepository.listActiveCompanies();
+
+    return companies.length;
   },
 
-  countActiveDepartments() {
-    return getActiveDepartments().length;
+  async countActiveDepartments() {
+    const departments =
+      await postgresCompanyRepository.listActiveDepartments();
+
+    return departments.length;
   },
 
   getCompanyStatusLabel(
     status: CompanyStatus | string
   ) {
-    return getCompanyStatusLabel(
-      status
+    if (status === "active") {
+      return "Aktiv";
+    }
+
+    if (status === "inactive") {
+      return "Inaktiv";
+    }
+
+    if (status === "archived") {
+      return "Archiviert";
+    }
+
+    return String(
+      status ||
+        "Unbekannt"
     );
   },
 
   getDepartmentStatusLabel(
     status: DepartmentStatus | string
   ) {
-    return getDepartmentStatusLabel(
-      status
+    if (status === "active") {
+      return "Aktiv";
+    }
+
+    if (status === "inactive") {
+      return "Inaktiv";
+    }
+
+    if (status === "archived") {
+      return "Archiviert";
+    }
+
+    return String(
+      status ||
+        "Unbekannt"
     );
   },
 };
 
 export const companyRepository =
-  localCompanyRepository;
+  postgresCompanyRepository;

@@ -1,52 +1,50 @@
 import {
-  clearActivities,
-  createActivity,
-  deleteActivity,
-  getActivities,
-  getActivitiesByCompanyId,
-  getActivitiesByDepartmentId,
-  getActivitiesByEntity,
-  getActivitiesByType,
-  getActivityById,
-  getActivityTypeClass,
-  getActivityTypeLabel,
-  resetActivities,
-  saveActivities,
-} from "./activityStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
   Activity,
+  ActivityCreateInput,
   ActivityInput,
   ActivityType,
-} from "./activityStorage";
-
-export type ActivityCreateInput =
-  ActivityInput;
+} from "../types/activity";
 
 export type ActivityRepository = {
-  list: () => Activity[];
-  search: (query: string) => Activity[];
-  findById: (id: string) => Activity | null;
-  create: (activity: ActivityCreateInput) => Activity;
-  delete: (id: string) => void;
-  saveAll: (activities: ActivityInput[]) => void;
-  clear: () => void;
-  reset: () => void;
+  list: () => Promise<Activity[]>;
+  search: (query: string) => Promise<Activity[]>;
+  findById: (id: string) => Promise<Activity | null>;
+  create: (activity: ActivityCreateInput) => Promise<Activity>;
+  delete: (id: string) => Promise<void>;
+  saveAll: (activities: ActivityInput[]) => Promise<void>;
+  clear: () => Promise<void>;
+  reset: () => Promise<void>;
 
-  listByType: (type: ActivityType | string) => Activity[];
+  listByType: (type: ActivityType | string) => Promise<Activity[]>;
   listByEntity: (
     entityType: string,
     entityId: string
-  ) => Activity[];
-  listByCompanyId: (companyId: string) => Activity[];
-  listByDepartmentId: (departmentId: string) => Activity[];
+  ) => Promise<Activity[]>;
+  listByCompanyId: (companyId: string) => Promise<Activity[]>;
+  listByDepartmentId: (departmentId: string) => Promise<Activity[]>;
 
-  countAll: () => number;
-  countByType: (type: ActivityType | string) => number;
+  countAll: () => Promise<number>;
+  countByType: (type: ActivityType | string) => Promise<number>;
 
   getTypeLabel: (type: ActivityType | string) => string;
   getTypeClass: (type: ActivityType | string) => string;
 };
+
+function dispatchActivitiesUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "activitiesUpdated"
+    )
+  );
+}
 
 function activityMatchesQuery(
   activity: Activity,
@@ -90,15 +88,20 @@ function activityMatchesQuery(
   );
 }
 
-export const localActivityRepository: ActivityRepository = {
-  list() {
-    return getActivities();
+export const postgresActivityRepository: ActivityRepository = {
+  async list() {
+    return requestJson<Activity[]>(
+      "/api/activities"
+    );
   },
 
-  search(
+  async search(
     query: string
   ) {
-    return getActivities().filter(
+    const activities =
+      await postgresActivityRepository.list();
+
+    return activities.filter(
       (activity) =>
         activityMatchesQuery(
           activity,
@@ -107,108 +110,211 @@ export const localActivityRepository: ActivityRepository = {
     );
   },
 
-  findById(
+  async findById(
     id: string
   ) {
-    return getActivityById(
-      id
+    const activities =
+      await postgresActivityRepository.list();
+
+    return (
+      activities.find(
+        (activity) =>
+          activity.id === id
+      ) ||
+      null
     );
   },
 
-  create(
+  async create(
     activity: ActivityCreateInput
   ) {
-    return createActivity(
-      activity
-    );
+    const createdActivity =
+      await requestJson<Activity>(
+        "/api/activities",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              activity
+            ),
+        }
+      );
+
+    dispatchActivitiesUpdated();
+
+    return createdActivity;
   },
 
-  delete(
+  async delete(
     id: string
   ) {
-    deleteActivity(
-      id
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/activities/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
     );
+
+    dispatchActivitiesUpdated();
   },
 
-  saveAll(
+  async saveAll(
     activities: ActivityInput[]
   ) {
-    saveActivities(
-      activities
+    await Promise.all(
+      activities.map(
+        async (activity) => {
+          await postgresActivityRepository.create(
+            activity
+          );
+        }
+      )
+    );
+
+    dispatchActivitiesUpdated();
+  },
+
+  async clear() {
+    throw new Error(
+      "clear ist für PostgreSQL-Aktivitäten nicht direkt verfügbar."
     );
   },
 
-  clear() {
-    clearActivities();
+  async reset() {
+    throw new Error(
+      "reset ist für PostgreSQL-Aktivitäten nicht direkt verfügbar."
+    );
   },
 
-  reset() {
-    resetActivities();
-  },
-
-  listByType(
+  async listByType(
     type: ActivityType | string
   ) {
-    return getActivitiesByType(
-      type
+    return requestJson<Activity[]>(
+      `/api/activities?type=${encodeURIComponent(
+        String(
+          type
+        )
+      )}`
     );
   },
 
-  listByEntity(
+  async listByEntity(
     entityType: string,
     entityId: string
   ) {
-    return getActivitiesByEntity(
-      entityType,
-      entityId
+    return requestJson<Activity[]>(
+      `/api/activities?entityType=${encodeURIComponent(
+        entityType
+      )}&entityId=${encodeURIComponent(
+        entityId
+      )}`
     );
   },
 
-  listByCompanyId(
+  async listByCompanyId(
     companyId: string
   ) {
-    return getActivitiesByCompanyId(
-      companyId
+    return requestJson<Activity[]>(
+      `/api/activities?companyId=${encodeURIComponent(
+        companyId
+      )}`
     );
   },
 
-  listByDepartmentId(
+  async listByDepartmentId(
     departmentId: string
   ) {
-    return getActivitiesByDepartmentId(
-      departmentId
+    return requestJson<Activity[]>(
+      `/api/activities?departmentId=${encodeURIComponent(
+        departmentId
+      )}`
     );
   },
 
-  countAll() {
-    return getActivities().length;
+  async countAll() {
+    const activities =
+      await postgresActivityRepository.list();
+
+    return activities.length;
   },
 
-  countByType(
+  async countByType(
     type: ActivityType | string
   ) {
-    return getActivitiesByType(
-      type
-    ).length;
+    const activities =
+      await postgresActivityRepository.listByType(
+        type
+      );
+
+    return activities.length;
   },
 
   getTypeLabel(
     type: ActivityType | string
   ) {
-    return getActivityTypeLabel(
-      type
+    if (type === "created") {
+      return "Erstellt";
+    }
+
+    if (type === "edited") {
+      return "Bearbeitet";
+    }
+
+    if (type === "deleted") {
+      return "Gelöscht";
+    }
+
+    if (type === "restored") {
+      return "Wiederhergestellt";
+    }
+
+    if (type === "deletedForever") {
+      return "Endgültig gelöscht";
+    }
+
+    return String(
+      type ||
+        "Aktivität"
     );
   },
 
   getTypeClass(
     type: ActivityType | string
   ) {
-    return getActivityTypeClass(
-      type
-    );
+    if (type === "created") {
+      return "bg-green-50 text-green-700";
+    }
+
+    if (type === "edited") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (type === "deleted") {
+      return "bg-red-50 text-red-700";
+    }
+
+    if (type === "restored") {
+      return "bg-indigo-50 text-indigo-700";
+    }
+
+    if (type === "deletedForever") {
+      return "bg-red-100 text-red-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 };
 
 export const activityRepository =
-  localActivityRepository;
+  postgresActivityRepository;

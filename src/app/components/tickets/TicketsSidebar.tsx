@@ -21,7 +21,7 @@ import type {
   Ticket,
   TicketPriority,
   TicketStatus,
-} from "../../../lib/ticketStorage";
+} from "../../../types/ticket";
 
 type TicketsSidebarProps = {
   className?: string;

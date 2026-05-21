@@ -7,7 +7,7 @@ import {
 import type {
   Company,
   Department,
-} from "./companyStorage";
+} from "../types/company";
 
 export type OrganizationReference = {
   companyId?: string;

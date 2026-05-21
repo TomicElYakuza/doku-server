@@ -1,136 +1,48 @@
 import {
-  clearPages,
-  getStoredPages,
-  resetWikiInitialization,
-  resetWikiPages,
-  savePages,
-} from "./wikiStorage";
+  requestJson,
+} from "./apiClient";
 
-export type WikiPage = {
-  slug?: string;
-  title?: string;
-  content?: string;
-  excerpt?: string;
-  category?: string;
-  company?: string;
-  department?: string;
-  tags?: string[];
-  updatedAt?: string;
-  createdAt?: string;
-  [key: string]: unknown;
-};
-
-export type WikiCreateInput =
-  WikiPage;
-
-export type WikiUpdateInput =
-  Partial<WikiPage>;
+import type {
+  WikiCreateInput,
+  WikiPage,
+  WikiUpdateInput,
+} from "../types/wiki";
 
 export type WikiRepository = {
-  list: () => WikiPage[];
-  search: (query: string) => WikiPage[];
-  findBySlug: (slug: string) => WikiPage | null;
-  create: (page: WikiCreateInput) => WikiPage;
+  list: () => Promise<WikiPage[]>;
+  search: (query: string) => Promise<WikiPage[]>;
+  findBySlug: (slug: string) => Promise<WikiPage | null>;
+  create: (page: WikiCreateInput) => Promise<WikiPage>;
   update: (
     slug: string,
     updates: WikiUpdateInput
-  ) => WikiPage | null;
-  delete: (slug: string) => void;
-  saveAll: (pages: WikiPage[]) => void;
-  clear: () => void;
-  reset: () => void;
-  resetInitialization: () => void;
+  ) => Promise<WikiPage | null>;
+  delete: (slug: string) => Promise<void>;
+  saveAll: (pages: WikiPage[]) => Promise<void>;
+  clear: () => Promise<void>;
+  reset: () => Promise<void>;
+  resetInitialization: () => Promise<void>;
 
-  listByCategory: (category: string) => WikiPage[];
-  listByCompany: (company: string) => WikiPage[];
-  listByDepartment: (department: string) => WikiPage[];
-  listByTag: (tag: string) => WikiPage[];
-  listCategories: () => string[];
-  listTags: () => string[];
+  listByCategory: (category: string) => Promise<WikiPage[]>;
+  listByCompany: (company: string) => Promise<WikiPage[]>;
+  listByDepartment: (department: string) => Promise<WikiPage[]>;
+  listByTag: (tag: string) => Promise<WikiPage[]>;
+  listCategories: () => Promise<string[]>;
+  listTags: () => Promise<string[]>;
 
-  countAll: () => number;
+  countAll: () => Promise<number>;
 };
 
-function normalizeSlug(
-  value: string
-) {
-  return value
-    .trim()
-    .toLowerCase();
-}
+function dispatchWikiPagesUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
 
-function createSlug(
-  value: string
-) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function normalizePage(
-  page: WikiPage
-): WikiPage {
-  const now =
-    new Date().toLocaleString();
-
-  const title =
-    String(
-      page.title ||
-        "Unbenannte Seite"
-    );
-
-  return {
-    ...page,
-
-    slug:
-      page.slug ||
-      createSlug(
-        title
-      ),
-
-    title,
-
-    content:
-      page.content ||
-      "",
-
-    excerpt:
-      page.excerpt ||
-      "",
-
-    category:
-      page.category ||
-      "Allgemein",
-
-    company:
-      page.company ||
-      "Intern",
-
-    department:
-      page.department ||
-      "Allgemein",
-
-    tags:
-      Array.isArray(
-        page.tags
-      )
-        ? page.tags
-        : [],
-
-    createdAt:
-      page.createdAt ||
-      now,
-
-    updatedAt:
-      page.updatedAt ||
-      now,
-  };
+  window.dispatchEvent(
+    new Event(
+      "wikiPagesUpdated"
+    )
+  );
 }
 
 function pageMatchesQuery(
@@ -151,6 +63,7 @@ function pageMatchesQuery(
     page.title,
     page.content,
     page.excerpt,
+    page.description,
     page.category,
     page.company,
     page.department,
@@ -167,246 +80,240 @@ function pageMatchesQuery(
   );
 }
 
-export const localWikiRepository: WikiRepository = {
-  list() {
-    return getStoredPages() as WikiPage[];
+export const postgresWikiRepository: WikiRepository = {
+  async list() {
+    return requestJson<WikiPage[]>(
+      "/api/wiki-pages"
+    );
   },
 
-  search(
+  async search(
     query: string
   ) {
-    return localWikiRepository
-      .list()
-      .filter(
-        (page) =>
-          pageMatchesQuery(
-            page,
-            query
-          )
-      );
-  },
-
-  findBySlug(
-    slug: string
-  ) {
-    const normalizedSlug =
-      normalizeSlug(
-        slug
-      );
-
-    return (
-      localWikiRepository
-        .list()
-        .find(
-          (page) =>
-            normalizeSlug(
-              String(
-                page.slug ||
-                  ""
-              )
-            ) === normalizedSlug
-        ) || null
-    );
-  },
-
-  create(
-    page: WikiCreateInput
-  ) {
     const pages =
-      localWikiRepository.list();
+      await postgresWikiRepository.list();
 
-    const newPage =
-      normalizePage(
-        page
-      );
-
-    savePages([
-      newPage,
-      ...pages,
-    ]);
-
-    return newPage;
-  },
-
-  update(
-    slug: string,
-    updates: WikiUpdateInput
-  ) {
-    let updatedPage:
-      | WikiPage
-      | null =
-      null;
-
-    const normalizedSlug =
-      normalizeSlug(
-        slug
-      );
-
-    const updatedPages =
-      localWikiRepository
-        .list()
-        .map(
-          (page) => {
-            if (
-              normalizeSlug(
-                String(
-                  page.slug ||
-                    ""
-                )
-              ) !== normalizedSlug
-            ) {
-              return page;
-            }
-
-            const nextPage =
-              normalizePage({
-                ...page,
-                ...updates,
-                slug:
-                  page.slug,
-                createdAt:
-                  page.createdAt,
-                updatedAt:
-                  new Date().toLocaleString(),
-              });
-
-            updatedPage =
-              nextPage;
-
-            return nextPage;
-          }
-        );
-
-    savePages(
-      updatedPages
-    );
-
-    return updatedPage;
-  },
-
-  delete(
-    slug: string
-  ) {
-    const normalizedSlug =
-      normalizeSlug(
-        slug
-      );
-
-    savePages(
-      localWikiRepository
-        .list()
-        .filter(
-          (page) =>
-            normalizeSlug(
-              String(
-                page.slug ||
-                  ""
-              )
-            ) !== normalizedSlug
+    return pages.filter(
+      (page) =>
+        pageMatchesQuery(
+          page,
+          query
         )
     );
   },
 
-  saveAll(
+  async findBySlug(
+    slug: string
+  ) {
+    if (!slug) {
+      return null;
+    }
+
+    try {
+      return await requestJson<WikiPage>(
+        `/api/wiki-pages/${encodeURIComponent(
+          slug
+        )}`
+      );
+    } catch {
+      return null;
+    }
+  },
+
+  async create(
+    page: WikiCreateInput
+  ) {
+    const createdPage =
+      await requestJson<WikiPage>(
+        "/api/wiki-pages",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              page
+            ),
+        }
+      );
+
+    dispatchWikiPagesUpdated();
+
+    return createdPage;
+  },
+
+  async update(
+    slug: string,
+    updates: WikiUpdateInput
+  ) {
+    if (!slug) {
+      return null;
+    }
+
+    const updatedPage =
+      await requestJson<WikiPage>(
+        `/api/wiki-pages/${encodeURIComponent(
+          slug
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchWikiPagesUpdated();
+
+    return updatedPage;
+  },
+
+  async delete(
+    slug: string
+  ) {
+    if (!slug) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/wiki-pages/${encodeURIComponent(
+        slug
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
+    );
+
+    dispatchWikiPagesUpdated();
+  },
+
+  async saveAll(
     pages: WikiPage[]
   ) {
-    savePages(
-      pages
+    await Promise.all(
+      pages.map(
+        async (page) => {
+          if (page.slug) {
+            await postgresWikiRepository.update(
+              page.slug,
+              page
+            );
+
+            return;
+          }
+
+          await postgresWikiRepository.create(
+            page
+          );
+        }
+      )
+    );
+
+    dispatchWikiPagesUpdated();
+  },
+
+  async clear() {
+    throw new Error(
+      "clear ist für PostgreSQL-Wiki nicht direkt verfügbar."
     );
   },
 
-  clear() {
-    clearPages();
+  async reset() {
+    throw new Error(
+      "reset ist für PostgreSQL-Wiki nicht direkt verfügbar."
+    );
   },
 
-  reset() {
-    resetWikiPages();
+  async resetInitialization() {
+    return;
   },
 
-  resetInitialization() {
-    resetWikiInitialization();
-  },
-
-  listByCategory(
+  async listByCategory(
     category: string
   ) {
-    return localWikiRepository
-      .list()
-      .filter(
-        (page) =>
-          page.category === category
-      );
+    return requestJson<WikiPage[]>(
+      `/api/wiki-pages?category=${encodeURIComponent(
+        category
+      )}`
+    );
   },
 
-  listByCompany(
+  async listByCompany(
     company: string
   ) {
-    return localWikiRepository
-      .list()
-      .filter(
-        (page) =>
-          page.company === company
-      );
+    return requestJson<WikiPage[]>(
+      `/api/wiki-pages?company=${encodeURIComponent(
+        company
+      )}`
+    );
   },
 
-  listByDepartment(
+  async listByDepartment(
     department: string
   ) {
-    return localWikiRepository
-      .list()
-      .filter(
-        (page) =>
-          page.department === department
-      );
+    return requestJson<WikiPage[]>(
+      `/api/wiki-pages?department=${encodeURIComponent(
+        department
+      )}`
+    );
   },
 
-  listByTag(
+  async listByTag(
     tag: string
   ) {
-    return localWikiRepository
-      .list()
-      .filter(
-        (page) =>
-          page.tags?.includes(
-            tag
-          )
-      );
+    return requestJson<WikiPage[]>(
+      `/api/wiki-pages?tag=${encodeURIComponent(
+        tag
+      )}`
+    );
   },
 
-  listCategories() {
+  async listCategories() {
+    const pages =
+      await postgresWikiRepository.list();
+
     return Array.from(
       new Set(
-        localWikiRepository
-          .list()
-          .map(
-            (page) =>
-              String(
-                page.category ||
-                  "Allgemein"
-              )
-          )
+        pages.map(
+          (page) =>
+            String(
+              page.category ||
+                page.department ||
+                "Allgemein"
+            )
+        )
       )
     );
   },
 
-  listTags() {
+  async listTags() {
+    const pages =
+      await postgresWikiRepository.list();
+
     return Array.from(
       new Set(
-        localWikiRepository
-          .list()
-          .flatMap(
-            (page) =>
-              page.tags ||
-              []
-          )
+        pages.flatMap(
+          (page) =>
+            page.tags ||
+            []
+        )
       )
     );
   },
 
-  countAll() {
-    return localWikiRepository.list().length;
+  async countAll() {
+    const pages =
+      await postgresWikiRepository.list();
+
+    return pages.length;
   },
 };
 
 export const wikiRepository =
-  localWikiRepository;
+  postgresWikiRepository;

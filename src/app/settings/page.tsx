@@ -13,7 +13,7 @@ import {
 
 import type {
   AppSettings,
-} from "../../lib/appSettingsStorage";
+} from "../../types/settings";
 
 import {
   getDataSource,
@@ -311,7 +311,7 @@ export default function SettingsPage() {
     useState<UserRoleValue>("viewer");
 
   const [dataSource, setDataSource] =
-    useState<AppDataSource>("localStorage");
+    useState<AppDataSource>("postgresql");
 
   useEffect(() => {
     setMounted(true);
@@ -327,19 +327,9 @@ export default function SettingsPage() {
       handleSettingsUpdated
     );
 
-    window.addEventListener(
-      "storage",
-      handleSettingsUpdated
-    );
-
     return () => {
       window.removeEventListener(
         "appSettingsUpdated",
-        handleSettingsUpdated
-      );
-
-      window.removeEventListener(
-        "storage",
         handleSettingsUpdated
       );
     };
@@ -509,7 +499,7 @@ export default function SettingsPage() {
     appSettingsRepository.reset();
 
     saveDataSource(
-      "localStorage"
+      "postgresql"
     );
 
     loadSettings();
@@ -904,7 +894,7 @@ export default function SettingsPage() {
         </h2>
 
         <p className="text-zinc-500 mt-2">
-          Vorbereitung für Benutzerverwaltung und spätere Datenbank-Anbindung.
+          Vorbereitung für Benutzerverwaltung und PostgreSQL-Anbindung.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">

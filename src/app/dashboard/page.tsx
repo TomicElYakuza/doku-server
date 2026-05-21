@@ -13,7 +13,15 @@ import {
 
 import type {
   Ticket,
-} from "../../lib/ticketStorage";
+} from "../../types/ticket";
+
+import type {
+  NewsPost,
+} from "../../types/news";
+
+import type {
+  AppSettings,
+} from "../../types/settings";
 
 import {
   wikiRepository,
@@ -31,10 +39,6 @@ import {
   newsRepository,
 } from "../../lib/newsRepository";
 
-import type {
-  NewsPost,
-} from "../../lib/newsStorage";
-
 import {
   getCurrentUser,
   getRoleLabel,
@@ -43,10 +47,6 @@ import {
 import {
   appSettingsRepository,
 } from "../../lib/appSettingsRepository";
-
-import type {
-  AppSettings,
-} from "../../lib/appSettingsStorage";
 
 import {
   getOrganizationLabels,

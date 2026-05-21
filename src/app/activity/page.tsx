@@ -13,7 +13,7 @@ import {
 
 import type {
   Activity,
-} from "../../lib/activityStorage";
+} from "../../types/activity";
 
 import {
   companyRepository,
@@ -22,7 +22,7 @@ import {
 import type {
   Company,
   Department,
-} from "../../lib/companyStorage";
+} from "../../types/company";
 
 import {
   canDelete,

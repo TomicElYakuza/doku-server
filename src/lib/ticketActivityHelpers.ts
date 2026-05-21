@@ -4,7 +4,7 @@ import {
 
 import type {
   Ticket,
-} from "./ticketStorage";
+} from "../types/ticket";
 
 import {
   getCurrentUser,

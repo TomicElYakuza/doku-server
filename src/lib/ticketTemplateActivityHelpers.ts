@@ -4,11 +4,11 @@ import {
 
 import type {
   Ticket,
-} from "./ticketStorage";
+} from "../types/ticket";
 
 import type {
   TicketTemplate,
-} from "./ticketTemplateStorage";
+} from "../types/ticketTemplate";
 
 import {
   getCurrentUser,

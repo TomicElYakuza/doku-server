@@ -17,26 +17,23 @@ import {
 } from "../../lib/userStorage";
 
 import type {
+  AdminUser,
   User,
   UserRole,
-} from "../../lib/userStorage";
+} from "../../types/user";
+
+import type {
+  Company,
+  Department,
+} from "../../types/company";
 
 import {
   adminUserRepository,
 } from "../../lib/adminUserRepository";
 
-import type {
-  AdminUser,
-} from "../../lib/adminUserStorage";
-
 import {
   companyRepository,
 } from "../../lib/companyRepository";
-
-import type {
-  Company,
-  Department,
-} from "../../lib/companyStorage";
 
 import {
   getRoleLabel,

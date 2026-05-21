@@ -1,71 +1,59 @@
 import {
-  createTicket,
-  deleteTicket,
-  getPriorityClass,
-  getPriorityLabel,
-  getStatusClass,
-  getStatusLabel,
-  getTicketById,
-  getTickets,
-  getTicketsByCompanyId,
-  getTicketsByDepartmentId,
-  getTicketsByPriority,
-  getTicketsByStatus,
-  saveTickets,
-  updateTicket,
-} from "./ticketStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
   Ticket,
+  TicketCreateInput,
   TicketPriority,
   TicketStatus,
-} from "./ticketStorage";
-
-export type TicketCreateInput = Omit<
-  Ticket,
-  "id" | "createdAt" | "updatedAt"
->;
-
-export type TicketUpdateInput =
-  Partial<
-    Omit<
-      Ticket,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
+  TicketUpdateInput,
+} from "../types/ticket";
 
 export type TicketRepository = {
-  list: () => Ticket[];
-  search: (query: string) => Ticket[];
-  findById: (id: string) => Ticket | null;
-  create: (ticket: TicketCreateInput) => Ticket;
+  list: () => Promise<Ticket[]>;
+  search: (query: string) => Promise<Ticket[]>;
+  findById: (id: string) => Promise<Ticket | null>;
+  create: (ticket: TicketCreateInput) => Promise<Ticket>;
   update: (
     id: string,
     updates: TicketUpdateInput
-  ) => Ticket | null;
-  delete: (id: string) => void;
-  saveAll: (tickets: Ticket[]) => void;
+  ) => Promise<Ticket | null>;
+  delete: (id: string) => Promise<void>;
+  saveAll: (tickets: Ticket[]) => Promise<void>;
 
-  listVisible: (showClosed?: boolean) => Ticket[];
-  listClosed: () => Ticket[];
-  listHighOrUrgent: () => Ticket[];
-  listByStatus: (status: TicketStatus) => Ticket[];
-  listByPriority: (priority: TicketPriority) => Ticket[];
-  listByCompanyId: (companyId: string) => Ticket[];
-  listByDepartmentId: (departmentId: string) => Ticket[];
+  listVisible: (showClosed?: boolean) => Promise<Ticket[]>;
+  listClosed: () => Promise<Ticket[]>;
+  listHighOrUrgent: () => Promise<Ticket[]>;
+  listByStatus: (status: TicketStatus) => Promise<Ticket[]>;
+  listByPriority: (priority: TicketPriority) => Promise<Ticket[]>;
+  listByCompanyId: (companyId: string) => Promise<Ticket[]>;
+  listByDepartmentId: (departmentId: string) => Promise<Ticket[]>;
 
-  countAll: () => number;
-  countVisible: (showClosed?: boolean) => number;
-  countClosed: () => number;
-  countByStatus: (status: TicketStatus) => number;
-  countByPriority: (priority: TicketPriority) => number;
-  countHighOrUrgent: () => number;
+  countAll: () => Promise<number>;
+  countVisible: (showClosed?: boolean) => Promise<number>;
+  countClosed: () => Promise<number>;
+  countByStatus: (status: TicketStatus) => Promise<number>;
+  countByPriority: (priority: TicketPriority) => Promise<number>;
+  countHighOrUrgent: () => Promise<number>;
 
   getStatusLabel: (status: TicketStatus | string) => string;
   getStatusClass: (status: TicketStatus | string) => string;
   getPriorityLabel: (priority: TicketPriority | string) => string;
   getPriorityClass: (priority: TicketPriority | string) => string;
 };
+
+function dispatchTicketsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "ticketsUpdated"
+    )
+  );
+}
 
 function normalizeQuery(
   query: string
@@ -114,15 +102,20 @@ function ticketMatchesQuery(
   );
 }
 
-export const localTicketRepository: TicketRepository = {
-  list() {
-    return getTickets();
+export const postgresTicketRepository: TicketRepository = {
+  async list() {
+    return requestJson<Ticket[]>(
+      "/api/tickets"
+    );
   },
 
-  search(
+  async search(
     query: string
   ) {
-    return getTickets().filter(
+    const tickets =
+      await postgresTicketRepository.list();
+
+    return tickets.filter(
       (ticket) =>
         ticketMatchesQuery(
           ticket,
@@ -131,176 +124,355 @@ export const localTicketRepository: TicketRepository = {
     );
   },
 
-  findById(
+  async findById(
     id: string
   ) {
-    return getTicketById(
-      id
-    );
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<Ticket>(
+        `/api/tickets/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  create(
+  async create(
     ticket: TicketCreateInput
   ) {
-    return createTicket(
-      ticket
-    );
+    const createdTicket =
+      await requestJson<Ticket>(
+        "/api/tickets",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              ticket
+            ),
+        }
+      );
+
+    dispatchTicketsUpdated();
+
+    return createdTicket;
   },
 
-  update(
+  async update(
     id: string,
     updates: TicketUpdateInput
   ) {
-    return updateTicket(
-      id,
-      updates
-    );
-  },
-
-  delete(
-    id: string
-  ) {
-    deleteTicket(
-      id
-    );
-  },
-
-  saveAll(
-    tickets: Ticket[]
-  ) {
-    saveTickets(
-      tickets
-    );
-  },
-
-  listVisible(
-    showClosed = false
-  ) {
-    if (showClosed) {
-      return getTickets();
+    if (!id) {
+      return null;
     }
 
-    return getTickets().filter(
+    const updatedTicket =
+      await requestJson<Ticket>(
+        `/api/tickets/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchTicketsUpdated();
+
+    return updatedTicket;
+  },
+
+  async delete(
+    id: string
+  ) {
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/tickets/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
+    );
+
+    dispatchTicketsUpdated();
+  },
+
+  async saveAll(
+    tickets: Ticket[]
+  ) {
+    await Promise.all(
+      tickets.map(
+        async (ticket) => {
+          if (ticket.id) {
+            await postgresTicketRepository.update(
+              ticket.id,
+              ticket
+            );
+
+            return;
+          }
+
+          await postgresTicketRepository.create(
+            ticket
+          );
+        }
+      )
+    );
+
+    dispatchTicketsUpdated();
+  },
+
+  async listVisible(
+    showClosed = false
+  ) {
+    const tickets =
+      await postgresTicketRepository.list();
+
+    if (showClosed) {
+      return tickets;
+    }
+
+    return tickets.filter(
       (ticket) =>
         ticket.status !== "closed"
     );
   },
 
-  listClosed() {
-    return getTickets().filter(
+  async listClosed() {
+    const tickets =
+      await postgresTicketRepository.list();
+
+    return tickets.filter(
       (ticket) =>
         ticket.status === "closed"
     );
   },
 
-  listHighOrUrgent() {
-    return getTickets().filter(
+  async listHighOrUrgent() {
+    const tickets =
+      await postgresTicketRepository.list();
+
+    return tickets.filter(
       (ticket) =>
         ticket.priority === "high" ||
         ticket.priority === "urgent"
     );
   },
 
-  listByStatus(
+  async listByStatus(
     status: TicketStatus
   ) {
-    return getTicketsByStatus(
-      status
+    return requestJson<Ticket[]>(
+      `/api/tickets?status=${encodeURIComponent(
+        status
+      )}`
     );
   },
 
-  listByPriority(
+  async listByPriority(
     priority: TicketPriority
   ) {
-    return getTicketsByPriority(
-      priority
+    return requestJson<Ticket[]>(
+      `/api/tickets?priority=${encodeURIComponent(
+        priority
+      )}`
     );
   },
 
-  listByCompanyId(
+  async listByCompanyId(
     companyId: string
   ) {
-    return getTicketsByCompanyId(
-      companyId
+    return requestJson<Ticket[]>(
+      `/api/tickets?companyId=${encodeURIComponent(
+        companyId
+      )}`
     );
   },
 
-  listByDepartmentId(
+  async listByDepartmentId(
     departmentId: string
   ) {
-    return getTicketsByDepartmentId(
-      departmentId
+    return requestJson<Ticket[]>(
+      `/api/tickets?departmentId=${encodeURIComponent(
+        departmentId
+      )}`
     );
   },
 
-  countAll() {
-    return getTickets().length;
+  async countAll() {
+    const tickets =
+      await postgresTicketRepository.list();
+
+    return tickets.length;
   },
 
-  countVisible(
+  async countVisible(
     showClosed = false
   ) {
-    return localTicketRepository.listVisible(
-      showClosed
-    ).length;
+    const tickets =
+      await postgresTicketRepository.listVisible(
+        showClosed
+      );
+
+    return tickets.length;
   },
 
-  countClosed() {
-    return localTicketRepository.listClosed().length;
+  async countClosed() {
+    const tickets =
+      await postgresTicketRepository.listClosed();
+
+    return tickets.length;
   },
 
-  countByStatus(
+  async countByStatus(
     status: TicketStatus
   ) {
-    return getTicketsByStatus(
-      status
-    ).length;
+    const tickets =
+      await postgresTicketRepository.listByStatus(
+        status
+      );
+
+    return tickets.length;
   },
 
-  countByPriority(
+  async countByPriority(
     priority: TicketPriority
   ) {
-    return getTicketsByPriority(
-      priority
-    ).length;
+    const tickets =
+      await postgresTicketRepository.listByPriority(
+        priority
+      );
+
+    return tickets.length;
   },
 
-  countHighOrUrgent() {
-    return localTicketRepository.listHighOrUrgent().length;
+  async countHighOrUrgent() {
+    const tickets =
+      await postgresTicketRepository.listHighOrUrgent();
+
+    return tickets.length;
   },
 
   getStatusLabel(
     status: TicketStatus | string
   ) {
-    return getStatusLabel(
-      status
+    if (status === "open") {
+      return "Offen";
+    }
+
+    if (status === "in_progress") {
+      return "In Bearbeitung";
+    }
+
+    if (status === "waiting") {
+      return "Wartend";
+    }
+
+    if (status === "done") {
+      return "Erledigt";
+    }
+
+    if (status === "closed") {
+      return "Geschlossen";
+    }
+
+    return String(
+      status ||
+        "Unbekannt"
     );
   },
 
   getStatusClass(
     status: TicketStatus | string
   ) {
-    return getStatusClass(
-      status
-    );
+    if (status === "open") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "in_progress") {
+      return "bg-yellow-100 text-yellow-700";
+    }
+
+    if (status === "waiting") {
+      return "bg-orange-100 text-orange-700";
+    }
+
+    if (status === "done") {
+      return "bg-green-50 text-green-700";
+    }
+
+    if (status === "closed") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 
   getPriorityLabel(
     priority: TicketPriority | string
   ) {
-    return getPriorityLabel(
-      priority
+    if (priority === "low") {
+      return "Niedrig";
+    }
+
+    if (priority === "medium") {
+      return "Mittel";
+    }
+
+    if (priority === "high") {
+      return "Hoch";
+    }
+
+    if (priority === "urgent") {
+      return "Dringend";
+    }
+
+    return String(
+      priority ||
+        "Unbekannt"
     );
   },
 
   getPriorityClass(
     priority: TicketPriority | string
   ) {
-    return getPriorityClass(
-      priority
-    );
+    if (priority === "low") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    if (priority === "medium") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (priority === "high") {
+      return "bg-orange-100 text-orange-700";
+    }
+
+    if (priority === "urgent") {
+      return "bg-red-50 text-red-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 };
 
 export const ticketRepository =
-  localTicketRepository;
+  postgresTicketRepository;

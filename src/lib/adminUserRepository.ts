@@ -1,75 +1,57 @@
 import {
-  createAdminUser,
-  deleteAdminUser,
-  getAdminUserByEmail,
-  getAdminUserById,
-  getAdminUserRoleClass,
-  getAdminUserRoleLabel,
-  getAdminUsers,
-  getAdminUsersByCompanyId,
-  getAdminUsersByDepartmentId,
-  getAdminUsersByRole,
-  getAdminUsersByStatus,
-  getAdminUserStatusClass,
-  getAdminUserStatusLabel,
-  resetAdminUsers,
-  saveAdminUsers,
-  updateAdminUser,
-  updateAdminUserLastLogin,
-} from "./adminUserStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
   AdminUser,
+  AdminUserCreateInput,
   AdminUserStatus,
-} from "./adminUserStorage";
-
-import type {
+  AdminUserUpdateInput,
   UserRole,
-} from "./userStorage";
-
-export type AdminUserCreateInput = Omit<
-  AdminUser,
-  "id" | "createdAt" | "updatedAt"
->;
-
-export type AdminUserUpdateInput =
-  Partial<
-    Omit<
-      AdminUser,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
+} from "../types/user";
 
 export type AdminUserRepository = {
-  list: () => AdminUser[];
-  search: (query: string) => AdminUser[];
-  findById: (id: string) => AdminUser | null;
-  findByEmail: (email: string) => AdminUser | null;
-  create: (user: AdminUserCreateInput) => AdminUser;
+  list: () => Promise<AdminUser[]>;
+  search: (query: string) => Promise<AdminUser[]>;
+  findById: (id: string) => Promise<AdminUser | null>;
+  findByEmail: (email: string) => Promise<AdminUser | null>;
+  create: (user: AdminUserCreateInput) => Promise<AdminUser>;
   update: (
     id: string,
     updates: AdminUserUpdateInput
-  ) => AdminUser | null;
-  delete: (id: string) => void;
-  saveAll: (users: AdminUser[]) => void;
-  reset: () => void;
+  ) => Promise<AdminUser | null>;
+  delete: (id: string) => Promise<void>;
+  saveAll: (users: AdminUser[]) => Promise<void>;
+  reset: () => Promise<void>;
 
-  updateLastLogin: (email: string) => AdminUser | null;
+  updateLastLogin: (email: string) => Promise<AdminUser | null>;
 
-  listByStatus: (status: AdminUserStatus) => AdminUser[];
-  listByRole: (role: UserRole) => AdminUser[];
-  listByCompanyId: (companyId: string) => AdminUser[];
-  listByDepartmentId: (departmentId: string) => AdminUser[];
+  listByStatus: (status: AdminUserStatus) => Promise<AdminUser[]>;
+  listByRole: (role: UserRole) => Promise<AdminUser[]>;
+  listByCompanyId: (companyId: string) => Promise<AdminUser[]>;
+  listByDepartmentId: (departmentId: string) => Promise<AdminUser[]>;
 
-  countAll: () => number;
-  countByStatus: (status: AdminUserStatus) => number;
-  countByRole: (role: UserRole) => number;
+  countAll: () => Promise<number>;
+  countByStatus: (status: AdminUserStatus) => Promise<number>;
+  countByRole: (role: UserRole) => Promise<number>;
 
   getRoleLabel: (role: UserRole | string) => string;
   getRoleClass: (role: UserRole | string) => string;
   getStatusLabel: (status: AdminUserStatus | string) => string;
   getStatusClass: (status: AdminUserStatus | string) => string;
 };
+
+function dispatchAdminUsersUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      "adminUsersUpdated"
+    )
+  );
+}
 
 function userMatchesQuery(
   user: AdminUser,
@@ -107,15 +89,20 @@ function userMatchesQuery(
   );
 }
 
-export const localAdminUserRepository: AdminUserRepository = {
-  list() {
-    return getAdminUsers();
+export const postgresAdminUserRepository: AdminUserRepository = {
+  async list() {
+    return requestJson<AdminUser[]>(
+      "/api/admin-users"
+    );
   },
 
-  search(
+  async search(
     query: string
   ) {
-    return getAdminUsers().filter(
+    const users =
+      await postgresAdminUserRepository.list();
+
+    return users.filter(
       (user) =>
         userMatchesQuery(
           user,
@@ -124,152 +111,309 @@ export const localAdminUserRepository: AdminUserRepository = {
     );
   },
 
-  findById(
+  async findById(
     id: string
   ) {
-    return getAdminUserById(
-      id
-    );
+    if (!id) {
+      return null;
+    }
+
+    try {
+      return await requestJson<AdminUser>(
+        `/api/admin-users/${encodeURIComponent(
+          id
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  findByEmail(
+  async findByEmail(
     email: string
   ) {
-    return getAdminUserByEmail(
-      email
-    );
+    if (!email) {
+      return null;
+    }
+
+    try {
+      return await requestJson<AdminUser>(
+        `/api/admin-users/by-email/${encodeURIComponent(
+          email
+        )}`
+      );
+    } catch {
+      return null;
+    }
   },
 
-  create(
+  async create(
     user: AdminUserCreateInput
   ) {
-    return createAdminUser(
-      user
-    );
+    const createdUser =
+      await requestJson<AdminUser>(
+        "/api/admin-users",
+        {
+          method:
+            "POST",
+
+          body:
+            JSON.stringify(
+              user
+            ),
+        }
+      );
+
+    dispatchAdminUsersUpdated();
+
+    return createdUser;
   },
 
-  update(
+  async update(
     id: string,
     updates: AdminUserUpdateInput
   ) {
-    return updateAdminUser(
-      id,
-      updates
-    );
+    if (!id) {
+      return null;
+    }
+
+    const updatedUser =
+      await requestJson<AdminUser>(
+        `/api/admin-users/${encodeURIComponent(
+          id
+        )}`,
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              updates
+            ),
+        }
+      );
+
+    dispatchAdminUsersUpdated();
+
+    return updatedUser;
   },
 
-  delete(
+  async delete(
     id: string
   ) {
-    deleteAdminUser(
-      id
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/admin-users/${encodeURIComponent(
+        id
+      )}`,
+      {
+        method:
+          "DELETE",
+      }
     );
+
+    dispatchAdminUsersUpdated();
   },
 
-  saveAll(
+  async saveAll(
     users: AdminUser[]
   ) {
-    saveAdminUsers(
-      users
+    await Promise.all(
+      users.map(
+        async (user) => {
+          if (user.id) {
+            await postgresAdminUserRepository.update(
+              user.id,
+              user
+            );
+
+            return;
+          }
+
+          await postgresAdminUserRepository.create(
+            user
+          );
+        }
+      )
+    );
+
+    dispatchAdminUsersUpdated();
+  },
+
+  async reset() {
+    throw new Error(
+      "resetAdminUsers ist für PostgreSQL nicht verfügbar."
     );
   },
 
-  reset() {
-    resetAdminUsers();
-  },
-
-  updateLastLogin(
+  async updateLastLogin(
     email: string
   ) {
-    return updateAdminUserLastLogin(
-      email
-    );
+    if (!email) {
+      return null;
+    }
+
+    try {
+      const updatedUser =
+        await requestJson<AdminUser>(
+          `/api/admin-users/by-email/${encodeURIComponent(
+            email
+          )}`,
+          {
+            method:
+              "PATCH",
+          }
+        );
+
+      dispatchAdminUsersUpdated();
+
+      return updatedUser;
+    } catch {
+      return null;
+    }
   },
 
-  listByStatus(
+  async listByStatus(
     status: AdminUserStatus
   ) {
-    return getAdminUsersByStatus(
-      status
+    return requestJson<AdminUser[]>(
+      `/api/admin-users?status=${encodeURIComponent(
+        status
+      )}`
     );
   },
 
-  listByRole(
+  async listByRole(
     role: UserRole
   ) {
-    return getAdminUsersByRole(
-      role
+    return requestJson<AdminUser[]>(
+      `/api/admin-users?role=${encodeURIComponent(
+        role
+      )}`
     );
   },
 
-  listByCompanyId(
+  async listByCompanyId(
     companyId: string
   ) {
-    return getAdminUsersByCompanyId(
-      companyId
+    return requestJson<AdminUser[]>(
+      `/api/admin-users?companyId=${encodeURIComponent(
+        companyId
+      )}`
     );
   },
 
-  listByDepartmentId(
+  async listByDepartmentId(
     departmentId: string
   ) {
-    return getAdminUsersByDepartmentId(
-      departmentId
+    return requestJson<AdminUser[]>(
+      `/api/admin-users?departmentId=${encodeURIComponent(
+        departmentId
+      )}`
     );
   },
 
-  countAll() {
-    return getAdminUsers().length;
+  async countAll() {
+    const users =
+      await postgresAdminUserRepository.list();
+
+    return users.length;
   },
 
-  countByStatus(
+  async countByStatus(
     status: AdminUserStatus
   ) {
-    return getAdminUsersByStatus(
-      status
-    ).length;
+    const users =
+      await postgresAdminUserRepository.listByStatus(
+        status
+      );
+
+    return users.length;
   },
 
-  countByRole(
+  async countByRole(
     role: UserRole
   ) {
-    return getAdminUsersByRole(
-      role
-    ).length;
+    const users =
+      await postgresAdminUserRepository.listByRole(
+        role
+      );
+
+    return users.length;
   },
 
   getRoleLabel(
     role: UserRole | string
   ) {
-    return getAdminUserRoleLabel(
-      role
-    );
+    if (role === "admin") {
+      return "Administrator";
+    }
+
+    if (role === "editor") {
+      return "Bearbeiter";
+    }
+
+    return "Leser";
   },
 
   getRoleClass(
     role: UserRole | string
   ) {
-    return getAdminUserRoleClass(
-      role
-    );
+    if (role === "admin") {
+      return "bg-red-50 text-red-700";
+    }
+
+    if (role === "editor") {
+      return "bg-indigo-50 text-indigo-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 
   getStatusLabel(
     status: AdminUserStatus | string
   ) {
-    return getAdminUserStatusLabel(
-      status
+    if (status === "active") {
+      return "Aktiv";
+    }
+
+    if (status === "invited") {
+      return "Eingeladen";
+    }
+
+    if (status === "inactive") {
+      return "Inaktiv";
+    }
+
+    return String(
+      status ||
+        "Unbekannt"
     );
   },
 
   getStatusClass(
     status: AdminUserStatus | string
   ) {
-    return getAdminUserStatusClass(
-      status
-    );
+    if (status === "active") {
+      return "bg-green-50 text-green-700";
+    }
+
+    if (status === "invited") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "inactive") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
   },
 };
 
 export const adminUserRepository =
-  localAdminUserRepository;
+  postgresAdminUserRepository;

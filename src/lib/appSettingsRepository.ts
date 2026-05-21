@@ -1,41 +1,26 @@
 import {
-  clearAppSettings,
-  getAccentColorLabel,
-  getAccentColorOptions,
-  getAppSettings,
-  getDefaultAppSettings,
-  getDefaultUserRoleLabel,
-  getDefaultUserRoleOptions,
-  getSidebarPositionLabel,
-  getSidebarPositionOptions,
-  getThemeLabel,
-  getThemeOptions,
-  resetAppSettings,
-  saveAppSettings,
-  updateAppSettings,
-} from "./appSettingsStorage";
+  requestJson,
+} from "./apiClient";
 
 import type {
   AppAccentColor,
   AppSettings,
+  AppSettingsUpdateInput,
   AppTheme,
   SidebarPosition,
-} from "./appSettingsStorage";
+} from "../types/settings";
 
 import type {
   UserRole,
-} from "./userStorage";
-
-export type AppSettingsUpdateInput =
-  Partial<AppSettings>;
+} from "../types/user";
 
 export type AppSettingsRepository = {
-  get: () => AppSettings;
+  get: () => Promise<AppSettings>;
   getDefault: () => AppSettings;
-  save: (settings: AppSettingsUpdateInput) => AppSettings;
-  update: (updates: AppSettingsUpdateInput) => AppSettings;
-  reset: () => AppSettings;
-  clear: () => void;
+  save: (settings: AppSettingsUpdateInput) => Promise<AppSettings>;
+  update: (updates: AppSettingsUpdateInput) => Promise<AppSettings>;
+  reset: () => Promise<AppSettings>;
+  clear: () => Promise<void>;
 
   getThemeLabel: (theme: AppTheme | string) => string;
   getAccentColorLabel: (color: AppAccentColor | string) => string;
@@ -63,87 +48,309 @@ export type AppSettingsRepository = {
   }>;
 };
 
-export const localAppSettingsRepository: AppSettingsRepository = {
-  get() {
-    return getAppSettings();
-  },
+function dispatchSettingsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
 
-  getDefault() {
-    return getDefaultAppSettings();
-  },
+  window.dispatchEvent(
+    new Event(
+      "appSettingsUpdated"
+    )
+  );
+}
 
-  save(
-    settings: AppSettingsUpdateInput
-  ) {
-    return saveAppSettings(
-      settings
+const defaultSettings: AppSettings = {
+  appName:
+    "Intranet",
+
+  companyName:
+    "Intern",
+
+  appVersion:
+    "0.1.0",
+
+  version:
+    "0.1.0",
+
+  theme:
+    "modern",
+
+  darkMode:
+    false,
+
+  accentColor:
+    "zinc",
+
+  appAccentColor:
+    "zinc",
+
+  sidebarPosition:
+    "left",
+
+  showVersion:
+    true,
+
+  compactMode:
+    false,
+
+  showDemoHints:
+    true,
+
+  enableTicketTemplates:
+    true,
+
+  enableTicketComments:
+    true,
+
+  enableActivityLog:
+    true,
+
+  defaultUserRole:
+    "viewer",
+
+  updatedAt:
+    new Date().toLocaleString(),
+};
+
+export const postgresAppSettingsRepository: AppSettingsRepository = {
+  async get() {
+    return requestJson<AppSettings>(
+      "/api/app-settings"
     );
   },
 
-  update(
+  getDefault() {
+    return defaultSettings;
+  },
+
+  async save(
+    settings: AppSettingsUpdateInput
+  ) {
+    const updatedSettings =
+      await requestJson<AppSettings>(
+        "/api/app-settings",
+        {
+          method:
+            "PATCH",
+
+          body:
+            JSON.stringify(
+              settings
+            ),
+        }
+      );
+
+    dispatchSettingsUpdated();
+
+    return updatedSettings;
+  },
+
+  async update(
     updates: AppSettingsUpdateInput
   ) {
-    return updateAppSettings(
+    return postgresAppSettingsRepository.save(
       updates
     );
   },
 
-  reset() {
-    return resetAppSettings();
+  async reset() {
+    const updatedSettings =
+      await postgresAppSettingsRepository.save(
+        defaultSettings
+      );
+
+    dispatchSettingsUpdated();
+
+    return updatedSettings;
   },
 
-  clear() {
-    clearAppSettings();
+  async clear() {
+    await postgresAppSettingsRepository.reset();
   },
 
   getThemeLabel(
     theme: AppTheme | string
   ) {
-    return getThemeLabel(
-      theme
-    );
+    if (theme === "dark") {
+      return "Dark";
+    }
+
+    if (theme === "system") {
+      return "System";
+    }
+
+    return "Modern";
   },
 
   getAccentColorLabel(
     color: AppAccentColor | string
   ) {
-    return getAccentColorLabel(
-      color
-    );
+    if (color === "blue") {
+      return "Blau";
+    }
+
+    if (color === "indigo") {
+      return "Indigo";
+    }
+
+    if (color === "emerald") {
+      return "Emerald";
+    }
+
+    if (color === "amber") {
+      return "Amber";
+    }
+
+    if (color === "red") {
+      return "Rot";
+    }
+
+    return "Zinc";
   },
 
   getSidebarPositionLabel(
     position: SidebarPosition | string
   ) {
-    return getSidebarPositionLabel(
-      position
-    );
+    if (position === "right") {
+      return "Rechts";
+    }
+
+    return "Links";
   },
 
   getDefaultUserRoleLabel(
     role: UserRole | string
   ) {
-    return getDefaultUserRoleLabel(
-      role
-    );
+    if (role === "admin") {
+      return "Administrator";
+    }
+
+    if (role === "editor") {
+      return "Bearbeiter";
+    }
+
+    return "Leser";
   },
 
   getThemeOptions() {
-    return getThemeOptions();
+    return [
+      {
+        value:
+          "modern",
+
+        label:
+          "Modern",
+      },
+      {
+        value:
+          "dark",
+
+        label:
+          "Dark",
+      },
+      {
+        value:
+          "system",
+
+        label:
+          "System",
+      },
+    ];
   },
 
   getAccentColorOptions() {
-    return getAccentColorOptions();
+    return [
+      {
+        value:
+          "zinc",
+
+        label:
+          "Zinc",
+      },
+      {
+        value:
+          "blue",
+
+        label:
+          "Blau",
+      },
+      {
+        value:
+          "indigo",
+
+        label:
+          "Indigo",
+      },
+      {
+        value:
+          "emerald",
+
+        label:
+          "Emerald",
+      },
+      {
+        value:
+          "amber",
+
+        label:
+          "Amber",
+      },
+      {
+        value:
+          "red",
+
+        label:
+          "Rot",
+      },
+    ];
   },
 
   getSidebarPositionOptions() {
-    return getSidebarPositionOptions();
+    return [
+      {
+        value:
+          "left",
+
+        label:
+          "Links",
+      },
+      {
+        value:
+          "right",
+
+        label:
+          "Rechts",
+      },
+    ];
   },
 
   getDefaultUserRoleOptions() {
-    return getDefaultUserRoleOptions();
+    return [
+      {
+        value:
+          "viewer",
+
+        label:
+          "Leser",
+      },
+      {
+        value:
+          "editor",
+
+        label:
+          "Bearbeiter",
+      },
+      {
+        value:
+          "admin",
+
+        label:
+          "Administrator",
+      },
+    ];
   },
 };
 
 export const appSettingsRepository =
-  localAppSettingsRepository;
+  postgresAppSettingsRepository;

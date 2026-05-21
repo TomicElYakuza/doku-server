@@ -1,188 +1,42 @@
-export type ApiClientResult<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
+export async function requestJson<T>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
 
-const API_BASE_PATH =
-  "/api";
+        headers: {
+          "Content-Type":
+            "application/json",
 
-async function parseResponse<T>(
-  response: Response
-): Promise<ApiClientResult<T>> {
-  try {
-    const data =
-      await response.json();
+          ...(options?.headers || {}),
+        },
+      }
+    );
 
-    if (!response.ok) {
-      return {
-        success:
-          false,
+  if (!response.ok) {
+    let message =
+      "Anfrage fehlgeschlagen.";
 
-        error:
-          data?.error ||
-          "API-Anfrage fehlgeschlagen.",
-      };
+    try {
+      const body =
+        await response.json();
+
+      message =
+        body.message ||
+        body.error ||
+        message;
+    } catch {
+      // Keine JSON-Antwort.
     }
 
-    return {
-      success:
-        true,
-
-      data:
-        data as T,
-    };
-  } catch {
-    return {
-      success:
-        false,
-
-      error:
-        "API-Antwort konnte nicht gelesen werden.",
-    };
-  }
-}
-
-export async function apiGet<T>(
-  path: string
-): Promise<ApiClientResult<T>> {
-  try {
-    const response =
-      await fetch(
-        `${API_BASE_PATH}${path}`,
-        {
-          method:
-            "GET",
-
-          headers:
-            {
-              "Content-Type":
-                "application/json",
-            },
-        }
-      );
-
-    return parseResponse<T>(
-      response
+    throw new Error(
+      message
     );
-  } catch {
-    return {
-      success:
-        false,
-
-      error:
-        "API konnte nicht erreicht werden.",
-    };
   }
-}
 
-export async function apiPost<T>(
-  path: string,
-  body: unknown
-): Promise<ApiClientResult<T>> {
-  try {
-    const response =
-      await fetch(
-        `${API_BASE_PATH}${path}`,
-        {
-          method:
-            "POST",
-
-          headers:
-            {
-              "Content-Type":
-                "application/json",
-            },
-
-          body:
-            JSON.stringify(
-              body
-            ),
-        }
-      );
-
-    return parseResponse<T>(
-      response
-    );
-  } catch {
-    return {
-      success:
-        false,
-
-      error:
-        "API konnte nicht erreicht werden.",
-    };
-  }
-}
-
-export async function apiPatch<T>(
-  path: string,
-  body: unknown
-): Promise<ApiClientResult<T>> {
-  try {
-    const response =
-      await fetch(
-        `${API_BASE_PATH}${path}`,
-        {
-          method:
-            "PATCH",
-
-          headers:
-            {
-              "Content-Type":
-                "application/json",
-            },
-
-          body:
-            JSON.stringify(
-              body
-            ),
-        }
-      );
-
-    return parseResponse<T>(
-      response
-    );
-  } catch {
-    return {
-      success:
-        false,
-
-      error:
-        "API konnte nicht erreicht werden.",
-    };
-  }
-}
-
-export async function apiDelete<T>(
-  path: string
-): Promise<ApiClientResult<T>> {
-  try {
-    const response =
-      await fetch(
-        `${API_BASE_PATH}${path}`,
-        {
-          method:
-            "DELETE",
-
-          headers:
-            {
-              "Content-Type":
-                "application/json",
-            },
-        }
-      );
-
-    return parseResponse<T>(
-      response
-    );
-  } catch {
-    return {
-      success:
-        false,
-
-      error:
-        "API konnte nicht erreicht werden.",
-    };
-  }
+  return response.json() as Promise<T>;
 }

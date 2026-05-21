@@ -15,7 +15,12 @@ import type {
   TicketTemplate,
   TicketTemplatePriority,
   TicketTemplateStatus,
-} from "../../../lib/ticketTemplateStorage";
+} from "../../../types/ticketTemplate";
+
+import type {
+  Company,
+  Department,
+} from "../../../types/company";
 
 import {
   ticketRepository,
@@ -24,11 +29,6 @@ import {
 import {
   companyRepository,
 } from "../../../lib/companyRepository";
-
-import type {
-  Company,
-  Department,
-} from "../../../lib/companyStorage";
 
 import {
   canCreate,
