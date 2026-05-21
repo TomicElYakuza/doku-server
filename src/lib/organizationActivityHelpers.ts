@@ -1,334 +1,417 @@
 import {
-  saveActivity,
-} from "./activityStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import type {
   Company,
   Department,
 } from "../types/company";
 
-import {
-  getCurrentUser,
-} from "./permissions";
+type ActivityPayload = {
+  type: string;
+  title: string;
+  description: string;
+  entityType: string;
+  entityId: string;
+  userName: string;
+  userEmail: string;
+  user: string;
+  companyId: string;
+  departmentId: string;
+  company: string;
+  department: string;
+  metadata: Record<
+    string,
+    string | number | boolean | null
+  >;
+};
 
-type OrganizationActivityAction =
-  | "created"
-  | "updated"
-  | "deleted";
-
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getCompanyActivityType(
-  action: OrganizationActivityAction
+function createOrganizationActivity(
+  payload: ActivityPayload
 ) {
-  if (action === "created") {
-    return "company_created";
-  }
+  void activityRepository
+    .create({
+      type:
+        payload.type,
 
-  if (action === "updated") {
-    return "company_updated";
-  }
+      title:
+        payload.title,
 
-  if (action === "deleted") {
-    return "company_deleted";
-  }
+      description:
+        payload.description,
 
-  return "system";
-}
+      entityType:
+        payload.entityType,
 
-function getDepartmentActivityType(
-  action: OrganizationActivityAction
-) {
-  if (action === "created") {
-    return "department_created";
-  }
+      entityId:
+        payload.entityId,
 
-  if (action === "updated") {
-    return "department_updated";
-  }
+      userName:
+        payload.userName,
 
-  if (action === "deleted") {
-    return "department_deleted";
-  }
+      userEmail:
+        payload.userEmail,
 
-  return "system";
-}
+      user:
+        payload.user,
 
-function getCompanyActivityTitle(
-  action: OrganizationActivityAction,
-  company: Company
-) {
-  if (action === "created") {
-    return `Firma erstellt: ${company.name}`;
-  }
+      companyId:
+        payload.companyId,
 
-  if (action === "updated") {
-    return `Firma aktualisiert: ${company.name}`;
-  }
+      departmentId:
+        payload.departmentId,
 
-  if (action === "deleted") {
-    return `Firma gelöscht: ${company.name}`;
-  }
+      company:
+        payload.company,
 
-  return company.name;
-}
+      department:
+        payload.department,
 
-function getDepartmentActivityTitle(
-  action: OrganizationActivityAction,
-  department: Department
-) {
-  if (action === "created") {
-    return `Abteilung erstellt: ${department.name}`;
-  }
-
-  if (action === "updated") {
-    return `Abteilung aktualisiert: ${department.name}`;
-  }
-
-  if (action === "deleted") {
-    return `Abteilung gelöscht: ${department.name}`;
-  }
-
-  return department.name;
-}
-
-export function saveCompanyActivity(
-  action: OrganizationActivityAction,
-  company: Company,
-  description?: string
-) {
-  const userContext =
-    getUserContext();
-
-  saveActivity({
-    type:
-      getCompanyActivityType(
-        action
-      ),
-
-    title:
-      getCompanyActivityTitle(
-        action,
-        company
-      ),
-
-    description:
-      description ||
-      company.description ||
-      "",
-
-    entityId:
-      company.id,
-
-    entityType:
-      "company",
-
-    userName:
-      userContext.userName,
-
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      company.id ||
-      userContext.companyId,
-
-    departmentId:
-      userContext.departmentId,
-
-    company:
-      company.name ||
-      userContext.company,
-
-    department:
-      userContext.department,
-
-    metadata:
-      {
-        companyId:
-          company.id,
-
-        companyName:
-          company.name,
-
-        status:
-          company.status,
-      },
-  });
-}
-
-export function saveDepartmentActivity(
-  action: OrganizationActivityAction,
-  department: Department,
-  companyName?: string,
-  description?: string
-) {
-  const userContext =
-    getUserContext();
-
-  saveActivity({
-    type:
-      getDepartmentActivityType(
-        action
-      ),
-
-    title:
-      getDepartmentActivityTitle(
-        action,
-        department
-      ),
-
-    description:
-      description ||
-      department.description ||
-      "",
-
-    entityId:
-      department.id,
-
-    entityType:
-      "department",
-
-    userName:
-      userContext.userName,
-
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      department.companyId ||
-      userContext.companyId,
-
-    departmentId:
-      department.id ||
-      userContext.departmentId,
-
-    company:
-      companyName ||
-      userContext.company,
-
-    department:
-      department.name ||
-      userContext.department,
-
-    metadata:
-      {
-        departmentId:
-          department.id,
-
-        departmentName:
-          department.name,
-
-        companyId:
-          department.companyId,
-
-        status:
-          department.status,
-      },
-  });
+      metadata:
+        payload.metadata,
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
 }
 
 export function saveCompanyCreatedActivity(
   company: Company
 ) {
-  saveCompanyActivity(
-    "created",
-    company,
-    "Eine neue Firma wurde erstellt."
-  );
+  createOrganizationActivity({
+    type:
+      "created",
+
+    title:
+      "Firma erstellt",
+
+    description:
+      `Firma "${company.name}" wurde erstellt.`,
+
+    entityType:
+      "company",
+
+    entityId:
+      company.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      company.id,
+
+    departmentId:
+      "",
+
+    company:
+      company.name,
+
+    department:
+      "",
+
+    metadata: {
+      companyId:
+        company.id,
+
+      companyName:
+        company.name,
+
+      status:
+        company.status,
+    },
+  });
 }
 
 export function saveCompanyUpdatedActivity(
   company: Company
 ) {
-  saveCompanyActivity(
-    "updated",
-    company,
-    "Eine Firma wurde aktualisiert."
-  );
+  createOrganizationActivity({
+    type:
+      "edited",
+
+    title:
+      "Firma bearbeitet",
+
+    description:
+      `Firma "${company.name}" wurde bearbeitet.`,
+
+    entityType:
+      "company",
+
+    entityId:
+      company.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      company.id,
+
+    departmentId:
+      "",
+
+    company:
+      company.name,
+
+    department:
+      "",
+
+    metadata: {
+      companyId:
+        company.id,
+
+      companyName:
+        company.name,
+
+      status:
+        company.status,
+    },
+  });
 }
 
 export function saveCompanyDeletedActivity(
   company: Company
 ) {
-  saveCompanyActivity(
-    "deleted",
-    company,
-    "Eine Firma wurde gelöscht."
-  );
+  createOrganizationActivity({
+    type:
+      "deleted",
+
+    title:
+      "Firma gelöscht",
+
+    description:
+      `Firma "${company.name}" wurde gelöscht.`,
+
+    entityType:
+      "company",
+
+    entityId:
+      company.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      company.id,
+
+    departmentId:
+      "",
+
+    company:
+      company.name,
+
+    department:
+      "",
+
+    metadata: {
+      companyId:
+        company.id,
+
+      companyName:
+        company.name,
+
+      status:
+        company.status,
+    },
+  });
 }
 
 export function saveDepartmentCreatedActivity(
   department: Department,
-  companyName?: string
+  companyName = "Intern"
 ) {
-  saveDepartmentActivity(
-    "created",
-    department,
-    companyName,
-    "Eine neue Abteilung wurde erstellt."
-  );
+  createOrganizationActivity({
+    type:
+      "created",
+
+    title:
+      "Abteilung erstellt",
+
+    description:
+      `Abteilung "${department.name}" wurde erstellt.`,
+
+    entityType:
+      "department",
+
+    entityId:
+      department.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      department.companyId,
+
+    departmentId:
+      department.id,
+
+    company:
+      companyName,
+
+    department:
+      department.name,
+
+    metadata: {
+      departmentId:
+        department.id,
+
+      departmentName:
+        department.name,
+
+      companyId:
+        department.companyId,
+
+      companyName,
+
+      status:
+        department.status,
+    },
+  });
 }
 
 export function saveDepartmentUpdatedActivity(
   department: Department,
-  companyName?: string
+  companyName = "Intern"
 ) {
-  saveDepartmentActivity(
-    "updated",
-    department,
-    companyName,
-    "Eine Abteilung wurde aktualisiert."
-  );
+  createOrganizationActivity({
+    type:
+      "edited",
+
+    title:
+      "Abteilung bearbeitet",
+
+    description:
+      `Abteilung "${department.name}" wurde bearbeitet.`,
+
+    entityType:
+      "department",
+
+    entityId:
+      department.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      department.companyId,
+
+    departmentId:
+      department.id,
+
+    company:
+      companyName,
+
+    department:
+      department.name,
+
+    metadata: {
+      departmentId:
+        department.id,
+
+      departmentName:
+        department.name,
+
+      companyId:
+        department.companyId,
+
+      companyName,
+
+      status:
+        department.status,
+    },
+  });
 }
 
 export function saveDepartmentDeletedActivity(
   department: Department,
-  companyName?: string
+  companyName = "Intern"
 ) {
-  saveDepartmentActivity(
-    "deleted",
-    department,
-    companyName,
-    "Eine Abteilung wurde gelöscht."
-  );
+  createOrganizationActivity({
+    type:
+      "deleted",
+
+    title:
+      "Abteilung gelöscht",
+
+    description:
+      `Abteilung "${department.name}" wurde gelöscht.`,
+
+    entityType:
+      "department",
+
+    entityId:
+      department.id,
+
+    userName:
+      "System",
+
+    userEmail:
+      "",
+
+    user:
+      "System",
+
+    companyId:
+      department.companyId,
+
+    departmentId:
+      department.id,
+
+    company:
+      companyName,
+
+    department:
+      department.name,
+
+    metadata: {
+      departmentId:
+        department.id,
+
+      departmentName:
+        department.name,
+
+      companyId:
+        department.companyId,
+
+      companyName,
+
+      status:
+        department.status,
+    },
+  });
 }

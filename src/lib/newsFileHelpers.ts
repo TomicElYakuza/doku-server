@@ -1,131 +1,147 @@
 import {
-  saveFile,
-} from "./fileStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import {
-  saveActivity,
-} from "./activityStorage";
+  fileRepository,
+} from "./fileRepository";
 
-import {
-  getUser,
-} from "./userStorage";
+import type {
+  StoredFile,
+} from "../types/file";
 
-export type PendingNewsFile = {
-  name: string;
-  type: string;
-  size: number;
-  data: string;
-  uploadedAt: string;
-  uploadedBy: string;
-};
+import type {
+  NewsPost,
+} from "../types/news";
 
-function getStorageKey(
+function getNewsFileKey(
   newsId: string
 ) {
   return `news-${newsId}`;
 }
 
-export function readNewsFile(
-  file: File
-): Promise<PendingNewsFile> {
-  return new Promise(
-    (resolve, reject) => {
-      const reader =
-        new FileReader();
+function createNewsFileActivity(
+  post: NewsPost,
+  type: string,
+  title: string,
+  description: string,
+  fileName = ""
+) {
+  void activityRepository
+    .create({
+      type,
 
-      reader.onload = () => {
-        resolve({
-          name:
-            file.name,
+      title,
 
-          type:
-            file.type,
+      description,
 
-          size:
-            file.size,
+      entityType:
+        "news",
 
-          data:
-            String(
-              reader.result || ""
-            ),
+      entityId:
+        post.id,
 
-          uploadedAt:
-            new Date().toLocaleString(),
+      userName:
+        post.author ||
+        "System",
 
-          uploadedBy:
-            getUser()?.name ||
-            "Unbekannt",
-        });
-      };
+      userEmail:
+        "",
 
-      reader.onerror = () => {
-        reject(
-          new Error(
-            "Datei konnte nicht gelesen werden."
-          )
+      user:
+        post.author ||
+        "System",
+
+      companyId:
+        "",
+
+      departmentId:
+        "",
+
+      company:
+        "Intern",
+
+      department:
+        "Allgemein",
+
+      metadata: {
+        newsId:
+          post.id,
+
+        newsTitle:
+          post.title,
+
+        fileName,
+      },
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "News-Datei-Aktivität konnte nicht gespeichert werden:",
+          error
         );
-      };
-
-      reader.readAsDataURL(
-        file
-      );
-    }
-  );
+      }
+    );
 }
 
-export async function readNewsFiles(
-  fileList: FileList | null
-): Promise<PendingNewsFile[]> {
-  if (!fileList) {
-    return [];
-  }
-
-  const files =
-    Array.from(
-      fileList
-    );
-
-  return Promise.all(
-    files.map(
-      (file) =>
-        readNewsFile(
-          file
-        )
+export async function getNewsFiles(
+  newsId: string
+) {
+  return fileRepository.listForKey(
+    getNewsFileKey(
+      newsId
     )
   );
 }
 
-export function saveNewsFiles(
-  newsId: string,
-  files: PendingNewsFile[]
+export async function saveNewsFile(
+  post: NewsPost,
+  file: Partial<StoredFile>
 ) {
-  files.forEach(
-    (file) => {
-      saveFile(
-        getStorageKey(
-          newsId
-        ),
-        file
-      );
+  await fileRepository.addToKey(
+    getNewsFileKey(
+      post.id
+    ),
+    file
+  );
 
-      saveActivity({
-        type:
-          "fileUploaded",
+  createNewsFileActivity(
+    post,
+    "created",
+    "News-Datei hochgeladen",
+    `Datei "${file.name || "Unbenannte Datei"}" wurde zu News "${post.title}" hochgeladen.`,
+    file.name ||
+      ""
+  );
+}
 
-        title:
-          file.name ||
-          "News-Anhang hochgeladen",
+export async function deleteNewsFile(
+  post: NewsPost,
+  index: number,
+  fileName = ""
+) {
+  await fileRepository.deleteFromKey(
+    getNewsFileKey(
+      post.id
+    ),
+    index
+  );
 
-        company:
-          "News",
+  createNewsFileActivity(
+    post,
+    "deleted",
+    "News-Datei gelöscht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von News "${post.title}" gelöscht.`,
+    fileName
+  );
+}
 
-        user:
-          getUser()?.name ||
-          "Unbekannt",
-
-        createdAt:
-          new Date().toLocaleString(),
-      });
-    }
+export async function deleteNewsFiles(
+  newsId: string
+) {
+  await fileRepository.deleteKey(
+    getNewsFileKey(
+      newsId
+    )
   );
 }

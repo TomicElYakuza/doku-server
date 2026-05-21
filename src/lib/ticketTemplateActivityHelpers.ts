@@ -1,6 +1,6 @@
 import {
-  saveActivity,
-} from "./activityStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import type {
   Ticket,
@@ -10,170 +10,57 @@ import type {
   TicketTemplate,
 } from "../types/ticketTemplate";
 
-import {
-  getCurrentUser,
-} from "./permissions";
-
-type TicketTemplateActivityAction =
-  | "created"
-  | "updated"
-  | "deleted"
-  | "ticket_created_from_template";
-
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getActivityType(
-  action: TicketTemplateActivityAction
-) {
-  if (action === "created") {
-    return "ticket_created";
-  }
-
-  if (action === "updated") {
-    return "ticket_updated";
-  }
-
-  if (action === "deleted") {
-    return "ticket_deleted";
-  }
-
-  if (action === "ticket_created_from_template") {
-    return "ticket_created";
-  }
-
-  return "system";
-}
-
-function getActivityTitle(
-  action: TicketTemplateActivityAction,
+function createTemplateActivity(
   template: TicketTemplate,
-  ticket?: Ticket
+  type: string,
+  title: string,
+  description: string
 ) {
-  if (action === "created") {
-    return `Ticket-Vorlage erstellt: ${template.title}`;
-  }
+  void activityRepository
+    .create({
+      type,
 
-  if (action === "updated") {
-    return `Ticket-Vorlage aktualisiert: ${template.title}`;
-  }
+      title,
 
-  if (action === "deleted") {
-    return `Ticket-Vorlage gelöscht: ${template.title}`;
-  }
+      description,
 
-  if (action === "ticket_created_from_template") {
-    return `Ticket aus Vorlage erstellt: ${ticket?.title || template.title}`;
-  }
+      entityType:
+        "ticketTemplate",
 
-  return template.title;
-}
+      entityId:
+        template.id,
 
-export function saveTicketTemplateActivity(
-  action: TicketTemplateActivityAction,
-  template: TicketTemplate,
-  ticket?: Ticket,
-  description?: string
-) {
-  const userContext =
-    getUserContext();
+      userName:
+        "System",
 
-  saveActivity({
-    type:
-      getActivityType(
-        action
-      ),
+      userEmail:
+        "",
 
-    title:
-      getActivityTitle(
-        action,
-        template,
-        ticket
-      ),
+      user:
+        "System",
 
-    description:
-      description ||
-      template.description ||
-      "",
+      companyId:
+        template.companyId ||
+        "",
 
-    entityId:
-      ticket?.id ||
-      template.id,
+      departmentId:
+        template.departmentId ||
+        "",
 
-    entityType:
-      ticket
-        ? "ticket"
-        : "ticket_template",
+      company:
+        template.company ||
+        "Intern",
 
-    userName:
-      userContext.userName,
+      department:
+        template.department ||
+        "Allgemein",
 
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      template.companyId ||
-      ticket?.companyId ||
-      userContext.companyId,
-
-    departmentId:
-      template.departmentId ||
-      ticket?.departmentId ||
-      userContext.departmentId,
-
-    company:
-      template.company ||
-      ticket?.company ||
-      userContext.company,
-
-    department:
-      template.department ||
-      ticket?.department ||
-      userContext.department,
-
-    metadata:
-      {
+      metadata: {
         templateId:
           template.id,
 
-        ticketId:
-          ticket?.id ||
-          "",
+        templateTitle:
+          template.title,
 
         status:
           template.status,
@@ -184,39 +71,123 @@ export function saveTicketTemplateActivity(
         category:
           template.category,
       },
-  });
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Ticket-Vorlagen-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
+}
+
+function createTemplateUsageActivity(
+  template: TicketTemplate,
+  ticket: Ticket
+) {
+  void activityRepository
+    .create({
+      type:
+        "created",
+
+      title:
+        "Ticket aus Vorlage erstellt",
+
+      description:
+        `Aus Vorlage "${template.title}" wurde Ticket #${ticket.id} "${ticket.title}" erstellt.`,
+
+      entityType:
+        "ticket",
+
+      entityId:
+        ticket.id,
+
+      userName:
+        ticket.createdBy ||
+        "System",
+
+      userEmail:
+        "",
+
+      user:
+        ticket.createdBy ||
+        "System",
+
+      companyId:
+        ticket.companyId ||
+        template.companyId ||
+        "",
+
+      departmentId:
+        ticket.departmentId ||
+        template.departmentId ||
+        "",
+
+      company:
+        ticket.company ||
+        template.company ||
+        "Intern",
+
+      department:
+        ticket.department ||
+        template.department ||
+        "Allgemein",
+
+      metadata: {
+        ticketId:
+          ticket.id,
+
+        ticketTitle:
+          ticket.title,
+
+        templateId:
+          template.id,
+
+        templateTitle:
+          template.title,
+      },
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Vorlagen-Nutzung konnte nicht protokolliert werden:",
+          error
+        );
+      }
+    );
 }
 
 export function saveTicketTemplateCreatedActivity(
   template: TicketTemplate
 ) {
-  saveTicketTemplateActivity(
-    "created",
+  createTemplateActivity(
     template,
-    undefined,
-    "Eine neue Ticket-Vorlage wurde erstellt."
+    "created",
+    "Ticket-Vorlage erstellt",
+    `Ticket-Vorlage "${template.title}" wurde erstellt.`
   );
 }
 
 export function saveTicketTemplateUpdatedActivity(
   template: TicketTemplate
 ) {
-  saveTicketTemplateActivity(
-    "updated",
+  createTemplateActivity(
     template,
-    undefined,
-    "Eine Ticket-Vorlage wurde aktualisiert."
+    "edited",
+    "Ticket-Vorlage bearbeitet",
+    `Ticket-Vorlage "${template.title}" wurde bearbeitet.`
   );
 }
 
 export function saveTicketTemplateDeletedActivity(
   template: TicketTemplate
 ) {
-  saveTicketTemplateActivity(
-    "deleted",
+  createTemplateActivity(
     template,
-    undefined,
-    "Eine Ticket-Vorlage wurde gelöscht."
+    "deleted",
+    "Ticket-Vorlage gelöscht",
+    `Ticket-Vorlage "${template.title}" wurde gelöscht.`
   );
 }
 
@@ -224,10 +195,18 @@ export function saveTicketCreatedFromTemplateActivity(
   template: TicketTemplate,
   ticket: Ticket
 ) {
-  saveTicketTemplateActivity(
-    "ticket_created_from_template",
+  createTemplateUsageActivity(
     template,
-    ticket,
-    "Aus einer Ticket-Vorlage wurde ein neues Ticket erstellt."
+    ticket
+  );
+}
+
+export function saveTicketTemplateUsedActivity(
+  template: TicketTemplate,
+  ticket: Ticket
+) {
+  createTemplateUsageActivity(
+    template,
+    ticket
   );
 }

@@ -1,181 +1,113 @@
 import {
-  saveActivity,
-} from "./activityStorage";
-
-import {
-  getCurrentUser,
-} from "./permissions";
+  activityRepository,
+} from "./activityRepository";
 
 import type {
   AppSettings,
-} from "./appSettingsStorage";
+} from "../types/settings";
 
-type SettingsActivityAction =
-  | "updated"
-  | "reset";
-
-type FlexibleSettings =
-  AppSettings & {
-    appVersion?: string;
-    version?: string;
-    theme?: string;
-    sidebarPosition?: string;
-    darkMode?: boolean;
-  };
-
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getSettingsActivityTitle(
-  action: SettingsActivityAction
+function createSettingsActivity(
+  type: string,
+  title: string,
+  description: string,
+  settings?: Partial<AppSettings>
 ) {
-  if (action === "updated") {
-    return "Einstellungen aktualisiert";
-  }
+  void activityRepository
+    .create({
+      type,
 
-  if (action === "reset") {
-    return "Einstellungen zurückgesetzt";
-  }
+      title,
 
-  return "Einstellungen";
-}
+      description,
 
-function getSettingsVersion(
-  settings: FlexibleSettings
-) {
-  return (
-    settings.appVersion ||
-    settings.version ||
-    ""
-  );
-}
+      entityType:
+        "settings",
 
-export function saveSettingsActivity(
-  action: SettingsActivityAction,
-  settings: AppSettings,
-  description?: string
-) {
-  const userContext =
-    getUserContext();
+      entityId:
+        "app-settings",
 
-  const flexibleSettings =
-    settings as FlexibleSettings;
+      userName:
+        "System",
 
-  saveActivity({
-    type:
-      "settings_updated",
+      userEmail:
+        "",
 
-    title:
-      getSettingsActivityTitle(
-        action
-      ),
+      user:
+        "System",
 
-    description:
-      description ||
-      `App-Einstellungen wurden geändert: ${flexibleSettings.appName}`,
+      companyId:
+        "",
 
-    entityId:
-      "app-settings",
+      departmentId:
+        "",
 
-    entityType:
-      "settings",
+      company:
+        settings?.companyName ||
+        "Intern",
 
-    userName:
-      userContext.userName,
+      department:
+        "Allgemein",
 
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      userContext.companyId,
-
-    departmentId:
-      userContext.departmentId,
-
-    company:
-      userContext.company,
-
-    department:
-      userContext.department,
-
-    metadata:
-      {
+      metadata: {
         appName:
-          flexibleSettings.appName,
+          settings?.appName ||
+          null,
 
-        version:
-          getSettingsVersion(
-            flexibleSettings
-          ),
+        companyName:
+          settings?.companyName ||
+          null,
+
+        appVersion:
+          settings?.appVersion ||
+          settings?.version ||
+          null,
 
         theme:
-          flexibleSettings.theme ||
-          "",
+          settings?.theme ||
+          null,
 
-        sidebarPosition:
-          flexibleSettings.sidebarPosition ||
-          "",
-
-        darkMode:
-          flexibleSettings.darkMode ?? null,
-
-        updatedAction:
-          action,
+        accentColor:
+          settings?.accentColor ||
+          settings?.appAccentColor ||
+          null,
       },
-  });
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Einstellungen-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
 }
 
 export function saveSettingsUpdatedActivity(
   settings: AppSettings
 ) {
-  saveSettingsActivity(
-    "updated",
-    settings,
-    "App-Einstellungen wurden aktualisiert."
+  createSettingsActivity(
+    "edited",
+    "Einstellungen bearbeitet",
+    "Die Systemeinstellungen wurden bearbeitet.",
+    settings
   );
 }
 
 export function saveSettingsResetActivity(
+  settings?: Partial<AppSettings>
+) {
+  createSettingsActivity(
+    "restored",
+    "Einstellungen zurückgesetzt",
+    "Die Systemeinstellungen wurden auf Standardwerte zurückgesetzt.",
+    settings
+  );
+}
+
+export function saveSettingsChangedActivity(
   settings: AppSettings
 ) {
-  saveSettingsActivity(
-    "reset",
-    settings,
-    "App-Einstellungen wurden zurückgesetzt."
+  saveSettingsUpdatedActivity(
+    settings
   );
 }

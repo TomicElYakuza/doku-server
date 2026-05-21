@@ -14,117 +14,125 @@ import {
 } from "next/navigation";
 
 import {
-  canViewActivity,
-  canViewAdmin,
-  getCurrentUser,
-} from "../lib/permissions";
+  getCachedCurrentUser,
+  loadCurrentUser,
+} from "../lib/currentUserRepository";
 
-import {
-  clearUser,
-} from "../lib/userStorage";
+import type {
+  User,
+} from "../types/user";
 
-import {
-  useAppSettings,
-} from "../hooks/useAppSettings";
+import Topbar from "./layout/Topbar";
 
 type AppShellProps = {
   children: ReactNode;
 };
 
-type ShellUser = {
-  name?: string;
-  email?: string;
-  role?: string;
-  company?: string;
-  department?: string;
-};
-
-type NavItem = {
+type NavigationItem = {
   href: string;
   label: string;
   icon: string;
   adminOnly?: boolean;
-  activityOnly?: boolean;
-  feature?: "ticketTemplates" | "activityLog";
 };
 
-const mainNavItems: NavItem[] = [
+const navigationItems: NavigationItem[] = [
   {
-    href: "/",
-    label: "News",
-    icon: "◌",
+    href:
+      "/news",
+
+    label:
+      "News",
+
+    icon:
+      "📰",
   },
   {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: "⌂",
+    href:
+      "/dashboard",
+
+    label:
+      "Dashboard",
+
+    icon:
+      "🏠",
   },
   {
-    href: "/wiki",
-    label: "Wiki",
-    icon: "◫",
+    href:
+      "/wiki",
+
+    label:
+      "Wiki",
+
+    icon:
+      "📚",
   },
   {
-    href: "/tickets",
-    label: "Tickets",
-    icon: "◆",
+    href:
+      "/tickets",
+
+    label:
+      "Tickets",
+
+    icon:
+      "🎫",
   },
   {
-    href: "/tickets/templates",
-    label: "Ticket-Vorlagen",
-    icon: "◇",
-    feature: "ticketTemplates",
+    href:
+      "/files",
+
+    label:
+      "Dateien",
+
+    icon:
+      "📎",
   },
   {
-    href: "/activity",
-    label: "Aktivitäten",
-    icon: "≡",
-    activityOnly: true,
-    feature: "activityLog",
+    href:
+      "/activity",
+
+    label:
+      "Aktivität",
+
+    icon:
+      "🕘",
+  },
+  {
+    href:
+      "/settings",
+
+    label:
+      "Einstellungen",
+
+    icon:
+      "⚙️",
+  },
+  {
+    href:
+      "/admin",
+
+    label:
+      "Admin",
+
+    icon:
+      "🛡️",
+
+    adminOnly:
+      true,
   },
 ];
 
-const adminNavItems: NavItem[] = [
-  {
-    href: "/admin",
-    label: "Admin",
-    icon: "⚙",
-    adminOnly: true,
-  },
-];
-
-const systemNavItems: NavItem[] = [
-  {
-    href: "/settings",
-    label: "Einstellungen",
-    icon: "◎",
-  },
-];
-
-function getRoleLabel(
-  role?: string
+function isPublicPath(
+  pathname: string
 ) {
-  if (role === "admin") {
-    return "Administrator";
-  }
-
-  if (role === "editor") {
-    return "Bearbeiter";
-  }
-
-  if (role === "viewer") {
-    return "Leser";
-  }
-
-  return "Nicht angemeldet";
+  return pathname === "/login";
 }
 
 function isActivePath(
   pathname: string,
   href: string
 ) {
-  if (href === "/") {
-    return pathname === "/";
+  if (href === "/dashboard") {
+    return pathname === href;
   }
 
   return (
@@ -132,118 +140,6 @@ function isActivePath(
     pathname.startsWith(
       `${href}/`
     )
-  );
-}
-
-function getNavLinkClass(
-  active: boolean
-) {
-  if (active) {
-    return "group flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-zinc-950 shadow-sm ring-1 ring-white/10";
-  }
-
-  return "group flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/10 hover:text-white transition";
-}
-
-function getIconClass(
-  active: boolean
-) {
-  if (active) {
-    return "flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-950 text-white text-sm";
-  }
-
-  return "flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-zinc-300 text-sm group-hover:bg-white/15 group-hover:text-white transition";
-}
-
-function getVisibleItems(
-  items: NavItem[],
-  enableTicketTemplates: boolean,
-  enableActivityLog: boolean
-) {
-  return items.filter(
-    (item) => {
-      if (
-        item.adminOnly &&
-        !canViewAdmin()
-      ) {
-        return false;
-      }
-
-      if (
-        item.activityOnly &&
-        !canViewActivity()
-      ) {
-        return false;
-      }
-
-      if (
-        item.feature === "ticketTemplates" &&
-        !enableTicketTemplates
-      ) {
-        return false;
-      }
-
-      if (
-        item.feature === "activityLog" &&
-        !enableActivityLog
-      ) {
-        return false;
-      }
-
-      return true;
-    }
-  );
-}
-
-function NavSection({
-  title,
-  items,
-  pathname,
-}: {
-  title: string;
-  items: NavItem[];
-  pathname: string;
-}) {
-  if (items.length === 0) {
-    return null;
-  }
-
-  return (
-    <div>
-      <p className="px-4 text-xs uppercase tracking-widest text-zinc-500 mb-3">
-        {title}
-      </p>
-
-      <div className="space-y-2">
-        {items.map(
-          (item) => {
-            const active =
-              isActivePath(
-                pathname,
-                item.href
-              );
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={getNavLinkClass(
-                  active
-                )}
-              >
-                <span className={getIconClass(active)}>
-                  {item.icon}
-                </span>
-
-                <span className="font-medium">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          }
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -256,216 +152,212 @@ export default function AppShell({
   const router =
     useRouter();
 
-  const {
-    mounted,
-    companyName,
-    appVersion,
-    showVersion,
-    compactMode,
-    sidebarPosition,
-    enableTicketTemplates,
-    enableActivityLog,
-  } = useAppSettings();
-
   const [user, setUser] =
-    useState<ShellUser | null>(null);
-
-  useEffect(() => {
-    setUser(
-      getCurrentUser() as ShellUser | null
+    useState<User | null>(
+      getCachedCurrentUser()
     );
 
-    function handleUserUpdated() {
+  const [loading, setLoading] =
+    useState(true);
+
+  useEffect(() => {
+    if (
+      isPublicPath(
+        pathname
+      )
+    ) {
+      setLoading(
+        false
+      );
+
+      return;
+    }
+
+    void ensureUser();
+
+    function handleCurrentUserUpdated() {
       setUser(
-        getCurrentUser() as ShellUser | null
+        getCachedCurrentUser()
       );
     }
 
     window.addEventListener(
-      "userUpdated",
-      handleUserUpdated
-    );
-
-    window.addEventListener(
-      "adminUsersUpdated",
-      handleUserUpdated
+      "currentUserUpdated",
+      handleCurrentUserUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "userUpdated",
-        handleUserUpdated
-      );
-
-      window.removeEventListener(
-        "adminUsersUpdated",
-        handleUserUpdated
+        "currentUserUpdated",
+        handleCurrentUserUpdated
       );
     };
-  }, []);
+  }, [
+    pathname,
+  ]);
 
-  function handleLogout() {
-    clearUser();
+  async function ensureUser() {
+    try {
+      setLoading(
+        true
+      );
 
-    setUser(
-      null
-    );
+      const nextUser =
+        await loadCurrentUser();
 
-    router.push(
-      "/login"
-    );
+      setUser(
+        nextUser
+      );
+
+      if (!nextUser) {
+        router.push(
+          "/login"
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Benutzer konnte nicht geladen werden:",
+        error
+      );
+
+      setUser(
+        null
+      );
+
+      router.push(
+        "/login"
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
 
-  if (!mounted) {
+  if (
+    isPublicPath(
+      pathname
+    )
+  ) {
     return (
-      <div className="min-h-screen bg-zinc-100" />
+      <main className="min-h-screen bg-zinc-50">
+        {children}
+      </main>
     );
   }
 
-  const visibleMainItems =
-    getVisibleItems(
-      mainNavItems,
-      enableTicketTemplates,
-      enableActivityLog
-    );
-
-  const visibleAdminItems =
-    getVisibleItems(
-      adminNavItems,
-      enableTicketTemplates,
-      enableActivityLog
-    );
-
-  const visibleSystemItems =
-    getVisibleItems(
-      systemNavItems,
-      enableTicketTemplates,
-      enableActivityLog
-    );
-
-  const sidebar = (
-    <aside className="w-72 shrink-0 h-screen overflow-hidden flex flex-col bg-[#070A18] text-white border-r border-white/10">
-      <div className="shrink-0 px-5 py-5 border-b border-white/10">
-        <Link
-          href="/"
-          className="block rounded-3xl px-3 py-2 hover:bg-white/5 transition"
-        >
-          <p className="text-xl font-black tracking-tight">
-            Intranet
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-zinc-50 flex items-center justify-center">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <p className="text-zinc-500">
+            Anwendung wird geladen...
           </p>
-
-          <p className="text-xs text-zinc-500 mt-1">
-            {companyName || "Intern"}
-          </p>
-        </Link>
-      </div>
-
-      <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-5 sidebar-scroll">
-        <div className="space-y-7 pb-4">
-          <NavSection
-            title="Hauptmenü"
-            items={visibleMainItems}
-            pathname={pathname}
-          />
-
-          <NavSection
-            title="Verwaltung"
-            items={visibleAdminItems}
-            pathname={pathname}
-          />
-
-          <NavSection
-            title="System"
-            items={visibleSystemItems}
-            pathname={pathname}
-          />
         </div>
-      </nav>
+      </main>
+    );
+  }
 
-      <div className="shrink-0 border-t border-white/10 px-5 py-4">
-        {showVersion && (
-          <p className="text-xs text-zinc-500">
-            Version {appVersion}
-          </p>
-        )}
-      </div>
-    </aside>
-  );
-
-  const topbar = (
-    <header className="h-20 shrink-0 bg-white/90 dark:bg-[#070A18]/95 backdrop-blur border-b border-zinc-200 dark:border-white/10 px-8 flex items-center justify-between">
-      <div className="min-w-0 flex items-center gap-4">
-        <div className="h-11 w-11 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center font-bold shadow-sm">
-          {(user?.name || "U")
-            .slice(0, 1)
-            .toUpperCase()}
-        </div>
-
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
-            Angemeldet als
-          </p>
-
-          <h1 className="truncate text-lg font-black tracking-tight text-zinc-950 dark:text-white">
-            {user?.name || "Nicht angemeldet"}
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-zinc-50 flex items-center justify-center">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-2xl font-bold">
+            Nicht angemeldet
           </h1>
 
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {getRoleLabel(
-              user?.role
-            )}
-            {user?.department
-              ? ` · ${user.department}`
-              : ""}
+          <p className="text-zinc-500 mt-2">
+            Bitte melde dich an, um fortzufahren.
           </p>
-        </div>
-      </div>
 
-      <div className="flex items-center gap-3">
-        {user ? (
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="inline-flex bg-white border border-zinc-200 text-zinc-700 px-4 py-2 rounded-2xl hover:bg-zinc-100 transition dark:bg-white/10 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/15"
-          >
-            Logout
-          </button>
-        ) : (
           <Link
             href="/login"
-            className="inline-flex bg-zinc-900 text-white px-4 py-2 rounded-2xl hover:bg-zinc-700 transition dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+            className="inline-flex mt-5 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
-            Login
+            Zum Login
           </Link>
-        )}
-      </div>
-    </header>
-  );
+        </div>
+      </main>
+    );
+  }
+
+  const visibleNavigationItems =
+    navigationItems.filter(
+      (item) =>
+        !item.adminOnly ||
+        user.role === "admin"
+    );
 
   return (
-    <div className="h-screen overflow-hidden bg-zinc-100 text-zinc-950">
-      <div
-        className={`flex h-full ${
-          sidebarPosition === "right"
-            ? "flex-row-reverse"
-            : "flex-row"
-        }`}
-      >
-        {sidebar}
+    <div className="min-h-screen bg-zinc-50">
+      <div className="flex min-h-screen">
+        <aside className="hidden lg:flex w-72 shrink-0 border-r border-zinc-200 bg-white p-6 flex-col">
+          <div>
+            <p className="text-sm text-zinc-500">
+              Intern
+            </p>
 
-        <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
-          {topbar}
+            <h1 className="text-2xl font-bold">
+              Intranet
+            </h1>
+          </div>
 
-          <main
-            className={`flex-1 overflow-y-auto bg-zinc-100 ${
-              compactMode
-                ? "p-5"
-                : "p-8"
-            }`}
-          >
-            <div className="app-page-content w-full max-w-none">
-              {children}
-            </div>
+          <nav className="space-y-2 mt-10">
+            {visibleNavigationItems.map(
+              (item) => {
+                const active =
+                  isActivePath(
+                    pathname,
+                    item.href
+                  );
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition ${
+                      active
+                        ? "bg-zinc-900 text-white"
+                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                    }`}
+                  >
+                    <span>
+                      {item.icon}
+                    </span>
+
+                    <span className="font-medium">
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              }
+            )}
+          </nav>
+
+          <div className="mt-auto bg-zinc-50 rounded-3xl p-5">
+            <p className="font-semibold">
+              {user.name}
+            </p>
+
+            <p className="text-sm text-zinc-500 mt-1">
+              {user.email}
+            </p>
+
+            <p className="text-xs text-zinc-400 mt-2">
+              {user.company ||
+                "Intern"}
+              {" · "}
+              {user.department ||
+                "Allgemein"}
+            </p>
+          </div>
+        </aside>
+
+        <div className="flex-1 min-w-0">
+          <Topbar />
+
+          <main className="p-6 lg:p-8">
+            {children}
           </main>
         </div>
       </div>

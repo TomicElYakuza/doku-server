@@ -1,65 +1,115 @@
 "use client";
 
 import {
-  updateAppSettings,
-} from "../lib/appSettingsStorage";
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  useAppSettings,
-} from "../hooks/useAppSettings";
+  appSettingsRepository,
+} from "../lib/appSettingsRepository";
 
-type ThemeToggleProps = {
-  className?: string;
-};
+export default function ThemeToggle() {
+  const [darkMode, setDarkMode] =
+    useState(false);
 
-export default function ThemeToggle({
-  className = "",
-}: ThemeToggleProps) {
-  const {
-    mounted,
-    darkMode,
-    theme,
-  } = useAppSettings();
+  const [loading, setLoading] =
+    useState(false);
 
-  if (!mounted) {
-    return null;
+  useEffect(() => {
+    void loadSettings();
+
+    function handleSettingsUpdated() {
+      void loadSettings();
+    }
+
+    window.addEventListener(
+      "appSettingsUpdated",
+      handleSettingsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "appSettingsUpdated",
+        handleSettingsUpdated
+      );
+    };
+  }, []);
+
+  async function loadSettings() {
+    try {
+      const settings =
+        await appSettingsRepository.get();
+
+      setDarkMode(
+        Boolean(
+          settings.darkMode ||
+            settings.theme === "dark"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Theme konnte nicht geladen werden:",
+        error
+      );
+    }
   }
 
-  function handleToggle() {
-    const nextDarkMode =
-      !darkMode;
+  async function toggleTheme() {
+    try {
+      setLoading(
+        true
+      );
 
-    updateAppSettings({
-      darkMode:
-        nextDarkMode,
+      const nextDarkMode =
+        !darkMode;
 
-      theme:
-        nextDarkMode
-          ? "dark"
-          : theme === "dark"
-            ? "modern"
-            : theme,
-    });
+      const settings =
+        await appSettingsRepository.update({
+          darkMode:
+            nextDarkMode,
+
+          theme:
+            nextDarkMode
+              ? "dark"
+              : "modern",
+        });
+
+      setDarkMode(
+        Boolean(
+          settings.darkMode ||
+            settings.theme === "dark"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Theme konnte nicht geändert werden:",
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Theme konnte nicht geändert werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
 
   return (
     <button
       type="button"
-      onClick={handleToggle}
-      className={`inline-flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-800 transition ${className}`}
-      title={
-        darkMode
-          ? "Dark Mode deaktivieren"
-          : "Dark Mode aktivieren"
-      }
+      onClick={toggleTheme}
+      disabled={loading}
+      className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm hover:bg-zinc-100 transition disabled:opacity-50"
+      title="Theme wechseln"
     >
-      <span className="text-base">
-        {darkMode ? "☀" : "☾"}
-      </span>
-
-      <span className="hidden md:inline">
-        {darkMode ? "Hell" : "Dunkel"}
-      </span>
+      {darkMode
+        ? "☀️ Hell"
+        : "🌙 Dunkel"}
     </button>
   );
 }

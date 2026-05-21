@@ -1,32 +1,56 @@
-export type {
-  Company,
-  CompanyStatus,
-  Department,
-  DepartmentStatus,
-} from "../lib/companyStorage";
+export type CompanyStatus =
+  | "active"
+  | "inactive"
+  | "archived";
+
+export type DepartmentStatus =
+  | "active"
+  | "inactive"
+  | "archived";
+
+export type Company = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  status: CompanyStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Department = {
+  id: string;
+  companyId: string;
+  name: string;
+  slug: string;
+  description: string;
+  status: DepartmentStatus;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type CompanyCreateInput = Omit<
-  import("../lib/companyStorage").Company,
+  Company,
   "id" | "createdAt" | "updatedAt"
 >;
 
 export type CompanyUpdateInput =
   Partial<
     Omit<
-      import("../lib/companyStorage").Company,
+      Company,
       "id" | "createdAt" | "updatedAt"
     >
   >;
 
 export type DepartmentCreateInput = Omit<
-  import("../lib/companyStorage").Department,
+  Department,
   "id" | "createdAt" | "updatedAt"
 >;
 
 export type DepartmentUpdateInput =
   Partial<
     Omit<
-      import("../lib/companyStorage").Department,
+      Department,
       "id" | "createdAt" | "updatedAt"
     >
   >;

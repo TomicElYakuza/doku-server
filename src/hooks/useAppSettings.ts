@@ -6,43 +6,31 @@ import {
 } from "react";
 
 import {
-  getAppSettings,
-  getDefaultAppSettings,
-} from "../lib/appSettingsStorage";
+  appSettingsRepository,
+} from "../lib/appSettingsRepository";
 
 import type {
   AppSettings,
-} from "../lib/appSettingsStorage";
+} from "../types/settings";
 
 export function useAppSettings() {
-  const [mounted, setMounted] =
-    useState(false);
-
   const [settings, setSettings] =
-    useState<AppSettings>(() =>
-      getDefaultAppSettings()
+    useState<AppSettings>(
+      appSettingsRepository.getDefault()
     );
+
+  const [loading, setLoading] =
+    useState(true);
 
   useEffect(() => {
-    setMounted(true);
-
-    setSettings(
-      getAppSettings()
-    );
+    void loadSettings();
 
     function handleSettingsUpdated() {
-      setSettings(
-        getAppSettings()
-      );
+      void loadSettings();
     }
 
     window.addEventListener(
       "appSettingsUpdated",
-      handleSettingsUpdated
-    );
-
-    window.addEventListener(
-      "storage",
       handleSettingsUpdated
     );
 
@@ -51,69 +39,69 @@ export function useAppSettings() {
         "appSettingsUpdated",
         handleSettingsUpdated
       );
-
-      window.removeEventListener(
-        "storage",
-        handleSettingsUpdated
-      );
     };
   }, []);
 
+  async function loadSettings() {
+    try {
+      setLoading(
+        true
+      );
+
+      const nextSettings =
+        await appSettingsRepository.get();
+
+      setSettings(
+        nextSettings
+      );
+    } catch (error) {
+      console.error(
+        "Einstellungen konnten nicht geladen werden:",
+        error
+      );
+
+      setSettings(
+        appSettingsRepository.getDefault()
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
+
+  async function updateSettings(
+    updates: Partial<AppSettings>
+  ) {
+    const nextSettings =
+      await appSettingsRepository.update(
+        updates
+      );
+
+    setSettings(
+      nextSettings
+    );
+
+    return nextSettings;
+  }
+
+  async function resetSettings() {
+    const nextSettings =
+      await appSettingsRepository.reset();
+
+    setSettings(
+      nextSettings
+    );
+
+    return nextSettings;
+  }
+
   return {
-    mounted,
-
     settings,
-
-    appName:
-      settings.appName,
-
-    companyName:
-      settings.companyName,
-
-    appVersion:
-      settings.appVersion ||
-      settings.version,
-
-    version:
-      settings.version ||
-      settings.appVersion,
-
-    theme:
-      settings.theme,
-
-    darkMode:
-      settings.darkMode,
-
-    appAccentColor:
-      settings.appAccentColor ||
-      settings.accentColor,
-
-    accentColor:
-      settings.accentColor ||
-      settings.appAccentColor,
-
-    sidebarPosition:
-      settings.sidebarPosition,
-
-    showVersion:
-      settings.showVersion,
-
-    compactMode:
-      settings.compactMode,
-
-    showDemoHints:
-      settings.showDemoHints,
-
-    enableTicketTemplates:
-      settings.enableTicketTemplates,
-
-    enableTicketComments:
-      settings.enableTicketComments,
-
-    enableActivityLog:
-      settings.enableActivityLog,
-
-    defaultUserRole:
-      settings.defaultUserRole,
+    loading,
+    reload:
+      loadSettings,
+    updateSettings,
+    resetSettings,
   };
 }

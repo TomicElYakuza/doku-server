@@ -4,28 +4,9 @@ import Link from "next/link";
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
-
-import {
-  ticketRepository,
-} from "../../lib/ticketRepository";
-
-import type {
-  Ticket,
-} from "../../types/ticket";
-
-import type {
-  NewsPost,
-} from "../../types/news";
-
-import type {
-  AppSettings,
-} from "../../types/settings";
-
-import {
-  wikiRepository,
-} from "../../lib/wikiRepository";
 
 import {
   activityRepository,
@@ -36,694 +17,895 @@ import {
 } from "../../lib/companyRepository";
 
 import {
-  newsRepository,
-} from "../../lib/newsRepository";
-
-import {
-  getCurrentUser,
-  getRoleLabel,
+  canViewActivity,
 } from "../../lib/permissions";
 
-import {
-  appSettingsRepository,
-} from "../../lib/appSettingsRepository";
+import AccessDeniedCard from "../../components/AccessDeniedCard";
 
-import {
-  getOrganizationLabels,
-} from "../../lib/organizationHelpers";
+import type {
+  Activity,
+} from "../../types/activity";
 
-type DashboardCard = {
-  label: string;
-  value: number;
-  href: string;
-  description: string;
-};
+import type {
+  Company,
+  Department,
+} from "../../types/company";
 
-function getNewsCategoryClass(
-  category: string
+function getActivityIcon(
+  type: string
 ) {
-  if (category === "Tickets") {
-    return "bg-blue-50 text-blue-700";
+  if (type === "created") {
+    return "＋";
   }
 
-  if (category === "Wiki") {
-    return "bg-indigo-50 text-indigo-700";
+  if (type === "edited") {
+    return "✎";
   }
 
-  if (category === "System") {
-    return "bg-zinc-100 text-zinc-700";
+  if (type === "deleted") {
+    return "🗑";
   }
 
-  if (category === "Organisation") {
-    return "bg-emerald-50 text-emerald-700";
+  if (type === "restored") {
+    return "↺";
   }
 
-  return "bg-amber-50 text-amber-700";
+  if (type === "login") {
+    return "→";
+  }
+
+  if (type === "logout") {
+    return "←";
+  }
+
+  return "•";
 }
 
-export default function DashboardPage() {
+function getEntityLabel(
+  entityType: string
+) {
+  if (entityType === "ticket") {
+    return "Ticket";
+  }
+
+  if (entityType === "wiki") {
+    return "Wiki";
+  }
+
+  if (entityType === "news") {
+    return "News";
+  }
+
+  if (entityType === "company") {
+    return "Firma";
+  }
+
+  if (entityType === "department") {
+    return "Abteilung";
+  }
+
+  if (entityType === "adminUser") {
+    return "Benutzer";
+  }
+
+  if (entityType === "settings") {
+    return "Einstellungen";
+  }
+
+  if (entityType === "storage") {
+    return "System";
+  }
+
+  return entityType ||
+    "Allgemein";
+}
+
+function getEntityHref(
+  activity: Activity
+) {
+  if (
+    activity.entityType === "ticket" &&
+    activity.entityId
+  ) {
+    return `/tickets/${activity.entityId}`;
+  }
+
+  if (
+    activity.entityType === "wiki" &&
+    activity.entityId
+  ) {
+    return `/wiki/${encodeURIComponent(
+      activity.entityId
+    )}`;
+  }
+
+  if (
+    activity.entityType === "news" &&
+    activity.entityId
+  ) {
+    return `/news/${activity.entityId}`;
+  }
+
+  if (
+    activity.entityType === "company" ||
+    activity.entityType === "department"
+  ) {
+    return "/admin/companies";
+  }
+
+  if (activity.entityType === "adminUser") {
+    return "/admin/users";
+  }
+
+  if (activity.entityType === "settings") {
+    return "/settings";
+  }
+
+  return "";
+}
+
+export default function ActivityPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [tickets, setTickets] =
-    useState<Ticket[]>([]);
+  const [activities, setActivities] =
+    useState<Activity[]>([]);
 
-  const [latestNews, setLatestNews] =
-    useState<NewsPost[]>([]);
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
 
-  const [newsCount, setNewsCount] =
-    useState(0);
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
-  const [unreadNewsCount, setUnreadNewsCount] =
-    useState(0);
+  const [search, setSearch] =
+    useState("");
 
-  const [wikiCount, setWikiCount] =
-    useState(0);
+  const [typeFilter, setTypeFilter] =
+    useState("");
 
-  const [activityCount, setActivityCount] =
-    useState(0);
+  const [entityFilter, setEntityFilter] =
+    useState("");
 
-  const [companyCount, setCompanyCount] =
-    useState(0);
+  const [companyFilter, setCompanyFilter] =
+    useState("");
 
-  const [departmentCount, setDepartmentCount] =
-    useState(0);
+  const [departmentFilter, setDepartmentFilter] =
+    useState("");
 
-  const [settings, setSettings] =
-    useState<AppSettings | null>(null);
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
-    loadDashboard();
+    void loadData();
 
-    function handleUpdate() {
-      loadDashboard();
+    function handleActivitiesUpdated() {
+      void loadData();
+    }
+
+    function handleCompaniesUpdated() {
+      void loadOrganization();
+    }
+
+    function handleDepartmentsUpdated() {
+      void loadOrganization();
     }
 
     window.addEventListener(
-      "ticketsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "wikiPagesUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "activityUpdated",
-      handleUpdate
+      "activitiesUpdated",
+      handleActivitiesUpdated
     );
 
     window.addEventListener(
       "companiesUpdated",
-      handleUpdate
+      handleCompaniesUpdated
     );
 
     window.addEventListener(
       "departmentsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "appSettingsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "newsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "newsOpenedUpdated",
-      handleUpdate
+      handleDepartmentsUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "ticketsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "wikiPagesUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "activityUpdated",
-        handleUpdate
+        "activitiesUpdated",
+        handleActivitiesUpdated
       );
 
       window.removeEventListener(
         "companiesUpdated",
-        handleUpdate
+        handleCompaniesUpdated
       );
 
       window.removeEventListener(
         "departmentsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "appSettingsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "newsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "newsOpenedUpdated",
-        handleUpdate
+        handleDepartmentsUpdated
       );
     };
   }, []);
 
-  function loadDashboard() {
-    const news =
-      newsRepository.list();
+  async function loadOrganization() {
+    try {
+      const [
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-    const openedNewsIds =
-      newsRepository.getOpenedIds();
+      setCompanies(
+        nextCompanies
+      );
 
-    setTickets(
-      ticketRepository.list()
-    );
+      setDepartments(
+        nextDepartments
+      );
+    } catch (loadError) {
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError
+      );
+    }
+  }
 
-    setLatestNews(
-      newsRepository.listLatest(
-        5
-      )
-    );
+  async function loadData() {
+    try {
+      setLoading(
+        true
+      );
 
-    setNewsCount(
-      news.length
-    );
+      setError(
+        ""
+      );
 
-    setUnreadNewsCount(
-      news.filter(
-        (post) =>
-          !openedNewsIds.includes(
-            post.id
-          )
-      ).length
-    );
+      const [
+        nextActivities,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          activityRepository.list(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-    setWikiCount(
-      wikiRepository.countAll()
-    );
+      setActivities(
+        nextActivities
+      );
 
-    setActivityCount(
-      activityRepository.countAll()
-    );
+      setCompanies(
+        nextCompanies
+      );
 
-    setCompanyCount(
-      companyRepository.countCompanies()
-    );
+      setDepartments(
+        nextDepartments
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
 
-    setDepartmentCount(
-      companyRepository.countDepartments()
-    );
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Aktivitäten konnten nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
 
-    setSettings(
-      appSettingsRepository.get()
+  function resetFilters() {
+    setSearch("");
+    setTypeFilter("");
+    setEntityFilter("");
+    setCompanyFilter("");
+    setDepartmentFilter("");
+  }
+
+  function getCompanyName(
+    companyId?: string
+  ) {
+    if (!companyId) {
+      return "";
+    }
+
+    return (
+      companies.find(
+        (company) =>
+          company.id === companyId
+      )?.name ||
+      ""
     );
   }
+
+  function getDepartmentName(
+    departmentId?: string
+  ) {
+    if (!departmentId) {
+      return "";
+    }
+
+    return (
+      departments.find(
+        (department) =>
+          department.id === departmentId
+      )?.name ||
+      ""
+    );
+  }
+
+  const filteredDepartments =
+    useMemo(
+      () => {
+        if (!companyFilter) {
+          return departments;
+        }
+
+        return departments.filter(
+          (department) =>
+            department.companyId === companyFilter
+        );
+      },
+      [
+        departments,
+        companyFilter,
+      ]
+    );
+
+  const activityTypes =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            activities.map(
+              (activity) =>
+                activity.type
+            )
+          )
+        ).filter(Boolean),
+      [
+        activities,
+      ]
+    );
+
+  const entityTypes =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            activities.map(
+              (activity) =>
+                activity.entityType
+            )
+          )
+        ).filter(Boolean),
+      [
+        activities,
+      ]
+    );
+
+  const filteredActivities =
+    useMemo(
+      () => {
+        const query =
+          search.trim().toLowerCase();
+
+        return activities.filter(
+          (activity) => {
+            const companyName =
+              getCompanyName(
+                activity.companyId
+              ) ||
+              activity.company ||
+              "";
+
+            const departmentName =
+              getDepartmentName(
+                activity.departmentId
+              ) ||
+              activity.department ||
+              "";
+
+            const matchesSearch =
+              !query ||
+              [
+                activity.id,
+                activity.type,
+                activity.title,
+                activity.description,
+                activity.entityType,
+                activity.entityId,
+                activity.userName,
+                activity.userEmail,
+                activity.user,
+                activity.company,
+                activity.department,
+                companyName,
+                departmentName,
+                activity.createdAt,
+                JSON.stringify(
+                  activity.metadata ||
+                    {}
+                ),
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(
+                  query
+                );
+
+            const matchesType =
+              !typeFilter ||
+              activity.type === typeFilter;
+
+            const matchesEntity =
+              !entityFilter ||
+              activity.entityType === entityFilter;
+
+            const matchesCompany =
+              !companyFilter ||
+              activity.companyId === companyFilter;
+
+            const matchesDepartment =
+              !departmentFilter ||
+              activity.departmentId === departmentFilter;
+
+            return (
+              matchesSearch &&
+              matchesType &&
+              matchesEntity &&
+              matchesCompany &&
+              matchesDepartment
+            );
+          }
+        );
+      },
+      [
+        activities,
+        search,
+        typeFilter,
+        entityFilter,
+        companyFilter,
+        departmentFilter,
+        companies,
+        departments,
+      ]
+    );
+
+  const createdCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "created"
+    ).length;
+
+  const editedCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "edited"
+    ).length;
+
+  const deletedCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "deleted"
+    ).length;
+
+  const loginCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "login"
+    ).length;
 
   if (!mounted) {
     return null;
   }
 
-  const user =
-    getCurrentUser();
-
-  const openTickets =
-    ticketRepository.listByStatus(
-      "open"
+  if (!canViewActivity()) {
+    return (
+      <AccessDeniedCard />
     );
-
-  const inProgressTickets =
-    ticketRepository.listByStatus(
-      "in_progress"
-    );
-
-  const waitingTickets =
-    ticketRepository.listByStatus(
-      "waiting"
-    );
-
-  const doneTickets =
-    tickets.filter(
-      (ticket) =>
-        ticket.status === "done" ||
-        ticket.status === "closed"
-    );
-
-  const urgentTickets =
-    ticketRepository.listHighOrUrgent();
-
-  const latestTickets =
-    [
-      ...tickets,
-    ]
-      .sort(
-        (a, b) =>
-          new Date(
-            b.updatedAt
-          ).getTime() -
-          new Date(
-            a.updatedAt
-          ).getTime()
-      )
-      .slice(
-        0,
-        5
-      );
-
-  const cards: DashboardCard[] = [
-    {
-      label:
-        "News gesamt",
-
-      value:
-        newsCount,
-
-      href:
-        "/",
-
-      description:
-        "Interne Meldungen",
-    },
-    {
-      label:
-        "Ungelesene News",
-
-      value:
-        unreadNewsCount,
-
-      href:
-        "/",
-
-      description:
-        "Noch nicht geöffnet",
-    },
-    {
-      label:
-        "Tickets gesamt",
-
-      value:
-        tickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Alle Tickets",
-    },
-    {
-      label:
-        "Offene Tickets",
-
-      value:
-        openTickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Nicht bearbeitet",
-    },
-    {
-      label:
-        "In Bearbeitung",
-
-      value:
-        inProgressTickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Aktive Vorgänge",
-    },
-    {
-      label:
-        "Wartend",
-
-      value:
-        waitingTickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Rückfrage/Wartezustand",
-    },
-    {
-      label:
-        "Erledigt",
-
-      value:
-        doneTickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Abgeschlossen",
-    },
-    {
-      label:
-        "Hohe Priorität",
-
-      value:
-        urgentTickets.length,
-
-      href:
-        "/tickets",
-
-      description:
-        "Dringend/wichtig",
-    },
-    {
-      label:
-        "Wiki-Dokumente",
-
-      value:
-        wikiCount,
-
-      href:
-        "/wiki",
-
-      description:
-        "Dokumentationen",
-    },
-    {
-      label:
-        "Aktivitäten",
-
-      value:
-        activityCount,
-
-      href:
-        "/activity",
-
-      description:
-        "Systemaktionen",
-    },
-  ];
+  }
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
         <div>
-          <p className="text-sm text-zinc-500">
-            Willkommen zurück
-          </p>
-
-          <h1 className="text-4xl font-bold mt-2">
-            {settings?.appName ||
-              "DMS Intranet"}
+          <h1 className="text-4xl font-bold">
+            Aktivität
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Dashboard für News, Dokumente, Tickets, Aktivitäten, Firmen und spätere Datenbank-Anbindung
+            Protokollierte Aktionen aus PostgreSQL.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            News öffnen
-          </Link>
+        <button
+          type="button"
+          onClick={() =>
+            void loadData()
+          }
+          className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          Aktualisieren
+        </button>
+      </div>
 
-          <Link
-            href="/wiki/new"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Dokument erstellen
-          </Link>
-
-          <Link
-            href="/tickets"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Tickets öffnen
-          </Link>
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Aktivitäten werden geladen...
+          </p>
         </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Gesamt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {activities.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setTypeFilter(
+              "created"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Erstellt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {createdCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setTypeFilter(
+              "edited"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Bearbeitet
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {editedCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setTypeFilter(
+              "deleted"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Gelöscht
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {deletedCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setTypeFilter(
+              "login"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Logins
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {loginCount}
+          </h2>
+        </button>
       </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Aktueller Kontext
-        </h2>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Suche & Filter
+            </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Benutzer
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.name ||
-                "Unbekannt"}
+            <p className="text-zinc-500 mt-1">
+              Filtere Aktivitäten nach Typ, Bereich, Firma oder Abteilung.
             </p>
           </div>
 
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Rolle
-            </p>
-
-            <p className="font-semibold mt-1">
-              {getRoleLabel(
-                user?.role ||
-                  "viewer"
-              )}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Firma
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.company ||
-                "Intern"}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Abteilung
-            </p>
-
-            <p className="font-semibold mt-1">
-              {user?.department ||
-                "Allgemein"}
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Organisationen
-            </p>
-
-            <p className="font-semibold mt-1">
-              {companyCount} / {departmentCount}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Zurücksetzen
+          </button>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            placeholder="Aktivitäten suchen..."
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          />
+
+          <select
+            value={typeFilter}
+            onChange={(event) =>
+              setTypeFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Typen
+            </option>
+
+            {activityTypes.map(
+              (type) => (
+                <option
+                  key={type}
+                  value={type}
+                >
+                  {activityRepository.getTypeLabel(
+                    type
+                  )}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={entityFilter}
+            onChange={(event) =>
+              setEntityFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Bereiche
+            </option>
+
+            {entityTypes.map(
+              (entityType) => (
+                <option
+                  key={entityType}
+                  value={entityType}
+                >
+                  {getEntityLabel(
+                    entityType
+                  )}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={companyFilter}
+            onChange={(event) => {
+              setCompanyFilter(
+                event.target.value
+              );
+
+              setDepartmentFilter(
+                ""
+              );
+            }}
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
+
+            {companies.map(
+              (company) => (
+                <option
+                  key={company.id}
+                  value={company.id}
+                >
+                  {company.name}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={departmentFilter}
+            onChange={(event) =>
+              setDepartmentFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Abteilungen
+            </option>
+
+            {filteredDepartments.map(
+              (department) => (
+                <option
+                  key={department.id}
+                  value={department.id}
+                >
+                  {department.name}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredActivities.length} von {activities.length} Aktivitäten gefunden.
+        </p>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">
-          Übersicht
-        </h2>
+      <div className="space-y-4">
+        {!loading && filteredActivities.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Keine Aktivitäten gefunden
+            </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {cards.map(
-            (card) => (
-              <Link
-                key={card.label}
-                href={card.href}
-                className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:bg-zinc-50 transition min-h-[120px]"
-              >
-                <p className="text-sm text-zinc-500">
-                  {card.label}
-                </p>
-
-                <h2
-                  className={`text-3xl font-bold mt-3 ${
-                    card.label === "Ungelesene News" &&
-                    card.value > 0
-                      ? "text-red-600"
-                      : ""
-                  }`}
-                >
-                  {card.value}
-                </h2>
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  {card.description}
-                </p>
-              </Link>
-            )
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                Letzte Tickets
-              </h2>
-
-              <p className="text-zinc-500 mt-2">
-                Schnellüberblick über die zuletzt aktualisierten Vorgänge
-              </p>
-            </div>
-
-            <Link
-              href="/tickets"
-              className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-            >
-              Alle Tickets
-            </Link>
+            <p className="text-zinc-500 mt-2">
+              Es gibt keine passenden Einträge.
+            </p>
           </div>
+        )}
 
-          <div className="grid gap-4 mt-6">
-            {latestTickets.length === 0 && (
-              <p className="text-zinc-500">
-                Noch keine Tickets vorhanden.
-              </p>
-            )}
+        {filteredActivities.map(
+          (activity) => {
+            const href =
+              getEntityHref(
+                activity
+              );
 
-            {latestTickets.map(
-              (ticket) => {
-                const organization =
-                  getOrganizationLabels(
-                    ticket
-                  );
-
-                return (
-                  <Link
-                    key={ticket.id}
-                    href={`/tickets/${ticket.id}`}
-                    className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${ticketRepository.getStatusClass(ticket.status)}`}>
-                        {ticketRepository.getStatusLabel(
-                          ticket.status
-                        )}
-                      </span>
-
-                      <span className={`text-xs px-3 py-1 rounded-full ${ticketRepository.getPriorityClass(ticket.priority)}`}>
-                        {ticketRepository.getPriorityLabel(
-                          ticket.priority
-                        )}
-                      </span>
-
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        {organization.companyName}
-                      </span>
-
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        {organization.departmentName}
-                      </span>
-                    </div>
-
-                    <h3 className="text-xl font-semibold mt-4">
-                      #{ticket.id} · {ticket.title}
-                    </h3>
-
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
-                      {ticket.description}
-                    </p>
-
-                    <p className="text-xs text-zinc-400 mt-4">
-                      Aktualisiert: {ticket.updatedAt}
-                    </p>
-                  </Link>
-                );
-              }
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                Neuigkeiten
-              </h2>
-
-              <p className="text-zinc-500 mt-2">
-                Aktuelle interne Meldungen
-              </p>
-            </div>
-
-            <Link
-              href="/"
-              className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-            >
-              Alle
-            </Link>
-          </div>
-
-          <div className="grid gap-3 mt-5">
-            {latestNews.length === 0 && (
-              <p className="text-zinc-500">
-                Noch keine News vorhanden.
-              </p>
-            )}
-
-            {latestNews.map(
-              (post) => (
-                <Link
-                  key={post.id}
-                  href={`/news/${post.id}`}
-                  className="border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getNewsCategoryClass(post.category)}`}>
-                      {post.category}
-                    </span>
-
-                    {post.pinned && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
-                        Fixiert
-                      </span>
+            const content = (
+              <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition">
+                <div className="flex items-start gap-5">
+                  <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
+                    {getActivityIcon(
+                      activity.type
                     )}
                   </div>
 
-                  <h3 className="font-semibold mt-3 line-clamp-2">
-                    {post.title}
-                  </h3>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                        {activityRepository.getTypeLabel(
+                          activity.type
+                        )}
+                      </span>
 
-                  <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
-                    {post.description}
-                  </p>
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {getEntityLabel(
+                          activity.entityType
+                        )}
+                      </span>
 
-                  <p className="text-xs text-zinc-400 mt-3">
-                    Beitrag #{post.id} · {post.createdAt}
-                  </p>
+                      {activity.company && (
+                        <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                          {activity.company}
+                        </span>
+                      )}
+
+                      {activity.department && (
+                        <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
+                          {activity.department}
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="text-xl font-semibold mt-4">
+                      {activity.title}
+                    </h2>
+
+                    <p className="text-zinc-500 mt-2">
+                      {activity.description ||
+                        "Keine Beschreibung vorhanden."}
+                    </p>
+
+                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
+                      <span>
+                        Benutzer:{" "}
+                        {activity.user ||
+                          activity.userName ||
+                          "System"}
+                      </span>
+
+                      <span>
+                        Zeitpunkt:{" "}
+                        {activity.createdAt}
+                      </span>
+
+                      {activity.entityId && (
+                        <span>
+                          ID:{" "}
+                          {activity.entityId}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+
+            if (href) {
+              return (
+                <Link
+                  key={activity.id}
+                  href={href}
+                >
+                  {content}
                 </Link>
-              )
-            )}
-          </div>
-        </div>
+              );
+            }
+
+            return (
+              <div key={activity.id}>
+                {content}
+              </div>
+            );
+          }
+        )}
       </div>
     </div>
   );

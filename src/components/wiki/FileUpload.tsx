@@ -1,156 +1,216 @@
 "use client";
 
 import {
+  ChangeEvent,
   useState,
 } from "react";
 
 import {
-  saveFile,
-} from "../../lib/fileStorage";
+  fileRepository,
+} from "../../lib/fileRepository";
 
 import {
-  saveActivity,
-} from "../../lib/activityStorage";
-
-import {
-  getUser,
-} from "../../lib/userStorage";
-
-import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
 
 type FileUploadProps = {
-  slug: string;
+  pageSlug: string;
+  onUploaded?: () => void;
 };
 
+function getWikiFileKey(
+  pageSlug: string
+) {
+  return `wiki-${pageSlug}`;
+}
+
+function readFileAsDataUrl(
+  file: File
+): Promise<string> {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        () => {
+          resolve(
+            String(
+              reader.result ||
+                ""
+            )
+          );
+        };
+
+      reader.onerror =
+        () => {
+          reject(
+            new Error(
+              "Datei konnte nicht gelesen werden."
+            )
+          );
+        };
+
+      reader.readAsDataURL(
+        file
+      );
+    }
+  );
+}
+
 export default function FileUpload({
-  slug,
+  pageSlug,
+  onUploaded,
 }: FileUploadProps) {
   const [uploading, setUploading] =
     useState(false);
 
-  function getCurrentCompany() {
-    const pages =
-      getStoredPages();
-
-    const page =
-      pages.find(
-        (item: any) =>
-          item.slug === slug
-      );
-
-    return (
-      page?.company ||
-      "Intern"
-    );
-  }
-
-  function handleFileUpload(
-    event: any
+  async function handleFileChange(
+    event: ChangeEvent<HTMLInputElement>
   ) {
-    const file =
-      event.target.files?.[0];
+    const selectedFiles =
+      Array.from(
+        event.target.files ||
+          []
+      );
 
-    if (!file) {
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    if (!slug) {
-      alert(
-        "Es wurde kein Dokument-Slug gefunden."
+    try {
+      setUploading(
+        true
       );
 
-      return;
+      for (const file of selectedFiles) {
+        const data =
+          await readFileAsDataUrl(
+            file
+          );
+
+        await fileRepository.addToKey(
+          getWikiFileKey(
+            pageSlug
+          ),
+          {
+            name:
+              file.name,
+
+            type:
+              file.type ||
+              "application/octet-stream",
+
+            size:
+              file.size,
+
+            data,
+
+            uploadedAt:
+              new Date().toLocaleString(),
+
+            uploadedBy:
+              "System",
+          }
+        );
+
+        void activityRepository.create({
+          type:
+            "created",
+
+          title:
+            "Wiki-Datei hochgeladen",
+
+          description:
+            `Datei "${file.name}" wurde zu Wiki-Seite "${pageSlug}" hochgeladen.`,
+
+          entityType:
+            "wiki",
+
+          entityId:
+            pageSlug,
+
+          userName:
+            "System",
+
+          userEmail:
+            "",
+
+          user:
+            "System",
+
+          companyId:
+            "",
+
+          departmentId:
+            "",
+
+          company:
+            "Intern",
+
+          department:
+            "Allgemein",
+
+          metadata: {
+            pageSlug,
+            fileName:
+              file.name,
+            fileSize:
+              file.size,
+          },
+        });
+      }
+
+      onUploaded?.();
+
+      event.target.value =
+        "";
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Datei konnte nicht hochgeladen werden."
+      );
+    } finally {
+      setUploading(
+        false
+      );
     }
-
-    setUploading(true);
-
-    const reader =
-      new FileReader();
-
-    reader.onload = () => {
-      const user =
-        getUser();
-
-      const company =
-        getCurrentCompany();
-
-      saveFile(slug, {
-        name:
-          file.name,
-
-        type:
-          file.type,
-
-        size:
-          file.size,
-
-        data:
-          reader.result,
-
-        uploadedAt:
-          new Date().toLocaleString(),
-
-        uploadedBy:
-          user?.name ||
-          "Unbekannt",
-      });
-
-      saveActivity({
-        type: "uploaded",
-
-        title:
-          file.name,
-
-        company,
-
-        user:
-          user?.name ||
-          "Unbekannt",
-
-        createdAt:
-          new Date().toLocaleString(),
-      });
-
-      setUploading(false);
-
-      event.target.value = "";
-    };
-
-    reader.onerror = () => {
-      setUploading(false);
-
-      alert(
-        "Datei konnte nicht gelesen werden."
-      );
-    };
-
-    reader.readAsDataURL(file);
   }
 
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-      <h3 className="font-semibold">
-        Anhänge
-      </h3>
+    <div className="border border-dashed border-zinc-300 rounded-2xl p-5 bg-zinc-50">
+      <label className="block">
+        <span className="block font-medium">
+          Dateien hochladen
+        </span>
 
-      <p className="text-sm text-zinc-500 mt-2">
-        Lade Dateien hoch, die zu diesem Dokument gehören.
-      </p>
-
-      <label className="inline-flex mt-5 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition cursor-pointer">
-        {uploading
-          ? "Wird hochgeladen..."
-          : "Datei hochladen"}
+        <span className="block text-sm text-zinc-500 mt-1">
+          Dateien werden in PostgreSQL gespeichert.
+        </span>
 
         <input
           type="file"
-          onChange={handleFileUpload}
+          multiple
+          onChange={(event) =>
+            void handleFileChange(
+              event
+            )
+          }
           disabled={uploading}
-          className="hidden"
+          className="mt-4 block w-full text-sm"
         />
       </label>
+
+      {uploading && (
+        <p className="text-sm text-zinc-500 mt-3">
+          Upload läuft...
+        </p>
+      )}
     </div>
   );
 }

@@ -1,359 +1,120 @@
-import {
-  getCompanyById,
-  getDepartmentById,
-  getDepartmentsByCompanyId,
-} from "./companyStorage";
-
 import type {
   Company,
   Department,
 } from "../types/company";
 
-export type OrganizationReference = {
-  companyId?: string;
-  departmentId?: string;
+import type {
+  Ticket,
+} from "../types/ticket";
+
+type OrganizationLabelSource = {
   company?: string;
   department?: string;
+  companyId?: string;
+  departmentId?: string;
 };
 
-export type OrganizationLabels = {
-  companyId: string;
-  departmentId: string;
-  companyName: string;
-  departmentName: string;
-  companyLabel: string;
-  departmentLabel: string;
-  combinedLabel: string;
-};
-
-export function getCompanyNameByReference(
-  reference: OrganizationReference
-) {
-  if (reference.companyId) {
-    const company =
-      getCompanyById(
-        reference.companyId
-      );
-
-    if (company?.name) {
-      return company.name;
-    }
-  }
-
-  if (reference.company) {
-    return reference.company;
-  }
-
-  return "Intern";
-}
-
-export function getDepartmentNameByReference(
-  reference: OrganizationReference
-) {
-  if (reference.departmentId) {
-    const department =
-      getDepartmentById(
-        reference.departmentId
-      );
-
-    if (department?.name) {
-      return department.name;
-    }
-  }
-
-  if (reference.department) {
-    return reference.department;
-  }
-
-  return "Allgemein";
-}
-
-export function getOrganizationLabels(
-  reference: OrganizationReference
-): OrganizationLabels {
-  const companyName =
-    getCompanyNameByReference(
-      reference
-    );
-
-  const departmentName =
-    getDepartmentNameByReference(
-      reference
-    );
-
-  return {
-    companyId:
-      reference.companyId || "",
-
-    departmentId:
-      reference.departmentId || "",
-
-    companyName,
-
-    departmentName,
-
-    companyLabel:
-      companyName,
-
-    departmentLabel:
-      departmentName,
-
-    combinedLabel:
-      `${companyName} / ${departmentName}`,
-  };
-}
-
-export function getCompanyBadgeClass() {
-  return "bg-emerald-50 text-emerald-700";
-}
-
-export function getDepartmentBadgeClass() {
-  return "bg-indigo-50 text-indigo-700";
-}
-
-export function getOrganizationBadgeClasses() {
-  return {
-    company:
-      getCompanyBadgeClass(),
-
-    department:
-      getDepartmentBadgeClass(),
-  };
-}
-
-export function isSameCompany(
-  first: OrganizationReference,
-  second: OrganizationReference
-) {
-  if (
-    first.companyId &&
-    second.companyId
-  ) {
-    return (
-      first.companyId ===
-      second.companyId
-    );
-  }
-
-  return (
-    getCompanyNameByReference(first)
-      .trim()
-      .toLowerCase() ===
-    getCompanyNameByReference(second)
-      .trim()
-      .toLowerCase()
-  );
-}
-
-export function isSameDepartment(
-  first: OrganizationReference,
-  second: OrganizationReference
-) {
-  if (
-    first.departmentId &&
-    second.departmentId
-  ) {
-    return (
-      first.departmentId ===
-      second.departmentId
-    );
-  }
-
-  return (
-    getDepartmentNameByReference(first)
-      .trim()
-      .toLowerCase() ===
-    getDepartmentNameByReference(second)
-      .trim()
-      .toLowerCase()
-  );
-}
-
-export function matchesOrganizationSearch(
-  reference: OrganizationReference,
-  search: string
-) {
-  const query =
-    search
-      .trim()
-      .toLowerCase();
-
-  if (!query) {
-    return true;
-  }
-
-  const labels =
-    getOrganizationLabels(
-      reference
-    );
-
-  return (
-    labels.companyName
-      .toLowerCase()
-      .includes(query) ||
-    labels.departmentName
-      .toLowerCase()
-      .includes(query) ||
-    labels.combinedLabel
-      .toLowerCase()
-      .includes(query)
-  );
-}
-
-export function matchesCompanyFilter(
-  reference: OrganizationReference,
-  companyId: string
+export function getCompanyNameById(
+  companies: Company[],
+  companyId?: string
 ) {
   if (!companyId) {
-    return true;
+    return "";
   }
 
-  if (
-    reference.companyId &&
-    reference.companyId === companyId
-  ) {
-    return true;
-  }
-
-  const company =
-    getCompanyById(
-      companyId
-    );
-
-  if (!company) {
-    return false;
-  }
-
-  return (
-    getCompanyNameByReference(reference)
-      .trim()
-      .toLowerCase() ===
-    company.name
-      .trim()
-      .toLowerCase()
-  );
-}
-
-export function matchesDepartmentFilter(
-  reference: OrganizationReference,
-  departmentId: string
-) {
-  if (!departmentId) {
-    return true;
-  }
-
-  if (
-    reference.departmentId &&
-    reference.departmentId === departmentId
-  ) {
-    return true;
-  }
-
-  const department =
-    getDepartmentById(
-      departmentId
-    );
-
-  if (!department) {
-    return false;
-  }
-
-  return (
-    getDepartmentNameByReference(reference)
-      .trim()
-      .toLowerCase() ===
-    department.name
-      .trim()
-      .toLowerCase()
-  );
-}
-
-export function getDepartmentsForCompany(
-  companyId: string,
-  allDepartments: Department[]
-) {
-  if (!companyId) {
-    return allDepartments;
-  }
-
-  return allDepartments.filter(
-    (department) =>
-      department.companyId === companyId
-  );
-}
-
-export function getActiveDepartmentsForCompany(
-  companyId: string,
-  allDepartments: Department[]
-) {
-  return getDepartmentsForCompany(
-    companyId,
-    allDepartments
-  ).filter(
-    (department) =>
-      department.status === "active"
-  );
-}
-
-export function getFirstCompany(
-  companies: Company[]
-) {
   return (
     companies.find(
       (company) =>
-        company.status === "active"
-    ) ||
-    companies[0] ||
-    null
+        company.id === companyId
+    )?.name ||
+    ""
   );
 }
 
-export function getFirstDepartmentForCompany(
-  companyId: string,
-  departments: Department[]
+export function getDepartmentNameById(
+  departments: Department[],
+  departmentId?: string
 ) {
-  if (companyId) {
-    const departmentForCompany =
-      departments.find(
-        (department) =>
-          department.companyId === companyId &&
-          department.status === "active"
-      );
-
-    if (departmentForCompany) {
-      return departmentForCompany;
-    }
+  if (!departmentId) {
+    return "";
   }
 
   return (
     departments.find(
       (department) =>
-        department.status === "active"
-    ) ||
-    departments[0] ||
-    null
+        department.id === departmentId
+    )?.name ||
+    ""
   );
 }
 
-export function normalizeOrganizationReference(
-  reference: OrganizationReference
-): OrganizationReference {
+export function getDepartmentsForCompany(
+  departments: Department[],
+  companyId?: string
+) {
+  if (!companyId) {
+    return departments;
+  }
+
+  return departments.filter(
+    (department) =>
+      department.companyId === companyId
+  );
+}
+
+export function getActiveCompanies(
+  companies: Company[]
+) {
+  return companies.filter(
+    (company) =>
+      company.status === "active"
+  );
+}
+
+export function getActiveDepartments(
+  departments: Department[]
+) {
+  return departments.filter(
+    (department) =>
+      department.status === "active"
+  );
+}
+
+export function getActiveDepartmentsForCompany(
+  departments: Department[],
+  companyId?: string
+) {
+  return getDepartmentsForCompany(
+    getActiveDepartments(
+      departments
+    ),
+    companyId
+  );
+}
+
+export function enrichTicketWithOrganization(
+  ticket: Ticket,
+  companies: Company[],
+  departments: Department[]
+): Ticket {
   const companyName =
-    getCompanyNameByReference(
-      reference
-    );
+    getCompanyNameById(
+      companies,
+      ticket.companyId
+    ) ||
+    ticket.company ||
+    "Intern";
 
   const departmentName =
-    getDepartmentNameByReference(
-      reference
-    );
+    getDepartmentNameById(
+      departments,
+      ticket.departmentId
+    ) ||
+    ticket.department ||
+    "Allgemein";
 
   return {
-    companyId:
-      reference.companyId || "",
-
-    departmentId:
-      reference.departmentId || "",
+    ...ticket,
 
     company:
       companyName,
@@ -363,33 +124,55 @@ export function normalizeOrganizationReference(
   };
 }
 
-export function getDepartmentCompanyName(
-  departmentId: string
+export function getCompanyDepartmentLabel(
+  company?: string,
+  department?: string
 ) {
-  const department =
-    getDepartmentById(
-      departmentId
-    );
+  const nextCompany =
+    company ||
+    "Intern";
 
-  if (!department) {
-    return "";
-  }
+  const nextDepartment =
+    department ||
+    "Allgemein";
 
-  const company =
-    getCompanyById(
-      department.companyId
-    );
-
-  return (
-    company?.name ||
-    ""
-  );
+  return `${nextCompany} · ${nextDepartment}`;
 }
 
-export function getCompanyDepartmentCount(
-  companyId: string
+export function getOrganizationLabels(
+  source?: OrganizationLabelSource | null
 ) {
-  return getDepartmentsByCompanyId(
-    companyId
-  ).length;
+  const company =
+    source?.company ||
+    "Intern";
+
+  const department =
+    source?.department ||
+    "Allgemein";
+
+  return {
+    company,
+
+    department,
+
+    companyLabel:
+      company,
+
+    departmentLabel:
+      department,
+
+    label:
+      getCompanyDepartmentLabel(
+        company,
+        department
+      ),
+  };
+}
+
+export function getOrganizationLabel(
+  source?: OrganizationLabelSource | null
+) {
+  return getOrganizationLabels(
+    source
+  ).label;
 }

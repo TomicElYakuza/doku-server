@@ -1,211 +1,109 @@
 import {
-  saveActivity,
-} from "./activityStorage";
+  activityRepository,
+} from "./activityRepository";
 
-import {
-  getCurrentUser,
-} from "./permissions";
-
-type StorageActivityAction =
-  | "exported"
-  | "imported"
-  | "cleared_key"
-  | "cleared_all";
-
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getStorageActivityTitle(
-  action: StorageActivityAction,
-  label?: string
+function createStorageActivity(
+  type: string,
+  title: string,
+  description: string,
+  metadata: Record<
+    string,
+    string | number | boolean | null
+  > = {}
 ) {
-  if (action === "exported") {
-    return "Speicher exportiert";
-  }
+  void activityRepository
+    .create({
+      type,
 
-  if (action === "imported") {
-    return "Speicher importiert";
-  }
+      title,
 
-  if (action === "cleared_key") {
-    return `Speicherbereich gelöscht: ${label || "Unbekannt"}`;
-  }
+      description,
 
-  if (action === "cleared_all") {
-    return "Gesamten lokalen Speicher gelöscht";
-  }
+      entityType:
+        "storage",
 
-  return "Speicher-Aktion";
+      entityId:
+        "system-storage",
+
+      userName:
+        "System",
+
+      userEmail:
+        "",
+
+      user:
+        "System",
+
+      companyId:
+        "",
+
+      departmentId:
+        "",
+
+      company:
+        "Intern",
+
+      department:
+        "Allgemein",
+
+      metadata,
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Storage-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
 }
 
-function getStorageActivityDescription(
-  action: StorageActivityAction,
-  label?: string
-) {
-  if (action === "exported") {
-    return "Lokale DMS-Daten wurden als JSON exportiert.";
-  }
-
-  if (action === "imported") {
-    return "Lokale DMS-Daten wurden aus einer JSON-Datei importiert.";
-  }
-
-  if (action === "cleared_key") {
-    return `Der lokale Speicherbereich "${label || "Unbekannt"}" wurde gelöscht.`;
-  }
-
-  if (action === "cleared_all") {
-    return "Alle lokalen DMS-Daten wurden gelöscht.";
-  }
-
-  return "Eine Speicher-Aktion wurde durchgeführt.";
-}
-
-export function saveStorageActivity(
-  action: StorageActivityAction,
-  options?: {
-    key?: string;
-    label?: string;
-    area?: string;
-    itemCount?: number;
-    size?: number;
-  }
-) {
-  const userContext =
-    getUserContext();
-
-  saveActivity({
-    type:
-      "system",
-
-    title:
-      getStorageActivityTitle(
-        action,
-        options?.label
-      ),
-
-    description:
-      getStorageActivityDescription(
-        action,
-        options?.label
-      ),
-
-    entityId:
-      options?.key ||
-      "storage",
-
-    entityType:
-      "storage",
-
-    userName:
-      userContext.userName,
-
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      userContext.companyId,
-
-    departmentId:
-      userContext.departmentId,
-
-    company:
-      userContext.company,
-
-    department:
-      userContext.department,
-
-    metadata:
-      {
-        action,
-
-        key:
-          options?.key ||
-          "",
-
-        label:
-          options?.label ||
-          "",
-
-        area:
-          options?.area ||
-          "",
-
-        itemCount:
-          options?.itemCount ??
-          0,
-
-        size:
-          options?.size ??
-          0,
-      },
-  });
-}
-
-export function saveStorageExportedActivity() {
-  saveStorageActivity(
-    "exported"
+export function saveStorageClearedActivity() {
+  createStorageActivity(
+    "deleted",
+    "Speicher bereinigt",
+    "Der Anwendungsspeicher wurde bereinigt."
   );
 }
 
-export function saveStorageImportedActivity() {
-  saveStorageActivity(
-    "imported"
+export function saveStorageResetActivity() {
+  createStorageActivity(
+    "restored",
+    "Speicher zurückgesetzt",
+    "Der Anwendungsspeicher wurde zurückgesetzt."
   );
 }
 
-export function saveStorageKeyClearedActivity(
-  options: {
-    key: string;
-    label: string;
-    area: string;
-    itemCount: number;
-    size: number;
-  }
+export function saveStorageImportedActivity(
+  count = 0
 ) {
-  saveStorageActivity(
-    "cleared_key",
-    options
+  createStorageActivity(
+    "created",
+    "Daten importiert",
+    `${count} Datensätze wurden importiert.`,
+    {
+      count,
+    }
   );
 }
 
-export function saveStorageAllClearedActivity() {
-  saveStorageActivity(
-    "cleared_all"
+export function saveStorageExportedActivity(
+  count = 0
+) {
+  createStorageActivity(
+    "system",
+    "Daten exportiert",
+    `${count} Datensätze wurden exportiert.`,
+    {
+      count,
+    }
+  );
+}
+
+export function saveStorageBackupCreatedActivity() {
+  createStorageActivity(
+    "created",
+    "Backup erstellt",
+    "Ein Backup wurde erstellt."
   );
 }

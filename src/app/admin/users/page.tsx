@@ -3,18 +3,32 @@
 import Link from "next/link";
 
 import {
+  FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
-  canManageSystem,
+  adminUserRepository,
+} from "../../../lib/adminUserRepository";
+
+import {
+  companyRepository,
+} from "../../../lib/companyRepository";
+
+import {
+  canManageUsers,
   canViewAdmin,
 } from "../../../lib/permissions";
 
 import {
-  adminUserRepository,
-} from "../../../lib/adminUserRepository";
+  saveUserCreatedActivity,
+  saveUserDeletedActivity,
+  saveUserUpdatedActivity,
+} from "../../../lib/userActivityHelpers";
+
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
 import type {
   AdminUser,
@@ -27,21 +41,37 @@ import type {
   Department,
 } from "../../../types/company";
 
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
+function getRoleLabel(
+  role: UserRole | string
+) {
+  return adminUserRepository.getRoleLabel(
+    role
+  );
+}
 
-import {
-  saveUserCreatedActivity,
-  saveUserDeletedActivity,
-  saveUserUpdatedActivity,
-} from "../../../lib/userActivityHelpers";
+function getRoleClass(
+  role: UserRole | string
+) {
+  return adminUserRepository.getRoleClass(
+    role
+  );
+}
 
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
+function getStatusLabel(
+  status: AdminUserStatus | string
+) {
+  return adminUserRepository.getStatusLabel(
+    status
+  );
+}
 
-type ViewMode =
-  | "cards"
-  | "table";
+function getStatusClass(
+  status: AdminUserStatus | string
+) {
+  return adminUserRepository.getStatusClass(
+    status
+  );
+}
 
 export default function AdminUsersPage() {
   const [mounted, setMounted] =
@@ -71,13 +101,10 @@ export default function AdminUsersPage() {
   const [departmentFilter, setDepartmentFilter] =
     useState("");
 
-  const [viewMode, setViewMode] =
-    useState<ViewMode>("table");
-
   const [showForm, setShowForm] =
     useState(false);
 
-  const [editingId, setEditingId] =
+  const [editingUserId, setEditingUserId] =
     useState("");
 
   const [name, setName] =
@@ -98,249 +125,182 @@ export default function AdminUsersPage() {
   const [departmentId, setDepartmentId] =
     useState("");
 
-  const [company, setCompany] =
-    useState("Intern");
+  const [loading, setLoading] =
+    useState(true);
 
-  const [department, setDepartment] =
-    useState("Allgemein");
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
-    loadData();
+    void loadData();
 
-    function handleUpdate() {
-      loadData();
+    function handleAdminUsersUpdated() {
+      void loadData();
+    }
+
+    function handleCompaniesUpdated() {
+      void loadOrganization();
+    }
+
+    function handleDepartmentsUpdated() {
+      void loadOrganization();
     }
 
     window.addEventListener(
       "adminUsersUpdated",
-      handleUpdate
+      handleAdminUsersUpdated
     );
 
     window.addEventListener(
       "companiesUpdated",
-      handleUpdate
+      handleCompaniesUpdated
     );
 
     window.addEventListener(
       "departmentsUpdated",
-      handleUpdate
+      handleDepartmentsUpdated
     );
 
     return () => {
       window.removeEventListener(
         "adminUsersUpdated",
-        handleUpdate
+        handleAdminUsersUpdated
       );
 
       window.removeEventListener(
         "companiesUpdated",
-        handleUpdate
+        handleCompaniesUpdated
       );
 
       window.removeEventListener(
         "departmentsUpdated",
-        handleUpdate
+        handleDepartmentsUpdated
       );
     };
   }, []);
 
-  function loadData() {
-    const nextCompanies =
-      companyRepository.listCompanies();
+  async function loadOrganization() {
+    try {
+      const [
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-    const nextDepartments =
-      companyRepository.listDepartments();
-
-    setUsers(
-      adminUserRepository.list()
-    );
-
-    setCompanies(
-      nextCompanies
-    );
-
-    setDepartments(
-      nextDepartments
-    );
-
-    if (
-      !companyId &&
-      nextCompanies.length > 0
-    ) {
-      setCompanyId(
-        nextCompanies[0].id
+      setCompanies(
+        nextCompanies
       );
 
-      setCompany(
-        nextCompanies[0].name
+      setDepartments(
+        nextDepartments
       );
-    }
-
-    if (
-      !departmentId &&
-      nextDepartments.length > 0
-    ) {
-      setDepartmentId(
-        nextDepartments[0].id
-      );
-
-      setDepartment(
-        nextDepartments[0].name
+    } catch (loadError) {
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError
       );
     }
   }
 
-  function getCompanyName(
-    nextCompanyId?: string
-  ) {
-    if (!nextCompanyId) {
-      return "";
-    }
-
-    return (
-      companies.find(
-        (item) =>
-          item.id === nextCompanyId
-      )?.name || ""
-    );
-  }
-
-  function getDepartmentName(
-    nextDepartmentId?: string
-  ) {
-    if (!nextDepartmentId) {
-      return "";
-    }
-
-    return (
-      departments.find(
-        (item) =>
-          item.id === nextDepartmentId
-      )?.name || ""
-    );
-  }
-
-  function getSelectableDepartments() {
-    if (!companyId) {
-      return companyRepository.listActiveDepartments();
-    }
-
-    return companyRepository.listActiveDepartmentsByCompanyId(
-      companyId
-    );
-  }
-
-  function handleCompanyChange(
-    nextCompanyId: string
-  ) {
-    setCompanyId(
-      nextCompanyId
-    );
-
-    const selectedCompany =
-      companies.find(
-        (item) =>
-          item.id === nextCompanyId
+  async function loadData() {
+    try {
+      setLoading(
+        true
       );
 
-    setCompany(
-      selectedCompany?.name ||
-        "Intern"
-    );
-
-    const nextDepartments =
-      companyRepository.listActiveDepartmentsByCompanyId(
-        nextCompanyId
-      );
-
-    const firstDepartment =
-      nextDepartments[0];
-
-    setDepartmentId(
-      firstDepartment?.id ||
+      setError(
         ""
-    );
-
-    setDepartment(
-      firstDepartment?.name ||
-        "Allgemein"
-    );
-  }
-
-  function handleDepartmentChange(
-    nextDepartmentId: string
-  ) {
-    setDepartmentId(
-      nextDepartmentId
-    );
-
-    const selectedDepartment =
-      departments.find(
-        (item) =>
-          item.id === nextDepartmentId
       );
 
-    setDepartment(
-      selectedDepartment?.name ||
-        "Allgemein"
-    );
+      const [
+        nextUsers,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          adminUserRepository.list(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
+
+      setUsers(
+        nextUsers
+      );
+
+      setCompanies(
+        nextCompanies
+      );
+
+      setDepartments(
+        nextDepartments
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Benutzer konnten nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
 
   function resetForm() {
-    const activeCompanies =
-      companyRepository.listActiveCompanies();
-
-    const firstCompany =
-      activeCompanies[0];
-
-    const activeDepartments =
-      firstCompany
-        ? companyRepository.listActiveDepartmentsByCompanyId(
-            firstCompany.id
-          )
-        : companyRepository.listActiveDepartments();
-
-    const firstDepartment =
-      activeDepartments[0];
-
-    setEditingId("");
+    setEditingUserId("");
     setName("");
     setEmail("");
     setRole("viewer");
     setStatus("active");
-    setCompanyId(
-      firstCompany?.id ||
-        ""
-    );
-    setDepartmentId(
-      firstDepartment?.id ||
-        ""
-    );
-    setCompany(
-      firstCompany?.name ||
-        "Intern"
-    );
-    setDepartment(
-      firstDepartment?.name ||
-        "Allgemein"
-    );
+    setCompanyId("");
+    setDepartmentId("");
     setShowForm(false);
   }
 
   function openCreateForm() {
     resetForm();
 
-    setShowForm(
-      true
+    const firstCompany =
+      companies[0];
+
+    const firstDepartment =
+      departments.find(
+        (department) =>
+          department.companyId === firstCompany?.id
+      );
+
+    setCompanyId(
+      firstCompany?.id ||
+        ""
     );
+
+    setDepartmentId(
+      firstDepartment?.id ||
+        ""
+    );
+
+    setShowForm(true);
   }
 
   function startEditUser(
     user: AdminUser
   ) {
-    setEditingId(
+    setEditingUserId(
       user.id
     );
 
@@ -370,19 +330,7 @@ export default function AdminUsersPage() {
         ""
     );
 
-    setCompany(
-      user.company ||
-        "Intern"
-    );
-
-    setDepartment(
-      user.department ||
-        "Allgemein"
-    );
-
-    setShowForm(
-      true
-    );
+    setShowForm(true);
 
     window.scrollTo({
       top:
@@ -393,8 +341,176 @@ export default function AdminUsersPage() {
     });
   }
 
-  function handleSaveUser() {
-    if (!canManageSystem()) {
+  function getCompanyName(
+    id?: string
+  ) {
+    if (!id) {
+      return "Intern";
+    }
+
+    return (
+      companies.find(
+        (company) =>
+          company.id === id
+      )?.name ||
+      "Intern"
+    );
+  }
+
+  function getDepartmentName(
+    id?: string
+  ) {
+    if (!id) {
+      return "Allgemein";
+    }
+
+    return (
+      departments.find(
+        (department) =>
+          department.id === id
+      )?.name ||
+      "Allgemein"
+    );
+  }
+
+  const departmentOptions =
+    useMemo(
+      () => {
+        if (!companyId) {
+          return departments;
+        }
+
+        return departments.filter(
+          (department) =>
+            department.companyId === companyId
+        );
+      },
+      [
+        departments,
+        companyId,
+      ]
+    );
+
+  const filteredDepartments =
+    useMemo(
+      () => {
+        if (!companyFilter) {
+          return departments;
+        }
+
+        return departments.filter(
+          (department) =>
+            department.companyId === companyFilter
+        );
+      },
+      [
+        departments,
+        companyFilter,
+      ]
+    );
+
+  const filteredUsers =
+    useMemo(
+      () => {
+        const query =
+          search.trim().toLowerCase();
+
+        return users.filter(
+          (user) => {
+            const companyName =
+              getCompanyName(
+                user.companyId
+              );
+
+            const departmentName =
+              getDepartmentName(
+                user.departmentId
+              );
+
+            const matchesSearch =
+              !query ||
+              [
+                user.name,
+                user.email,
+                user.role,
+                user.status,
+                user.company,
+                user.department,
+                companyName,
+                departmentName,
+                user.createdAt,
+                user.updatedAt,
+                user.lastLoginAt,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(
+                  query
+                );
+
+            const matchesRole =
+              !roleFilter ||
+              user.role === roleFilter;
+
+            const matchesStatus =
+              !statusFilter ||
+              user.status === statusFilter;
+
+            const matchesCompany =
+              !companyFilter ||
+              user.companyId === companyFilter;
+
+            const matchesDepartment =
+              !departmentFilter ||
+              user.departmentId === departmentFilter;
+
+            return (
+              matchesSearch &&
+              matchesRole &&
+              matchesStatus &&
+              matchesCompany &&
+              matchesDepartment
+            );
+          }
+        );
+      },
+      [
+        users,
+        search,
+        roleFilter,
+        statusFilter,
+        companyFilter,
+        departmentFilter,
+        companies,
+        departments,
+      ]
+    );
+
+  const activeUsers =
+    users.filter(
+      (user) =>
+        user.status === "active"
+    );
+
+  const adminUsers =
+    users.filter(
+      (user) =>
+        user.role === "admin"
+    );
+
+  const invitedUsers =
+    users.filter(
+      (user) =>
+        user.status === "invited"
+    );
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!canManageUsers()) {
       alert(
         "Du hast keine Berechtigung, Benutzer zu verwalten."
       );
@@ -412,85 +528,118 @@ export default function AdminUsersPage() {
 
     if (!email.trim()) {
       alert(
-        "Bitte eine E-Mail-Adresse eingeben."
+        "Bitte eine E-Mail eingeben."
       );
 
       return;
     }
 
-    const selectedCompanyName =
+    const companyName =
       getCompanyName(
         companyId
-      ) ||
-      company.trim() ||
-      "Intern";
+      );
 
-    const selectedDepartmentName =
+    const departmentName =
       getDepartmentName(
         departmentId
-      ) ||
-      department.trim() ||
-      "Allgemein";
+      );
 
-    const userData = {
-      name:
-        name.trim(),
+    try {
+      setSaving(
+        true
+      );
 
-      email:
-        email.trim(),
+      if (editingUserId) {
+        const updatedUser =
+          await adminUserRepository.update(
+            editingUserId,
+            {
+              name:
+                name.trim(),
 
-      role,
+              email:
+                email.trim().toLowerCase(),
 
-      status,
+              role,
 
-      companyId,
+              status,
 
-      departmentId,
+              companyId,
 
-      company:
-        selectedCompanyName,
+              departmentId,
 
-      department:
-        selectedDepartmentName,
+              company:
+                companyName,
 
-      lastLoginAt:
-        "",
-    };
+              department:
+                departmentName,
+            }
+          );
 
-    if (editingId) {
-      const updatedUser =
-        adminUserRepository.update(
-          editingId,
-          userData
-        );
+        if (updatedUser) {
+          saveUserUpdatedActivity(
+            updatedUser
+          );
+        }
 
-      if (updatedUser) {
-        saveUserUpdatedActivity(
-          updatedUser
-        );
+        resetForm();
+
+        await loadData();
+
+        return;
       }
+
+      const createdUser =
+        await adminUserRepository.create({
+          name:
+            name.trim(),
+
+          email:
+            email.trim().toLowerCase(),
+
+          role,
+
+          status,
+
+          companyId,
+
+          departmentId,
+
+          company:
+            companyName,
+
+          department:
+            departmentName,
+        });
+
+      saveUserCreatedActivity(
+        createdUser
+      );
 
       resetForm();
 
-      return;
-    }
-
-    const newUser =
-      adminUserRepository.create(
-        userData
+      await loadData();
+    } catch (saveError) {
+      console.error(
+        saveError
       );
 
-    saveUserCreatedActivity(
-      newUser
-    );
-
-    resetForm();
+      alert(
+        saveError instanceof Error
+          ? saveError.message
+          : "Benutzer konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
   }
 
-  function handleDeleteUser(
+  async function handleDeleteUser(
     user: AdminUser
   ) {
-    if (!canManageSystem()) {
+    if (!canManageUsers()) {
       alert(
         "Du hast keine Berechtigung, Benutzer zu löschen."
       );
@@ -507,13 +656,27 @@ export default function AdminUsersPage() {
       return;
     }
 
-    saveUserDeletedActivity(
-      user
-    );
+    try {
+      saveUserDeletedActivity(
+        user
+      );
 
-    adminUserRepository.delete(
-      user.id
-    );
+      await adminUserRepository.delete(
+        user.id
+      );
+
+      await loadData();
+    } catch (deleteError) {
+      console.error(
+        deleteError
+      );
+
+      alert(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Benutzer konnte nicht gelöscht werden."
+      );
+    }
   }
 
   function resetFilters() {
@@ -522,30 +685,6 @@ export default function AdminUsersPage() {
     setStatusFilter("");
     setCompanyFilter("");
     setDepartmentFilter("");
-  }
-
-  function getUserCompany(
-    user: AdminUser
-  ) {
-    return (
-      user.company ||
-      getCompanyName(
-        user.companyId
-      ) ||
-      "Intern"
-    );
-  }
-
-  function getUserDepartment(
-    user: AdminUser
-  ) {
-    return (
-      user.department ||
-      getDepartmentName(
-        user.departmentId
-      ) ||
-      "Allgemein"
-    );
   }
 
   if (!mounted) {
@@ -558,113 +697,6 @@ export default function AdminUsersPage() {
     );
   }
 
-  const adminCount =
-    adminUserRepository.countByRole(
-      "admin"
-    );
-
-  const editorCount =
-    adminUserRepository.countByRole(
-      "editor"
-    );
-
-  const viewerCount =
-    adminUserRepository.countByRole(
-      "viewer"
-    );
-
-  const activeCount =
-    adminUserRepository.countByStatus(
-      "active"
-    );
-
-  const filteredUsers =
-    users.filter(
-      (user) => {
-        const query =
-          search.toLowerCase();
-
-        const userCompany =
-          getUserCompany(
-            user
-          );
-
-        const userDepartment =
-          getUserDepartment(
-            user
-          );
-
-        const matchesSearch =
-          !query ||
-          user.name
-            .toLowerCase()
-            .includes(
-              query
-            ) ||
-          user.email
-            .toLowerCase()
-            .includes(
-              query
-            ) ||
-          adminUserRepository
-            .getRoleLabel(
-              user.role
-            )
-            .toLowerCase()
-            .includes(
-              query
-            ) ||
-          adminUserRepository
-            .getStatusLabel(
-              user.status
-            )
-            .toLowerCase()
-            .includes(
-              query
-            ) ||
-          userCompany
-            .toLowerCase()
-            .includes(
-              query
-            ) ||
-          userDepartment
-            .toLowerCase()
-            .includes(
-              query
-            );
-
-        const matchesRole =
-          !roleFilter ||
-          user.role === roleFilter;
-
-        const matchesStatus =
-          !statusFilter ||
-          user.status === statusFilter;
-
-        const matchesCompany =
-          !companyFilter ||
-          user.companyId === companyFilter ||
-          user.company === getCompanyName(
-            companyFilter
-          );
-
-        const matchesDepartment =
-          !departmentFilter ||
-          user.departmentId === departmentFilter ||
-          user.department === getDepartmentName(
-            departmentFilter
-          );
-
-        return (
-          matchesSearch &&
-          matchesRole &&
-          matchesStatus &&
-          matchesCompany &&
-          matchesDepartment
-        );
-      }
-    );
-
   return (
     <div className="space-y-8">
       <div>
@@ -676,18 +708,18 @@ export default function AdminUsersPage() {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
         <div>
           <h1 className="text-4xl font-bold">
             Benutzerverwaltung
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Benutzer, Rollen, Status, Firmen und Abteilungen verwalten
+            Benutzer, Rollen, Status und Organisationszuordnung aus PostgreSQL verwalten.
           </p>
         </div>
 
-        {canManageSystem() && (
+        {canManageUsers() && (
           <button
             type="button"
             onClick={openCreateForm}
@@ -698,74 +730,38 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Benutzer werden geladen...
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <button
           type="button"
-          onClick={() =>
-            setRoleFilter("")
-          }
+          onClick={resetFilters}
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Gesamt
+            Benutzer gesamt
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
             {users.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setRoleFilter(
-              "admin"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Admins
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {adminCount}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setRoleFilter(
-              "editor"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Bearbeiter
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {editorCount}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setRoleFilter(
-              "viewer"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Leser
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {viewerCount}
           </h2>
         </button>
 
@@ -783,20 +779,69 @@ export default function AdminUsersPage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {activeCount}
+            {activeUsers.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setRoleFilter(
+              "admin"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Administratoren
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {adminUsers.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setStatusFilter(
+              "invited"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Eingeladen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {invitedUsers.length}
           </h2>
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold">
-            {editingId
-              ? "Benutzer bearbeiten"
-              : "Benutzer erstellen"}
-          </h2>
+        <form
+          onSubmit={(event) =>
+            void handleSubmit(
+              event
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+        >
+          <div>
+            <h2 className="text-2xl font-semibold">
+              {editingUserId
+                ? "Benutzer bearbeiten"
+                : "Benutzer erstellen"}
+            </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <p className="text-zinc-500 mt-1">
+              Benutzer wird direkt in PostgreSQL gespeichert.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="block mb-2 font-medium">
                 Name
@@ -810,7 +855,7 @@ export default function AdminUsersPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Name"
+                placeholder="Max Mustermann"
               />
             </div>
 
@@ -820,6 +865,7 @@ export default function AdminUsersPage() {
               </label>
 
               <input
+                type="email"
                 value={email}
                 onChange={(event) =>
                   setEmail(
@@ -827,7 +873,7 @@ export default function AdminUsersPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="email@firma.at"
+                placeholder="max@firma.local"
               />
             </div>
 
@@ -845,16 +891,16 @@ export default function AdminUsersPage() {
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="admin">
-                  Administrator
+                <option value="viewer">
+                  Leser
                 </option>
 
                 <option value="editor">
                   Bearbeiter
                 </option>
 
-                <option value="viewer">
-                  Leser
+                <option value="admin">
+                  Administrator
                 </option>
               </select>
             </div>
@@ -877,12 +923,12 @@ export default function AdminUsersPage() {
                   Aktiv
                 </option>
 
-                <option value="inactive">
-                  Inaktiv
-                </option>
-
                 <option value="invited">
                   Eingeladen
+                </option>
+
+                <option value="inactive">
+                  Inaktiv
                 </option>
               </select>
             </div>
@@ -894,29 +940,41 @@ export default function AdminUsersPage() {
 
               <select
                 value={companyId}
-                onChange={(event) =>
-                  handleCompanyChange(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => {
+                  const nextCompanyId =
+                    event.target.value;
+
+                  setCompanyId(
+                    nextCompanyId
+                  );
+
+                  const firstDepartment =
+                    departments.find(
+                      (department) =>
+                        department.companyId === nextCompanyId
+                    );
+
+                  setDepartmentId(
+                    firstDepartment?.id ||
+                      ""
+                  );
+                }}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Firma auswählen
+                  Keine Firma
                 </option>
 
-                {companyRepository
-                  .listActiveCompanies()
-                  .map(
-                    (item) => (
-                      <option
-                        key={item.id}
-                        value={item.id}
-                      >
-                        {item.name}
-                      </option>
-                    )
-                  )}
+                {companies.map(
+                  (company) => (
+                    <option
+                      key={company.id}
+                      value={company.id}
+                    >
+                      {company.name}
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
@@ -928,23 +986,23 @@ export default function AdminUsersPage() {
               <select
                 value={departmentId}
                 onChange={(event) =>
-                  handleDepartmentChange(
+                  setDepartmentId(
                     event.target.value
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Abteilung auswählen
+                  Keine Abteilung
                 </option>
 
-                {getSelectableDepartments().map(
-                  (item) => (
+                {departmentOptions.map(
+                  (department) => (
                     <option
-                      key={item.id}
-                      value={item.id}
+                      key={department.id}
+                      value={department.id}
                     >
-                      {item.name}
+                      {department.name}
                     </option>
                   )
                 )}
@@ -952,15 +1010,17 @@ export default function AdminUsersPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-6">
+          <div className="flex flex-wrap gap-3">
             <button
-              type="button"
-              onClick={handleSaveUser}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+              type="submit"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
             >
-              {editingId
-                ? "Änderungen speichern"
-                : "Benutzer erstellen"}
+              {saving
+                ? "Speichert..."
+                : editingUserId
+                  ? "Änderungen speichern"
+                  : "Benutzer erstellen"}
             </button>
 
             <button
@@ -971,57 +1031,31 @@ export default function AdminUsersPage() {
               Abbrechen
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
               Suche & Filter
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Filtere Benutzer nach Text, Rolle, Status, Firma und Abteilung.
+              Suche nach Benutzername, E-Mail, Rolle, Status oder Organisation.
             </p>
           </div>
 
-          <div className="flex gap-2 bg-zinc-100 rounded-2xl p-1">
-            <button
-              type="button"
-              onClick={() =>
-                setViewMode(
-                  "cards"
-                )
-              }
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "cards"
-                  ? "bg-white shadow-sm"
-                  : "hover:bg-zinc-200"
-              }`}
-            >
-              Karten
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setViewMode(
-                  "table"
-                )
-              }
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "table"
-                  ? "bg-white shadow-sm"
-                  : "hover:bg-zinc-200"
-              }`}
-            >
-              Tabelle
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+          >
+            Zurücksetzen
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
           <input
             value={search}
             onChange={(event) =>
@@ -1029,8 +1063,8 @@ export default function AdminUsersPage() {
                 event.target.value
               )
             }
-            placeholder="Nach Name, E-Mail, Rolle, Firma oder Abteilung suchen..."
-            className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            placeholder="Benutzer suchen..."
           />
 
           <select
@@ -1076,22 +1110,26 @@ export default function AdminUsersPage() {
               Aktiv
             </option>
 
-            <option value="inactive">
-              Inaktiv
-            </option>
-
             <option value="invited">
               Eingeladen
+            </option>
+
+            <option value="inactive">
+              Inaktiv
             </option>
           </select>
 
           <select
             value={companyFilter}
-            onChange={(event) =>
+            onChange={(event) => {
               setCompanyFilter(
                 event.target.value
-              )
-            }
+              );
+
+              setDepartmentFilter(
+                ""
+              );
+            }}
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
@@ -1099,19 +1137,17 @@ export default function AdminUsersPage() {
             </option>
 
             {companies.map(
-              (item) => (
+              (company) => (
                 <option
-                  key={item.id}
-                  value={item.id}
+                  key={company.id}
+                  value={company.id}
                 >
-                  {item.name}
+                  {company.name}
                 </option>
               )
             )}
           </select>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <select
             value={departmentFilter}
             onChange={(event) =>
@@ -1125,288 +1161,130 @@ export default function AdminUsersPage() {
               Alle Abteilungen
             </option>
 
-            {departments.map(
-              (item) => (
+            {filteredDepartments.map(
+              (department) => (
                 <option
-                  key={item.id}
-                  value={item.id}
+                  key={department.id}
+                  value={department.id}
                 >
-                  {item.name}
+                  {department.name}
                 </option>
               )
             )}
           </select>
-
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="bg-zinc-100 hover:bg-zinc-200 px-5 py-4 rounded-2xl transition"
-          >
-            Filter zurücksetzen
-          </button>
         </div>
 
         <p className="text-sm text-zinc-500 mt-5">
-          {filteredUsers.length} von{" "}
-          {users.length} Benutzern gefunden
+          {filteredUsers.length} von {users.length} Benutzern gefunden.
         </p>
       </div>
 
-      {viewMode === "cards" && (
-        <div className="grid gap-4">
-          {filteredUsers.length === 0 && (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-              <p className="text-zinc-500">
-                Keine Benutzer gefunden.
-              </p>
-            </div>
-          )}
+      <div className="space-y-4">
+        {filteredUsers.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Keine Benutzer gefunden
+            </h2>
 
-          {filteredUsers.map(
-            (user) => {
-              const userCompany =
-                getUserCompany(
-                  user
-                );
+            <p className="text-zinc-500 mt-2">
+              Passe die Filter an oder erstelle einen neuen Benutzer.
+            </p>
+          </div>
+        )}
 
-              const userDepartment =
-                getUserDepartment(
-                  user
-                );
+        {filteredUsers.map(
+          (user) => (
+            <div
+              key={user.id}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+            >
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`text-xs px-3 py-1 rounded-full ${getRoleClass(user.role)}`}>
+                      {getRoleLabel(
+                        user.role
+                      )}
+                    </span>
 
-              return (
-                <div
-                  key={user.id}
-                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getRoleClass(user.role)}`}>
-                          {adminUserRepository.getRoleLabel(
-                            user.role
-                          )}
-                        </span>
+                    <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(user.status)}`}>
+                      {getStatusLabel(
+                        user.status
+                      )}
+                    </span>
 
-                        <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getStatusClass(user.status)}`}>
-                          {adminUserRepository.getStatusLabel(
-                            user.status
-                          )}
-                        </span>
+                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      {getCompanyName(
+                        user.companyId
+                      )}
+                    </span>
 
-                        <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                          {userCompany}
-                        </span>
+                    <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                      {getDepartmentName(
+                        user.departmentId
+                      )}
+                    </span>
+                  </div>
 
-                        <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                          {userDepartment}
-                        </span>
-                      </div>
+                  <h2 className="text-2xl font-bold mt-4">
+                    {user.name}
+                  </h2>
 
-                      <h2 className="text-2xl font-bold mt-4">
-                        {user.name}
-                      </h2>
+                  <p className="text-zinc-500 mt-1">
+                    {user.email}
+                  </p>
 
-                      <p className="text-zinc-500 mt-2">
-                        {user.email}
-                      </p>
+                  <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+                    <span>
+                      Erstellt:{" "}
+                      {user.createdAt}
+                    </span>
 
-                      <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                        <p>
-                          Erstellt:{" "}
-                          {user.createdAt}
-                        </p>
+                    <span>
+                      Aktualisiert:{" "}
+                      {user.updatedAt}
+                    </span>
 
-                        <p>
-                          Aktualisiert:{" "}
-                          {user.updatedAt}
-                        </p>
-
-                        <p>
-                          Letzter Login:{" "}
-                          {user.lastLoginAt ||
-                            "Noch nie"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {canManageSystem() && (
-                      <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            startEditUser(
-                              user
-                            )
-                          }
-                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                        >
-                          Bearbeiten
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleDeleteUser(
-                              user
-                            )
-                          }
-                          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                        >
-                          Löschen
-                        </button>
-                      </div>
-                    )}
+                    <span>
+                      Letzter Login:{" "}
+                      {user.lastLoginAt ||
+                        "Noch nie"}
+                    </span>
                   </div>
                 </div>
-              );
-            }
-          )}
-        </div>
-      )}
 
-      {viewMode === "table" && (
-        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Benutzer
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Rolle
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Status
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Firma
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Abteilung
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold">
-                    Letzter Login
-                  </th>
-
-                  <th className="px-5 py-4 font-semibold text-right">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredUsers.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-8 text-zinc-500"
+                {canManageUsers() && (
+                  <div className="flex flex-wrap gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        startEditUser(
+                          user
+                        )
+                      }
+                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
                     >
-                      Keine Benutzer gefunden.
-                    </td>
-                  </tr>
+                      Bearbeiten
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDeleteUser(
+                          user
+                        )
+                      }
+                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                    >
+                      Löschen
+                    </button>
+                  </div>
                 )}
-
-                {filteredUsers.map(
-                  (user) => {
-                    const userCompany =
-                      getUserCompany(
-                        user
-                      );
-
-                    const userDepartment =
-                      getUserDepartment(
-                        user
-                      );
-
-                    return (
-                      <tr
-                        key={user.id}
-                        className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
-                      >
-                        <td className="px-5 py-4 min-w-[260px]">
-                          <p className="font-semibold">
-                            {user.name}
-                          </p>
-
-                          <p className="text-xs text-zinc-500 mt-1">
-                            {user.email}
-                          </p>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getRoleClass(user.role)}`}>
-                            {adminUserRepository.getRoleLabel(
-                              user.role
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span className={`text-xs px-3 py-1 rounded-full ${adminUserRepository.getStatusClass(user.status)}`}>
-                            {adminUserRepository.getStatusLabel(
-                              user.status
-                            )}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4 text-zinc-600">
-                          {userCompany}
-                        </td>
-
-                        <td className="px-5 py-4 text-zinc-600">
-                          {userDepartment}
-                        </td>
-
-                        <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
-                          {user.lastLoginAt ||
-                            "Noch nie"}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          {canManageSystem() && (
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  startEditUser(
-                                    user
-                                  )
-                                }
-                                className="bg-zinc-900 text-white px-3 py-2 rounded-xl hover:bg-zinc-700 transition"
-                              >
-                                Bearbeiten
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDeleteUser(
-                                    user
-                                  )
-                                }
-                                className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
-                              >
-                                Löschen
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 }

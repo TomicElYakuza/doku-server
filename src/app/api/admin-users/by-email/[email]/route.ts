@@ -112,9 +112,9 @@ export async function PATCH(
         `
         UPDATE admin_users
         SET
-          last_login_at = $1,
+          last_login_at = NOW(),
           updated_at = NOW()
-        WHERE LOWER(email) = LOWER($2)
+        WHERE LOWER(email) = LOWER($1)
         RETURNING
           id,
           name,
@@ -130,7 +130,6 @@ export async function PATCH(
           updated_at
         `,
         [
-          new Date().toLocaleString(),
           decodeURIComponent(
             email
           ),

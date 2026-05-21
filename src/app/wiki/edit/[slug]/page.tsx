@@ -3,77 +3,118 @@
 import Link from "next/link";
 
 import {
+  FormEvent,
   useEffect,
   useState,
 } from "react";
 
 import {
   useParams,
+  useRouter,
 } from "next/navigation";
-
-import ReactMarkdown from "react-markdown";
 
 import {
   wikiRepository,
 } from "../../../../lib/wikiRepository";
 
-import type {
-  WikiPage,
-} from "../../../../lib/wikiRepository";
+import {
+  companyRepository,
+} from "../../../../lib/companyRepository";
 
 import {
-  saveVersion,
-} from "../../../../lib/versionStorage";
+  getCachedCurrentUser,
+  loadCurrentUser,
+} from "../../../../lib/currentUserRepository";
 
 import {
   activityRepository,
 } from "../../../../lib/activityRepository";
 
-import {
-  getUser,
-} from "../../../../lib/userStorage";
+import type {
+  Company,
+  Department,
+} from "../../../../types/company";
 
-import {
-  canEdit,
-} from "../../../../lib/permissions";
+import type {
+  User,
+} from "../../../../types/user";
 
-import FileUpload from "../../../../components/wiki/FileUpload";
+import type {
+  WikiPage,
+} from "../../../../types/wiki";
 
-import FileList from "../../../../components/wiki/FileList";
+function createSlug(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function splitTags(
+  value: string
+) {
+  return value
+    .split(",")
+    .map(
+      (tag) =>
+        tag.trim()
+    )
+    .filter(Boolean);
+}
 
 export default function EditWikiPage() {
   const params =
     useParams();
 
-  const slug =
-    params.slug as string;
+  const router =
+    useRouter();
 
-  const [mounted, setMounted] =
-    useState(false);
+  const originalSlug =
+    String(
+      params.slug ||
+        ""
+    );
 
-  const [allowed, setAllowed] =
-    useState(false);
+  const decodedOriginalSlug =
+    decodeURIComponent(
+      originalSlug
+    );
 
-  const [pageChecked, setPageChecked] =
-    useState(false);
+  const [currentUser, setCurrentUser] =
+    useState<User | null>(
+      getCachedCurrentUser()
+    );
 
-  const [pageFound, setPageFound] =
-    useState(false);
+  const [page, setPage] =
+    useState<WikiPage | null>(null);
 
-  const [documentSlug, setDocumentSlug] =
-    useState("");
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
   const [title, setTitle] =
+    useState("");
+
+  const [slug, setSlug] =
+    useState("");
+
+  const [description, setDescription] =
     useState("");
 
   const [company, setCompany] =
     useState("Intern");
 
-  const [category, setCategory] =
-    useState("");
-
-  const [description, setDescription] =
-    useState("");
+  const [department, setDepartment] =
+    useState("Allgemein");
 
   const [tags, setTags] =
     useState("");
@@ -81,135 +122,155 @@ export default function EditWikiPage() {
   const [content, setContent] =
     useState("");
 
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
   useEffect(() => {
-    setMounted(
-      true
-    );
-
-    const editAllowed =
-      canEdit();
-
-    setAllowed(
-      editAllowed
-    );
-
-    loadPage();
+    void loadData();
   }, [
-    slug,
+    decodedOriginalSlug,
   ]);
 
-  function loadPage() {
-    const decodedSlug =
-      decodeURIComponent(
-        slug
-      );
-
-    const page =
-      (
-        wikiRepository.findBySlug(
-          decodedSlug
-        ) ||
-        wikiRepository.findBySlug(
-          slug
-        )
-      ) as WikiPage | null;
-
-    if (!page) {
-      setPageFound(
-        false
-      );
-
-      setPageChecked(
-        true
-      );
-
+  async function loadData() {
+    if (!decodedOriginalSlug) {
       return;
     }
 
-    setPageFound(
-      true
-    );
-
-    setDocumentSlug(
-      String(
-        page.slug ||
-          decodedSlug
-      )
-    );
-
-    setTitle(
-      String(
-        page.title ||
-          ""
-      )
-    );
-
-    setCompany(
-      String(
-        page.company ||
-          "Intern"
-      )
-    );
-
-    setCategory(
-      String(
-        page.category ||
-          page.department ||
-          ""
-      )
-    );
-
-    setDescription(
-      String(
-        page.description ||
-          page.excerpt ||
-          ""
-      )
-    );
-
-    setContent(
-      String(
-        page.content ||
-          ""
-      )
-    );
-
-    setTags(
-      Array.isArray(
-        page.tags
-      )
-        ? page.tags.join(
-            ", "
-          )
-        : ""
-    );
-
-    setPageChecked(
-      true
-    );
-  }
-
-  function getDocumentHref() {
-    if (!documentSlug) {
-      return "/wiki";
-    }
-
-    return `/wiki/${encodeURIComponent(
-      documentSlug
-    )}`;
-  }
-
-  function goToDocument() {
-    window.location.href =
-      getDocumentHref();
-  }
-
-  function handleSave() {
-    if (!allowed) {
-      alert(
-        "Du hast keine Berechtigung, dieses Dokument zu bearbeiten."
+    try {
+      setLoading(
+        true
       );
 
+      setError(
+        ""
+      );
+
+      const [
+        user,
+        nextPage,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          loadCurrentUser(),
+          wikiRepository.findBySlug(
+            decodedOriginalSlug
+          ),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
+
+      setCurrentUser(
+        user
+      );
+
+      setCompanies(
+        nextCompanies
+      );
+
+      setDepartments(
+        nextDepartments
+      );
+
+      if (!nextPage) {
+        setError(
+          "Wiki-Seite wurde nicht gefunden."
+        );
+
+        return;
+      }
+
+      setPage(
+        nextPage
+      );
+
+      setTitle(
+        nextPage.title ||
+          ""
+      );
+
+      setSlug(
+        nextPage.slug ||
+          ""
+      );
+
+      setDescription(
+        nextPage.description ||
+          nextPage.excerpt ||
+          ""
+      );
+
+      setCompany(
+        nextPage.company ||
+          "Intern"
+      );
+
+      setDepartment(
+        nextPage.department ||
+          nextPage.category ||
+          "Allgemein"
+      );
+
+      setTags(
+        Array.isArray(
+          nextPage.tags
+        )
+          ? nextPage.tags.join(
+              ", "
+            )
+          : ""
+      );
+
+      setContent(
+        nextPage.content ||
+          ""
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Wiki-Seite konnte nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
+
+  function getDepartmentOptions() {
+    const selectedCompany =
+      companies.find(
+        (item) =>
+          item.name === company
+      );
+
+    if (!selectedCompany) {
+      return departments;
+    }
+
+    return departments.filter(
+      (item) =>
+        item.companyId === selectedCompany.id
+    );
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!page) {
       return;
     }
 
@@ -221,473 +282,418 @@ export default function EditWikiPage() {
       return;
     }
 
-    if (!company.trim()) {
+    const nextSlug =
+      slug.trim()
+        ? createSlug(
+            slug
+          )
+        : createSlug(
+            title
+          );
+
+    if (!nextSlug) {
       alert(
-        "Bitte eine Firma eingeben."
+        "Bitte einen gültigen Slug eingeben."
       );
 
       return;
     }
 
-    if (!category.trim()) {
-      alert(
-        "Bitte eine Kategorie / Abteilung eingeben."
+    try {
+      setSaving(
+        true
       );
 
-      return;
-    }
+      const updatedPage =
+        await wikiRepository.update(
+          decodedOriginalSlug,
+          {
+            title:
+              title.trim(),
 
-    const decodedSlug =
-      decodeURIComponent(
-        slug
-      );
+            slug:
+              nextSlug,
 
-    const existingPage =
-      (
-        wikiRepository.findBySlug(
-          documentSlug
-        ) ||
-        wikiRepository.findBySlug(
-          decodedSlug
-        ) ||
-        wikiRepository.findBySlug(
-          slug
-        )
-      ) as WikiPage | null;
+            description:
+              description.trim(),
 
-    if (!existingPage) {
-      alert(
-        "Dokument nicht gefunden."
-      );
+            excerpt:
+              description.trim(),
 
-      return;
-    }
+            company:
+              company ||
+              "Intern",
 
-    const existingSlug =
-      String(
-        existingPage.slug ||
-          documentSlug ||
-          decodedSlug
-      );
+            category:
+              department ||
+              "Allgemein",
 
-    saveVersion(
-      existingSlug,
-      {
+            department:
+              department ||
+              "Allgemein",
+
+            author:
+              page.author ||
+              currentUser?.name ||
+              "System",
+
+            tags:
+              splitTags(
+                tags
+              ),
+
+            content,
+          }
+        );
+
+      if (!updatedPage) {
+        alert(
+          "Wiki-Seite konnte nicht gespeichert werden."
+        );
+
+        return;
+      }
+
+      void activityRepository.create({
+        type:
+          "edited",
+
         title:
-          existingPage.title,
-
-        company:
-          existingPage.company ||
-          "Intern",
-
-        category:
-          existingPage.category,
+          "Wiki-Seite bearbeitet",
 
         description:
-          existingPage.description ||
-          existingPage.excerpt ||
+          `Wiki-Seite "${updatedPage.title}" wurde bearbeitet.`,
+
+        entityType:
+          "wiki",
+
+        entityId:
+          updatedPage.slug,
+
+        userName:
+          currentUser?.name ||
+          "System",
+
+        userEmail:
+          currentUser?.email ||
           "",
 
-        tags:
-          existingPage.tags ||
-          [],
+        user:
+          currentUser?.name ||
+          "System",
 
-        content:
-          existingPage.content ||
+        companyId:
+          currentUser?.companyId ||
           "",
 
-        updatedAt:
-          existingPage.updatedAt,
+        departmentId:
+          currentUser?.departmentId ||
+          "",
 
-        savedAt:
-          new Date().toLocaleString(),
-      }
-    );
+        company:
+          updatedPage.company ||
+          "Intern",
 
-    const updatedPage =
-      wikiRepository.update(
-        existingSlug,
-        {
-          title:
-            title.trim(),
+        department:
+          updatedPage.department ||
+          "Allgemein",
 
-          company:
-            company.trim() ||
-            "Intern",
+        metadata: {
+          pageSlug:
+            updatedPage.slug,
 
-          category:
-            category.trim(),
+          previousSlug:
+            decodedOriginalSlug,
 
-          department:
-            category.trim(),
+          pageTitle:
+            updatedPage.title,
+        },
+      });
 
-          description:
-            description.trim(),
-
-          excerpt:
-            description.trim(),
-
-          tags:
-            tags
-              .split(",")
-              .map(
-                (tag) =>
-                  tag.trim()
-              )
-              .filter(Boolean),
-
-          content:
-            content.trim(),
-
-          updatedAt:
-            new Date().toLocaleDateString(),
-        }
+      router.push(
+        `/wiki/${encodeURIComponent(
+          updatedPage.slug
+        )}`
+      );
+    } catch (saveError) {
+      console.error(
+        saveError
       );
 
-    activityRepository.create({
-      type:
-        "edited",
+      alert(
+        saveError instanceof Error
+          ? saveError.message
+          : "Wiki-Seite konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
+  }
 
-      title:
-        title.trim(),
-
-      company:
-        company.trim() ||
-        "Intern",
-
-      user:
-        getUser()?.name ||
-        "Unbekannt",
-
-      createdAt:
-        new Date().toLocaleString(),
-    });
-
-    window.location.href =
-      `/wiki/${encodeURIComponent(
-        String(
-          updatedPage?.slug ||
-            existingSlug
-        )
-      )}`;
+  if (loading) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <p className="text-zinc-500">
+          Wiki-Seite wird geladen...
+        </p>
+      </div>
+    );
   }
 
   if (
-    !mounted ||
-    !pageChecked
+    error ||
+    !page
   ) {
-    return null;
-  }
-
-  if (!allowed) {
     return (
-      <div className="space-y-8">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-4xl font-bold">
-            Keine Berechtigung
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du darfst dieses Dokument nicht bearbeiten.
-          </p>
-
-          <Link
-            href={getDocumentHref()}
-            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            ← Zurück zum Dokument
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (!pageFound) {
-    return (
-      <div className="space-y-8">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-          <Link
-            href="/wiki"
-            className="hover:text-zinc-900 transition"
-          >
-            Wiki
-          </Link>
-
-          <span>/</span>
-
-          <span>
-            Bearbeiten
-          </span>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-4xl font-bold">
-            Dokument nicht gefunden
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Die Seite mit dem Slug{" "}
-            <span className="font-mono text-zinc-700">
-              {slug}
-            </span>{" "}
-            kann nicht bearbeitet werden.
-          </p>
-
-          <div className="flex flex-wrap gap-3 mt-6">
-            <Link
-              href="/wiki"
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Zurück zur Wiki-Übersicht
-            </Link>
-
-            <Link
-              href="/wiki/trash"
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Papierkorb öffnen
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const previewTags =
-    tags
-      .split(",")
-      .map(
-        (tag) =>
-          tag.trim()
-      )
-      .filter(Boolean);
-
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+      <div className="space-y-6">
         <Link
           href="/wiki"
-          className="hover:text-zinc-900 transition"
-        >
-          Wiki
-        </Link>
-
-        <span>/</span>
-
-        <Link
-          href={getDocumentHref()}
-          className="hover:text-zinc-900 transition"
-        >
-          {documentSlug || slug}
-        </Link>
-
-        <span>/</span>
-
-        <span>
-          Bearbeiten
-        </span>
-      </div>
-
-      <div>
-        <button
-          type="button"
-          onClick={goToDocument}
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
-          ← Zurück zum Dokument
-        </button>
-      </div>
+          ← Zurück zum Wiki
+        </Link>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-4xl font-bold">
-            Wiki Seite bearbeiten
+          <h1 className="text-3xl font-bold">
+            Seite nicht gefunden
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Dokument aktualisieren.
+            {error ||
+              "Diese Wiki-Seite existiert nicht."}
           </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
-
-              <input
-                value={title}
-                onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-
-              <input
-                value={company}
-                onChange={(event) =>
-                  setCompany(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie / Abteilung
-              </label>
-
-              <input
-                value={category}
-                onChange={(event) =>
-                  setCategory(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Beschreibung
-              </label>
-
-              <input
-                value={description}
-                onChange={(event) =>
-                  setDescription(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Inhalt
-              </label>
-
-              <textarea
-                value={content}
-                onChange={(event) =>
-                  setContent(
-                    event.target.value
-                  )
-                }
-                rows={20}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Tags
-              </label>
-
-              <input
-                value={tags}
-                onChange={(event) =>
-                  setTags(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="vpn, remote, it"
-              />
-
-              <p className="text-sm text-zinc-500 mt-2">
-                Mit Komma trennen.
-              </p>
-            </div>
-
-            <div className="md:col-span-2 space-y-4">
-              <FileUpload
-                slug={documentSlug || slug}
-              />
-
-              <FileList
-                slug={documentSlug || slug}
-                editable={true}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              Änderungen speichern
-            </button>
-
-            <button
-              type="button"
-              onClick={goToDocument}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold">
-              Live Vorschau
-            </h2>
-
-            <p className="text-zinc-500 mt-2">
-              Markdown Darstellung
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 mb-6">
-            <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
-              {company || "Intern"}
-            </span>
-
-            {category && (
-              <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
-                {category}
-              </span>
-            )}
-          </div>
-
-          {previewTags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {previewTags.map(
-                (tag) => (
-                  <span
-                    key={tag}
-                    className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
-                  >
-                    #{tag}
-                  </span>
-                )
-              )}
-            </div>
-          )}
-
-          <article className="prose prose-zinc max-w-none">
-            <ReactMarkdown>
-              {content ||
-                "Noch kein Inhalt vorhanden."}
-            </ReactMarkdown>
-          </article>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Link
+          href={`/wiki/${encodeURIComponent(
+            decodedOriginalSlug
+          )}`}
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zur Wiki-Seite
+        </Link>
+      </div>
+
+      <div>
+        <h1 className="text-4xl font-bold">
+          Wiki-Seite bearbeiten
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Bearbeite Inhalt, Zuordnung und Tags dieser Seite.
+        </p>
+      </div>
+
+      <form
+        onSubmit={(event) =>
+          void handleSubmit(
+            event
+          )
+        }
+        className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label className="block mb-2 font-medium">
+              Titel
+            </label>
+
+            <input
+              value={title}
+              onChange={(event) =>
+                setTitle(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Titel der Wiki-Seite"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Slug
+            </label>
+
+            <input
+              value={slug}
+              onChange={(event) =>
+                setSlug(
+                  createSlug(
+                    event.target.value
+                  )
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="wiki-seite"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Firma
+            </label>
+
+            <select
+              value={company}
+              onChange={(event) => {
+                const nextCompany =
+                  event.target.value;
+
+                setCompany(
+                  nextCompany
+                );
+
+                const selectedCompany =
+                  companies.find(
+                    (item) =>
+                      item.name === nextCompany
+                  );
+
+                const firstDepartment =
+                  departments.find(
+                    (item) =>
+                      item.companyId === selectedCompany?.id
+                  );
+
+                setDepartment(
+                  firstDepartment?.name ||
+                    "Allgemein"
+                );
+              }}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="Intern">
+                Intern
+              </option>
+
+              {companies.map(
+                (item) => (
+                  <option
+                    key={item.id}
+                    value={item.name}
+                  >
+                    {item.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Abteilung
+            </label>
+
+            <select
+              value={department}
+              onChange={(event) =>
+                setDepartment(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="Allgemein">
+                Allgemein
+              </option>
+
+              {getDepartmentOptions().map(
+                (item) => (
+                  <option
+                    key={item.id}
+                    value={item.name}
+                  >
+                    {item.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Beschreibung
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(event) =>
+                setDescription(
+                  event.target.value
+                )
+              }
+              rows={3}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+              placeholder="Kurze Beschreibung..."
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Tags
+            </label>
+
+            <input
+              value={tags}
+              onChange={(event) =>
+                setTags(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="it, onboarding, prozess"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Inhalt
+            </label>
+
+            <textarea
+              value={content}
+              onChange={(event) =>
+                setContent(
+                  event.target.value
+                )
+              }
+              rows={18}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y font-mono text-sm"
+              placeholder="Inhalt der Wiki-Seite..."
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+          >
+            {saving
+              ? "Speichert..."
+              : "Änderungen speichern"}
+          </button>
+
+          <Link
+            href={`/wiki/${encodeURIComponent(
+              decodedOriginalSlug
+            )}`}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Abbrechen
+          </Link>
+        </div>
+      </form>
     </div>
   );
 }

@@ -3,8 +3,9 @@
 import Link from "next/link";
 
 import {
-  ChangeEvent,
+  FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -12,19 +13,10 @@ import {
   newsRepository,
 } from "../../../lib/newsRepository";
 
-import type {
-  NewsCategory,
-  NewsPost,
-} from "../../../types/news";
-
 import {
-  readNewsFiles,
-  saveNewsFiles,
-} from "../../../lib/newsFileHelpers";
-
-import type {
-  PendingNewsFile,
-} from "../../../lib/newsFileHelpers";
+  canManageSystem,
+  canViewAdmin,
+} from "../../../lib/permissions";
 
 import {
   saveNewsCreatedActivity,
@@ -32,36 +24,41 @@ import {
   saveNewsUpdatedActivity,
 } from "../../../lib/newsActivityHelpers";
 
-import {
-  canCreate,
-  canDelete,
-  canEdit,
-  canViewAdmin,
-  getCurrentUser,
-} from "../../../lib/permissions";
-
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
+
+import type {
+  NewsCategory,
+  NewsPost,
+} from "../../../types/news";
+
+const defaultCategories: Array<NewsCategory | string> = [
+  "Allgemein",
+  "System",
+  "Tickets",
+  "Wiki",
+  "Organisation",
+];
 
 function getCategoryClass(
   category: string
 ) {
-  if (category === "Tickets") {
+  if (category === "System") {
     return "bg-blue-50 text-blue-700";
+  }
+
+  if (category === "Tickets") {
+    return "bg-orange-100 text-orange-700";
   }
 
   if (category === "Wiki") {
     return "bg-indigo-50 text-indigo-700";
   }
 
-  if (category === "System") {
-    return "bg-zinc-100 text-zinc-700";
-  }
-
   if (category === "Organisation") {
     return "bg-emerald-50 text-emerald-700";
   }
 
-  return "bg-amber-50 text-amber-700";
+  return "bg-zinc-100 text-zinc-700";
 }
 
 export default function AdminNewsPage() {
@@ -74,10 +71,16 @@ export default function AdminNewsPage() {
   const [search, setSearch] =
     useState("");
 
+  const [categoryFilter, setCategoryFilter] =
+    useState("");
+
+  const [pinnedFilter, setPinnedFilter] =
+    useState("");
+
   const [showForm, setShowForm] =
     useState(false);
 
-  const [editingId, setEditingId] =
+  const [editingPostId, setEditingPostId] =
     useState("");
 
   const [title, setTitle] =
@@ -90,21 +93,32 @@ export default function AdminNewsPage() {
     useState("");
 
   const [category, setCategory] =
-    useState<NewsCategory>("Allgemein");
+    useState<NewsCategory | string>("Allgemein");
+
+  const [author, setAuthor] =
+    useState("System");
 
   const [pinned, setPinned] =
     useState(false);
 
-  const [pendingFiles, setPendingFiles] =
-    useState<PendingNewsFile[]>([]);
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
-    loadPosts();
+    void loadPosts();
 
     function handleNewsUpdated() {
-      loadPosts();
+      void loadPosts();
     }
 
     window.addEventListener(
@@ -120,49 +134,60 @@ export default function AdminNewsPage() {
     };
   }, []);
 
-  function loadPosts() {
-    setPosts(
-      newsRepository.list()
-    );
+  async function loadPosts() {
+    try {
+      setLoading(
+        true
+      );
+
+      setError(
+        ""
+      );
+
+      const nextPosts =
+        await newsRepository.list();
+
+      setPosts(
+        nextPosts
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "News konnten nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
 
   function resetForm() {
-    setEditingId("");
+    setEditingPostId("");
     setTitle("");
     setDescription("");
     setContent("");
     setCategory("Allgemein");
+    setAuthor("System");
     setPinned(false);
-    setPendingFiles([]);
     setShowForm(false);
   }
 
   function openCreateForm() {
-    if (!canCreate()) {
-      alert(
-        "Du hast keine Berechtigung, News zu erstellen."
-      );
-
-      return;
-    }
-
     resetForm();
 
     setShowForm(true);
   }
 
-  function openEditForm(
+  function startEditPost(
     post: NewsPost
   ) {
-    if (!canEdit()) {
-      alert(
-        "Du hast keine Berechtigung, News zu bearbeiten."
-      );
-
-      return;
-    }
-
-    setEditingId(
+    setEditingPostId(
       post.id
     );
 
@@ -179,7 +204,13 @@ export default function AdminNewsPage() {
     );
 
     setCategory(
-      post.category
+      post.category ||
+        "Allgemein"
+    );
+
+    setAuthor(
+      post.author ||
+        "System"
     );
 
     setPinned(
@@ -188,60 +219,101 @@ export default function AdminNewsPage() {
       )
     );
 
-    setPendingFiles([]);
-
     setShowForm(true);
+
+    window.scrollTo({
+      top:
+        0,
+
+      behavior:
+        "smooth",
+    });
   }
 
-  async function handleNewsFilesChange(
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const files =
-      await readNewsFiles(
-        event.target.files
-      );
-
-    setPendingFiles(
-      (currentFiles) => [
-        ...currentFiles,
-        ...files,
+  const categories =
+    useMemo(
+      () =>
+        Array.from(
+          new Set([
+            ...defaultCategories,
+            ...posts.map(
+              (post) =>
+                String(
+                  post.category ||
+                    "Allgemein"
+                )
+            ),
+          ])
+        ),
+      [
+        posts,
       ]
     );
 
-    event.target.value =
-      "";
-  }
+  const filteredPosts =
+    useMemo(
+      () => {
+        const query =
+          search.trim().toLowerCase();
 
-  function removePendingFile(
-    index: number
-  ) {
-    setPendingFiles(
-      (currentFiles) =>
-        currentFiles.filter(
-          (_file, fileIndex) =>
-            fileIndex !== index
-        )
+        return posts.filter(
+          (post) => {
+            const matchesSearch =
+              !query ||
+              [
+                post.title,
+                post.description,
+                post.content,
+                post.category,
+                post.author,
+                post.createdAt,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(
+                  query
+                );
+
+            const matchesCategory =
+              !categoryFilter ||
+              post.category === categoryFilter;
+
+            const matchesPinned =
+              !pinnedFilter ||
+              (pinnedFilter === "pinned" && post.pinned) ||
+              (pinnedFilter === "normal" && !post.pinned);
+
+            return (
+              matchesSearch &&
+              matchesCategory &&
+              matchesPinned
+            );
+          }
+        );
+      },
+      [
+        posts,
+        search,
+        categoryFilter,
+        pinnedFilter,
+      ]
     );
-  }
 
-  function handleSaveNews() {
-    if (
-      !editingId &&
-      !canCreate()
-    ) {
+  const pinnedCount =
+    posts.filter(
+      (post) =>
+        post.pinned
+    ).length;
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!canManageSystem()) {
       alert(
-        "Du hast keine Berechtigung, News zu erstellen."
-      );
-
-      return;
-    }
-
-    if (
-      editingId &&
-      !canEdit()
-    ) {
-      alert(
-        "Du hast keine Berechtigung, News zu bearbeiten."
+        "Du hast keine Berechtigung, News zu verwalten."
       );
 
       return;
@@ -255,101 +327,96 @@ export default function AdminNewsPage() {
       return;
     }
 
-    if (!description.trim()) {
-      alert(
-        "Bitte eine Kurzbeschreibung eingeben."
+    try {
+      setSaving(
+        true
       );
 
-      return;
-    }
+      if (editingPostId) {
+        const updatedPost =
+          await newsRepository.update(
+            editingPostId,
+            {
+              title:
+                title.trim(),
 
-    if (!content.trim()) {
-      alert(
-        "Bitte einen Inhalt eingeben."
-      );
+              description:
+                description.trim(),
 
-      return;
-    }
+              content:
+                content.trim(),
 
-    if (editingId) {
-      const updatedPost =
-        newsRepository.update(
-          editingId,
-          {
-            title:
-              title.trim(),
+              category:
+                category || "Allgemein",
 
-            description:
-              description.trim(),
+              author:
+                author.trim() || "System",
 
-            content:
-              content.trim(),
+              pinned,
+            }
+          );
 
-            category,
-
-            pinned,
-          }
-        );
-
-      if (updatedPost) {
-        if (pendingFiles.length > 0) {
-          saveNewsFiles(
-            updatedPost.id,
-            pendingFiles
+        if (updatedPost) {
+          saveNewsUpdatedActivity(
+            updatedPost
           );
         }
 
-        saveNewsUpdatedActivity(
-          updatedPost
-        );
+        resetForm();
+
+        await loadPosts();
+
+        return;
       }
+
+      const createdPost =
+        await newsRepository.create({
+          title:
+            title.trim(),
+
+          description:
+            description.trim(),
+
+          content:
+            content.trim(),
+
+          category:
+            category || "Allgemein",
+
+          author:
+            author.trim() || "System",
+
+          pinned,
+        });
+
+      saveNewsCreatedActivity(
+        createdPost
+      );
 
       resetForm();
 
-      return;
-    }
+      await loadPosts();
+    } catch (saveError) {
+      console.error(
+        saveError
+      );
 
-    const user =
-      getCurrentUser();
-
-    const newPost =
-      newsRepository.create({
-        title:
-          title.trim(),
-
-        description:
-          description.trim(),
-
-        content:
-          content.trim(),
-
-        category,
-
-        author:
-          user?.name ||
-          "Unbekannt",
-
-        pinned,
-      });
-
-    if (pendingFiles.length > 0) {
-      saveNewsFiles(
-        newPost.id,
-        pendingFiles
+      alert(
+        saveError instanceof Error
+          ? saveError.message
+          : "News konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
       );
     }
-
-    saveNewsCreatedActivity(
-      newPost
-    );
-
-    resetForm();
   }
 
-  function handleDeleteNews(
+  async function handleDeletePost(
     post: NewsPost
   ) {
-    if (!canDelete()) {
+    if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, News zu löschen."
       );
@@ -366,13 +433,33 @@ export default function AdminNewsPage() {
       return;
     }
 
-    saveNewsDeletedActivity(
-      post
-    );
+    try {
+      saveNewsDeletedActivity(
+        post
+      );
 
-    newsRepository.delete(
-      post.id
-    );
+      await newsRepository.delete(
+        post.id
+      );
+
+      await loadPosts();
+    } catch (deleteError) {
+      console.error(
+        deleteError
+      );
+
+      alert(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "News konnte nicht gelöscht werden."
+      );
+    }
+  }
+
+  function resetFilters() {
+    setSearch("");
+    setCategoryFilter("");
+    setPinnedFilter("");
   }
 
   if (!mounted) {
@@ -385,19 +472,6 @@ export default function AdminNewsPage() {
     );
   }
 
-  const filteredPosts =
-    search.trim()
-      ? newsRepository.search(
-          search
-        )
-      : posts;
-
-  const pinnedCount =
-    posts.filter(
-      (post) =>
-        post.pinned
-    ).length;
-
   return (
     <div className="space-y-8">
       <div>
@@ -409,18 +483,18 @@ export default function AdminNewsPage() {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
         <div>
           <h1 className="text-4xl font-bold">
             News-Verwaltung
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Interne Meldungen erstellen, bearbeiten, löschen und für die Startseite vorbereiten
+            Neuigkeiten erstellen, bearbeiten, fixieren und löschen.
           </p>
         </div>
 
-        {canCreate() && (
+        {canManageSystem() && (
           <button
             type="button"
             onClick={openCreateForm}
@@ -431,97 +505,163 @@ export default function AdminNewsPage() {
         )}
       </div>
 
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            News werden geladen...
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            News gesamt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {posts.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setPinnedFilter(
+              "pinned"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Fixiert
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {pinnedCount}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setPinnedFilter(
+              "normal"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Normal
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {posts.length - pinnedCount}
+          </h2>
+        </button>
+      </div>
+
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/60 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-white border border-zinc-200 rounded-3xl p-8 shadow-2xl">
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <h2 className="text-2xl font-semibold">
-                  {editingId
-                    ? `News #${editingId} bearbeiten`
-                    : "News erstellen"}
-                </h2>
+        <form
+          onSubmit={(event) =>
+            void handleSubmit(
+              event
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+        >
+          <div>
+            <h2 className="text-2xl font-semibold">
+              {editingPostId
+                ? "News bearbeiten"
+                : "News erstellen"}
+            </h2>
 
-                <p className="text-zinc-500 mt-2">
-                  Bearbeite die Meldung für die interne News-Startseite.
-                </p>
-              </div>
+            <p className="text-zinc-500 mt-1">
+              Beitrag wird direkt in PostgreSQL gespeichert.
+            </p>
+          </div>
 
-              <button
-                type="button"
-                onClick={resetForm}
-                className="h-11 w-11 rounded-2xl bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition"
-                aria-label="Fenster schließen"
-              >
-                ×
-              </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block mb-2 font-medium">
+                Titel
+              </label>
+
+              <input
+                value={title}
+                onChange={(event) =>
+                  setTitle(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Titel der News"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-              <div className="md:col-span-2">
-                <label className="block mb-2 font-medium">
-                  Titel
-                </label>
+            <div>
+              <label className="block mb-2 font-medium">
+                Kategorie
+              </label>
 
-                <input
-                  value={title}
-                  onChange={(event) =>
-                    setTitle(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                  placeholder="Titel der News"
-                />
-              </div>
+              <select
+                value={category}
+                onChange={(event) =>
+                  setCategory(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                {categories.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
 
-              <div>
-                <label className="block mb-2 font-medium">
-                  Kategorie
-                </label>
+            <div>
+              <label className="block mb-2 font-medium">
+                Autor
+              </label>
 
-                <select
-                  value={category}
-                  onChange={(event) =>
-                    setCategory(
-                      event.target.value as NewsCategory
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                >
-                  <option value="Allgemein">
-                    Allgemein
-                  </option>
+              <input
+                value={author}
+                onChange={(event) =>
+                  setAuthor(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="System"
+              />
+            </div>
 
-                  <option value="System">
-                    System
-                  </option>
-
-                  <option value="Tickets">
-                    Tickets
-                  </option>
-
-                  <option value="Wiki">
-                    Wiki
-                  </option>
-
-                  <option value="Organisation">
-                    Organisation
-                  </option>
-                </select>
-              </div>
-
-              <label className="flex items-center justify-between gap-4 border border-zinc-200 rounded-2xl px-5 py-4">
-                <span>
-                  <span className="block font-medium">
-                    Fixieren
-                  </span>
-
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Beitrag als wichtige Meldung markieren.
-                  </span>
-                </span>
-
+            <div className="flex items-end">
+              <label className="flex items-center gap-3 bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 w-full">
                 <input
                   type="checkbox"
                   checked={pinned}
@@ -530,337 +670,255 @@ export default function AdminNewsPage() {
                       event.target.checked
                     )
                   }
-                  className="h-5 w-5"
                 />
+
+                <span className="font-medium">
+                  News fixieren
+                </span>
+              </label>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
+                Kurzbeschreibung
               </label>
 
-              <div className="md:col-span-2">
-                <label className="block mb-2 font-medium">
-                  Kurzbeschreibung
-                </label>
-
-                <textarea
-                  value={description}
-                  onChange={(event) =>
-                    setDescription(
-                      event.target.value
-                    )
-                  }
-                  rows={3}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                  placeholder="Kurze Zusammenfassung..."
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block mb-2 font-medium">
-                  Inhalt
-                </label>
-
-                <textarea
-                  value={content}
-                  onChange={(event) =>
-                    setContent(
-                      event.target.value
-                    )
-                  }
-                  rows={8}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                  placeholder="Vollständiger Inhalt der News..."
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block mb-2 font-medium">
-                  Dateien & Anhänge
-                </label>
-
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleNewsFilesChange}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                />
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  Dateien und Anhänge werden beim Speichern der News zugeordnet.
-                </p>
-
-                {pendingFiles.length > 0 && (
-                  <div className="grid gap-2 mt-4">
-                    {pendingFiles.map(
-                      (file, index) => (
-                        <div
-                          key={`${file.name}-${index}`}
-                          className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl px-4 py-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">
-                              {file.name}
-                            </p>
-
-                            <p className="text-xs text-zinc-500">
-                              {Math.round(
-                                file.size / 1024
-                              )} KB
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removePendingFile(
-                                index
-                              )
-                            }
-                            className="text-sm bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
-                          >
-                            Entfernen
-                          </button>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
+              <textarea
+                value={description}
+                onChange={(event) =>
+                  setDescription(
+                    event.target.value
+                  )
+                }
+                rows={3}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                placeholder="Kurze Beschreibung..."
+              />
             </div>
 
-            <div className="flex flex-wrap justify-end gap-3 mt-8 pt-6 border-t border-zinc-200">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-              >
-                Abbrechen
-              </button>
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
+                Inhalt
+              </label>
 
-              <button
-                type="button"
-                onClick={handleSaveNews}
-                className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
-              >
-                {editingId
-                  ? "Änderungen speichern"
-                  : "News veröffentlichen"}
-              </button>
+              <textarea
+                value={content}
+                onChange={(event) =>
+                  setContent(
+                    event.target.value
+                  )
+                }
+                rows={12}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
+                placeholder="Inhalt der News..."
+              />
             </div>
           </div>
-        </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : editingPostId
+                  ? "Änderungen speichern"
+                  : "News erstellen"}
+            </button>
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            News gesamt
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {posts.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Fixiert
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {pinnedCount}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Kategorien
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {newsRepository.listCategories().length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Treffer
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {filteredPosts.length}
-          </h2>
-        </div>
-      </div>
-
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium mb-2">
-              News suchen
-            </label>
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Suche & Filter
+            </h2>
 
-            <input
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              placeholder="Suche nach Titel, Inhalt, Kategorie, Autor oder ID..."
-            />
+            <p className="text-zinc-500 mt-1">
+              Suche nach Titel, Inhalt, Kategorie oder Autor.
+            </p>
           </div>
 
           <button
             type="button"
-            onClick={() =>
-              setSearch("")
-            }
-            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-5 py-4 rounded-2xl transition"
+            onClick={resetFilters}
+            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
-            Suche zurücksetzen
+            Zurücksetzen
           </button>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+          <input
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            placeholder="News suchen..."
+          />
+
+          <select
+            value={categoryFilter}
+            onChange={(event) =>
+              setCategoryFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Kategorien
+            </option>
+
+            {categories.map(
+              (item) => (
+                <option
+                  key={item}
+                  value={item}
+                >
+                  {item}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={pinnedFilter}
+            onChange={(event) =>
+              setPinnedFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Beiträge
+            </option>
+
+            <option value="pinned">
+              Nur fixiert
+            </option>
+
+            <option value="normal">
+              Nicht fixiert
+            </option>
+          </select>
+        </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredPosts.length} von {posts.length} News gefunden.
+        </p>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="px-5 py-4 font-semibold">
-                  ID
-                </th>
+      <div className="space-y-4">
+        {filteredPosts.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Keine News gefunden
+            </h2>
 
-                <th className="px-5 py-4 font-semibold">
-                  Titel
-                </th>
+            <p className="text-zinc-500 mt-2">
+              Erstelle einen Beitrag oder passe die Filter an.
+            </p>
+          </div>
+        )}
 
-                <th className="px-5 py-4 font-semibold">
-                  Kategorie
-                </th>
+        {filteredPosts.map(
+          (post) => (
+            <div
+              key={post.id}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+            >
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
+                      {post.category || "Allgemein"}
+                    </span>
 
-                <th className="px-5 py-4 font-semibold">
-                  Autor
-                </th>
-
-                <th className="px-5 py-4 font-semibold">
-                  Datum
-                </th>
-
-                <th className="px-5 py-4 font-semibold">
-                  Status
-                </th>
-
-                <th className="px-5 py-4 font-semibold text-right">
-                  Aktionen
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredPosts.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-8 text-zinc-500"
-                  >
-                    Keine News gefunden.
-                  </td>
-                </tr>
-              )}
-
-              {filteredPosts.map(
-                (post) => (
-                  <tr
-                    key={post.id}
-                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
-                  >
-                    <td className="px-5 py-4 font-mono text-xs text-zinc-500">
-                      {post.id}
-                    </td>
-
-                    <td className="px-5 py-4 min-w-[300px]">
-                      <Link
-                        href={`/news/${post.id}`}
-                        className="font-semibold hover:text-zinc-600 transition"
-                      >
-                        {post.title}
-                      </Link>
-
-                      <p className="text-xs text-zinc-500 mt-1 line-clamp-1">
-                        {post.description}
-                      </p>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(post.category)}`}>
-                        {post.category}
+                    {post.pinned && (
+                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                        Fixiert
                       </span>
-                    </td>
+                    )}
+                  </div>
 
-                    <td className="px-5 py-4 text-zinc-600">
-                      {post.author}
-                    </td>
+                  <h2 className="text-2xl font-bold mt-4">
+                    {post.title}
+                  </h2>
 
-                    <td className="px-5 py-4 text-zinc-500 whitespace-nowrap">
+                  <p className="text-zinc-500 mt-2 line-clamp-2">
+                    {post.description ||
+                      "Keine Beschreibung vorhanden."}
+                  </p>
+
+                  <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+                    <span>
+                      Autor:{" "}
+                      {post.author ||
+                        "Unbekannt"}
+                    </span>
+
+                    <span>
+                      Erstellt:{" "}
                       {post.createdAt}
-                    </td>
+                    </span>
+                  </div>
+                </div>
 
-                    <td className="px-5 py-4">
-                      {post.pinned ? (
-                        <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
-                          Fixiert
-                        </span>
-                      ) : (
-                        <span className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full">
-                          Normal
-                        </span>
-                      )}
-                    </td>
+                {canManageSystem() && (
+                  <div className="flex flex-wrap gap-3 shrink-0">
+                    <Link
+                      href={`/news/${post.id}`}
+                      className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                    >
+                      Öffnen
+                    </Link>
 
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/news/${post.id}`}
-                          className="bg-white border border-zinc-200 px-3 py-2 rounded-xl hover:bg-zinc-100 transition"
-                        >
-                          Öffnen
-                        </Link>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        startEditPost(
+                          post
+                        )
+                      }
+                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                    >
+                      Bearbeiten
+                    </button>
 
-                        {canEdit() && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openEditForm(
-                                post
-                              )
-                            }
-                            className="bg-zinc-900 text-white px-3 py-2 rounded-xl hover:bg-zinc-700 transition"
-                          >
-                            Bearbeiten
-                          </button>
-                        )}
-
-                        {canDelete() && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDeleteNews(
-                                post
-                              )
-                            }
-                            className="bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
-                          >
-                            Löschen
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDeletePost(
+                          post
+                        )
+                      }
+                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   );

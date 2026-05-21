@@ -1,21 +1,32 @@
 export type WikiPage = {
-  slug?: string;
-  title?: string;
-  description?: string;
-  excerpt?: string;
-  company?: string;
-  category?: string;
-  department?: string;
-  author?: string;
-  updatedAt?: string;
-  createdAt?: string;
-  tags?: string[];
-  content?: string;
-  [key: string]: unknown;
+  slug: string;
+  title: string;
+  description: string;
+  excerpt: string;
+  company: string;
+  category: string;
+  department: string;
+  author: string;
+  tags: string[];
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type WikiCreateInput =
-  WikiPage;
+  Partial<
+    Omit<
+      WikiPage,
+      "createdAt" | "updatedAt"
+    >
+  > & {
+    title: string;
+  };
 
 export type WikiUpdateInput =
-  Partial<WikiPage>;
+  Partial<
+    Omit<
+      WikiPage,
+      "createdAt" | "updatedAt"
+    >
+  >;

@@ -1,212 +1,164 @@
 import {
-  saveActivity,
-} from "./activityStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import type {
   AdminUser,
 } from "../types/user";
 
-import {
-  getCurrentUser,
-} from "./permissions";
-
-type UserActivityAction =
-  | "created"
-  | "updated"
-  | "deleted"
-  | "login";
-
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getUserActivityType(
-  action: UserActivityAction
+function createUserActivity(
+  user: AdminUser,
+  type: string,
+  title: string,
+  description: string
 ) {
-  if (action === "created") {
-    return "user_created";
-  }
+  void activityRepository
+    .create({
+      type,
 
-  if (action === "updated") {
-    return "user_updated";
-  }
+      title,
 
-  if (action === "deleted") {
-    return "user_deleted";
-  }
+      description,
 
-  if (action === "login") {
-    return "user_updated";
-  }
+      entityType:
+        "adminUser",
 
-  return "system";
-}
+      entityId:
+        user.id,
 
-function getUserActivityTitle(
-  action: UserActivityAction,
-  adminUser: AdminUser
-) {
-  if (action === "created") {
-    return `Benutzer erstellt: ${adminUser.name}`;
-  }
+      userName:
+        user.name ||
+        "System",
 
-  if (action === "updated") {
-    return `Benutzer aktualisiert: ${adminUser.name}`;
-  }
+      userEmail:
+        user.email ||
+        "",
 
-  if (action === "deleted") {
-    return `Benutzer gelöscht: ${adminUser.name}`;
-  }
+      user:
+        user.name ||
+        user.email ||
+        "System",
 
-  if (action === "login") {
-    return `Benutzer gesetzt: ${adminUser.name}`;
-  }
+      companyId:
+        user.companyId ||
+        "",
 
-  return adminUser.name;
-}
+      departmentId:
+        user.departmentId ||
+        "",
 
-export function saveUserActivity(
-  action: UserActivityAction,
-  adminUser: AdminUser,
-  description?: string
-) {
-  const userContext =
-    getUserContext();
+      company:
+        user.company ||
+        "Intern",
 
-  saveActivity({
-    type:
-      getUserActivityType(
-        action
-      ),
+      department:
+        user.department ||
+        "Allgemein",
 
-    title:
-      getUserActivityTitle(
-        action,
-        adminUser
-      ),
-
-    description:
-      description ||
-      `${adminUser.name} (${adminUser.email})`,
-
-    entityId:
-      adminUser.id,
-
-    entityType:
-      "user",
-
-    userName:
-      userContext.userName,
-
-    userEmail:
-      userContext.userEmail,
-
-    user:
-      userContext.user,
-
-    companyId:
-      adminUser.companyId ||
-      userContext.companyId,
-
-    departmentId:
-      adminUser.departmentId ||
-      userContext.departmentId,
-
-    company:
-      adminUser.company ||
-      userContext.company,
-
-    department:
-      adminUser.department ||
-      userContext.department,
-
-    metadata:
-      {
+      metadata: {
         userId:
-          adminUser.id,
+          user.id,
 
-        name:
-          adminUser.name,
+        userName:
+          user.name,
 
-        email:
-          adminUser.email,
+        userEmail:
+          user.email,
 
         role:
-          adminUser.role,
+          user.role,
 
         status:
-          adminUser.status,
+          user.status,
       },
-  });
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Benutzer-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
 }
 
 export function saveUserCreatedActivity(
-  adminUser: AdminUser
+  user: AdminUser
 ) {
-  saveUserActivity(
+  createUserActivity(
+    user,
     "created",
-    adminUser,
-    "Ein neuer Benutzer wurde erstellt."
+    "Benutzer erstellt",
+    `Benutzer "${user.name}" wurde erstellt.`
   );
 }
 
 export function saveUserUpdatedActivity(
-  adminUser: AdminUser
+  user: AdminUser
 ) {
-  saveUserActivity(
-    "updated",
-    adminUser,
-    "Ein Benutzer wurde aktualisiert."
+  createUserActivity(
+    user,
+    "edited",
+    "Benutzer bearbeitet",
+    `Benutzer "${user.name}" wurde bearbeitet.`
   );
 }
 
 export function saveUserDeletedActivity(
-  adminUser: AdminUser
+  user: AdminUser
 ) {
-  saveUserActivity(
+  createUserActivity(
+    user,
     "deleted",
-    adminUser,
-    "Ein Benutzer wurde gelöscht."
+    "Benutzer gelöscht",
+    `Benutzer "${user.name}" wurde gelöscht.`
   );
 }
 
 export function saveUserLoginActivity(
-  adminUser: AdminUser
+  user: AdminUser
 ) {
-  saveUserActivity(
+  createUserActivity(
+    user,
     "login",
-    adminUser,
-    "Ein Demo-Benutzer wurde als aktueller Benutzer gesetzt."
+    "Benutzer angemeldet",
+    `Benutzer "${user.name}" hat sich angemeldet.`
+  );
+}
+
+export function saveUserLogoutActivity(
+  user: AdminUser
+) {
+  createUserActivity(
+    user,
+    "logout",
+    "Benutzer abgemeldet",
+    `Benutzer "${user.name}" hat sich abgemeldet.`
+  );
+}
+
+export function saveUserStatusChangedActivity(
+  user: AdminUser,
+  oldStatus: string,
+  newStatus: string
+) {
+  createUserActivity(
+    user,
+    "edited",
+    "Benutzerstatus geändert",
+    `Benutzer "${user.name}" wurde von "${oldStatus}" auf "${newStatus}" geändert.`
+  );
+}
+
+export function saveUserRoleChangedActivity(
+  user: AdminUser,
+  oldRole: string,
+  newRole: string
+) {
+  createUserActivity(
+    user,
+    "edited",
+    "Benutzerrolle geändert",
+    `Benutzer "${user.name}" wurde von "${oldRole}" auf "${newRole}" geändert.`
   );
 }

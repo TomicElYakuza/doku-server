@@ -6,71 +6,41 @@ import {
 } from "react";
 
 import {
-  deleteComment,
-  getCommentsForPage,
-  saveComment,
-} from "../../lib/commentStorage";
+  commentRepository,
+} from "../../lib/commentRepository";
 
 import {
-  saveActivity,
-} from "../../lib/activityStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
 
-import {
-  getUser,
-} from "../../lib/userStorage";
-
-import {
-  canComment,
-  isAdmin,
-} from "../../lib/permissions";
-
-import {
-  getStoredPages,
-} from "../../lib/wikiStorage";
+import type {
+  Comment,
+} from "../../types/comment";
 
 type CommentsProps = {
-  slug: string;
+  pageSlug: string;
 };
 
 export default function Comments({
-  slug,
+  pageSlug,
 }: CommentsProps) {
-  const [mounted, setMounted] =
-    useState(false);
-
   const [comments, setComments] =
-    useState<any[]>([]);
+    useState<Comment[]>([]);
 
-  const [commentText, setCommentText] =
+  const [content, setContent] =
     useState("");
 
-  const [allowedToComment, setAllowedToComment] =
-    useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [admin, setAdmin] =
+  const [saving, setSaving] =
     useState(false);
 
   useEffect(() => {
-    setMounted(true);
-
-    setAllowedToComment(
-      canComment()
-    );
-
-    setAdmin(isAdmin());
-
-    loadComments();
+    void loadComments();
 
     function handleCommentsUpdated() {
-      loadComments();
-    }
-
-    function handleUserUpdated() {
-      setAllowedToComment(
-        canComment()
-      );
-
-      setAdmin(isAdmin());
+      void loadComments();
     }
 
     window.addEventListener(
@@ -78,56 +48,49 @@ export default function Comments({
       handleCommentsUpdated
     );
 
-    window.addEventListener(
-      "userUpdated",
-      handleUserUpdated
-    );
-
     return () => {
       window.removeEventListener(
         "commentsUpdated",
         handleCommentsUpdated
       );
-
-      window.removeEventListener(
-        "userUpdated",
-        handleUserUpdated
-      );
     };
-  }, [slug]);
+  }, [
+    pageSlug,
+  ]);
 
-  function loadComments() {
-    setComments(
-      getCommentsForPage(slug)
-    );
-  }
-
-  function getCurrentCompany() {
-    const pages =
-      getStoredPages();
-
-    const page =
-      pages.find(
-        (item: any) =>
-          item.slug === slug
-      );
-
-    return (
-      page?.company ||
-      "Intern"
-    );
-  }
-
-  function handleAddComment() {
-    if (!allowedToComment) {
-      alert(
-        "Du hast keine Berechtigung zu kommentieren."
-      );
-
+  async function loadComments() {
+    if (!pageSlug) {
       return;
     }
 
-    if (!commentText.trim()) {
+    try {
+      setLoading(
+        true
+      );
+
+      const nextComments =
+        await commentRepository.listByEntity(
+          "wiki",
+          pageSlug
+        );
+
+      setComments(
+        nextComments
+      );
+    } catch (error) {
+      console.error(
+        "Kommentare konnten nicht geladen werden:",
+        error
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
+
+  async function handleSubmit() {
+    if (!content.trim()) {
       alert(
         "Bitte einen Kommentar eingeben."
       );
@@ -135,185 +98,257 @@ export default function Comments({
       return;
     }
 
-    const user =
-      getUser();
-
-    const text =
-      commentText.trim();
-
-    saveComment(slug, {
-      text,
-
-      user:
-        user?.name ||
-        "Unbekannt",
-
-      role:
-        user?.role ||
-        "viewer",
-
-      createdAt:
-        new Date().toLocaleString(),
-    });
-
-    saveActivity({
-      type: "commented",
-
-      title:
-        text,
-
-      company:
-        getCurrentCompany(),
-
-      user:
-        user?.name ||
-        "Unbekannt",
-
-      createdAt:
-        new Date().toLocaleString(),
-    });
-
-    setCommentText("");
-  }
-
-  function handleDeleteComment(
-    comment: any,
-    index: number
-  ) {
-    if (!admin) {
-      alert(
-        "Nur Admins dürfen Kommentare löschen."
+    try {
+      setSaving(
+        true
       );
 
-      return;
-    }
+      const createdComment =
+        await commentRepository.create({
+          entityType:
+            "wiki",
 
-    const confirmed = confirm(
-      "Kommentar wirklich löschen?"
-    );
+          entityId:
+            pageSlug,
+
+          author:
+            "System",
+
+          content:
+            content.trim(),
+        });
+
+      void activityRepository.create({
+        type:
+          "created",
+
+        title:
+          "Wiki-Kommentar erstellt",
+
+        description:
+          `Kommentar zu Wiki-Seite "${pageSlug}" wurde erstellt.`,
+
+        entityType:
+          "wiki",
+
+        entityId:
+          pageSlug,
+
+        userName:
+          createdComment.author,
+
+        userEmail:
+          "",
+
+        user:
+          createdComment.author,
+
+        companyId:
+          "",
+
+        departmentId:
+          "",
+
+        company:
+          "Intern",
+
+        department:
+          "Allgemein",
+
+        metadata: {
+          commentId:
+            createdComment.id,
+
+          pageSlug,
+        },
+      });
+
+      setContent("");
+
+      await loadComments();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Kommentar konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
+  }
+
+  async function handleDelete(
+    comment: Comment
+  ) {
+    const confirmed =
+      confirm(
+        "Kommentar wirklich löschen?"
+      );
 
     if (!confirmed) {
       return;
     }
 
-    deleteComment(
-      slug,
-      index
-    );
+    try {
+      await commentRepository.delete(
+        comment.id
+      );
 
-    saveActivity({
-      type: "commentDeleted",
+      void activityRepository.create({
+        type:
+          "deleted",
 
-      title:
-        comment?.text ||
-        "Kommentar gelöscht",
+        title:
+          "Wiki-Kommentar gelöscht",
 
-      company:
-        getCurrentCompany(),
+        description:
+          `Kommentar zu Wiki-Seite "${pageSlug}" wurde gelöscht.`,
 
-      user:
-        getUser()?.name ||
-        "Unbekannt",
+        entityType:
+          "wiki",
 
-      createdAt:
-        new Date().toLocaleString(),
-    });
-  }
+        entityId:
+          pageSlug,
 
-  if (!mounted) {
-    return null;
+        userName:
+          "System",
+
+        userEmail:
+          "",
+
+        user:
+          "System",
+
+        companyId:
+          "",
+
+        departmentId:
+          "",
+
+        company:
+          "Intern",
+
+        department:
+          "Allgemein",
+
+        metadata: {
+          commentId:
+            comment.id,
+
+          pageSlug,
+        },
+      });
+
+      await loadComments();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Kommentar konnte nicht gelöscht werden."
+      );
+    }
   }
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm mt-6">
-      <h2 className="text-2xl font-semibold">
-        Kommentare
-      </h2>
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">
+            Kommentare
+          </h2>
 
-      <p className="text-zinc-500 mt-2">
-        Rückfragen, Hinweise und Ergänzungen zum Dokument.
-      </p>
-
-      {allowedToComment && (
-        <div className="mt-6">
-          <textarea
-            value={commentText}
-            onChange={(event) =>
-              setCommentText(
-                event.target.value
-              )
-            }
-            rows={4}
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-            placeholder="Kommentar schreiben..."
-          />
-
-          <button
-            onClick={handleAddComment}
-            className="mt-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Kommentar speichern
-          </button>
-        </div>
-      )}
-
-      {!allowedToComment && (
-        <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
-          <p className="text-zinc-500">
-            Du hast keine Berechtigung, Kommentare zu schreiben.
+          <p className="text-zinc-500 mt-1">
+            Diskussion und Hinweise zu dieser Wiki-Seite.
           </p>
         </div>
-      )}
 
-      <div className="mt-8 space-y-4">
-        {comments.length === 0 && (
+        <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+          {comments.length}
+        </span>
+      </div>
+
+      <div className="mt-6">
+        <textarea
+          value={content}
+          onChange={(event) =>
+            setContent(
+              event.target.value
+            )
+          }
+          rows={4}
+          className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+          placeholder="Kommentar schreiben..."
+        />
+
+        <button
+          type="button"
+          onClick={() =>
+            void handleSubmit()
+          }
+          disabled={saving}
+          className="mt-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+        >
+          {saving
+            ? "Speichert..."
+            : "Kommentar speichern"}
+        </button>
+      </div>
+
+      <div className="space-y-4 mt-8">
+        {loading && (
+          <p className="text-zinc-500">
+            Kommentare werden geladen...
+          </p>
+        )}
+
+        {!loading && comments.length === 0 && (
           <p className="text-zinc-500">
             Noch keine Kommentare vorhanden.
           </p>
         )}
 
         {comments.map(
-          (
-            comment: any,
-            index: number
-          ) => (
+          (comment) => (
             <div
-              key={`${comment.createdAt}-${index}`}
+              key={comment.id}
               className="border border-zinc-200 rounded-2xl p-5"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold">
-                    {comment.user ||
-                      "Unbekannt"}
+                    {comment.author}
                   </p>
 
-                  <p className="text-sm text-zinc-500 mt-1">
-                    {comment.role ||
-                      "viewer"}{" "}
-                    ·{" "}
-                    {comment.createdAt ||
-                      "Unbekannt"}
+                  <p className="text-sm text-zinc-400 mt-1">
+                    {comment.createdAt}
                   </p>
                 </div>
 
-                {admin && (
-                  <button
-                    onClick={() =>
-                      handleDeleteComment(
-                        comment,
-                        index
-                      )
-                    }
-                    className="text-sm bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-500 transition"
-                  >
-                    Löschen
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleDelete(
+                      comment
+                    )
+                  }
+                  className="text-sm text-red-600 hover:text-red-500"
+                >
+                  Löschen
+                </button>
               </div>
 
-              <p className="mt-4 whitespace-pre-wrap text-zinc-700">
-                {comment.text}
+              <p className="text-zinc-700 mt-4 whitespace-pre-wrap">
+                {comment.content}
               </p>
             </div>
           )

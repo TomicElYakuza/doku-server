@@ -1,4 +1,4 @@
-import WikiSidebar from "../components/wiki/WikiSidebar";
+import WikiSidebar from "../../components/wiki/WikiSidebar";
 
 export default function WikiLayout({
   children,

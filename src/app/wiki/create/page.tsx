@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {
+  FormEvent,
   useEffect,
   useState,
 } from "react";
@@ -11,34 +12,38 @@ import {
   useRouter,
 } from "next/navigation";
 
-import ReactMarkdown from "react-markdown";
-
 import {
   wikiRepository,
 } from "../../../lib/wikiRepository";
 
 import {
+  companyRepository,
+} from "../../../lib/companyRepository";
+
+import {
+  getCachedCurrentUser,
+  loadCurrentUser,
+} from "../../../lib/currentUserRepository";
+
+import {
   activityRepository,
 } from "../../../lib/activityRepository";
 
-import {
-  getUser,
-} from "../../../lib/userStorage";
+import type {
+  Company,
+  Department,
+} from "../../../types/company";
 
-import {
-  canCreate,
-} from "../../../lib/permissions";
-
-import FileUpload from "../../../components/wiki/FileUpload";
-
-import FileList from "../../../components/wiki/FileList";
+import type {
+  User,
+} from "../../../types/user";
 
 function createSlug(
   value: string
 ) {
   return value
-    .toLowerCase()
     .trim()
+    .toLowerCase()
     .replace(/ä/g, "ae")
     .replace(/ö/g, "oe")
     .replace(/ü/g, "ue")
@@ -47,55 +52,136 @@ function createSlug(
     .replace(/^-+|-+$/g, "");
 }
 
+function splitTags(
+  value: string
+) {
+  return value
+    .split(",")
+    .map(
+      (tag) =>
+        tag.trim()
+    )
+    .filter(Boolean);
+}
+
 export default function CreateWikiPage() {
   const router =
     useRouter();
 
-  const [mounted, setMounted] =
-    useState(false);
+  const [currentUser, setCurrentUser] =
+    useState<User | null>(
+      getCachedCurrentUser()
+    );
 
-  const [allowed, setAllowed] =
-    useState(false);
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
   const [title, setTitle] =
     useState("");
 
-  const [company, setCompany] =
-    useState("Intern");
-
-  const [category, setCategory] =
+  const [slug, setSlug] =
     useState("");
 
   const [description, setDescription] =
     useState("");
 
-  const [content, setContent] =
-    useState("");
+  const [company, setCompany] =
+    useState("Intern");
+
+  const [department, setDepartment] =
+    useState("Allgemein");
 
   const [tags, setTags] =
     useState("");
 
-  const [createdSlug, setCreatedSlug] =
+  const [content, setContent] =
     useState("");
 
-  useEffect(() => {
-    setMounted(
-      true
-    );
+  const [saving, setSaving] =
+    useState(false);
 
-    setAllowed(
-      canCreate()
-    );
+  const [loading, setLoading] =
+    useState(true);
+
+  useEffect(() => {
+    void loadData();
   }, []);
 
-  function handleCreate() {
-    if (!allowed) {
-      alert(
-        "Du hast keine Berechtigung, eine Seite zu erstellen."
+  async function loadData() {
+    try {
+      setLoading(
+        true
       );
 
-      return;
+      const [
+        user,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          loadCurrentUser(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
+
+      setCurrentUser(
+        user
+      );
+
+      setCompanies(
+        nextCompanies
+      );
+
+      setDepartments(
+        nextDepartments
+      );
+
+      setCompany(
+        user?.company ||
+          nextCompanies[0]?.name ||
+          "Intern"
+      );
+
+      setDepartment(
+        user?.department ||
+          nextDepartments[0]?.name ||
+          "Allgemein"
+      );
+    } catch (error) {
+      console.error(
+        error
+      );
+    } finally {
+      setLoading(
+        false
+      );
     }
+  }
+
+  function getDepartmentOptions() {
+    const selectedCompany =
+      companies.find(
+        (item) =>
+          item.name === company
+      );
+
+    if (!selectedCompany) {
+      return departments;
+    }
+
+    return departments.filter(
+      (item) =>
+        item.companyId === selectedCompany.id
+    );
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
     if (!title.trim()) {
       alert(
@@ -105,422 +191,382 @@ export default function CreateWikiPage() {
       return;
     }
 
-    if (!company.trim()) {
+    const nextSlug =
+      slug.trim()
+        ? createSlug(
+            slug
+          )
+        : createSlug(
+            title
+          );
+
+    if (!nextSlug) {
       alert(
-        "Bitte eine Firma eingeben."
+        "Bitte einen gültigen Slug eingeben."
       );
 
       return;
     }
 
-    if (!category.trim()) {
-      alert(
-        "Bitte eine Kategorie / Abteilung eingeben."
+    try {
+      setSaving(
+        true
       );
 
-      return;
-    }
+      const createdPage =
+        await wikiRepository.create({
+          title:
+            title.trim(),
 
-    const slug =
-      createSlug(
-        title
-      );
+          slug:
+            nextSlug,
 
-    if (!slug) {
-      alert(
-        "Aus dem Titel konnte kein gültiger Slug erstellt werden."
-      );
+          description:
+            description.trim(),
 
-      return;
-    }
+          excerpt:
+            description.trim(),
 
-    const exists =
-      Boolean(
-        wikiRepository.findBySlug(
-          slug
-        )
-      );
+          company:
+            company ||
+            "Intern",
 
-    if (exists) {
-      alert(
-        "Eine Seite mit diesem Titel existiert bereits."
-      );
+          category:
+            department ||
+            "Allgemein",
 
-      return;
-    }
+          department:
+            department ||
+            "Allgemein",
 
-    const user =
-      getUser();
+          author:
+            currentUser?.name ||
+            "System",
 
-    const newPage =
-      wikiRepository.create({
-        slug,
+          tags:
+            splitTags(
+              tags
+            ),
+
+          content:
+            content.trim(),
+        });
+
+      void activityRepository.create({
+        type:
+          "created",
 
         title:
-          title.trim(),
-
-        company:
-          company.trim() ||
-          "Intern",
-
-        category:
-          category.trim(),
-
-        department:
-          category.trim(),
+          "Wiki-Seite erstellt",
 
         description:
-          description.trim(),
+          `Wiki-Seite "${createdPage.title}" wurde erstellt.`,
 
-        excerpt:
-          description.trim(),
+        entityType:
+          "wiki",
 
-        author:
-          user?.name ||
-          "Unbekannt",
+        entityId:
+          createdPage.slug,
 
-        updatedAt:
-          new Date().toLocaleDateString(),
+        userName:
+          currentUser?.name ||
+          "System",
 
-        createdAt:
-          new Date().toLocaleDateString(),
+        userEmail:
+          currentUser?.email ||
+          "",
 
-        tags:
-          tags
-            .split(",")
-            .map(
-              (tag) =>
-                tag.trim()
-            )
-            .filter(Boolean),
+        user:
+          currentUser?.name ||
+          "System",
 
-        content:
-          content.trim(),
+        companyId:
+          currentUser?.companyId ||
+          "",
+
+        departmentId:
+          currentUser?.departmentId ||
+          "",
+
+        company:
+          createdPage.company,
+
+        department:
+          createdPage.department,
+
+        metadata: {
+          pageSlug:
+            createdPage.slug,
+
+          pageTitle:
+            createdPage.title,
+        },
       });
 
-    activityRepository.create({
-      type:
-        "created",
+      router.push(
+        `/wiki/${encodeURIComponent(
+          createdPage.slug
+        )}`
+      );
+    } catch (error) {
+      console.error(
+        error
+      );
 
-      title:
-        String(
-          newPage.title ||
-            title.trim()
-        ),
-
-      company:
-        String(
-          newPage.company ||
-            "Intern"
-        ),
-
-      user:
-        user?.name ||
-        "Unbekannt",
-
-      createdAt:
-        new Date().toLocaleString(),
-    });
-
-    setCreatedSlug(
-      slug
-    );
-
-    router.push(
-      `/wiki/${encodeURIComponent(
-        slug
-      )}`
-    );
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Wiki-Seite konnte nicht erstellt werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
   }
 
-  if (!mounted) {
-    return null;
-  }
-
-  if (!allowed) {
+  if (loading) {
     return (
-      <div className="space-y-8">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-4xl font-bold">
-            Keine Berechtigung
-          </h1>
-
-          <p className="text-zinc-500 mt-3">
-            Du darfst keine neuen Wiki-Seiten erstellen.
-          </p>
-
-          <Link
-            href="/wiki"
-            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            ← Zurück zum Wiki
-          </Link>
-        </div>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <p className="text-zinc-500">
+          Formular wird geladen...
+        </p>
       </div>
     );
   }
-
-  const previewSlug =
-    createSlug(
-      title
-    );
-
-  const uploadSlug =
-    createdSlug ||
-    previewSlug;
-
-  const previewTags =
-    tags
-      .split(",")
-      .map(
-        (tag) =>
-          tag.trim()
-      )
-      .filter(Boolean);
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-        <Link
-          href="/wiki"
-          className="hover:text-zinc-900 transition"
-        >
-          Wiki
-        </Link>
-
-        <span>/</span>
-
-        <span>
-          Erstellen
-        </span>
-      </div>
-
       <div>
         <Link
           href="/wiki"
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
         >
-          ← Zurück zur Übersicht
+          ← Zurück zum Wiki
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-4xl font-bold">
-            Neue Wiki Seite
-          </h1>
+      <div>
+        <h1 className="text-4xl font-bold">
+          Neue Wiki-Seite
+        </h1>
 
-          <p className="text-zinc-500 mt-2">
-            Erstelle ein neues Dokument.
-          </p>
+        <p className="text-zinc-500 mt-2">
+          Erstelle eine neue Dokumentationsseite in PostgreSQL.
+        </p>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
+      <form
+        onSubmit={(event) =>
+          void handleSubmit(
+            event
+          )
+        }
+        className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label className="block mb-2 font-medium">
+              Titel
+            </label>
 
-              <input
-                value={title}
-                onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
+            <input
+              value={title}
+              onChange={(event) => {
+                const value =
+                  event.target.value;
+
+                setTitle(
+                  value
+                );
+
+                if (!slug) {
+                  setSlug(
+                    createSlug(
+                      value
+                    )
+                  );
                 }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. VPN einrichten"
-              />
-
-              {previewSlug && (
-                <p className="text-sm text-zinc-500 mt-2">
-                  Slug:{" "}
-                  <span className="font-mono">
-                    {previewSlug}
-                  </span>
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-
-              <input
-                value={company}
-                onChange={(event) =>
-                  setCompany(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Intern"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie / Abteilung
-              </label>
-
-              <input
-                value={category}
-                onChange={(event) =>
-                  setCategory(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="IT"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Beschreibung
-              </label>
-
-              <input
-                value={description}
-                onChange={(event) =>
-                  setDescription(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Kurze Zusammenfassung des Dokuments"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Inhalt
-              </label>
-
-              <textarea
-                value={content}
-                onChange={(event) =>
-                  setContent(
-                    event.target.value
-                  )
-                }
-                rows={20}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none font-mono"
-                placeholder="# Überschrift&#10;Inhalt der Wiki-Seite..."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Tags
-              </label>
-
-              <input
-                value={tags}
-                onChange={(event) =>
-                  setTags(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="vpn, remote, it"
-              />
-
-              <p className="text-sm text-zinc-500 mt-2">
-                Mit Komma trennen.
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              {uploadSlug ? (
-                <div className="space-y-4">
-                  <FileUpload
-                    slug={uploadSlug}
-                  />
-
-                  <FileList
-                    slug={uploadSlug}
-                    editable={true}
-                  />
-                </div>
-              ) : (
-                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-6">
-                  <h3 className="font-semibold">
-                    Anhänge
-                  </h3>
-
-                  <p className="text-sm text-zinc-500 mt-2">
-                    Gib zuerst einen Titel ein, damit Dateien einem Slug zugeordnet werden können.
-                  </p>
-                </div>
-              )}
-            </div>
+              }}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Titel der Wiki-Seite"
+            />
           </div>
 
-          <div className="flex flex-wrap gap-3 mt-6">
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition"
+          <div>
+            <label className="block mb-2 font-medium">
+              Slug
+            </label>
+
+            <input
+              value={slug}
+              onChange={(event) =>
+                setSlug(
+                  createSlug(
+                    event.target.value
+                  )
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="wiki-seite"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Firma
+            </label>
+
+            <select
+              value={company}
+              onChange={(event) => {
+                const nextCompany =
+                  event.target.value;
+
+                setCompany(
+                  nextCompany
+                );
+
+                const selectedCompany =
+                  companies.find(
+                    (item) =>
+                      item.name === nextCompany
+                  );
+
+                const firstDepartment =
+                  departments.find(
+                    (item) =>
+                      item.companyId === selectedCompany?.id
+                  );
+
+                setDepartment(
+                  firstDepartment?.name ||
+                    "Allgemein"
+                );
+              }}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
             >
-              Seite erstellen
-            </button>
+              <option value="Intern">
+                Intern
+              </option>
 
-            <Link
-              href="/wiki"
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Abbrechen
-            </Link>
-          </div>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm h-fit sticky top-6">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold">
-              Live Vorschau
-            </h2>
-
-            <p className="text-zinc-500 mt-2">
-              Markdown Darstellung
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 mb-6">
-            <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
-              {company || "Intern"}
-            </span>
-
-            {category && (
-              <span className="bg-indigo-50 text-indigo-700 text-sm px-3 py-1 rounded-full">
-                {category}
-              </span>
-            )}
-          </div>
-
-          {previewTags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {previewTags.map(
-                (tag) => (
-                  <span
-                    key={tag}
-                    className="bg-zinc-100 text-zinc-700 text-xs px-2 py-1 rounded-full"
+              {companies.map(
+                (item) => (
+                  <option
+                    key={item.id}
+                    value={item.name}
                   >
-                    #{tag}
-                  </span>
+                    {item.name}
+                  </option>
                 )
               )}
-            </div>
-          )}
+            </select>
+          </div>
 
-          <article className="prose prose-zinc max-w-none">
-            <ReactMarkdown>
-              {content ||
-                "Noch kein Inhalt vorhanden."}
-            </ReactMarkdown>
-          </article>
+          <div>
+            <label className="block mb-2 font-medium">
+              Abteilung
+            </label>
+
+            <select
+              value={department}
+              onChange={(event) =>
+                setDepartment(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="Allgemein">
+                Allgemein
+              </option>
+
+              {getDepartmentOptions().map(
+                (item) => (
+                  <option
+                    key={item.id}
+                    value={item.name}
+                  >
+                    {item.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Beschreibung
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(event) =>
+                setDescription(
+                  event.target.value
+                )
+              }
+              rows={3}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+              placeholder="Kurze Beschreibung..."
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Tags
+            </label>
+
+            <input
+              value={tags}
+              onChange={(event) =>
+                setTags(
+                  event.target.value
+                )
+              }
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="it, onboarding, prozess"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block mb-2 font-medium">
+              Inhalt
+            </label>
+
+            <textarea
+              value={content}
+              onChange={(event) =>
+                setContent(
+                  event.target.value
+                )
+              }
+              rows={16}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y font-mono text-sm"
+              placeholder="Inhalt der Wiki-Seite..."
+            />
+          </div>
         </div>
-      </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+          >
+            {saving
+              ? "Speichert..."
+              : "Wiki-Seite erstellen"}
+          </button>
+
+          <Link
+            href="/wiki"
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Abbrechen
+          </Link>
+        </div>
+      </form>
     </div>
   );
 }

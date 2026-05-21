@@ -4,18 +4,33 @@ import Link from "next/link";
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
   canViewAdmin,
-  getCurrentUser,
-  getRoleLabel,
 } from "../../lib/permissions";
+
+import {
+  adminUserRepository,
+} from "../../lib/adminUserRepository";
+
+import {
+  companyRepository,
+} from "../../lib/companyRepository";
 
 import {
   ticketRepository,
 } from "../../lib/ticketRepository";
+
+import {
+  ticketTemplateRepository,
+} from "../../lib/ticketTemplateRepository";
+
+import {
+  newsRepository,
+} from "../../lib/newsRepository";
 
 import {
   wikiRepository,
@@ -26,257 +41,394 @@ import {
 } from "../../lib/activityRepository";
 
 import {
-  companyRepository,
-} from "../../lib/companyRepository";
-
-import {
-  adminUserRepository,
-} from "../../lib/adminUserRepository";
-
-import {
-  newsRepository,
-} from "../../lib/newsRepository";
-
-import {
-  fileRepository,
-} from "../../lib/fileRepository";
+  appSettingsRepository,
+} from "../../lib/appSettingsRepository";
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
+
+import type {
+  AdminUser,
+} from "../../types/user";
+
+import type {
+  Company,
+  Department,
+} from "../../types/company";
+
+import type {
+  Ticket,
+} from "../../types/ticket";
+
+import type {
+  TicketTemplate,
+} from "../../types/ticketTemplate";
+
+import type {
+  NewsPost,
+} from "../../types/news";
+
+import type {
+  WikiPage,
+} from "../../types/wiki";
+
+import type {
+  Activity,
+} from "../../types/activity";
+
+import type {
+  AppSettings,
+} from "../../types/settings";
 
 type AdminModule = {
   title: string;
   description: string;
   href: string;
   icon: string;
-  status: "ready" | "progress" | "planned";
-  primary?: boolean;
+  badge?: string;
+  disabled?: boolean;
 };
-
-type AdminMetric = {
-  label: string;
-  value: number;
-  description: string;
-  href: string;
-};
-
-function getStatusLabel(
-  status: AdminModule["status"]
-) {
-  if (status === "ready") {
-    return "Verfügbar";
-  }
-
-  if (status === "progress") {
-    return "In Arbeit";
-  }
-
-  return "Geplant";
-}
 
 function getStatusClass(
-  status: AdminModule["status"]
+  value: number
 ) {
-  if (status === "ready") {
-    return "bg-green-50 text-green-700";
+  if (value === 0) {
+    return "bg-zinc-100 text-zinc-600";
   }
 
-  if (status === "progress") {
+  if (value < 5) {
     return "bg-blue-50 text-blue-700";
   }
 
-  return "bg-zinc-100 text-zinc-600";
+  return "bg-green-50 text-green-700";
 }
 
 export default function AdminPage() {
   const [mounted, setMounted] =
     useState(false);
 
-  const [ticketCount, setTicketCount] =
-    useState(0);
+  const [users, setUsers] =
+    useState<AdminUser[]>([]);
 
-  const [openTicketCount, setOpenTicketCount] =
-    useState(0);
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
 
-  const [wikiCount, setWikiCount] =
-    useState(0);
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
-  const [activityCount, setActivityCount] =
-    useState(0);
+  const [tickets, setTickets] =
+    useState<Ticket[]>([]);
 
-  const [companyCount, setCompanyCount] =
-    useState(0);
+  const [templates, setTemplates] =
+    useState<TicketTemplate[]>([]);
 
-  const [departmentCount, setDepartmentCount] =
-    useState(0);
+  const [news, setNews] =
+    useState<NewsPost[]>([]);
 
-  const [userCount, setUserCount] =
-    useState(0);
+  const [wikiPages, setWikiPages] =
+    useState<WikiPage[]>([]);
 
-  const [newsCount, setNewsCount] =
-    useState(0);
+  const [activities, setActivities] =
+    useState<Activity[]>([]);
 
-  const [unreadNewsCount, setUnreadNewsCount] =
-    useState(0);
+  const [settings, setSettings] =
+    useState<AppSettings>(
+      appSettingsRepository.getDefault()
+    );
 
-  const [fileCount, setFileCount] =
-    useState(0);
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    setMounted(true);
+    setMounted(
+      true
+    );
 
-    loadAdminData();
+    void loadData();
 
-    function handleUpdate() {
-      loadAdminData();
+    const events = [
+      "adminUsersUpdated",
+      "companiesUpdated",
+      "departmentsUpdated",
+      "ticketsUpdated",
+      "ticketTemplatesUpdated",
+      "newsUpdated",
+      "wikiPagesUpdated",
+      "activitiesUpdated",
+      "appSettingsUpdated",
+    ];
+
+    function handleDataUpdated() {
+      void loadData();
     }
 
-    window.addEventListener(
-      "ticketsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "wikiPagesUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "activityUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "companiesUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "departmentsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "adminUsersUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "newsUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "newsOpenedUpdated",
-      handleUpdate
-    );
-
-    window.addEventListener(
-      "filesUpdated",
-      handleUpdate
+    events.forEach(
+      (eventName) => {
+        window.addEventListener(
+          eventName,
+          handleDataUpdated
+        );
+      }
     );
 
     return () => {
-      window.removeEventListener(
-        "ticketsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "wikiPagesUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "activityUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "companiesUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "departmentsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "adminUsersUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "newsUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "newsOpenedUpdated",
-        handleUpdate
-      );
-
-      window.removeEventListener(
-        "filesUpdated",
-        handleUpdate
+      events.forEach(
+        (eventName) => {
+          window.removeEventListener(
+            eventName,
+            handleDataUpdated
+          );
+        }
       );
     };
   }, []);
 
-  function loadAdminData() {
-    const news =
-      newsRepository.list();
+  async function loadData() {
+    try {
+      setLoading(
+        true
+      );
 
-    const openedNewsIds =
-      newsRepository.getOpenedIds();
+      setError(
+        ""
+      );
 
-    setTicketCount(
-      ticketRepository.countAll()
-    );
+      const [
+        nextUsers,
+        nextCompanies,
+        nextDepartments,
+        nextTickets,
+        nextTemplates,
+        nextNews,
+        nextWikiPages,
+        nextActivities,
+        nextSettings,
+      ] =
+        await Promise.all([
+          adminUserRepository.list(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+          ticketRepository.list(),
+          ticketTemplateRepository.list(),
+          newsRepository.list(),
+          wikiRepository.list(),
+          activityRepository.list(),
+          appSettingsRepository.get(),
+        ]);
 
-    setOpenTicketCount(
-      ticketRepository.countByStatus(
-        "open"
-      )
-    );
+      setUsers(
+        nextUsers
+      );
 
-    setWikiCount(
-      wikiRepository.countAll()
-    );
+      setCompanies(
+        nextCompanies
+      );
 
-    setActivityCount(
-      activityRepository.countAll()
-    );
+      setDepartments(
+        nextDepartments
+      );
 
-    setCompanyCount(
-      companyRepository.countCompanies()
-    );
+      setTickets(
+        nextTickets
+      );
 
-    setDepartmentCount(
-      companyRepository.countDepartments()
-    );
+      setTemplates(
+        nextTemplates
+      );
 
-    setUserCount(
-      adminUserRepository.countAll()
-    );
+      setNews(
+        nextNews
+      );
 
-    setNewsCount(
-      news.length
-    );
+      setWikiPages(
+        nextWikiPages
+      );
 
-    setUnreadNewsCount(
-      news.filter(
-        (post) =>
-          !openedNewsIds.includes(
-            post.id
-          )
-      ).length
-    );
+      setActivities(
+        nextActivities
+      );
 
-    setFileCount(
-      fileRepository.countFiles()
-    );
+      setSettings(
+        nextSettings
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Admin-Dashboard konnte nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
+
+  const activeUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.status === "active"
+        ),
+      [
+        users,
+      ]
+    );
+
+  const openTickets =
+    useMemo(
+      () =>
+        tickets.filter(
+          (ticket) =>
+            ticket.status !== "closed"
+        ),
+      [
+        tickets,
+      ]
+    );
+
+  const urgentTickets =
+    useMemo(
+      () =>
+        tickets.filter(
+          (ticket) =>
+            ticket.priority === "urgent" ||
+            ticket.priority === "high"
+        ),
+      [
+        tickets,
+      ]
+    );
+
+  const pinnedNews =
+    useMemo(
+      () =>
+        news.filter(
+          (post) =>
+            post.pinned
+        ),
+      [
+        news,
+      ]
+    );
+
+  const latestActivities =
+    useMemo(
+      () =>
+        activities.slice(
+          0,
+          6
+        ),
+      [
+        activities,
+      ]
+    );
+
+  const modules: AdminModule[] = [
+    {
+      title:
+        "Benutzerverwaltung",
+
+      description:
+        "Benutzer, Rollen, Status und Organisationszuordnung verwalten.",
+
+      href:
+        "/admin/users",
+
+      icon:
+        "👥",
+
+      badge:
+        `${users.length}`,
+    },
+    {
+      title:
+        "Firmen & Abteilungen",
+
+      description:
+        "Firmenstruktur und Abteilungen zentral konfigurieren.",
+
+      href:
+        "/admin/companies",
+
+      icon:
+        "🏢",
+
+      badge:
+        `${companies.length}/${departments.length}`,
+    },
+    {
+      title:
+        "News-Verwaltung",
+
+      description:
+        "Neuigkeiten erstellen, bearbeiten, fixieren und löschen.",
+
+      href:
+        "/admin/news",
+
+      icon:
+        "📰",
+
+      badge:
+        `${news.length}`,
+    },
+    {
+      title:
+        "Ticket-Vorlagen",
+
+      description:
+        "Wiederverwendbare Ticket-Vorlagen für Supportprozesse verwalten.",
+
+      href:
+        "/tickets/templates",
+
+      icon:
+        "📋",
+
+      badge:
+        `${templates.length}`,
+    },
+    {
+      title:
+        "Einstellungen",
+
+      description:
+        "App-Name, Oberfläche, Features und Standardrollen konfigurieren.",
+
+      href:
+        "/settings",
+
+      icon:
+        "⚙️",
+
+      badge:
+        "System",
+    },
+    {
+      title:
+        "Aktivitätsprotokoll",
+
+      description:
+        "Systemaktivitäten und Benutzeraktionen nachvollziehen.",
+
+      href:
+        "/activity",
+
+      icon:
+        "🕘",
+
+      badge:
+        `${activities.length}`,
+    },
+  ];
 
   if (!mounted) {
     return null;
@@ -288,446 +440,152 @@ export default function AdminPage() {
     );
   }
 
-  const user =
-    getCurrentUser();
-
-  const modules: AdminModule[] = [
-    {
-      title:
-        "News verwalten",
-
-      description:
-        "Meldungen erstellen, bearbeiten, löschen, fixieren, durchsuchen und mit Anhängen versehen.",
-
-      href:
-        "/admin/news",
-
-      icon:
-        "◌",
-
-      status:
-        "ready",
-
-      primary:
-        true,
-    },
-    {
-      title:
-        "Benutzer & Rollen",
-
-      description:
-        "Benutzer, Rollen, Firmen, Abteilungen und lokale Login-Daten verwalten.",
-
-      href:
-        "/admin/users",
-
-      icon:
-        "◉",
-
-      status:
-        "ready",
-
-      primary:
-        true,
-    },
-    {
-      title:
-        "Firmen & Abteilungen",
-
-      description:
-        "Organisationen, Firmen, Standorte und Abteilungen zentral konfigurieren.",
-
-      href:
-        "/admin/companies",
-
-      icon:
-        "▦",
-
-      status:
-        "ready",
-
-      primary:
-        true,
-    },
-    {
-      title:
-        "Speicher & Dateien",
-
-      description:
-        "Uploads, Anhänge und gespeicherte Dateien prüfen und verwalten.",
-
-      href:
-        "/admin/storage",
-
-      icon:
-        "▣",
-
-      status:
-        "ready",
-    },
-    {
-      title:
-        "Ticket-Vorlagen",
-
-      description:
-        "Standardvorlagen für wiederkehrende Tickets und Supportfälle pflegen.",
-
-      href:
-        "/tickets/templates",
-
-      icon:
-        "◇",
-
-      status:
-        "ready",
-    },
-    {
-      title:
-        "System-Einstellungen",
-
-      description:
-        "Design, Darstellung, Features, Versionen und Intranet-Verhalten konfigurieren.",
-
-      href:
-        "/settings",
-
-      icon:
-        "◎",
-
-      status:
-        "ready",
-    },
-    {
-      title:
-        "Benachrichtigungen",
-
-      description:
-        "Systemmeldungen und spätere Notification-Regeln zentral vorbereiten.",
-
-      href:
-        "/admin/notifications",
-
-      icon:
-        "●",
-
-      status:
-        "progress",
-    },
-    {
-      title:
-        "Adapter & Schnittstellen",
-
-      description:
-        "Vorbereitung für externe Systeme, APIs, Importer und Datenquellen.",
-
-      href:
-        "/admin/adapters",
-
-      icon:
-        "⇄",
-
-      status:
-        "progress",
-    },
-    {
-      title:
-        "Datenbank",
-
-      description:
-        "Readiness, Migrationsstatus und spätere Datenbank-Anbindung prüfen.",
-
-      href:
-        "/admin/database",
-
-      icon:
-        "◍",
-
-      status:
-        "progress",
-    },
-    {
-      title:
-        "Aktivitäten & Audit",
-
-      description:
-        "Änderungen, Uploads, Benutzeraktionen und Systemereignisse nachvollziehen.",
-
-      href:
-        "/activity",
-
-      icon:
-        "≡",
-
-      status:
-        "ready",
-    },
-  ];
-
-  const metrics: AdminMetric[] = [
-    {
-      label:
-        "News",
-
-      value:
-        newsCount,
-
-      description:
-        "veröffentlichte Meldungen",
-
-      href:
-        "/admin/news",
-    },
-    {
-      label:
-        "Ungelesene News",
-
-      value:
-        unreadNewsCount,
-
-      description:
-        "für aktuellen Benutzer",
-
-      href:
-        "/",
-    },
-    {
-      label:
-        "Benutzer",
-
-      value:
-        userCount,
-
-      description:
-        "lokale Benutzerkonten",
-
-      href:
-        "/admin/users",
-    },
-    {
-      label:
-        "Firmen",
-
-      value:
-        companyCount,
-
-      description:
-        "Organisationen",
-
-      href:
-        "/admin/companies",
-    },
-    {
-      label:
-        "Abteilungen",
-
-      value:
-        departmentCount,
-
-      description:
-        "Teams und Bereiche",
-
-      href:
-        "/admin/companies",
-    },
-    {
-      label:
-        "Tickets",
-
-      value:
-        ticketCount,
-
-      description:
-        "Vorgänge gesamt",
-
-      href:
-        "/tickets",
-    },
-    {
-      label:
-        "Offene Tickets",
-
-      value:
-        openTicketCount,
-
-      description:
-        "noch offen",
-
-      href:
-        "/tickets",
-    },
-    {
-      label:
-        "Wiki-Seiten",
-
-      value:
-        wikiCount,
-
-      description:
-        "Dokumentationen",
-
-      href:
-        "/wiki",
-    },
-    {
-      label:
-        "Dateien",
-
-      value:
-        fileCount,
-
-      description:
-        "Uploads und Anhänge",
-
-      href:
-        "/admin/storage",
-    },
-    {
-      label:
-        "Aktivitäten",
-
-      value:
-        activityCount,
-
-      description:
-        "protokollierte Aktionen",
-
-      href:
-        "/activity",
-    },
-  ];
-
   return (
     <div className="space-y-8">
-      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
         <div>
-          <p className="text-sm text-zinc-500">
-            Backend-Verwaltung
-          </p>
-
-          <h1 className="text-4xl font-bold mt-2">
-            Admin-Backend
+          <h1 className="text-4xl font-bold">
+            Admin Backend
           </h1>
 
-          <p className="text-zinc-500 mt-2 max-w-3xl">
-            Zentrale Oberfläche, über die Administratoren Inhalte, Benutzer, Firmen, Dateien, Tickets, Einstellungen und spätere Datenbank-/API-Anbindungen verwalten können.
+          <p className="text-zinc-500 mt-2">
+            Zentrale Verwaltung für {settings.appName || "Intranet"} auf PostgreSQL-Basis.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href="/admin/news"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            News verwalten
-          </Link>
-
-          <Link
-            href="/settings"
+          <button
+            type="button"
+            onClick={() =>
+              void loadData()
+            }
             className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            Einstellungen
-          </Link>
+            Aktualisieren
+          </button>
 
           <Link
             href="/dashboard"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
-            Dashboard
+            Zum Dashboard
           </Link>
         </div>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">
-          Aktueller Admin-Kontext
-        </h2>
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Admin-Daten werden geladen...
+          </p>
+        </div>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5">
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Benutzer
-            </p>
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
 
-            <p className="font-semibold mt-1">
-              {user?.name ||
-                "Unbekannt"}
-            </p>
-          </div>
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
 
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Rolle
-            </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Benutzer
+          </p>
 
-            <p className="font-semibold mt-1">
-              {getRoleLabel(
-                user?.role ||
-                  "viewer"
-              )}
-            </p>
-          </div>
+          <h2 className="text-4xl font-bold mt-3">
+            {users.length}
+          </h2>
 
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Firma
-            </p>
+          <p className="text-sm text-zinc-500 mt-3">
+            {activeUsers.length} aktiv
+          </p>
+        </div>
 
-            <p className="font-semibold mt-1">
-              {user?.company ||
-                "Intern"}
-            </p>
-          </div>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Organisation
+          </p>
 
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Abteilung
-            </p>
+          <h2 className="text-4xl font-bold mt-3">
+            {companies.length}
+          </h2>
 
-            <p className="font-semibold mt-1">
-              {user?.department ||
-                "Allgemein"}
-            </p>
-          </div>
+          <p className="text-sm text-zinc-500 mt-3">
+            {departments.length} Abteilungen
+          </p>
+        </div>
 
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Berechtigung
-            </p>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Offene Tickets
+          </p>
 
-            <p className="font-semibold mt-1">
-              Admin-Zugriff
-            </p>
-          </div>
+          <h2 className="text-4xl font-bold mt-3">
+            {openTickets.length}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-3">
+            {urgentTickets.length} hoch/dringend
+          </p>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-sm text-zinc-500">
+            Inhalte
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {news.length + wikiPages.length}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-3">
+            {news.length} News · {wikiPages.length} Wiki
+          </p>
         </div>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">
-          Verwaltungsbereiche
-        </h2>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Verwaltung
+            </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+            <p className="text-zinc-500 mt-1">
+              Module für Konfiguration und Bearbeitung ohne Quellcodezugriff.
+            </p>
+          </div>
+
+          <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm">
+            PostgreSQL aktiv
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-6">
           {modules.map(
             (module) => (
               <Link
                 key={module.href}
                 href={module.href}
-                className={`bg-white border rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition ${
-                  module.primary
-                    ? "border-zinc-300"
-                    : "border-zinc-200"
-                }`}
+                className="border border-zinc-200 rounded-3xl p-6 hover:bg-zinc-50 transition"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center text-lg">
+                  <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
                     {module.icon}
                   </div>
 
-                  <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(module.status)}`}>
-                    {getStatusLabel(
-                      module.status
-                    )}
-                  </span>
+                  {module.badge && (
+                    <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+                      {module.badge}
+                    </span>
+                  )}
                 </div>
 
                 <h3 className="text-xl font-semibold mt-5">
@@ -741,85 +599,118 @@ export default function AdminPage() {
             )
           )}
         </div>
-      </div>
+      </section>
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">
-          Systemübersicht
-        </h2>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-semibold">
+            Systemübersicht
+          </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {metrics.map(
-            (metric) => (
-              <Link
-                key={metric.label}
-                href={metric.href}
-                className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:bg-zinc-50 transition"
-              >
-                <p className="text-sm text-zinc-500">
-                  {metric.label}
-                </p>
+          <p className="text-zinc-500 mt-1">
+            Aktuelle Basisdaten aus der Datenbank.
+          </p>
 
-                <h2
-                  className={`text-3xl font-bold mt-3 ${
-                    metric.label === "Ungelesene News" &&
-                    metric.value > 0
-                      ? "text-red-600"
-                      : ""
-                  }`}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                App
+              </p>
+
+              <p className="font-semibold mt-2">
+                {settings.appName || "Intranet"}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Firma
+              </p>
+
+              <p className="font-semibold mt-2">
+                {settings.companyName || "Intern"}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Version
+              </p>
+
+              <p className="font-semibold mt-2">
+                {settings.appVersion || settings.version || "0.1.0"}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-5">
+              <p className="text-sm text-zinc-500">
+                Datenquelle
+              </p>
+
+              <p className="font-semibold mt-2">
+                PostgreSQL
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-semibold">
+                Letzte Aktivitäten
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Aktuelle Änderungen im System.
+              </p>
+            </div>
+
+            <Link
+              href="/activity"
+              className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+            >
+              Alle anzeigen
+            </Link>
+          </div>
+
+          <div className="space-y-3 mt-6">
+            {latestActivities.length === 0 && (
+              <p className="text-zinc-500">
+                Noch keine Aktivitäten vorhanden.
+              </p>
+            )}
+
+            {latestActivities.map(
+              (activity) => (
+                <div
+                  key={activity.id}
+                  className="border border-zinc-200 rounded-2xl p-4"
                 >
-                  {metric.value}
-                </h2>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                      {activityRepository.getTypeLabel(
+                        activity.type
+                      )}
+                    </span>
 
-                <p className="text-sm text-zinc-500 mt-2">
-                  {metric.description}
-                </p>
-              </Link>
-            )
-          )}
-        </div>
-      </div>
+                    <span className="text-xs text-zinc-400">
+                      {activity.createdAt}
+                    </span>
+                  </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Ziel des Admin-Backends
-        </h2>
+                  <p className="font-medium mt-3">
+                    {activity.title}
+                  </p>
 
-        <p className="text-zinc-500 mt-3 leading-relaxed">
-          Dieses Backend soll später alle wichtigen Konfigurations- und Verwaltungsaufgaben abdecken. Administratoren sollen Inhalte, Benutzer, Firmen, Rollen, Dateien, Einstellungen, Benachrichtigungen, Schnittstellen und Datenbankstatus direkt über diese Oberfläche steuern können, ohne Quellcode oder Datenbankeinträge manuell zu bearbeiten.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="font-semibold">
-              Inhaltspflege
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-2">
-              News, Wiki, Tickets, Vorlagen und Anhänge sollen zentral verwaltbar sein.
-            </p>
+                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
+                    {activity.description}
+                  </p>
+                </div>
+              )
+            )}
           </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="font-semibold">
-              Systemkonfiguration
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-2">
-              Design, Features, Benachrichtigungen und globale Einstellungen werden administrierbar.
-            </p>
-          </div>
-
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="font-semibold">
-              Produktivbetrieb
-            </p>
-
-            <p className="text-sm text-zinc-500 mt-2">
-              Repository-/Storage-Struktur ist vorbereitet, damit später Datenbank und API angebunden werden können.
-            </p>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   );

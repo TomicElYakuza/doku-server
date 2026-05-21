@@ -6,305 +6,197 @@ import {
 } from "react";
 
 import {
-  canDelete,
-  canEdit,
-  getCurrentUser,
-} from "../../lib/permissions";
+  commentRepository,
+} from "../../lib/commentRepository";
 
 import {
-  createTicketComment,
-  deleteTicketComment,
-  getTicketCommentsByTicketId,
-  updateTicketComment,
-} from "../../lib/ticketCommentStorage";
+  activityRepository,
+} from "../../lib/activityRepository";
 
 import type {
-  TicketComment,
-} from "../../lib/ticketCommentStorage";
-
-import {
-  saveActivity,
-} from "../../lib/activityStorage";
-
-import {
-  areTicketCommentsEnabled,
-} from "../../lib/featureFlags";
+  Comment,
+} from "../../types/comment";
 
 type TicketCommentsProps = {
   ticketId: string;
+  editable?: boolean;
 };
 
 export default function TicketComments({
   ticketId,
+  editable = true,
 }: TicketCommentsProps) {
   const [comments, setComments] =
-    useState<TicketComment[]>([]);
+    useState<Comment[]>([]);
 
-  const [commentsEnabled, setCommentsEnabled] =
+  const [content, setContent] =
+    useState("");
+
+  const [loading, setLoading] =
     useState(true);
 
-  const [text, setText] =
-    useState("");
-
-  const [editingId, setEditingId] =
-    useState("");
-
-  const [editingText, setEditingText] =
-    useState("");
+  const [saving, setSaving] =
+    useState(false);
 
   useEffect(() => {
-    loadComments();
-
-    setCommentsEnabled(
-      areTicketCommentsEnabled()
-    );
+    void loadComments();
 
     function handleCommentsUpdated() {
-      loadComments();
-    }
-
-    function handleSettingsUpdated() {
-      setCommentsEnabled(
-        areTicketCommentsEnabled()
-      );
+      void loadComments();
     }
 
     window.addEventListener(
-      "ticketCommentsUpdated",
+      "commentsUpdated",
       handleCommentsUpdated
-    );
-
-    window.addEventListener(
-      "appSettingsUpdated",
-      handleSettingsUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "ticketCommentsUpdated",
+        "commentsUpdated",
         handleCommentsUpdated
       );
-
-      window.removeEventListener(
-        "appSettingsUpdated",
-        handleSettingsUpdated
-      );
     };
-  }, [ticketId]);
+  }, [
+    ticketId,
+  ]);
 
-  function loadComments() {
-    setComments(
-      getTicketCommentsByTicketId(
-        ticketId
-      )
-    );
+  async function loadComments() {
+    if (!ticketId) {
+      return;
+    }
+
+    try {
+      setLoading(
+        true
+      );
+
+      const nextComments =
+        await commentRepository.listByEntity(
+          "ticket",
+          ticketId
+        );
+
+      setComments(
+        nextComments
+      );
+    } catch (error) {
+      console.error(
+        "Ticket-Kommentare konnten nicht geladen werden:",
+        error
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
   }
 
-  function writeActivity(
-    type:
-      | "ticket_comment_created"
-      | "ticket_comment_updated"
-      | "ticket_comment_deleted",
-    title: string,
-    description: string
-  ) {
-    const user =
-      getCurrentUser();
+  async function handleSubmit() {
+    if (!editable) {
+      alert(
+        "Du hast keine Berechtigung, Kommentare zu erstellen."
+      );
 
-    saveActivity({
-      type,
+      return;
+    }
 
-      title,
+    if (!content.trim()) {
+      alert(
+        "Bitte einen Kommentar eingeben."
+      );
 
-      description,
+      return;
+    }
 
-      entityId:
-        ticketId,
+    try {
+      setSaving(
+        true
+      );
 
-      entityType:
-        "ticket",
+      const createdComment =
+        await commentRepository.create({
+          entityType:
+            "ticket",
 
-      userName:
-        user?.name ||
-        "Unbekannt",
+          entityId:
+            ticketId,
 
-      userEmail:
-        user?.email ||
-        "",
+          author:
+            "System",
 
-      user:
-        user?.name ||
-        "Unbekannt",
+          content:
+            content.trim(),
+        });
 
-      companyId:
-        user?.companyId ||
-        "",
+      void activityRepository.create({
+        type:
+          "created",
 
-      departmentId:
-        user?.departmentId ||
-        "",
+        title:
+          "Ticket-Kommentar erstellt",
 
-      company:
-        user?.company ||
-        "Intern",
+        description:
+          `Kommentar zu Ticket #${ticketId} wurde erstellt.`,
 
-      department:
-        user?.department ||
-        "Allgemein",
+        entityType:
+          "ticket",
 
-      metadata:
-        {
+        entityId:
+          ticketId,
+
+        userName:
+          createdComment.author,
+
+        userEmail:
+          "",
+
+        user:
+          createdComment.author,
+
+        companyId:
+          "",
+
+        departmentId:
+          "",
+
+        company:
+          "Intern",
+
+        department:
+          "Allgemein",
+
+        metadata: {
+          commentId:
+            createdComment.id,
+
           ticketId,
         },
-    });
+      });
+
+      setContent("");
+
+      await loadComments();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Kommentar konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
   }
 
-  function handleCreateComment() {
-    if (!commentsEnabled) {
-      alert(
-        "Ticket-Kommentare sind in den Einstellungen deaktiviert."
-      );
-
-      return;
-    }
-
-    if (!canEdit()) {
-      alert(
-        "Du hast keine Berechtigung, Kommentare zu schreiben."
-      );
-
-      return;
-    }
-
-    if (!text.trim()) {
-      alert(
-        "Bitte einen Kommentar eingeben."
-      );
-
-      return;
-    }
-
-    const user =
-      getCurrentUser();
-
-    createTicketComment({
-      ticketId,
-
-      text:
-        text.trim(),
-
-      author:
-        user?.name ||
-        "Unbekannt",
-
-      authorEmail:
-        user?.email ||
-        "",
-
-      companyId:
-        user?.companyId ||
-        "",
-
-      departmentId:
-        user?.departmentId ||
-        "",
-
-      company:
-        user?.company ||
-        "Intern",
-
-      department:
-        user?.department ||
-        "Allgemein",
-    });
-
-    writeActivity(
-      "ticket_comment_created",
-      "Ticket-Kommentar erstellt",
-      text.trim()
-    );
-
-    setText("");
-
-    loadComments();
-  }
-
-  function startEditComment(
-    comment: TicketComment
+  async function handleDelete(
+    comment: Comment
   ) {
-    setEditingId(
-      comment.id
-    );
-
-    setEditingText(
-      comment.text
-    );
-  }
-
-  function cancelEditComment() {
-    setEditingId("");
-
-    setEditingText("");
-  }
-
-  function handleUpdateComment(
-    comment: TicketComment
-  ) {
-    if (!commentsEnabled) {
-      alert(
-        "Ticket-Kommentare sind in den Einstellungen deaktiviert."
-      );
-
-      return;
-    }
-
-    if (!canEdit()) {
-      alert(
-        "Du hast keine Berechtigung, Kommentare zu bearbeiten."
-      );
-
-      return;
-    }
-
-    if (!editingText.trim()) {
-      alert(
-        "Bitte einen Kommentar eingeben."
-      );
-
-      return;
-    }
-
-    updateTicketComment(
-      comment.id,
-      {
-        text:
-          editingText.trim(),
-      }
-    );
-
-    writeActivity(
-      "ticket_comment_updated",
-      "Ticket-Kommentar aktualisiert",
-      editingText.trim()
-    );
-
-    cancelEditComment();
-
-    loadComments();
-  }
-
-  function handleDeleteComment(
-    comment: TicketComment
-  ) {
-    if (!commentsEnabled) {
-      alert(
-        "Ticket-Kommentare sind in den Einstellungen deaktiviert."
-      );
-
-      return;
-    }
-
-    if (!canDelete()) {
+    if (!editable) {
       alert(
         "Du hast keine Berechtigung, Kommentare zu löschen."
       );
@@ -321,67 +213,94 @@ export default function TicketComments({
       return;
     }
 
-    deleteTicketComment(
-      comment.id
-    );
+    try {
+      await commentRepository.delete(
+        comment.id
+      );
 
-    writeActivity(
-      "ticket_comment_deleted",
-      "Ticket-Kommentar gelöscht",
-      comment.text
-    );
+      void activityRepository.create({
+        type:
+          "deleted",
 
-    loadComments();
-  }
+        title:
+          "Ticket-Kommentar gelöscht",
 
-  if (!commentsEnabled) {
-    return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          Kommentare
-        </h2>
+        description:
+          `Kommentar zu Ticket #${ticketId} wurde gelöscht.`,
 
-        <p className="text-zinc-500 mt-2">
-          Ticket-Kommentare sind aktuell in den Einstellungen deaktiviert.
-        </p>
-      </div>
-    );
+        entityType:
+          "ticket",
+
+        entityId:
+          ticketId,
+
+        userName:
+          "System",
+
+        userEmail:
+          "",
+
+        user:
+          "System",
+
+        companyId:
+          "",
+
+        departmentId:
+          "",
+
+        company:
+          "Intern",
+
+        department:
+          "Allgemein",
+
+        metadata: {
+          commentId:
+            comment.id,
+
+          ticketId,
+        },
+      });
+
+      await loadComments();
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Kommentar konnte nicht gelöscht werden."
+      );
+    }
   }
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-      <div className="flex items-start justify-between gap-6">
+    <div>
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">
             Kommentare
           </h2>
 
-          <p className="text-zinc-500 mt-2">
-            Rückfragen, interne Notizen und Updates zu diesem Ticket
+          <p className="text-zinc-500 mt-1">
+            Rückfragen, Notizen und Bearbeitungsverlauf zum Ticket.
           </p>
         </div>
 
-        <div className="bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3">
-          <p className="text-sm text-zinc-500">
-            Anzahl
-          </p>
-
-          <p className="font-semibold mt-1">
-            {comments.length}
-          </p>
-        </div>
+        <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+          {comments.length}
+        </span>
       </div>
 
-      {canEdit() && (
-        <div className="mt-6 border border-zinc-200 rounded-2xl p-5">
-          <label className="block mb-2 font-medium">
-            Neuer Kommentar
-          </label>
-
+      {editable && (
+        <div className="mt-6">
           <textarea
-            value={text}
+            value={content}
             onChange={(event) =>
-              setText(
+              setContent(
                 event.target.value
               )
             }
@@ -391,29 +310,31 @@ export default function TicketComments({
           />
 
           <button
-            onClick={handleCreateComment}
-            className="mt-4 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            type="button"
+            onClick={() =>
+              void handleSubmit()
+            }
+            disabled={saving}
+            className="mt-3 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
           >
-            Kommentar speichern
+            {saving
+              ? "Speichert..."
+              : "Kommentar speichern"}
           </button>
         </div>
       )}
 
-      {!canEdit() && (
-        <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
+      <div className="space-y-4 mt-8">
+        {loading && (
           <p className="text-zinc-500">
-            Du hast mit deiner aktuellen Rolle keine Berechtigung, Kommentare zu schreiben.
+            Kommentare werden geladen...
           </p>
-        </div>
-      )}
+        )}
 
-      <div className="grid gap-4 mt-6">
-        {comments.length === 0 && (
-          <div className="border border-zinc-200 rounded-2xl p-5">
-            <p className="text-zinc-500">
-              Noch keine Kommentare vorhanden.
-            </p>
-          </div>
+        {!loading && comments.length === 0 && (
+          <p className="text-zinc-500">
+            Noch keine Kommentare vorhanden.
+          </p>
         )}
 
         {comments.map(
@@ -422,111 +343,35 @@ export default function TicketComments({
               key={comment.id}
               className="border border-zinc-200 rounded-2xl p-5"
             >
-              <div className="flex items-start justify-between gap-6">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {comment.author}
-                    </span>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold">
+                    {comment.author}
+                  </p>
 
-                    {comment.authorEmail && (
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        {comment.authorEmail}
-                      </span>
-                    )}
-
-                    <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                      {comment.company ||
-                        "Intern"}
-                    </span>
-
-                    <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                      {comment.department ||
-                        "Allgemein"}
-                    </span>
-                  </div>
-
-                  {editingId === comment.id ? (
-                    <div className="mt-4">
-                      <textarea
-                        value={editingText}
-                        onChange={(event) =>
-                          setEditingText(
-                            event.target.value
-                          )
-                        }
-                        rows={4}
-                        className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                      />
-
-                      <div className="flex flex-wrap gap-3 mt-4">
-                        <button
-                          onClick={() =>
-                            handleUpdateComment(
-                              comment
-                            )
-                          }
-                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                        >
-                          Speichern
-                        </button>
-
-                        <button
-                          onClick={cancelEditComment}
-                          className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                        >
-                          Abbrechen
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-zinc-700 mt-4 whitespace-pre-wrap leading-relaxed">
-                      {comment.text}
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-4">
-                    <p>
-                      Erstellt:{" "}
-                      {comment.createdAt}
-                    </p>
-
-                    <p>
-                      Aktualisiert:{" "}
-                      {comment.updatedAt}
-                    </p>
-                  </div>
+                  <p className="text-sm text-zinc-400 mt-1">
+                    {comment.createdAt}
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                  {canEdit() &&
-                    editingId !== comment.id && (
-                      <button
-                        onClick={() =>
-                          startEditComment(
-                            comment
-                          )
-                        }
-                        className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                      >
-                        Bearbeiten
-                      </button>
-                    )}
-
-                  {canDelete() && (
-                    <button
-                      onClick={() =>
-                        handleDeleteComment(
-                          comment
-                        )
-                      }
-                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                    >
-                      Löschen
-                    </button>
-                  )}
-                </div>
+                {editable && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleDelete(
+                        comment
+                      )
+                    }
+                    className="text-sm text-red-600 hover:text-red-500"
+                  >
+                    Löschen
+                  </button>
+                )}
               </div>
+
+              <p className="text-zinc-700 mt-4 whitespace-pre-wrap">
+                {comment.content}
+              </p>
             </div>
           )
         )}

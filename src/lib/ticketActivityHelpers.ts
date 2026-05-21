@@ -1,152 +1,73 @@
 import {
-  saveActivity,
-} from "./activityStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import type {
   Ticket,
 } from "../types/ticket";
 
-import {
-  getCurrentUser,
-} from "./permissions";
-
-type TicketActivityAction =
+type TicketActivityType =
   | "created"
-  | "updated"
-  | "deleted";
+  | "edited"
+  | "deleted"
+  | "restored"
+  | "closed"
+  | "reopened"
+  | string;
 
-function getUserContext() {
-  const user =
-    getCurrentUser();
-
-  return {
-    userName:
-      user?.name ||
-      "Unbekannt",
-
-    userEmail:
-      user?.email ||
-      "",
-
-    user:
-      user?.name ||
-      "Unbekannt",
-
-    companyId:
-      user?.companyId ||
-      "",
-
-    departmentId:
-      user?.departmentId ||
-      "",
-
-    company:
-      user?.company ||
-      "Intern",
-
-    department:
-      user?.department ||
-      "Allgemein",
-  };
-}
-
-function getActivityType(
-  action: TicketActivityAction
-) {
-  if (action === "created") {
-    return "ticket_created";
-  }
-
-  if (action === "updated") {
-    return "ticket_updated";
-  }
-
-  if (action === "deleted") {
-    return "ticket_deleted";
-  }
-
-  return "system";
-}
-
-function getActivityTitle(
-  action: TicketActivityAction,
-  ticket: Ticket
-) {
-  if (action === "created") {
-    return `Ticket erstellt: ${ticket.title}`;
-  }
-
-  if (action === "updated") {
-    return `Ticket aktualisiert: ${ticket.title}`;
-  }
-
-  if (action === "deleted") {
-    return `Ticket gelöscht: ${ticket.title}`;
-  }
-
-  return ticket.title;
-}
-
-export function saveTicketActivity(
-  action: TicketActivityAction,
+function createTicketActivity(
   ticket: Ticket,
-  description?: string
+  type: TicketActivityType,
+  title: string,
+  description: string
 ) {
-  const userContext =
-    getUserContext();
+  void activityRepository
+    .create({
+      type,
 
-  saveActivity({
-    type:
-      getActivityType(
-        action
-      ),
+      title,
 
-    title:
-      getActivityTitle(
-        action,
-        ticket
-      ),
+      description,
 
-    description:
-      description ||
-      ticket.description ||
-      "",
+      entityType:
+        "ticket",
 
-    entityId:
-      ticket.id,
+      entityId:
+        ticket.id,
 
-    entityType:
-      "ticket",
+      userName:
+        ticket.createdBy ||
+        "System",
 
-    userName:
-      userContext.userName,
+      userEmail:
+        "",
 
-    userEmail:
-      userContext.userEmail,
+      user:
+        ticket.createdBy ||
+        "System",
 
-    user:
-      userContext.user,
+      companyId:
+        ticket.companyId ||
+        "",
 
-    companyId:
-      ticket.companyId ||
-      userContext.companyId,
+      departmentId:
+        ticket.departmentId ||
+        "",
 
-    departmentId:
-      ticket.departmentId ||
-      userContext.departmentId,
+      company:
+        ticket.company ||
+        "Intern",
 
-    company:
-      ticket.company ||
-      userContext.company,
+      department:
+        ticket.department ||
+        "Allgemein",
 
-    department:
-      ticket.department ||
-      userContext.department,
-
-    metadata:
-      {
+      metadata: {
         ticketId:
           ticket.id,
+
+        ticketTitle:
+          ticket.title,
 
         status:
           ticket.status,
@@ -157,35 +78,106 @@ export function saveTicketActivity(
         category:
           ticket.category,
       },
-  });
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Ticket-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
+    );
 }
 
 export function saveTicketCreatedActivity(
   ticket: Ticket
 ) {
-  saveTicketActivity(
-    "created",
+  createTicketActivity(
     ticket,
-    "Ein neues Ticket wurde erstellt."
+    "created",
+    "Ticket erstellt",
+    `Ticket #${ticket.id} "${ticket.title}" wurde erstellt.`
   );
 }
 
 export function saveTicketUpdatedActivity(
   ticket: Ticket
 ) {
-  saveTicketActivity(
-    "updated",
+  createTicketActivity(
     ticket,
-    "Ein Ticket wurde aktualisiert."
+    "edited",
+    "Ticket bearbeitet",
+    `Ticket #${ticket.id} "${ticket.title}" wurde bearbeitet.`
   );
 }
 
 export function saveTicketDeletedActivity(
   ticket: Ticket
 ) {
-  saveTicketActivity(
-    "deleted",
+  createTicketActivity(
     ticket,
-    "Ein Ticket wurde gelöscht."
+    "deleted",
+    "Ticket gelöscht",
+    `Ticket #${ticket.id} "${ticket.title}" wurde gelöscht.`
+  );
+}
+
+export function saveTicketClosedActivity(
+  ticket: Ticket
+) {
+  createTicketActivity(
+    ticket,
+    "closed",
+    "Ticket geschlossen",
+    `Ticket #${ticket.id} "${ticket.title}" wurde geschlossen.`
+  );
+}
+
+export function saveTicketReopenedActivity(
+  ticket: Ticket
+) {
+  createTicketActivity(
+    ticket,
+    "reopened",
+    "Ticket wieder geöffnet",
+    `Ticket #${ticket.id} "${ticket.title}" wurde wieder geöffnet.`
+  );
+}
+
+export function saveTicketStatusChangedActivity(
+  ticket: Ticket,
+  oldStatus: string,
+  newStatus: string
+) {
+  createTicketActivity(
+    ticket,
+    "edited",
+    "Ticket-Status geändert",
+    `Ticket #${ticket.id} wurde von "${oldStatus}" auf "${newStatus}" geändert.`
+  );
+}
+
+export function saveTicketPriorityChangedActivity(
+  ticket: Ticket,
+  oldPriority: string,
+  newPriority: string
+) {
+  createTicketActivity(
+    ticket,
+    "edited",
+    "Ticket-Priorität geändert",
+    `Ticket #${ticket.id} wurde von "${oldPriority}" auf "${newPriority}" geändert.`
+  );
+}
+
+export function saveTicketAssignedActivity(
+  ticket: Ticket,
+  assignedTo: string
+) {
+  createTicketActivity(
+    ticket,
+    "edited",
+    "Ticket zugewiesen",
+    `Ticket #${ticket.id} wurde "${assignedTo}" zugewiesen.`
   );
 }

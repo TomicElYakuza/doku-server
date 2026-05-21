@@ -1,123 +1,151 @@
 import {
-  saveFile,
-} from "./fileStorage";
+  activityRepository,
+} from "./activityRepository";
 
 import {
-  saveActivity,
-} from "./activityStorage";
+  fileRepository,
+} from "./fileRepository";
 
-import {
-  getUser,
-} from "./userStorage";
+import type {
+  StoredFile,
+} from "../types/file";
 
-export type PendingTicketFile = {
-  name: string;
-  type: string;
-  size: number;
-  data: string;
-  uploadedAt: string;
-  uploadedBy: string;
-};
+import type {
+  Ticket,
+} from "../types/ticket";
 
-export function readTicketFile(
-  file: File
-): Promise<PendingTicketFile> {
-  return new Promise(
-    (resolve, reject) => {
-      const reader =
-        new FileReader();
-
-      reader.onload = () => {
-        resolve({
-          name:
-            file.name,
-
-          type:
-            file.type,
-
-          size:
-            file.size,
-
-          data:
-            String(
-              reader.result || ""
-            ),
-
-          uploadedAt:
-            new Date().toLocaleString(),
-
-          uploadedBy:
-            getUser()?.name ||
-            "Unbekannt",
-        });
-      };
-
-      reader.onerror = () => {
-        reject(
-          new Error(
-            "Datei konnte nicht gelesen werden."
-          )
-        );
-      };
-
-      reader.readAsDataURL(
-        file
-      );
-    }
-  );
+function getTicketFileKey(
+  ticketId: string
+) {
+  return `ticket-${ticketId}`;
 }
 
-export async function readTicketFiles(
-  fileList: FileList | null
-): Promise<PendingTicketFile[]> {
-  if (!fileList) {
-    return [];
-  }
+function createTicketFileActivity(
+  ticket: Ticket,
+  type: string,
+  title: string,
+  description: string,
+  fileName = ""
+) {
+  void activityRepository
+    .create({
+      type,
 
-  const files =
-    Array.from(
-      fileList
+      title,
+
+      description,
+
+      entityType:
+        "ticket",
+
+      entityId:
+        ticket.id,
+
+      userName:
+        ticket.createdBy ||
+        "System",
+
+      userEmail:
+        "",
+
+      user:
+        ticket.createdBy ||
+        "System",
+
+      companyId:
+        ticket.companyId ||
+        "",
+
+      departmentId:
+        ticket.departmentId ||
+        "",
+
+      company:
+        ticket.company ||
+        "Intern",
+
+      department:
+        ticket.department ||
+        "Allgemein",
+
+      metadata: {
+        ticketId:
+          ticket.id,
+
+        ticketTitle:
+          ticket.title,
+
+        fileName,
+      },
+    })
+    .catch(
+      (error) => {
+        console.error(
+          "Ticket-Datei-Aktivität konnte nicht gespeichert werden:",
+          error
+        );
+      }
     );
+}
 
-  return Promise.all(
-    files.map(
-      (file) =>
-        readTicketFile(
-          file
-        )
+export async function getTicketFiles(
+  ticketId: string
+) {
+  return fileRepository.listForKey(
+    getTicketFileKey(
+      ticketId
     )
   );
 }
 
-export function saveTicketFiles(
-  ticketId: string,
-  files: PendingTicketFile[]
+export async function saveTicketFile(
+  ticket: Ticket,
+  file: Partial<StoredFile>
 ) {
-  files.forEach(
-    (file) => {
-      saveFile(
-        ticketId,
-        file
-      );
+  await fileRepository.addToKey(
+    getTicketFileKey(
+      ticket.id
+    ),
+    file
+  );
 
-      saveActivity({
-        type:
-          "fileUploaded",
+  createTicketFileActivity(
+    ticket,
+    "created",
+    "Ticket-Datei hochgeladen",
+    `Datei "${file.name || "Unbenannte Datei"}" wurde zu Ticket #${ticket.id} hochgeladen.`,
+    file.name ||
+      ""
+  );
+}
 
-        title:
-          file.name ||
-          "Ticket-Datei hochgeladen",
+export async function deleteTicketFile(
+  ticket: Ticket,
+  index: number,
+  fileName = ""
+) {
+  await fileRepository.deleteFromKey(
+    getTicketFileKey(
+      ticket.id
+    ),
+    index
+  );
 
-        company:
-          "Tickets",
+  createTicketFileActivity(
+    ticket,
+    "deleted",
+    "Ticket-Datei gelöscht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von Ticket #${ticket.id} gelöscht.`,
+    fileName
+  );
+}
 
-        user:
-          getUser()?.name ||
-          "Unbekannt",
-
-        createdAt:
-          new Date().toLocaleString(),
-      });
-    }
+export async function deleteTicketFiles(
+  ticketId: string
+) {
+  await fileRepository.deleteKey(
+    getTicketFileKey(
+      ticketId
+    )
   );
 }

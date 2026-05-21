@@ -1,23 +1,18 @@
 import {
-  getUser,
-} from "./userStorage";
+  getCachedCurrentUser,
+  getCachedCurrentUserRole,
+} from "./currentUserRepository";
 
 import type {
   UserRole,
 } from "../types/user";
 
 export function getCurrentUser() {
-  return getUser();
+  return getCachedCurrentUser();
 }
 
 export function getCurrentUserRole(): UserRole {
-  const user =
-    getUser();
-
-  return (
-    user?.role ||
-    "viewer"
-  );
+  return getCachedCurrentUserRole();
 }
 
 export function getRoleLabel(
