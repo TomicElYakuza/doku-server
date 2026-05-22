@@ -2,99 +2,68 @@
 
 import {
   ReactNode,
-  useEffect,
-  useState,
 } from "react";
 
 import {
-  areDemoHintsEnabled,
-  areTicketCommentsEnabled,
-  areTicketTemplatesEnabled,
-  isActivityLogEnabled,
-} from "../lib/featureFlags";
+  useFeatureFlags,
+} from "../hooks/useFeatureFlags";
 
-type FeatureKey =
+import FeatureDisabledCard from "./FeatureDisabledCard";
+
+type FeatureGateName =
   | "demoHints"
-  | "ticketTemplates"
   | "ticketComments"
+  | "ticketTemplates"
   | "activityLog";
 
 type FeatureGateProps = {
-  feature: FeatureKey;
+  feature: FeatureGateName;
   children: ReactNode;
   fallback?: ReactNode;
 };
 
-function isFeatureEnabled(
-  feature: FeatureKey
-) {
-  if (feature === "demoHints") {
-    return areDemoHintsEnabled();
-  }
-
-  if (feature === "ticketTemplates") {
-    return areTicketTemplatesEnabled();
-  }
-
-  if (feature === "ticketComments") {
-    return areTicketCommentsEnabled();
-  }
-
-  if (feature === "activityLog") {
-    return isActivityLogEnabled();
-  }
-
-  return true;
-}
-
 export default function FeatureGate({
   feature,
   children,
-  fallback = null,
+  fallback,
 }: FeatureGateProps) {
-  const [mounted, setMounted] =
-    useState(false);
+  const {
+    loading,
+    demoHintsEnabled,
+    ticketCommentsEnabled,
+    ticketTemplatesEnabled,
+    activityLogEnabled,
+  } =
+    useFeatureFlags();
 
-  const [enabled, setEnabled] =
-    useState(true);
-
-  useEffect(() => {
-    setMounted(true);
-
-    setEnabled(
-      isFeatureEnabled(
-        feature
-      )
-    );
-
-    function handleSettingsUpdated() {
-      setEnabled(
-        isFeatureEnabled(
-          feature
-        )
-      );
-    }
-
-    window.addEventListener(
-      "appSettingsUpdated",
-      handleSettingsUpdated
-    );
-
-    return () => {
-      window.removeEventListener(
-        "appSettingsUpdated",
-        handleSettingsUpdated
-      );
-    };
-  }, [feature]);
-
-  if (!mounted) {
+  if (loading) {
     return null;
   }
 
+  const enabled =
+    feature === "demoHints"
+      ? demoHintsEnabled
+      : feature === "ticketComments"
+        ? ticketCommentsEnabled
+        : feature === "ticketTemplates"
+          ? ticketTemplatesEnabled
+          : feature === "activityLog"
+            ? activityLogEnabled
+            : true;
+
   if (!enabled) {
-    return <>{fallback}</>;
+    return (
+      <>
+        {fallback || (
+          <FeatureDisabledCard />
+        )}
+      </>
+    );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+    </>
+  );
 }

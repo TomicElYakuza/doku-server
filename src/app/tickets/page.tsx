@@ -1,423 +1,861 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { companyRepository } from "../../lib/companyRepository";
-import { ticketRepository } from "../../lib/ticketRepository";
-import { canCreate, canDelete, canEdit } from "../../lib/permissions";
-import type { Company, Department } from "../../types/company";
+
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useSearchParams,
+} from "next/navigation";
+
+import {
+  ticketRepository,
+} from "../../lib/ticketRepository";
+
+import {
+  companyRepository,
+} from "../../lib/companyRepository";
+
+import {
+  canCreate,
+  canDelete,
+  canEdit,
+} from "../../lib/permissions";
+
+import {
+  saveTicketCreatedActivity,
+  saveTicketDeletedActivity,
+  saveTicketUpdatedActivity,
+} from "../../lib/ticketActivityHelpers";
+
+import {
+  useFeatureFlags,
+} from "../../hooks/useFeatureFlags";
+
 import type {
   Ticket,
-  TicketCreateInput,
   TicketPriority,
   TicketStatus,
 } from "../../types/ticket";
 
-type ViewMode = "cards" | "table";
-type LoadState = "idle" | "loading" | "ready" | "error";
-type PriorityFilter = "" | TicketPriority | "high_or_urgent";
+import type {
+  Company,
+  Department,
+} from "../../types/company";
 
-const TICKETS_VIEW_MODE_KEY = "doku-server:tickets:view-mode";
-const TICKETS_SHOW_CLOSED_KEY = "doku-server:tickets:show-closed";
+type ViewMode =
+  | "cards"
+  | "table";
 
-function formatDateTime(value?: string) {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("de-AT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function getStatusLabel(
+  status: TicketStatus | string
+) {
+  return ticketRepository.getStatusLabel(
+    status
+  );
 }
 
-function getInitialViewMode(): ViewMode {
-  if (typeof window === "undefined") {
-    return "table";
-  }
-
-  const storedValue = window.localStorage.getItem(TICKETS_VIEW_MODE_KEY);
-
-  return storedValue === "cards" || storedValue === "table"
-    ? storedValue
-    : "table";
+function getStatusClass(
+  status: TicketStatus | string
+) {
+  return ticketRepository.getStatusClass(
+    status
+  );
 }
 
-function getInitialShowClosedTickets() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.localStorage.getItem(TICKETS_SHOW_CLOSED_KEY) === "true";
+function getPriorityLabel(
+  priority: TicketPriority | string
+) {
+  return ticketRepository.getPriorityLabel(
+    priority
+  );
 }
 
-function normalizeText(value?: string | null) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function getCompanyName(companies: Company[], companyId?: string) {
-  if (!companyId) {
-    return "";
-  }
-
-  return companies.find((company) => company.id === companyId)?.name || "";
-}
-
-function getDepartmentName(departments: Department[], departmentId?: string) {
-  if (!departmentId) {
-    return "";
-  }
-
-  return (
-    departments.find((department) => department.id === departmentId)?.name || ""
+function getPriorityClass(
+  priority: TicketPriority | string
+) {
+  return ticketRepository.getPriorityClass(
+    priority
   );
 }
 
 export default function TicketsPage() {
-  const searchParams = useSearchParams();
+  const searchParams =
+    useSearchParams();
 
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const {
+    ticketTemplatesEnabled,
+  } =
+    useFeatureFlags();
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
+  const urlStatusFilter =
+    searchParams.get("status") || "";
 
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [showClosedTickets, setShowClosedTickets] = useState(false);
+  const urlPriorityFilter =
+    searchParams.get("priority") || "";
 
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState("");
+  const [tickets, setTickets] =
+    useState<Ticket[]>([]);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<TicketStatus>("open");
-  const [priority, setPriority] = useState<TicketPriority>("medium");
-  const [category, setCategory] = useState("Allgemein");
-  const [companyId, setCompanyId] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [company, setCompany] = useState("Intern");
-  const [department, setDepartment] = useState("Allgemein");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
-  const [tags, setTags] = useState("");
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
+
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [statusFilter, setStatusFilter] =
+    useState("");
+
+  const [priorityFilter, setPriorityFilter] =
+    useState("");
+
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
+  const [departmentFilter, setDepartmentFilter] =
+    useState("");
+
+  const [viewMode, setViewMode] =
+    useState<ViewMode>("cards");
+
+  const [hideClosed, setHideClosed] =
+    useState(true);
+
+  const [showForm, setShowForm] =
+    useState(false);
+
+  const [editingTicketId, setEditingTicketId] =
+    useState("");
+
+  const [title, setTitle] =
+    useState("");
+
+  const [description, setDescription] =
+    useState("");
+
+  const [status, setStatus] =
+    useState<TicketStatus>("open");
+
+  const [priority, setPriority] =
+    useState<TicketPriority>("medium");
+
+  const [category, setCategory] =
+    useState("Allgemein");
+
+  const [companyId, setCompanyId] =
+    useState("");
+
+  const [departmentId, setDepartmentId] =
+    useState("");
+
+  const [assignedTo, setAssignedTo] =
+    useState("");
+
+  const [createdBy, setCreatedBy] =
+    useState("System");
+
+  const [tags, setTags] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    setViewMode(getInitialViewMode());
-    setShowClosedTickets(getInitialShowClosedTickets());
-  }, []);
+    void loadData();
 
-  useEffect(() => {
-    const nextStatus = searchParams.get("status") || "";
-    const nextPriority = searchParams.get("priority") || "";
-    const nextCompany = searchParams.get("company") || "";
-    const nextDepartment = searchParams.get("department") || "";
-    const nextShowClosed = searchParams.get("showClosed");
-
-    setStatusFilter(nextStatus as TicketStatus | "");
-    setPriorityFilter(nextPriority as PriorityFilter);
-    setCompanyFilter(nextCompany);
-    setDepartmentFilter(nextDepartment);
-
-    if (nextShowClosed === "true") {
-      setShowClosedTickets(true);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadData() {
-      try {
-        setLoadState("loading");
-
-        const [nextTickets, nextCompanies, nextDepartments] =
-          await Promise.all([
-            ticketRepository.list(),
-            companyRepository.listCompanies(),
-            companyRepository.listDepartments(),
-          ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setTickets(Array.isArray(nextTickets) ? nextTickets : []);
-        setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-        setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
-        setLoadState("ready");
-      } catch (error) {
-        console.error("Tickets konnten nicht geladen werden:", error);
-
-        if (!cancelled) {
-          setTickets([]);
-          setCompanies([]);
-          setDepartments([]);
-          setLoadState("error");
-        }
-      }
-    }
-
-    function handleDataUpdated() {
+    function handleTicketsUpdated() {
       void loadData();
     }
 
-    void loadData();
+    function handleCompaniesUpdated() {
+      void loadOrganization();
+    }
 
-    window.addEventListener("ticketsUpdated", handleDataUpdated);
-    window.addEventListener("companiesUpdated", handleDataUpdated);
-    window.addEventListener("departmentsUpdated", handleDataUpdated);
+    function handleDepartmentsUpdated() {
+      void loadOrganization();
+    }
+
+    window.addEventListener(
+      "ticketsUpdated",
+      handleTicketsUpdated
+    );
+
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated
+    );
 
     return () => {
-      cancelled = true;
-      window.removeEventListener("ticketsUpdated", handleDataUpdated);
-      window.removeEventListener("companiesUpdated", handleDataUpdated);
-      window.removeEventListener("departmentsUpdated", handleDataUpdated);
+      window.removeEventListener(
+        "ticketsUpdated",
+        handleTicketsUpdated
+      );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated
+      );
     };
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(TICKETS_VIEW_MODE_KEY, viewMode);
-  }, [viewMode]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      TICKETS_SHOW_CLOSED_KEY,
-      showClosedTickets ? "true" : "false"
+    setStatusFilter(
+      urlStatusFilter
     );
-  }, [showClosedTickets]);
 
-  const activeCompanies = useMemo(
-    () => companies.filter((item) => item.status === "active"),
-    [companies]
-  );
+    setPriorityFilter(
+      urlPriorityFilter
+    );
 
-  const activeDepartments = useMemo(
-    () => departments.filter((item) => item.status === "active"),
-    [departments]
-  );
-
-  const selectableDepartments = useMemo(() => {
-    const source = activeDepartments.length > 0 ? activeDepartments : departments;
-
-    if (!companyId) {
-      return source;
+    if (urlStatusFilter === "closed") {
+      setHideClosed(
+        false
+      );
     }
+  }, [
+    urlStatusFilter,
+    urlPriorityFilter,
+  ]);
 
-    return source.filter((item) => item.companyId === companyId);
-  }, [activeDepartments, departments, companyId]);
+  async function loadOrganization() {
+    try {
+      const [
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-  const openCount = useMemo(
-    () => tickets.filter((ticket) => ticket.status === "open").length,
-    [tickets]
-  );
+      setCompanies(
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
+      );
 
-  const progressCount = useMemo(
-    () => tickets.filter((ticket) => ticket.status === "in_progress").length,
-    [tickets]
-  );
-
-  const waitingCount = useMemo(
-    () => tickets.filter((ticket) => ticket.status === "waiting").length,
-    [tickets]
-  );
-
-  const closedCount = useMemo(
-    () => tickets.filter((ticket) => ticket.status === "closed").length,
-    [tickets]
-  );
-
-  const urgentCount = useMemo(
-    () =>
-      tickets.filter(
-        (ticket) => ticket.priority === "urgent" || ticket.priority === "high"
-      ).length,
-    [tickets]
-  );
-
-  const visibleTicketCount = useMemo(
-    () =>
-      showClosedTickets
-        ? tickets.length
-        : tickets.filter((ticket) => ticket.status !== "closed").length,
-    [tickets, showClosedTickets]
-  );
-
-  const filteredTickets = useMemo(
-    () =>
-      tickets.filter((ticket) => {
-        const query = normalizeText(search);
-        const ticketCompany =
-          ticket.company || getCompanyName(companies, ticket.companyId);
-        const ticketDepartment =
-          ticket.department || getDepartmentName(departments, ticket.departmentId);
-
-        const haystack = [
-          ticket.id,
-          ticket.title,
-          ticket.description,
-          ticket.category,
-          ticket.status,
-          ticket.priority,
-          ticketCompany,
-          ticketDepartment,
-          ticket.assignedTo,
-          ticket.createdBy,
-          ticket.tags?.join(" "),
-          ticket.createdAt,
-          ticket.updatedAt,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        const matchesSearch = !query || haystack.includes(query);
-
-        const matchesStatus =
-          !statusFilter || ticket.status === statusFilter;
-
-        const matchesPriority =
-          !priorityFilter ||
-          (priorityFilter === "high_or_urgent" &&
-            (ticket.priority === "high" || ticket.priority === "urgent")) ||
-          ticket.priority === priorityFilter;
-
-        const matchesCompany =
-          !companyFilter ||
-          ticket.companyId === companyFilter ||
-          ticket.company === companyFilter ||
-          ticketCompany === getCompanyName(companies, companyFilter);
-
-        const matchesDepartment =
-          !departmentFilter ||
-          ticket.departmentId === departmentFilter ||
-          ticket.department === departmentFilter ||
-          ticketDepartment === getDepartmentName(departments, departmentFilter);
-
-        const matchesClosedVisibility =
-          showClosedTickets || statusFilter === "closed" || ticket.status !== "closed";
-
-        return (
-          matchesSearch &&
-          matchesStatus &&
-          matchesPriority &&
-          matchesCompany &&
-          matchesDepartment &&
-          matchesClosedVisibility
-        );
-      }),
-    [
-      tickets,
-      search,
-      statusFilter,
-      priorityFilter,
-      companyFilter,
-      departmentFilter,
-      showClosedTickets,
-      companies,
-      departments,
-    ]
-  );
-
-  const isLoading = loadState === "idle" || loadState === "loading";
-
-  function getTicketCompany(ticket: Ticket) {
-    return ticket.company || getCompanyName(companies, ticket.companyId) || "Intern";
+      setDepartments(
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
+      );
+    } catch (loadError) {
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError
+      );
+    }
   }
 
-  function getTicketDepartment(ticket: Ticket) {
+  async function loadData() {
+    try {
+      setLoading(
+        true
+      );
+
+      setError(
+        ""
+      );
+
+      const [
+        nextTickets,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          ticketRepository.list(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
+
+      setTickets(
+        Array.isArray(
+          nextTickets
+        )
+          ? nextTickets
+          : []
+      );
+
+      setCompanies(
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
+      );
+
+      setDepartments(
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
+      );
+    } catch (loadError) {
+      console.error(
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Tickets konnten nicht geladen werden."
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
+
+  function splitTags(
+    value: string
+  ) {
+    return value
+      .split(",")
+      .map(
+        (tag) =>
+          tag.trim()
+      )
+      .filter(Boolean);
+  }
+
+  function getCompanyName(
+    id?: string
+  ) {
+    if (!id) {
+      return "Intern";
+    }
+
     return (
-      ticket.department ||
-      getDepartmentName(departments, ticket.departmentId) ||
+      companies.find(
+        (company) =>
+          company.id === id
+      )?.name ||
+      "Intern"
+    );
+  }
+
+  function getDepartmentName(
+    id?: string
+  ) {
+    if (!id) {
+      return "Allgemein";
+    }
+
+    return (
+      departments.find(
+        (department) =>
+          department.id === id
+      )?.name ||
       "Allgemein"
     );
   }
 
-  function handleCompanyChange(nextCompanyId: string) {
-    setCompanyId(nextCompanyId);
+  const departmentOptions =
+    useMemo(
+      () => {
+        if (!companyId) {
+          return departments;
+        }
 
-    const selectedCompany = companies.find((item) => item.id === nextCompanyId);
-    setCompany(selectedCompany?.name || "Intern");
-
-    const nextDepartments = activeDepartments.filter(
-      (item) => item.companyId === nextCompanyId
+        return departments.filter(
+          (department) =>
+            department.companyId === companyId
+        );
+      },
+      [
+        departments,
+        companyId,
+      ]
     );
 
-    const firstDepartment = nextDepartments[0];
+  const filteredDepartments =
+    useMemo(
+      () => {
+        if (!companyFilter) {
+          return departments;
+        }
 
-    setDepartmentId(firstDepartment?.id || "");
-    setDepartment(firstDepartment?.name || "Allgemein");
-  }
-
-  function handleDepartmentChange(nextDepartmentId: string) {
-    setDepartmentId(nextDepartmentId);
-
-    const selectedDepartment = departments.find(
-      (item) => item.id === nextDepartmentId
+        return departments.filter(
+          (department) =>
+            department.companyId === companyFilter
+        );
+      },
+      [
+        departments,
+        companyFilter,
+      ]
     );
 
-    setDepartment(selectedDepartment?.name || "Allgemein");
-  }
+  const filteredTickets =
+    useMemo(
+      () => {
+        const query =
+          search.trim().toLowerCase();
+
+        return tickets.filter(
+          (ticket) => {
+            if (
+              hideClosed &&
+              ticket.status === "closed" &&
+              statusFilter !== "closed"
+            ) {
+              return false;
+            }
+
+            const companyName =
+              getCompanyName(
+                ticket.companyId
+              );
+
+            const departmentName =
+              getDepartmentName(
+                ticket.departmentId
+              );
+
+            const ticketTags =
+              Array.isArray(
+                ticket.tags
+              )
+                ? ticket.tags.join(" ")
+                : "";
+
+            const matchesSearch =
+              !query ||
+              [
+                ticket.id,
+                ticket.title,
+                ticket.description,
+                ticket.status,
+                ticket.priority,
+                ticket.category,
+                ticket.company,
+                ticket.department,
+                companyName,
+                departmentName,
+                ticket.assignedTo,
+                ticket.createdBy,
+                ticketTags,
+                ticket.createdAt,
+                ticket.updatedAt,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(
+                  query
+                );
+
+            const matchesStatus =
+              !statusFilter ||
+              ticket.status === statusFilter;
+
+            const matchesPriority =
+              !priorityFilter ||
+              ticket.priority === priorityFilter;
+
+            const matchesCompany =
+              !companyFilter ||
+              ticket.companyId === companyFilter;
+
+            const matchesDepartment =
+              !departmentFilter ||
+              ticket.departmentId === departmentFilter;
+
+            return (
+              matchesSearch &&
+              matchesStatus &&
+              matchesPriority &&
+              matchesCompany &&
+              matchesDepartment
+            );
+          }
+        );
+      },
+      [
+        tickets,
+        search,
+        statusFilter,
+        priorityFilter,
+        companyFilter,
+        departmentFilter,
+        companies,
+        departments,
+        hideClosed,
+      ]
+    );
+
+  const openTickets =
+    tickets.filter(
+      (ticket) =>
+        ticket.status === "open"
+    );
+
+  const inProgressTickets =
+    tickets.filter(
+      (ticket) =>
+        ticket.status === "in_progress"
+    );
+
+  const highOrUrgentTickets =
+    tickets.filter(
+      (ticket) =>
+        ticket.priority === "high" ||
+        ticket.priority === "urgent"
+    );
+
+  const closedTickets =
+    tickets.filter(
+      (ticket) =>
+        ticket.status === "closed"
+    );
 
   function resetForm() {
-    const firstCompany = activeCompanies[0] || companies[0];
-    const firstDepartment =
-      activeDepartments.find((item) => item.companyId === firstCompany?.id) ||
-      departments.find((item) => item.companyId === firstCompany?.id) ||
-      activeDepartments[0] ||
-      departments[0];
-
-    setEditingId("");
+    setEditingTicketId("");
     setTitle("");
     setDescription("");
     setStatus("open");
     setPriority("medium");
     setCategory("Allgemein");
-    setCompanyId(firstCompany?.id || "");
-    setDepartmentId(firstDepartment?.id || "");
-    setCompany(firstCompany?.name || "Intern");
-    setDepartment(firstDepartment?.name || "Allgemein");
+    setCompanyId("");
+    setDepartmentId("");
     setAssignedTo("");
-    setCreatedBy("");
+    setCreatedBy("System");
     setTags("");
     setShowForm(false);
   }
 
   function openCreateForm() {
     resetForm();
-    setShowForm(true);
+
+    const firstCompany =
+      companies[0];
+
+    const firstDepartment =
+      departments.find(
+        (department) =>
+          department.companyId === firstCompany?.id
+      );
+
+    setCompanyId(
+      firstCompany?.id ||
+        ""
+    );
+
+    setDepartmentId(
+      firstDepartment?.id ||
+        ""
+    );
+
+    setShowForm(
+      true
+    );
   }
 
-  function startEditTicket(ticket: Ticket) {
-    setEditingId(ticket.id);
-    setTitle(ticket.title);
-    setDescription(ticket.description);
-    setStatus(ticket.status);
-    setPriority(ticket.priority);
-    setCategory(ticket.category);
-    setCompanyId(ticket.companyId || "");
-    setDepartmentId(ticket.departmentId || "");
-    setCompany(ticket.company || "Intern");
-    setDepartment(ticket.department || "Allgemein");
-    setAssignedTo(ticket.assignedTo || "");
-    setCreatedBy(ticket.createdBy || "");
-    setTags(ticket.tags?.join(", ") || "");
-    setShowForm(true);
+  function startEditTicket(
+    ticket: Ticket
+  ) {
+    setEditingTicketId(
+      ticket.id
+    );
+
+    setTitle(
+      ticket.title
+    );
+
+    setDescription(
+      ticket.description
+    );
+
+    setStatus(
+      ticket.status
+    );
+
+    setPriority(
+      ticket.priority
+    );
+
+    setCategory(
+      ticket.category ||
+        "Allgemein"
+    );
+
+    setCompanyId(
+      ticket.companyId ||
+        ""
+    );
+
+    setDepartmentId(
+      ticket.departmentId ||
+        ""
+    );
+
+    setAssignedTo(
+      ticket.assignedTo ||
+        ""
+    );
+
+    setCreatedBy(
+      ticket.createdBy ||
+        "System"
+    );
+
+    setTags(
+      Array.isArray(
+        ticket.tags
+      )
+        ? ticket.tags.join(
+            ", "
+          )
+        : ""
+    );
+
+    setShowForm(
+      true
+    );
+
+    window.scrollTo({
+      top:
+        0,
+
+      behavior:
+        "smooth",
+    });
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!canCreate() && !editingTicketId) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu erstellen."
+      );
+
+      return;
+    }
+
+    if (!canEdit() && editingTicketId) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu bearbeiten."
+      );
+
+      return;
+    }
+
+    if (!title.trim()) {
+      alert(
+        "Bitte einen Titel eingeben."
+      );
+
+      return;
+    }
+
+    const companyName =
+      getCompanyName(
+        companyId
+      );
+
+    const departmentName =
+      getDepartmentName(
+        departmentId
+      );
+
+    try {
+      setSaving(
+        true
+      );
+
+      if (editingTicketId) {
+        const updatedTicket =
+          await ticketRepository.update(
+            editingTicketId,
+            {
+              title:
+                title.trim(),
+
+              description:
+                description.trim(),
+
+              status,
+
+              priority,
+
+              category:
+                category.trim() ||
+                "Allgemein",
+
+              companyId,
+
+              departmentId,
+
+              company:
+                companyName,
+
+              department:
+                departmentName,
+
+              assignedTo:
+                assignedTo.trim(),
+
+              createdBy:
+                createdBy.trim() ||
+                "System",
+
+              tags:
+                splitTags(
+                  tags
+                ),
+            }
+          );
+
+        if (updatedTicket) {
+          saveTicketUpdatedActivity(
+            updatedTicket
+          );
+        }
+
+        resetForm();
+
+        await loadData();
+
+        return;
+      }
+
+      const createdTicket =
+        await ticketRepository.create({
+          title:
+            title.trim(),
+
+          description:
+            description.trim(),
+
+          status,
+
+          priority,
+
+          category:
+            category.trim() ||
+            "Allgemein",
+
+          companyId,
+
+          departmentId,
+
+          company:
+            companyName,
+
+          department:
+            departmentName,
+
+          assignedTo:
+            assignedTo.trim(),
+
+          createdBy:
+            createdBy.trim() ||
+            "System",
+
+          tags:
+            splitTags(
+              tags
+            ),
+        });
+
+      saveTicketCreatedActivity(
+        createdTicket
+      );
+
+      resetForm();
+
+      await loadData();
+    } catch (saveError) {
+      console.error(
+        saveError
+      );
+
+      alert(
+        saveError instanceof Error
+          ? saveError.message
+          : "Ticket konnte nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
+  }
+
+  async function handleDeleteTicket(
+    ticket: Ticket
+  ) {
+    if (!canDelete()) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu löschen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      saveTicketDeletedActivity(
+        ticket
+      );
+
+      await ticketRepository.delete(
+        ticket.id
+      );
+
+      await loadData();
+    } catch (deleteError) {
+      console.error(
+        deleteError
+      );
+
+      alert(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Ticket konnte nicht gelöscht werden."
+      );
+    }
   }
 
   function resetFilters() {
@@ -426,306 +864,381 @@ export default function TicketsPage() {
     setPriorityFilter("");
     setCompanyFilter("");
     setDepartmentFilter("");
-  }
-
-  async function reloadTickets() {
-    const nextTickets = await ticketRepository.list();
-    setTickets(Array.isArray(nextTickets) ? nextTickets : []);
-  }
-
-  async function handleSaveTicket() {
-    if (!canCreate() && !editingId) {
-      alert("Du hast keine Berechtigung, Tickets zu erstellen.");
-      return;
-    }
-
-    if (!canEdit() && editingId) {
-      alert("Du hast keine Berechtigung, Tickets zu bearbeiten.");
-      return;
-    }
-
-    if (!title.trim()) {
-      alert("Bitte einen Titel eingeben.");
-      return;
-    }
-
-    const selectedCompanyName =
-      getCompanyName(companies, companyId) || company.trim() || "Intern";
-
-    const selectedDepartmentName =
-      getDepartmentName(departments, departmentId) ||
-      department.trim() ||
-      "Allgemein";
-
-    const tagList = tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-
-    const ticketData: TicketCreateInput = {
-      title: title.trim(),
-      description: description.trim(),
-      status,
-      priority,
-      category: category.trim() || "Allgemein",
-      companyId,
-      departmentId,
-      company: selectedCompanyName,
-      department: selectedDepartmentName,
-      assignedTo: assignedTo.trim(),
-      createdBy: createdBy.trim(),
-      tags: tagList,
-    };
-
-    try {
-      setSaving(true);
-
-      if (editingId) {
-        await ticketRepository.update(editingId, ticketData);
-      } else {
-        await ticketRepository.create(ticketData);
-      }
-
-      await reloadTickets();
-      resetForm();
-    } catch (error) {
-      console.error("Ticket konnte nicht gespeichert werden:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Ticket konnte nicht gespeichert werden."
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeleteTicket(ticket: Ticket) {
-    if (!canDelete()) {
-      alert("Du hast keine Berechtigung, Tickets zu löschen.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Ticket "${ticket.title}" wirklich löschen?`
+    setHideClosed(
+      true
     );
+  }
 
-    if (!confirmed) {
-      return;
-    }
+  function renderActions(
+    ticket: Ticket
+  ) {
+    return (
+      <div className="flex flex-wrap gap-3 shrink-0">
+        <Link
+          href={`/tickets/${ticket.id}`}
+          className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+        >
+          Öffnen
+        </Link>
 
-    try {
-      await ticketRepository.delete(ticket.id);
-      await reloadTickets();
-    } catch (error) {
-      console.error("Ticket konnte nicht gelöscht werden:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Ticket konnte nicht gelöscht werden."
-      );
-    }
+        {canEdit() && (
+          <button
+            type="button"
+            onClick={() =>
+              startEditTicket(
+                ticket
+              )
+            }
+            className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+          >
+            Bearbeiten
+          </button>
+        )}
+
+        {canDelete() && (
+          <button
+            type="button"
+            onClick={() =>
+              void handleDeleteTicket(
+                ticket
+              )
+            }
+            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+          >
+            Löschen
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+    <div className="space-y-8">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+        <div>
+          <h1 className="text-4xl font-bold">
+            Tickets
+          </h1>
+
+          <p className="text-zinc-500 mt-2">
+            Supportfälle und Aufgaben aus PostgreSQL verwalten.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          {ticketTemplatesEnabled && (
+            <Link
+              href="/tickets/templates"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Vorlagen
+            </Link>
+          )}
+
+          {canCreate() && (
+            <button
+              type="button"
+              onClick={openCreateForm}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              Ticket erstellen
+            </button>
+          )}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Tickets werden geladen...
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Tickets gesamt
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {tickets.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setStatusFilter(
+              "open"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Offen
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {openTickets.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setStatusFilter(
+              "in_progress"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-yellow-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            In Bearbeitung
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {inProgressTickets.length}
+          </h2>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setPriorityFilter(
+              "urgent"
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            Hoch/Dringend
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {highOrUrgentTickets.length}
+          </h2>
+
+          <p className="text-sm text-zinc-400 mt-2">
+            {closedTickets.length} geschlossen
+          </p>
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={(event) =>
+            void handleSubmit(
+              event
+            )
+          }
+          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+        >
           <div>
-            <p className="text-sm font-medium text-zinc-500">Ticketsystem</p>
+            <h2 className="text-2xl font-semibold">
+              {editingTicketId
+                ? "Ticket bearbeiten"
+                : "Ticket erstellen"}
+            </h2>
 
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
-              Tickets
-            </h1>
-
-            <p className="mt-2 text-sm text-zinc-500">
-              Supportfälle, Aufgaben und interne Anfragen verwalten.
+            <p className="text-zinc-500 mt-1">
+              Ticket wird direkt in PostgreSQL gespeichert.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("")}
-              className="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-medium text-zinc-800 transition hover:bg-zinc-50"
-            >
-              Alle anzeigen
-            </button>
-
-            {canCreate() && (
-              <button
-                type="button"
-                onClick={openCreateForm}
-                className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
-              >
-                Ticket erstellen
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {loadState === "error" && (
-        <section className="rounded-3xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          Tickets konnten nicht geladen werden. Prüfe API und Datenbank.
-        </section>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <button
-          type="button"
-          onClick={() => setStatusFilter("")}
-          className="rounded-3xl border border-zinc-200 bg-white p-6 text-left shadow-sm transition hover:bg-zinc-50"
-        >
-          <p className="text-sm text-zinc-500">Gesamt</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {isLoading ? "…" : tickets.length}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter("open")}
-          className="rounded-3xl border border-zinc-200 bg-white p-6 text-left shadow-sm transition hover:bg-blue-50"
-        >
-          <p className="text-sm text-zinc-500">Offen</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {isLoading ? "…" : openCount}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter("in_progress")}
-          className="rounded-3xl border border-zinc-200 bg-white p-6 text-left shadow-sm transition hover:bg-indigo-50"
-        >
-          <p className="text-sm text-zinc-500">In Bearbeitung</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {isLoading ? "…" : progressCount}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStatusFilter("waiting")}
-          className="rounded-3xl border border-zinc-200 bg-white p-6 text-left shadow-sm transition hover:bg-yellow-50"
-        >
-          <p className="text-sm text-zinc-500">Wartend</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {isLoading ? "…" : waitingCount}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setPriorityFilter("high_or_urgent")}
-          className="rounded-3xl border border-zinc-200 bg-white p-6 text-left shadow-sm transition hover:bg-red-50"
-        >
-          <p className="text-sm text-zinc-500">Hoch/Dringend</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-950">
-            {isLoading ? "…" : urgentCount}
-          </p>
-        </button>
-      </section>
-
-      {showForm && (
-        <section className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold text-zinc-950">
-                {editingId ? `Ticket #${editingId} bearbeiten` : "Ticket erstellen"}
-              </h2>
-
-              <p className="mt-1 text-sm text-zinc-500">
-                Tickets sind für echte Firmen- und Abteilungs-IDs vorbereitet.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={resetForm}
-              className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm transition hover:bg-zinc-50"
-            >
-              Schließen
-            </button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
                 Titel
               </label>
+
               <input
-                type="text"
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
+                onChange={(event) =>
+                  setTitle(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
                 placeholder="Kurzer Titel"
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
-                Kategorie
+            <div className="md:col-span-2">
+              <label className="block mb-2 font-medium">
+                Beschreibung
               </label>
-              <input
-                type="text"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="IT, Benutzer, Dokumentation..."
+
+              <textarea
+                value={description}
+                onChange={(event) =>
+                  setDescription(
+                    event.target.value
+                  )
+                }
+                rows={5}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                placeholder="Beschreibung des Tickets..."
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="block mb-2 font-medium">
                 Status
               </label>
+
               <select
                 value={status}
-                onChange={(event) => setStatus(event.target.value as TicketStatus)}
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
+                onChange={(event) =>
+                  setStatus(
+                    event.target.value as TicketStatus
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="open">Offen</option>
-                <option value="in_progress">In Bearbeitung</option>
-                <option value="waiting">Wartend</option>
-                <option value="done">Erledigt</option>
-                <option value="closed">Geschlossen</option>
+                <option value="open">
+                  Offen
+                </option>
+
+                <option value="in_progress">
+                  In Bearbeitung
+                </option>
+
+                <option value="waiting">
+                  Wartend
+                </option>
+
+                <option value="done">
+                  Erledigt
+                </option>
+
+                <option value="closed">
+                  Geschlossen
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="block mb-2 font-medium">
                 Priorität
               </label>
+
               <select
                 value={priority}
                 onChange={(event) =>
-                  setPriority(event.target.value as TicketPriority)
+                  setPriority(
+                    event.target.value as TicketPriority
+                  )
                 }
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="low">Niedrig</option>
-                <option value="medium">Mittel</option>
-                <option value="high">Hoch</option>
-                <option value="urgent">Dringend</option>
+                <option value="low">
+                  Niedrig
+                </option>
+
+                <option value="medium">
+                  Mittel
+                </option>
+
+                <option value="high">
+                  Hoch
+                </option>
+
+                <option value="urgent">
+                  Dringend
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="block mb-2 font-medium">
+                Kategorie
+              </label>
+
+              <input
+                value={category}
+                onChange={(event) =>
+                  setCategory(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Allgemein"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Zugewiesen an
+              </label>
+
+              <input
+                value={assignedTo}
+                onChange={(event) =>
+                  setAssignedTo(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Name oder Team"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
                 Firma
               </label>
+
               <select
                 value={companyId}
-                onChange={(event) => handleCompanyChange(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
+                onChange={(event) => {
+                  const nextCompanyId =
+                    event.target.value;
+
+                  setCompanyId(
+                    nextCompanyId
+                  );
+
+                  const firstDepartment =
+                    departments.find(
+                      (department) =>
+                        department.companyId === nextCompanyId
+                    );
+
+                  setDepartmentId(
+                    firstDepartment?.id ||
+                      ""
+                  );
+                }}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="">Firma auswählen</option>
-                {(activeCompanies.length > 0 ? activeCompanies : companies).map(
-                  (item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+                <option value="">
+                  Keine Firma
+                </option>
+
+                {companies.map(
+                  (company) => (
+                    <option
+                      key={company.id}
+                      value={company.id}
+                    >
+                      {company.name}
                     </option>
                   )
                 )}
@@ -733,122 +1246,119 @@ export default function TicketsPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="block mb-2 font-medium">
                 Abteilung
               </label>
+
               <select
                 value={departmentId}
-                onChange={(event) => handleDepartmentChange(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
+                onChange={(event) =>
+                  setDepartmentId(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="">Abteilung auswählen</option>
-                {selectableDepartments.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
+                <option value="">
+                  Keine Abteilung
+                </option>
+
+                {departmentOptions.map(
+                  (department) => (
+                    <option
+                      key={department.id}
+                      value={department.id}
+                    >
+                      {department.name}
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
-                Zugewiesen an
+              <label className="block mb-2 font-medium">
+                Erstellt von
               </label>
+
               <input
-                type="text"
-                value={assignedTo}
-                onChange={(event) => setAssignedTo(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Name"
+                value={createdBy}
+                onChange={(event) =>
+                  setCreatedBy(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="System"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
-                Erstellt von
-              </label>
-              <input
-                type="text"
-                value={createdBy}
-                onChange={(event) => setCreatedBy(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Name"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
-                Beschreibung
-              </label>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={5}
-                className="w-full resize-none rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Beschreibung des Tickets..."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="block mb-2 font-medium">
                 Tags
               </label>
+
               <input
-                type="text"
                 value={tags}
-                onChange={(event) => setTags(event.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="kommagetrennt, z. B. drucker, netzwerk"
+                onChange={(event) =>
+                  setTags(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="hardware, onboarding, support"
               />
             </div>
           </div>
 
-          <div className="mt-8 flex flex-wrap justify-end gap-3 border-t border-zinc-200 pt-6">
+          <div className="flex flex-wrap gap-3">
             <button
-              type="button"
-              onClick={resetForm}
-              className="rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-sm font-medium transition hover:bg-zinc-100"
-            >
-              Abbrechen
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveTicket}
+              type="submit"
               disabled={saving}
-              className="rounded-2xl bg-zinc-950 px-6 py-4 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
             >
               {saving
                 ? "Speichert..."
-                : editingId
+                : editingTicketId
                   ? "Änderungen speichern"
                   : "Ticket erstellen"}
             </button>
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Abbrechen
+            </button>
           </div>
-        </section>
+        </form>
       )}
 
-      <section className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
-            <h2 className="text-xl font-semibold text-zinc-950">
+            <h2 className="text-xl font-semibold">
               Suche & Filter
             </h2>
 
-            <p className="mt-1 text-sm text-zinc-500">
-              Filtere Tickets nach ID, Text, Status, Priorität, Firma und
-              Abteilung.
+            <p className="text-zinc-500 mt-1">
+              Suche nach Titel, Beschreibung, Organisation, Tags oder Bearbeiter.
             </p>
           </div>
 
-          <div className="flex gap-2 rounded-2xl bg-zinc-100 p-1">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => setViewMode("cards")}
-              className={`rounded-xl px-4 py-2 text-sm transition ${
+              onClick={() =>
+                setViewMode(
+                  "cards"
+                )
+              }
+              className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "cards"
-                  ? "bg-white text-zinc-950 shadow-sm"
-                  : "text-zinc-600 hover:bg-zinc-200"
+                  ? "bg-zinc-900 text-white"
+                  : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
               Karten
@@ -856,370 +1366,383 @@ export default function TicketsPage() {
 
             <button
               type="button"
-              onClick={() => setViewMode("table")}
-              className={`rounded-xl px-4 py-2 text-sm transition ${
+              onClick={() =>
+                setViewMode(
+                  "table"
+                )
+              }
+              className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "table"
-                  ? "bg-white text-zinc-950 shadow-sm"
-                  : "text-zinc-600 hover:bg-zinc-200"
+                  ? "bg-zinc-900 text-white"
+                  : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
               Tabelle
             </button>
-          </div>
-        </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-6">
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Suche nach ID, Titel, Beschreibung, Kategorie, Firma, Abteilung oder Tag..."
-            className="rounded-2xl border border-zinc-200 px-5 py-4 outline-none focus:border-zinc-500 md:col-span-2"
-          />
-
-          <select
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value as TicketStatus | "")
-            }
-            className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">Alle Status</option>
-            <option value="open">Offen</option>
-            <option value="in_progress">In Bearbeitung</option>
-            <option value="waiting">Wartend</option>
-            <option value="done">Erledigt</option>
-            <option value="closed">Geschlossen</option>
-          </select>
-
-          <select
-            value={priorityFilter}
-            onChange={(event) =>
-              setPriorityFilter(event.target.value as PriorityFilter)
-            }
-            className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">Alle Prioritäten</option>
-            <option value="high_or_urgent">Hoch/Dringend</option>
-            <option value="low">Niedrig</option>
-            <option value="medium">Mittel</option>
-            <option value="high">Hoch</option>
-            <option value="urgent">Dringend</option>
-          </select>
-
-          <select
-            value={companyFilter}
-            onChange={(event) => setCompanyFilter(event.target.value)}
-            className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">Alle Firmen</option>
-            {companies.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={departmentFilter}
-            onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 outline-none focus:border-zinc-500"
-          >
-            <option value="">Alle Abteilungen</option>
-            {departments.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm text-zinc-500">
-            {isLoading
-              ? "Tickets werden geladen..."
-              : `${filteredTickets.length} von ${visibleTicketCount} sichtbaren Tickets gefunden`}
-          </p>
-
-          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setShowClosedTickets(!showClosedTickets)}
-              className={`rounded-xl px-4 py-2 text-sm transition ${
-                showClosedTickets
-                  ? "bg-zinc-950 text-white hover:bg-zinc-800"
-                  : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+              onClick={() =>
+                setHideClosed(
+                  (current) =>
+                    !current
+                )
+              }
+              className={`px-4 py-2 rounded-xl transition ${
+                hideClosed
+                  ? "bg-green-50 text-green-700"
+                  : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
-              {showClosedTickets
-                ? "Geschlossene ausblenden"
-                : `Geschlossene einblenden (${closedCount})`}
+              {hideClosed
+                ? "Geschlossene ausgeblendet"
+                : "Geschlossene anzeigen"}
             </button>
 
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-xl bg-zinc-100 px-4 py-2 text-sm text-zinc-700 transition hover:bg-zinc-200"
+              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Filter zurücksetzen
+              Zurücksetzen
             </button>
           </div>
         </div>
-      </section>
 
-      {viewMode === "cards" && (
-        <section className="grid gap-4">
-          {!isLoading && filteredTickets.length === 0 && (
-            <div className="rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm">
-              <p className="text-zinc-500">Keine Tickets gefunden.</p>
-            </div>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <input
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            placeholder="Tickets suchen..."
+          />
 
-          {filteredTickets.map((ticket) => {
-            const ticketCompany = getTicketCompany(ticket);
-            const ticketDepartment = getTicketDepartment(ticket);
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Status
+            </option>
 
-            return (
-              <article
-                key={ticket.id}
-                className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
-              >
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${ticketRepository.getStatusClass(
-                          ticket.status
-                        )}`}
-                      >
-                        {ticketRepository.getStatusLabel(ticket.status)}
-                      </span>
+            <option value="open">
+              Offen
+            </option>
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${ticketRepository.getPriorityClass(
-                          ticket.priority
-                        )}`}
-                      >
-                        {ticketRepository.getPriorityLabel(ticket.priority)}
-                      </span>
+            <option value="in_progress">
+              In Bearbeitung
+            </option>
 
-                      <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700">
-                        {ticket.category}
-                      </span>
+            <option value="waiting">
+              Wartend
+            </option>
 
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
-                        {ticketCompany}
-                      </span>
+            <option value="done">
+              Erledigt
+            </option>
 
-                      <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
-                        {ticketDepartment}
-                      </span>
-                    </div>
+            <option value="closed">
+              Geschlossen
+            </option>
+          </select>
 
-                    <div className="mt-4">
-                      <p className="font-mono text-xs text-zinc-400">
-                        ID: {ticket.id}
-                      </p>
+          <select
+            value={priorityFilter}
+            onChange={(event) =>
+              setPriorityFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Prioritäten
+            </option>
 
-                      <Link
-                        href={`/tickets/${ticket.id}`}
-                        className="mt-1 inline-block text-2xl font-bold text-zinc-950 transition hover:text-zinc-600"
-                      >
-                        {ticket.title}
-                      </Link>
-                    </div>
+            <option value="low">
+              Niedrig
+            </option>
 
-                    <p className="mt-2 text-zinc-500">
-                      {ticket.description || "Keine Beschreibung"}
-                    </p>
+            <option value="medium">
+              Mittel
+            </option>
 
-                    {ticket.tags && ticket.tags.length > 0 && (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {ticket.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+            <option value="high">
+              Hoch
+            </option>
 
-                    <div className="mt-5 flex flex-wrap gap-6 text-sm text-zinc-500">
-                      <p>Erstellt: {formatDateTime(ticket.createdAt)}</p>
-                      <p>Aktualisiert: {formatDateTime(ticket.updatedAt)}</p>
-                      {ticket.assignedTo && <p>Zuständig: {ticket.assignedTo}</p>}
-                      {ticket.createdBy && <p>Von: {ticket.createdBy}</p>}
-                    </div>
-                  </div>
+            <option value="urgent">
+              Dringend
+            </option>
+          </select>
 
-                  <div className="flex shrink-0 flex-wrap justify-end gap-3">
-                    <Link
-                      href={`/tickets/${ticket.id}`}
-                      className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm transition hover:bg-zinc-100"
-                    >
-                      Öffnen
-                    </Link>
+          <select
+            value={companyFilter}
+            onChange={(event) => {
+              setCompanyFilter(
+                event.target.value
+              );
 
-                    {canEdit() && (
-                      <button
-                        type="button"
-                        onClick={() => startEditTicket(ticket)}
-                        className="rounded-xl bg-zinc-950 px-4 py-2 text-sm text-white transition hover:bg-zinc-800"
-                      >
-                        Bearbeiten
-                      </button>
-                    )}
+              setDepartmentFilter(
+                ""
+              );
+            }}
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Firmen
+            </option>
 
-                    {canDelete() && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteTicket(ticket)}
-                        className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white transition hover:bg-red-500"
-                      >
-                        Löschen
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
+            {companies.map(
+              (company) => (
+                <option
+                  key={company.id}
+                  value={company.id}
+                >
+                  {company.name}
+                </option>
+              )
+            )}
+          </select>
+
+          <select
+            value={departmentFilter}
+            onChange={(event) =>
+              setDepartmentFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Abteilungen
+            </option>
+
+            {filteredDepartments.map(
+              (department) => (
+                <option
+                  key={department.id}
+                  value={department.id}
+                >
+                  {department.name}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        <p className="text-sm text-zinc-500">
+          {filteredTickets.length} von {tickets.length} Tickets gefunden.
+        </p>
+      </div>
+
+      {filteredTickets.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h2 className="text-xl font-semibold">
+            Keine Tickets gefunden
+          </h2>
+
+          <p className="text-zinc-500 mt-2">
+            Erstelle ein neues Ticket oder passe die Filter an.
+          </p>
+        </div>
       )}
 
-      {viewMode === "table" && (
-        <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      {viewMode === "cards" && (
+        <div className="space-y-4">
+          {filteredTickets.map(
+            (ticket) => (
+              <div
+                key={ticket.id}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                  <Link
+                    href={`/tickets/${ticket.id}`}
+                    className="min-w-0 block flex-1"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(ticket.status)}`}>
+                        {getStatusLabel(
+                          ticket.status
+                        )}
+                      </span>
+
+                      <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(ticket.priority)}`}>
+                        {getPriorityLabel(
+                          ticket.priority
+                        )}
+                      </span>
+
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {getCompanyName(
+                          ticket.companyId
+                        )}
+                      </span>
+
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                        {getDepartmentName(
+                          ticket.departmentId
+                        )}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl font-bold mt-4">
+                      #{ticket.id} · {ticket.title}
+                    </h2>
+
+                    <p className="text-zinc-500 mt-2 line-clamp-2">
+                      {ticket.description ||
+                        "Keine Beschreibung vorhanden."}
+                    </p>
+
+                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+                      <span>
+                        Kategorie:{" "}
+                        {ticket.category ||
+                          "Allgemein"}
+                      </span>
+
+                      <span>
+                        Zugewiesen:{" "}
+                        {ticket.assignedTo ||
+                          "Niemand"}
+                      </span>
+
+                      <span>
+                        Erstellt:{" "}
+                        {ticket.createdAt}
+                      </span>
+                    </div>
+                  </Link>
+
+                  {renderActions(
+                    ticket
+                  )}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {viewMode === "table" && filteredTickets.length > 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">ID</th>
-                  <th className="px-5 py-4 font-semibold">Ticket</th>
-                  <th className="px-5 py-4 font-semibold">Status</th>
-                  <th className="px-5 py-4 font-semibold">Priorität</th>
-                  <th className="px-5 py-4 font-semibold">Kategorie</th>
-                  <th className="px-5 py-4 font-semibold">Firma</th>
-                  <th className="px-5 py-4 font-semibold">Abteilung</th>
-                  <th className="px-5 py-4 font-semibold">Zuständig</th>
-                  <th className="px-5 py-4 font-semibold">Aktualisiert</th>
-                  <th className="px-5 py-4 text-right font-semibold">Aktionen</th>
+                  <th className="px-5 py-4 font-semibold">
+                    Ticket
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Status
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Priorität
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Organisation
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Zugewiesen
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Erstellt
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold text-right">
+                    Aktionen
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {!isLoading && filteredTickets.length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="px-5 py-8 text-zinc-500">
-                      Keine Tickets gefunden.
-                    </td>
-                  </tr>
-                )}
-
-                {filteredTickets.map((ticket) => {
-                  const ticketCompany = getTicketCompany(ticket);
-                  const ticketDepartment = getTicketDepartment(ticket);
-
-                  return (
+                {filteredTickets.map(
+                  (ticket) => (
                     <tr
                       key={ticket.id}
-                      className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
+                      className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50"
                     >
-                      <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-zinc-500">
-                        {ticket.id}
-                      </td>
-
-                      <td className="min-w-[260px] px-5 py-4">
+                      <td className="px-5 py-4 align-top min-w-[280px]">
                         <Link
                           href={`/tickets/${ticket.id}`}
-                          className="font-semibold text-zinc-950 transition hover:text-zinc-600"
+                          className="font-semibold hover:underline"
                         >
-                          {ticket.title}
+                          #{ticket.id} · {ticket.title}
                         </Link>
 
-                        <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
-                          {ticket.description || "Keine Beschreibung"}
+                        <p className="text-zinc-500 mt-1 line-clamp-2">
+                          {ticket.description ||
+                            "Keine Beschreibung vorhanden."}
                         </p>
                       </td>
 
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-medium ${ticketRepository.getStatusClass(
+                      <td className="px-5 py-4 align-top">
+                        <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(ticket.status)}`}>
+                          {getStatusLabel(
                             ticket.status
-                          )}`}
-                        >
-                          {ticketRepository.getStatusLabel(ticket.status)}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-medium ${ticketRepository.getPriorityClass(
-                            ticket.priority
-                          )}`}
-                        >
-                          {ticketRepository.getPriorityLabel(ticket.priority)}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600">
-                        {ticket.category}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600">
-                        {ticketCompany}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600">
-                        {ticketDepartment}
-                      </td>
-
-                      <td className="px-5 py-4 text-zinc-600">
-                        {ticket.assignedTo || "—"}
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-4 text-zinc-500">
-                        {formatDateTime(ticket.updatedAt)}
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Link
-                            href={`/tickets/${ticket.id}`}
-                            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm transition hover:bg-zinc-100"
-                          >
-                            Öffnen
-                          </Link>
-
-                          {canEdit() && (
-                            <button
-                              type="button"
-                              onClick={() => startEditTicket(ticket)}
-                              className="rounded-xl bg-zinc-950 px-3 py-2 text-sm text-white transition hover:bg-zinc-800"
-                            >
-                              Bearbeiten
-                            </button>
                           )}
+                        </span>
+                      </td>
 
-                          {canDelete() && (
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteTicket(ticket)}
-                              className="rounded-xl bg-red-600 px-3 py-2 text-sm text-white transition hover:bg-red-500"
-                            >
-                              Löschen
-                            </button>
+                      <td className="px-5 py-4 align-top">
+                        <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(ticket.priority)}`}>
+                          {getPriorityLabel(
+                            ticket.priority
+                          )}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-zinc-500">
+                        {getCompanyName(
+                          ticket.companyId
+                        )}
+
+                        <br />
+
+                        {getDepartmentName(
+                          ticket.departmentId
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-zinc-500">
+                        {ticket.assignedTo ||
+                          "Niemand"}
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-zinc-500 whitespace-nowrap">
+                        {ticket.createdAt}
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        <div className="flex justify-end">
+                          {renderActions(
+                            ticket
                           )}
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
+                  )
+                )}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );

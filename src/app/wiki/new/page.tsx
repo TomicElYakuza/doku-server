@@ -1,9 +1,0 @@
-import {
-  redirect,
-} from "next/navigation";
-
-export default function NewWikiPage() {
-  redirect(
-    "/wiki/create"
-  );
-}

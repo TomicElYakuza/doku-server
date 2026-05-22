@@ -2,20 +2,29 @@ import type {
   Metadata,
 } from "next";
 
+import {
+  Inter,
+} from "next/font/google";
+
 import "./globals.css";
 
 import AppShell from "../components/AppShell";
 
 import AppThemeProvider from "../components/AppThemeProvider";
 
-import NotificationCenter from "../components/NotificationCenter";
+const inter =
+  Inter({
+    subsets: [
+      "latin",
+    ],
+  });
 
 export const metadata: Metadata = {
   title:
-    "DMS Intranet",
+    "Doku Server",
 
   description:
-    "DMS, Ticket und Intranet App",
+    "DMS, Ticket und Intranet System",
 };
 
 export default function RootLayout({
@@ -24,17 +33,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="de"
-      suppressHydrationWarning
-    >
-      <body className="min-h-screen">
+    <html lang="de">
+      <body className={inter.className}>
         <AppThemeProvider>
           <AppShell>
             {children}
           </AppShell>
-
-          <NotificationCenter />
         </AppThemeProvider>
       </body>
     </html>

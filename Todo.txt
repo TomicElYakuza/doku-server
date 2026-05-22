@@ -26,5 +26,9 @@ bei erstellen immer fenster aufplopen:
 LOGIN bearbeiten
 -	Nur einloggen über Benutzername + Passwort
 
+Eingeloggt Seite
+
+Altes Layout zurück
+
 
 

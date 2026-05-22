@@ -6,55 +6,31 @@ import {
 } from "react";
 
 import {
-  getFeatureFlags,
-} from "../lib/featureFlags";
+  appSettingsRepository,
+} from "../lib/appSettingsRepository";
 
-export type FeatureFlags = ReturnType<
-  typeof getFeatureFlags
->;
+import type {
+  AppSettings,
+} from "../types/settings";
 
 export function useFeatureFlags() {
-  const [mounted, setMounted] =
-    useState(false);
-
-  const [flags, setFlags] =
-    useState<FeatureFlags>(() => ({
-      showDemoHints:
-        true,
-
-      enableTicketTemplates:
-        true,
-
-      enableTicketComments:
-        true,
-
-      enableActivityLog:
-        true,
-
-      defaultUserRole:
-        "viewer",
-    }));
-
-  useEffect(() => {
-    setMounted(true);
-
-    setFlags(
-      getFeatureFlags()
+  const [settings, setSettings] =
+    useState<AppSettings>(
+      appSettingsRepository.getDefault()
     );
 
+  const [loading, setLoading] =
+    useState(true);
+
+  useEffect(() => {
+    void loadSettings();
+
     function handleSettingsUpdated() {
-      setFlags(
-        getFeatureFlags()
-      );
+      void loadSettings();
     }
 
     window.addEventListener(
       "appSettingsUpdated",
-      handleSettingsUpdated
-    );
-
-    window.addEventListener(
-      "storage",
       handleSettingsUpdated
     );
 
@@ -63,31 +39,52 @@ export function useFeatureFlags() {
         "appSettingsUpdated",
         handleSettingsUpdated
       );
-
-      window.removeEventListener(
-        "storage",
-        handleSettingsUpdated
-      );
     };
   }, []);
 
+  async function loadSettings() {
+    try {
+      setLoading(
+        true
+      );
+
+      const nextSettings =
+        await appSettingsRepository.get();
+
+      setSettings(
+        nextSettings
+      );
+    } catch (error) {
+      console.error(
+        "Feature Flags konnten nicht geladen werden:",
+        error
+      );
+
+      setSettings(
+        appSettingsRepository.getDefault()
+      );
+    } finally {
+      setLoading(
+        false
+      );
+    }
+  }
+
   return {
-    mounted,
-    flags,
+    loading,
 
-    showDemoHints:
-      flags.showDemoHints,
+    settings,
 
-    enableTicketTemplates:
-      flags.enableTicketTemplates,
+    demoHintsEnabled:
+      settings.showDemoHints,
 
-    enableTicketComments:
-      flags.enableTicketComments,
+    ticketCommentsEnabled:
+      settings.enableTicketComments,
 
-    enableActivityLog:
-      flags.enableActivityLog,
+    ticketTemplatesEnabled:
+      settings.enableTicketTemplates,
 
-    defaultUserRole:
-      flags.defaultUserRole,
+    activityLogEnabled:
+      settings.enableActivityLog,
   };
 }

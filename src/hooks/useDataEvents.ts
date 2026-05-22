@@ -1,37 +1,144 @@
 "use client";
 
 import {
-  useMemo,
+  useEffect,
 } from "react";
-
-import {
-  getEventsForEntity,
-} from "../lib/appEvents";
 
 type DataEventGroup =
   | "wiki"
-  | "ticket"
-  | "ticketComment"
-  | "ticketTemplate"
-  | "activity"
-  | "adminUser"
-  | "company"
-  | "department"
+  | "tickets"
+  | "news"
+  | "files"
+  | "comments"
+  | "companies"
+  | "departments"
+  | "adminUsers"
   | "settings"
-  | "currentUser"
-  | "storage"
-  | "notifications";
+  | "activities"
+  | "ticketTemplates";
+
+type DataEventName =
+  | "wikiPagesUpdated"
+  | "ticketsUpdated"
+  | "newsUpdated"
+  | "filesUpdated"
+  | "commentsUpdated"
+  | "companiesUpdated"
+  | "departmentsUpdated"
+  | "adminUsersUpdated"
+  | "appSettingsUpdated"
+  | "activitiesUpdated"
+  | "ticketTemplatesUpdated";
+
+const eventsByGroup: Record<DataEventGroup, DataEventName[]> = {
+  wiki: [
+    "wikiPagesUpdated",
+  ],
+
+  tickets: [
+    "ticketsUpdated",
+  ],
+
+  news: [
+    "newsUpdated",
+  ],
+
+  files: [
+    "filesUpdated",
+  ],
+
+  comments: [
+    "commentsUpdated",
+  ],
+
+  companies: [
+    "companiesUpdated",
+  ],
+
+  departments: [
+    "departmentsUpdated",
+  ],
+
+  adminUsers: [
+    "adminUsersUpdated",
+  ],
+
+  settings: [
+    "appSettingsUpdated",
+  ],
+
+  activities: [
+    "activitiesUpdated",
+  ],
+
+  ticketTemplates: [
+    "ticketTemplatesUpdated",
+  ],
+};
+
+export function getEventsForEntity(
+  group: DataEventGroup
+) {
+  return eventsByGroup[group] || [];
+}
 
 export function useDataEvents(
-  entity: DataEventGroup
+  group: DataEventGroup,
+  handler: () => void
 ) {
-  return useMemo(
-    () =>
-      getEventsForEntity(
-        entity
-      ),
+  useEffect(
+    () => {
+      const events =
+        getEventsForEntity(
+          group
+        );
+
+      events.forEach(
+        (eventName) => {
+          window.addEventListener(
+            eventName,
+            handler
+          );
+        }
+      );
+
+      return () => {
+        events.forEach(
+          (eventName) => {
+            window.removeEventListener(
+              eventName,
+              handler
+            );
+          }
+        );
+      };
+    },
     [
-      entity,
+      group,
+      handler,
     ]
+  );
+}
+
+export function dispatchDataEvent(
+  group: DataEventGroup
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const events =
+    getEventsForEntity(
+      group
+    );
+
+  events.forEach(
+    (eventName) => {
+      window.dispatchEvent(
+        new Event(
+          eventName
+        )
+      );
+    }
   );
 }

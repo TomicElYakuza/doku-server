@@ -9,6 +9,10 @@ import {
 } from "react";
 
 import {
+  useFeatureFlags,
+} from "../../hooks/useFeatureFlags";
+
+import {
   canViewAdmin,
 } from "../../lib/permissions";
 
@@ -84,25 +88,34 @@ type AdminModule = {
   description: string;
   href: string;
   icon: string;
-  badge?: string;
-  disabled?: boolean;
+  badge: string;
+  accent: string;
 };
 
-function getStatusClass(
-  value: number
+function getActivityLabel(
+  type: string
 ) {
-  if (value === 0) {
-    return "bg-zinc-100 text-zinc-600";
-  }
+  return activityRepository.getTypeLabel(
+    type
+  );
+}
 
-  if (value < 5) {
-    return "bg-blue-50 text-blue-700";
-  }
-
-  return "bg-green-50 text-green-700";
+function getActivityClass(
+  type: string
+) {
+  return activityRepository.getTypeClass(
+    type
+  );
 }
 
 export default function AdminPage() {
+
+    const {
+    activityLogEnabled,
+    ticketTemplatesEnabled,
+    } =
+      useFeatureFlags();
+
   const [mounted, setMounted] =
     useState(false);
 
@@ -219,35 +232,67 @@ export default function AdminPage() {
         ]);
 
       setUsers(
-        nextUsers
+        Array.isArray(
+          nextUsers
+        )
+          ? nextUsers
+          : []
       );
 
       setCompanies(
-        nextCompanies
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
       );
 
       setTickets(
-        nextTickets
+        Array.isArray(
+          nextTickets
+        )
+          ? nextTickets
+          : []
       );
 
       setTemplates(
-        nextTemplates
+        Array.isArray(
+          nextTemplates
+        )
+          ? nextTemplates
+          : []
       );
 
       setNews(
-        nextNews
+        Array.isArray(
+          nextNews
+        )
+          ? nextNews
+          : []
       );
 
       setWikiPages(
-        nextWikiPages
+        Array.isArray(
+          nextWikiPages
+        )
+          ? nextWikiPages
+          : []
       );
 
       setActivities(
-        nextActivities
+        Array.isArray(
+          nextActivities
+        )
+          ? nextActivities
+          : []
       );
 
       setSettings(
@@ -276,6 +321,18 @@ export default function AdminPage() {
         users.filter(
           (user) =>
             user.status === "active"
+        ),
+      [
+        users,
+      ]
+    );
+
+  const adminUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role === "admin"
         ),
       [
         users,
@@ -331,7 +388,7 @@ export default function AdminPage() {
       ]
     );
 
-  const modules: AdminModule[] = [
+    const modules: AdminModule[] = [
     {
       title:
         "Benutzerverwaltung",
@@ -346,7 +403,10 @@ export default function AdminPage() {
         "👥",
 
       badge:
-        `${users.length}`,
+        `${users.length} Benutzer`,
+
+      accent:
+        "bg-blue-50 text-blue-700",
     },
     {
       title:
@@ -363,6 +423,9 @@ export default function AdminPage() {
 
       badge:
         `${companies.length}/${departments.length}`,
+
+      accent:
+        "bg-emerald-50 text-emerald-700",
     },
     {
       title:
@@ -378,24 +441,34 @@ export default function AdminPage() {
         "📰",
 
       badge:
-        `${news.length}`,
+        `${news.length} Beiträge`,
+
+      accent:
+        "bg-orange-50 text-orange-700",
     },
-    {
-      title:
-        "Ticket-Vorlagen",
+    ...(ticketTemplatesEnabled
+      ? [
+          {
+            title:
+              "Ticket-Vorlagen",
 
-      description:
-        "Wiederverwendbare Ticket-Vorlagen für Supportprozesse verwalten.",
+            description:
+              "Wiederverwendbare Vorlagen für Supportprozesse verwalten.",
 
-      href:
-        "/tickets/templates",
+            href:
+              "/tickets/templates",
 
-      icon:
-        "📋",
+            icon:
+              "📋",
 
-      badge:
-        `${templates.length}`,
-    },
+            badge:
+              `${templates.length} Vorlagen`,
+
+            accent:
+              "bg-purple-50 text-purple-700",
+          },
+        ]
+      : []),
     {
       title:
         "Einstellungen",
@@ -411,23 +484,33 @@ export default function AdminPage() {
 
       badge:
         "System",
+
+      accent:
+        "bg-zinc-100 text-zinc-700",
     },
-    {
-      title:
-        "Aktivitätsprotokoll",
+    ...(activityLogEnabled
+      ? [
+          {
+            title:
+              "Aktivitätsprotokoll",
 
-      description:
-        "Systemaktivitäten und Benutzeraktionen nachvollziehen.",
+            description:
+              "Systemaktivitäten und Benutzeraktionen nachvollziehen.",
 
-      href:
-        "/activity",
+            href:
+              "/activity",
 
-      icon:
-        "🕘",
+            icon:
+              "🕘",
 
-      badge:
-        `${activities.length}`,
-    },
+            badge:
+              `${activities.length} Einträge`,
+
+            accent:
+              "bg-indigo-50 text-indigo-700",
+          },
+        ]
+      : []),
   ];
 
   if (!mounted) {
@@ -442,36 +525,60 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Admin Backend
-          </h1>
+      <section className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
+        <div className="relative z-10 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
+          <div>
+            <p className="text-zinc-300">
+              Verwaltung
+            </p>
 
-          <p className="text-zinc-500 mt-2">
-            Zentrale Verwaltung für {settings.appName || "Intranet"} auf PostgreSQL-Basis.
-          </p>
+            <h1 className="text-4xl font-bold mt-2">
+              Admin Backend
+            </h1>
+
+            <p className="text-zinc-300 mt-3 max-w-3xl">
+              Zentrale Verwaltung für {settings.appName || "Intranet"}.
+              Alle aktiven Module arbeiten jetzt auf PostgreSQL/API-Basis.
+            </p>
+
+            <div className="flex flex-wrap gap-3 mt-6">
+              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
+                PostgreSQL
+              </span>
+
+              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
+                {settings.companyName || "Intern"}
+              </span>
+
+              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
+                Version {settings.appVersion || settings.version || "0.1.0"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                void loadData()
+              }
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Aktualisieren
+            </button>
+
+            <Link
+              href="/dashboard"
+              className="bg-white/10 border border-white/10 text-white px-5 py-3 rounded-2xl hover:bg-white/15 transition"
+            >
+              Zum Dashboard
+            </Link>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              void loadData()
-            }
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Aktualisieren
-          </button>
-
-          <Link
-            href="/dashboard"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Zum Dashboard
-          </Link>
-        </div>
-      </div>
+        <div className="absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10" />
+        <div className="absolute right-24 -top-28 h-56 w-56 rounded-full bg-white/5" />
+      </section>
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -493,36 +600,28 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-6">
+        <Link
+          href="/admin/users"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Benutzer
+            Aktive Benutzer
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {users.length}
+            {activeUsers.length}
           </h2>
 
           <p className="text-sm text-zinc-500 mt-3">
-            {activeUsers.length} aktiv
+            {adminUsers.length} Administratoren
           </p>
-        </div>
+        </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Organisation
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {companies.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            {departments.length} Abteilungen
-          </p>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/tickets"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
             Offene Tickets
           </p>
@@ -534,41 +633,61 @@ export default function AdminPage() {
           <p className="text-sm text-zinc-500 mt-3">
             {urgentTickets.length} hoch/dringend
           </p>
-        </div>
+        </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <Link
+          href="/wiki"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
           <p className="text-sm text-zinc-500">
-            Inhalte
+            Wiki-Seiten
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {news.length + wikiPages.length}
+            {wikiPages.length}
           </h2>
 
           <p className="text-sm text-zinc-500 mt-3">
-            {news.length} News · {wikiPages.length} Wiki
+            Dokumentation
           </p>
-        </div>
+        </Link>
+
+        <Link
+          href="/admin/news"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+        >
+          <p className="text-sm text-zinc-500">
+            News
+          </p>
+
+          <h2 className="text-4xl font-bold mt-3">
+            {news.length}
+          </h2>
+
+          <p className="text-sm text-zinc-500 mt-3">
+            {pinnedNews.length} fixiert
+          </p>
+        </Link>
       </div>
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-2xl font-semibold">
-              Verwaltung
+              Module
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Module für Konfiguration und Bearbeitung ohne Quellcodezugriff.
+              Aktive Verwaltungsbereiche ohne alte Storage-/Demo-Module.
             </p>
           </div>
 
-          <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-sm">
-            PostgreSQL aktiv
+          <span className="bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm">
+            Bereinigt
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5 mt-6">
           {modules.map(
             (module) => (
               <Link
@@ -581,11 +700,9 @@ export default function AdminPage() {
                     {module.icon}
                   </div>
 
-                  {module.badge && (
-                    <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
-                      {module.badge}
-                    </span>
-                  )}
+                  <span className={`px-3 py-1 rounded-full text-xs ${module.accent}`}>
+                    {module.badge}
+                  </span>
                 </div>
 
                 <h3 className="text-xl font-semibold mt-5">
@@ -601,17 +718,17 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_420px] gap-8">
         <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <h2 className="text-2xl font-semibold">
             Systemübersicht
           </h2>
 
           <p className="text-zinc-500 mt-1">
-            Aktuelle Basisdaten aus der Datenbank.
+            Aktuelle Basisdaten der Anwendung.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
             <div className="bg-zinc-50 rounded-2xl p-5">
               <p className="text-sm text-zinc-500">
                 App
@@ -634,11 +751,11 @@ export default function AdminPage() {
 
             <div className="bg-zinc-50 rounded-2xl p-5">
               <p className="text-sm text-zinc-500">
-                Version
+                Organisation
               </p>
 
               <p className="font-semibold mt-2">
-                {settings.appVersion || settings.version || "0.1.0"}
+                {companies.length} Firmen · {departments.length} Abteilungen
               </p>
             </div>
 
@@ -648,7 +765,7 @@ export default function AdminPage() {
               </p>
 
               <p className="font-semibold mt-2">
-                PostgreSQL
+                PostgreSQL/API
               </p>
             </div>
           </div>
@@ -662,7 +779,7 @@ export default function AdminPage() {
               </h2>
 
               <p className="text-zinc-500 mt-1">
-                Aktuelle Änderungen im System.
+                Kurzer Systemauszug.
               </p>
             </div>
 
@@ -670,7 +787,7 @@ export default function AdminPage() {
               href="/activity"
               className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
             >
-              Alle anzeigen
+              Alle
             </Link>
           </div>
 
@@ -683,30 +800,25 @@ export default function AdminPage() {
 
             {latestActivities.map(
               (activity) => (
-                <div
+                <Link
                   key={activity.id}
-                  className="border border-zinc-200 rounded-2xl p-4"
+                  href="/activity"
+                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
-                      {activityRepository.getTypeLabel(
-                        activity.type
-                      )}
-                    </span>
+                  <span className={`text-xs px-3 py-1 rounded-full ${getActivityClass(activity.type)}`}>
+                    {getActivityLabel(
+                      activity.type
+                    )}
+                  </span>
 
-                    <span className="text-xs text-zinc-400">
-                      {activity.createdAt}
-                    </span>
-                  </div>
-
-                  <p className="font-medium mt-3">
+                  <p className="font-medium mt-3 line-clamp-2">
                     {activity.title}
                   </p>
 
-                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
-                    {activity.description}
+                  <p className="text-xs text-zinc-400 mt-2">
+                    {activity.createdAt}
                   </p>
-                </div>
+                </Link>
               )
             )}
           </div>

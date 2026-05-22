@@ -4,128 +4,273 @@ import Link from "next/link";
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
-  useParams,
-  useRouter,
-} from "next/navigation";
+  activityRepository,
+} from "@/lib/activityRepository";
 
 import {
-  ticketRepository,
-} from "../../../lib/ticketRepository";
+  companyRepository,
+} from "@/lib/companyRepository";
 
 import {
-  canDelete,
-  canEdit,
-} from "../../../lib/permissions";
+  canViewActivity,
+} from "@/lib/permissions";
 
-import {
-  saveTicketDeletedActivity,
-  saveTicketUpdatedActivity,
-} from "../../../lib/ticketActivityHelpers";
+import FeatureGate from "@/components/FeatureGate";
 
-import TicketComments from "../../../components/tickets/TicketComments";
-
-import TicketFileList from "../../../components/tickets/TicketFileList";
+import AccessDeniedCard from "@/components/AccessDeniedCard";
 
 import type {
-  Ticket,
-  TicketPriority,
-  TicketStatus,
-} from "../../../types/ticket";
+  Activity,
+} from "@/types/activity";
 
-function getStatusLabel(
-  status: TicketStatus | string
+import type {
+  Company,
+  Department,
+} from "@/types/company";
+
+function getActivityIcon(
+  type: string
 ) {
-  return ticketRepository.getStatusLabel(
-    status
-  );
+  if (type === "created") {
+    return "＋";
+  }
+
+  if (type === "edited") {
+    return "✎";
+  }
+
+  if (type === "deleted") {
+    return "🗑";
+  }
+
+  if (type === "restored") {
+    return "↺";
+  }
+
+  if (type === "login") {
+    return "→";
+  }
+
+  if (type === "logout") {
+    return "←";
+  }
+
+  return "•";
 }
 
-function getStatusClass(
-  status: TicketStatus | string
+function getEntityLabel(
+  entityType: string
 ) {
-  return ticketRepository.getStatusClass(
-    status
-  );
+  if (entityType === "ticket") {
+    return "Ticket";
+  }
+
+  if (entityType === "wiki") {
+    return "Wiki";
+  }
+
+  if (entityType === "news") {
+    return "News";
+  }
+
+  if (entityType === "company") {
+    return "Firma";
+  }
+
+  if (entityType === "department") {
+    return "Abteilung";
+  }
+
+  if (entityType === "adminUser") {
+    return "Benutzer";
+  }
+
+  if (entityType === "settings") {
+    return "Einstellungen";
+  }
+
+  if (entityType === "file") {
+    return "Datei";
+  }
+
+  return entityType ||
+    "Allgemein";
 }
 
-function getPriorityLabel(
-  priority: TicketPriority | string
+function getEntityHref(
+  activity: Activity
 ) {
-  return ticketRepository.getPriorityLabel(
-    priority
-  );
+  if (
+    activity.entityType === "ticket" &&
+    activity.entityId
+  ) {
+    return `/tickets/${activity.entityId}`;
+  }
+
+  if (
+    activity.entityType === "wiki" &&
+    activity.entityId
+  ) {
+    return `/wiki/${encodeURIComponent(
+      activity.entityId
+    )}`;
+  }
+
+  if (
+    activity.entityType === "news" &&
+    activity.entityId
+  ) {
+    return `/news/${activity.entityId}`;
+  }
+
+  if (
+    activity.entityType === "company" ||
+    activity.entityType === "department"
+  ) {
+    return "/admin/companies";
+  }
+
+  if (activity.entityType === "adminUser") {
+    return "/admin/users";
+  }
+
+  if (activity.entityType === "settings") {
+    return "/settings";
+  }
+
+  if (activity.entityType === "file") {
+    return "/files";
+  }
+
+  return "";
 }
 
-function getPriorityClass(
-  priority: TicketPriority | string
-) {
-  return ticketRepository.getPriorityClass(
-    priority
-  );
-}
+export default function ActivityPage() {
+  const [mounted, setMounted] =
+    useState(false);
 
-export default function TicketDetailPage() {
-  const params =
-    useParams();
+  const [activities, setActivities] =
+    useState<Activity[]>([]);
 
-  const router =
-    useRouter();
+  const [companies, setCompanies] =
+    useState<Company[]>([]);
 
-  const id =
-    String(
-      params.id ||
-        ""
-    );
+  const [departments, setDepartments] =
+    useState<Department[]>([]);
 
-  const [ticket, setTicket] =
-    useState<Ticket | null>(null);
+  const [search, setSearch] =
+    useState("");
 
-  const [status, setStatus] =
-    useState<TicketStatus>("open");
+  const [typeFilter, setTypeFilter] =
+    useState("");
 
-  const [priority, setPriority] =
-    useState<TicketPriority>("medium");
+  const [entityFilter, setEntityFilter] =
+    useState("");
+
+  const [companyFilter, setCompanyFilter] =
+    useState("");
+
+  const [departmentFilter, setDepartmentFilter] =
+    useState("");
 
   const [loading, setLoading] =
     useState(true);
-
-  const [saving, setSaving] =
-    useState(false);
 
   const [error, setError] =
     useState("");
 
   useEffect(() => {
-    void loadTicket();
+    setMounted(
+      true
+    );
 
-    function handleTicketsUpdated() {
-      void loadTicket();
+    void loadData();
+
+    function handleActivitiesUpdated() {
+      void loadData();
+    }
+
+    function handleCompaniesUpdated() {
+      void loadOrganization();
+    }
+
+    function handleDepartmentsUpdated() {
+      void loadOrganization();
     }
 
     window.addEventListener(
-      "ticketsUpdated",
-      handleTicketsUpdated
+      "activitiesUpdated",
+      handleActivitiesUpdated
+    );
+
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated
     );
 
     return () => {
       window.removeEventListener(
-        "ticketsUpdated",
-        handleTicketsUpdated
+        "activitiesUpdated",
+        handleActivitiesUpdated
+      );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated
       );
     };
-  }, [
-    id,
-  ]);
+  }, []);
 
-  async function loadTicket() {
-    if (!id) {
-      return;
+  async function loadOrganization() {
+    try {
+      const [
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
+
+      setCompanies(
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
+      );
+
+      setDepartments(
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
+      );
+    } catch (loadError) {
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError
+      );
     }
+  }
 
+  async function loadData() {
     try {
       setLoading(
         true
@@ -135,29 +280,39 @@ export default function TicketDetailPage() {
         ""
       );
 
-      const nextTicket =
-        await ticketRepository.findById(
-          id
-        );
+      const [
+        nextActivities,
+        nextCompanies,
+        nextDepartments,
+      ] =
+        await Promise.all([
+          activityRepository.list(),
+          companyRepository.listCompanies(),
+          companyRepository.listDepartments(),
+        ]);
 
-      setTicket(
-        nextTicket
+      setActivities(
+        Array.isArray(
+          nextActivities
+        )
+          ? nextActivities
+          : []
       );
 
-      if (!nextTicket) {
-        setError(
-          "Ticket wurde nicht gefunden."
-        );
-
-        return;
-      }
-
-      setStatus(
-        nextTicket.status
+      setCompanies(
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
       );
 
-      setPriority(
-        nextTicket.priority
+      setDepartments(
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -167,7 +322,7 @@ export default function TicketDetailPage() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Ticket konnte nicht geladen werden."
+          : "Aktivitäten konnten nicht geladen werden."
       );
     } finally {
       setLoading(
@@ -176,377 +331,623 @@ export default function TicketDetailPage() {
     }
   }
 
-  async function handleQuickSave() {
-    if (!ticket) {
-      return;
-    }
-
-    if (!canEdit()) {
-      alert(
-        "Du hast keine Berechtigung, dieses Ticket zu bearbeiten."
-      );
-
-      return;
-    }
-
-    try {
-      setSaving(
-        true
-      );
-
-      const updatedTicket =
-        await ticketRepository.update(
-          ticket.id,
-          {
-            status,
-
-            priority,
-          }
-        );
-
-      if (updatedTicket) {
-        saveTicketUpdatedActivity(
-          updatedTicket
-        );
-
-        setTicket(
-          updatedTicket
-        );
-      }
-    } catch (saveError) {
-      console.error(
-        saveError
-      );
-
-      alert(
-        saveError instanceof Error
-          ? saveError.message
-          : "Ticket konnte nicht gespeichert werden."
-      );
-    } finally {
-      setSaving(
-        false
-      );
-    }
+  function resetFilters() {
+    setSearch("");
+    setTypeFilter("");
+    setEntityFilter("");
+    setCompanyFilter("");
+    setDepartmentFilter("");
   }
 
-  async function handleDelete() {
-    if (!ticket) {
-      return;
+  function getCompanyName(
+    companyId?: string
+  ) {
+    if (!companyId) {
+      return "";
     }
 
-    if (!canDelete()) {
-      alert(
-        "Du hast keine Berechtigung, dieses Ticket zu löschen."
-      );
-
-      return;
-    }
-
-    const confirmed =
-      confirm(
-        `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      saveTicketDeletedActivity(
-        ticket
-      );
-
-      await ticketRepository.delete(
-        ticket.id
-      );
-
-      router.push(
-        "/tickets"
-      );
-    } catch (deleteError) {
-      console.error(
-        deleteError
-      );
-
-      alert(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Ticket konnte nicht gelöscht werden."
-      );
-    }
-  }
-
-  if (loading) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <p className="text-zinc-500">
-          Ticket wird geladen...
-        </p>
-      </div>
+      companies.find(
+        (company) =>
+          company.id === companyId
+      )?.name ||
+      ""
     );
   }
 
-  if (
-    error ||
-    !ticket
+  function getDepartmentName(
+    departmentId?: string
   ) {
+    if (!departmentId) {
+      return "";
+    }
+
     return (
-      <div className="space-y-6">
-        <Link
-          href="/tickets"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Tickets
-        </Link>
+      departments.find(
+        (department) =>
+          department.id === departmentId
+      )?.name ||
+      ""
+    );
+  }
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            Ticket nicht gefunden
-          </h1>
+  const filteredDepartments =
+    useMemo(
+      () => {
+        if (!companyFilter) {
+          return departments;
+        }
 
-          <p className="text-zinc-500 mt-2">
-            {error ||
-              "Dieses Ticket existiert nicht."}
-          </p>
-        </div>
-      </div>
+        return departments.filter(
+          (department) =>
+            department.companyId === companyFilter
+        );
+      },
+      [
+        departments,
+        companyFilter,
+      ]
+    );
+
+  const activityTypes =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            activities.map(
+              (activity) =>
+                activity.type
+            )
+          )
+        ).filter(Boolean),
+      [
+        activities,
+      ]
+    );
+
+  const entityTypes =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            activities.map(
+              (activity) =>
+                activity.entityType
+            )
+          )
+        ).filter(Boolean),
+      [
+        activities,
+      ]
+    );
+
+  const filteredActivities =
+    useMemo(
+      () => {
+        const query =
+          search.trim().toLowerCase();
+
+        return activities.filter(
+          (activity) => {
+            const companyName =
+              getCompanyName(
+                activity.companyId
+              ) ||
+              activity.company ||
+              "";
+
+            const departmentName =
+              getDepartmentName(
+                activity.departmentId
+              ) ||
+              activity.department ||
+              "";
+
+            const matchesSearch =
+              !query ||
+              [
+                activity.id,
+                activity.type,
+                activity.title,
+                activity.description,
+                activity.entityType,
+                activity.entityId,
+                activity.userName,
+                activity.userEmail,
+                activity.user,
+                activity.company,
+                activity.department,
+                companyName,
+                departmentName,
+                activity.createdAt,
+                JSON.stringify(
+                  activity.metadata ||
+                    {}
+                ),
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(
+                  query
+                );
+
+            const matchesType =
+              !typeFilter ||
+              activity.type === typeFilter;
+
+            const matchesEntity =
+              !entityFilter ||
+              activity.entityType === entityFilter;
+
+            const matchesCompany =
+              !companyFilter ||
+              activity.companyId === companyFilter;
+
+            const matchesDepartment =
+              !departmentFilter ||
+              activity.departmentId === departmentFilter;
+
+            return (
+              matchesSearch &&
+              matchesType &&
+              matchesEntity &&
+              matchesCompany &&
+              matchesDepartment
+            );
+          }
+        );
+      },
+      [
+        activities,
+        search,
+        typeFilter,
+        entityFilter,
+        companyFilter,
+        departmentFilter,
+        companies,
+        departments,
+      ]
+    );
+
+  const createdCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "created"
+    ).length;
+
+  const editedCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "edited"
+    ).length;
+
+  const deletedCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "deleted"
+    ).length;
+
+  const loginCount =
+    activities.filter(
+      (activity) =>
+        activity.type === "login"
+    ).length;
+
+  if (!mounted) {
+    return null;
+  }
+
+  if (!canViewActivity()) {
+    return (
+      <AccessDeniedCard />
     );
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <Link
-          href="/tickets"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Tickets
-        </Link>
-      </div>
+    <FeatureGate
+      feature="activityLog"
+      fallback={
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Aktivitätsprotokoll deaktiviert
+          </h1>
 
-      <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap gap-2">
-              <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(ticket.status)}`}>
-                {getStatusLabel(
-                  ticket.status
-                )}
-              </span>
-
-              <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(ticket.priority)}`}>
-                {getPriorityLabel(
-                  ticket.priority
-                )}
-              </span>
-
-              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                {ticket.company ||
-                  "Intern"}
-              </span>
-
-              <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                {ticket.department ||
-                  "Allgemein"}
-              </span>
-            </div>
-
-            <h1 className="text-4xl font-bold mt-5">
-              #{ticket.id} · {ticket.title}
+          <p className="text-zinc-500 mt-2">
+            Dieses Modul ist aktuell in den Einstellungen deaktiviert.
+          </p>
+        </div>
+      }
+    >
+      <div className="space-y-8">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+          <div>
+            <h1 className="text-4xl font-bold">
+              Aktivität
             </h1>
 
-            <p className="text-zinc-500 mt-3 whitespace-pre-wrap">
-              {ticket.description ||
-                "Keine Beschreibung vorhanden."}
+            <p className="text-zinc-500 mt-2">
+              Protokollierte Aktionen aus PostgreSQL.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3 shrink-0">
-            {canEdit() && (
-              <button
-                type="button"
-                onClick={() =>
-                  void handleQuickSave()
-                }
-                disabled={saving}
-                className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-              >
-                {saving
-                  ? "Speichert..."
-                  : "Änderungen speichern"}
-              </button>
-            )}
-
-            {canDelete() && (
-              <button
-                type="button"
-                onClick={() =>
-                  void handleDelete()
-                }
-                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
-              >
-                Löschen
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              void loadData()
+            }
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            Aktualisieren
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Status
+        {loading && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <p className="text-zinc-500">
+              Aktivitäten werden geladen...
             </p>
-
-            {canEdit() ? (
-              <select
-                value={status}
-                onChange={(event) =>
-                  setStatus(
-                    event.target.value as TicketStatus
-                  )
-                }
-                className="w-full mt-2 border border-zinc-200 rounded-xl px-3 py-2 bg-white"
-              >
-                <option value="open">
-                  Offen
-                </option>
-
-                <option value="in_progress">
-                  In Bearbeitung
-                </option>
-
-                <option value="waiting">
-                  Wartend
-                </option>
-
-                <option value="done">
-                  Erledigt
-                </option>
-
-                <option value="closed">
-                  Geschlossen
-                </option>
-              </select>
-            ) : (
-              <p className="font-semibold mt-2">
-                {getStatusLabel(
-                  ticket.status
-                )}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Priorität
-            </p>
-
-            {canEdit() ? (
-              <select
-                value={priority}
-                onChange={(event) =>
-                  setPriority(
-                    event.target.value as TicketPriority
-                  )
-                }
-                className="w-full mt-2 border border-zinc-200 rounded-xl px-3 py-2 bg-white"
-              >
-                <option value="low">
-                  Niedrig
-                </option>
-
-                <option value="medium">
-                  Mittel
-                </option>
-
-                <option value="high">
-                  Hoch
-                </option>
-
-                <option value="urgent">
-                  Dringend
-                </option>
-              </select>
-            ) : (
-              <p className="font-semibold mt-2">
-                {getPriorityLabel(
-                  ticket.priority
-                )}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Zugewiesen an
-            </p>
-
-            <p className="font-semibold mt-2">
-              {ticket.assignedTo ||
-                "Niemand"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-2xl p-5">
-            <p className="text-sm text-zinc-500">
-              Kategorie
-            </p>
-
-            <p className="font-semibold mt-2">
-              {ticket.category ||
-                "Allgemein"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-8">
-          <span>
-            Erstellt von:{" "}
-            {ticket.createdBy ||
-              "System"}
-          </span>
-
-          <span>
-            Erstellt:{" "}
-            {ticket.createdAt}
-          </span>
-
-          <span>
-            Aktualisiert:{" "}
-            {ticket.updatedAt}
-          </span>
-        </div>
-
-        {ticket.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-6">
-            {ticket.tags.map(
-              (tag) => (
-                <span
-                  key={tag}
-                  className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
-                >
-                  #{tag}
-                </span>
-              )
-            )}
           </div>
         )}
-      </article>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <TicketFileList
-          ticketId={ticket.id}
-          editable={canEdit()}
-        />
-      </div>
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-red-700">
+              Fehler
+            </h2>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <TicketComments
-          ticketId={ticket.id}
-          editable={canEdit()}
-        />
+            <p className="text-red-600 mt-2">
+              {error}
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Gesamt
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {activities.length}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setTypeFilter(
+                "created"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Erstellt
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {createdCount}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setTypeFilter(
+                "edited"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Bearbeitet
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {editedCount}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setTypeFilter(
+                "deleted"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Gelöscht
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {deletedCount}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setTypeFilter(
+                "login"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Logins
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {loginCount}
+            </h2>
+          </button>
+        </div>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Suche & Filter
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Filtere Aktivitäten nach Typ, Bereich, Firma oder Abteilung.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+            >
+              Zurücksetzen
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+              placeholder="Aktivitäten suchen..."
+              className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            />
+
+            <select
+              value={typeFilter}
+              onChange={(event) =>
+                setTypeFilter(
+                  event.target.value
+                )
+              }
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="">
+                Alle Typen
+              </option>
+
+              {activityTypes.map(
+                (type) => (
+                  <option
+                    key={type}
+                    value={type}
+                  >
+                    {activityRepository.getTypeLabel(
+                      type
+                    )}
+                  </option>
+                )
+              )}
+            </select>
+
+            <select
+              value={entityFilter}
+              onChange={(event) =>
+                setEntityFilter(
+                  event.target.value
+                )
+              }
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="">
+                Alle Bereiche
+              </option>
+
+              {entityTypes.map(
+                (entityType) => (
+                  <option
+                    key={entityType}
+                    value={entityType}
+                  >
+                    {getEntityLabel(
+                      entityType
+                    )}
+                  </option>
+                )
+              )}
+            </select>
+
+            <select
+              value={companyFilter}
+              onChange={(event) => {
+                setCompanyFilter(
+                  event.target.value
+                );
+
+                setDepartmentFilter(
+                  ""
+                );
+              }}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="">
+                Alle Firmen
+              </option>
+
+              {companies.map(
+                (company) => (
+                  <option
+                    key={company.id}
+                    value={company.id}
+                  >
+                    {company.name}
+                  </option>
+                )
+              )}
+            </select>
+
+            <select
+              value={departmentFilter}
+              onChange={(event) =>
+                setDepartmentFilter(
+                  event.target.value
+                )
+              }
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            >
+              <option value="">
+                Alle Abteilungen
+              </option>
+
+              {filteredDepartments.map(
+                (department) => (
+                  <option
+                    key={department.id}
+                    value={department.id}
+                  >
+                    {department.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <p className="text-sm text-zinc-500 mt-5">
+            {filteredActivities.length} von {activities.length} Aktivitäten gefunden.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {!loading && filteredActivities.length === 0 && (
+            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+              <h2 className="text-xl font-semibold">
+                Keine Aktivitäten gefunden
+              </h2>
+
+              <p className="text-zinc-500 mt-2">
+                Es gibt keine passenden Einträge.
+              </p>
+            </div>
+          )}
+
+          {filteredActivities.map(
+            (activity) => {
+              const href =
+                getEntityHref(
+                  activity
+                );
+
+              const content = (
+                <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition">
+                  <div className="flex items-start gap-5">
+                    <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
+                      {getActivityIcon(
+                        activity.type
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                          {activityRepository.getTypeLabel(
+                            activity.type
+                          )}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                          {getEntityLabel(
+                            activity.entityType
+                          )}
+                        </span>
+
+                        {activity.company && (
+                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                            {activity.company}
+                          </span>
+                        )}
+
+                        {activity.department && (
+                          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
+                            {activity.department}
+                          </span>
+                        )}
+                      </div>
+
+                      <h2 className="text-xl font-semibold mt-4">
+                        {activity.title}
+                      </h2>
+
+                      <p className="text-zinc-500 mt-2">
+                        {activity.description ||
+                          "Keine Beschreibung vorhanden."}
+                      </p>
+
+                      <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
+                        <span>
+                          Benutzer:{" "}
+                          {activity.user ||
+                            activity.userName ||
+                            "System"}
+                        </span>
+
+                        <span>
+                          Zeitpunkt:{" "}
+                          {activity.createdAt}
+                        </span>
+
+                        {activity.entityId && (
+                          <span>
+                            ID:{" "}
+                            {activity.entityId}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+
+              if (href) {
+                return (
+                  <Link
+                    key={activity.id}
+                    href={href}
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={activity.id}>
+                  {content}
+                </div>
+              );
+            }
+          )}
+        </div>
       </div>
-    </div>
+    </FeatureGate>
   );
 }

@@ -1,17 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { logoutCurrentUser } from "../../lib/currentUserRepository";
-import type { User } from "../../types/user";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-type TopbarProps = {
-  user: User | null;
-  appName: string;
-  companyName: string;
-};
+import {
+  useRouter,
+} from "next/navigation";
 
-function getRoleLabel(role?: string) {
+import {
+  getCachedCurrentUser,
+  loadCurrentUser,
+  logoutCurrentUser,
+} from "../../lib/currentUserRepository";
+
+import {
+  useAppSettings,
+} from "../../hooks/useAppSettings";
+
+import type {
+  User,
+} from "../../types/user";
+
+function getRoleLabel(
+  role: string
+) {
   if (role === "admin") {
     return "Administrator";
   }
@@ -23,154 +37,185 @@ function getRoleLabel(role?: string) {
   return "Leser";
 }
 
-function clearCookies() {
-  const cookies = document.cookie.split(";");
+export default function Topbar() {
+  const router =
+    useRouter();
 
-  for (const cookie of cookies) {
-    const name = cookie.split("=")[0]?.trim();
+  const {
+    settings,
+  } =
+    useAppSettings();
 
-    if (!name) {
-      continue;
+  const isModern =
+    settings.theme === "modern";
+
+  const [user, setUser] =
+    useState<User | null>(
+      getCachedCurrentUser()
+    );
+
+  const [loading, setLoading] =
+    useState(false);
+
+  useEffect(() => {
+    void refreshUser();
+
+    function handleCurrentUserUpdated() {
+      setUser(
+        getCachedCurrentUser()
+      );
     }
 
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-  }
-}
-
-async function clearBrowserCaches() {
-  if ("caches" in window) {
-    const keys = await caches.keys();
-
-    await Promise.all(keys.map((key) => caches.delete(key)));
-  }
-
-  if ("serviceWorker" in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-
-    await Promise.all(
-      registrations.map((registration) => registration.unregister())
+    window.addEventListener(
+      "currentUserUpdated",
+      handleCurrentUserUpdated
     );
+
+    return () => {
+      window.removeEventListener(
+        "currentUserUpdated",
+        handleCurrentUserUpdated
+      );
+    };
+  }, []);
+
+  async function refreshUser() {
+    try {
+      const nextUser =
+        await loadCurrentUser();
+
+      setUser(
+        nextUser
+      );
+    } catch (error) {
+      console.error(
+        "Benutzer konnte nicht geladen werden:",
+        error
+      );
+
+      setUser(
+        null
+      );
+    }
   }
-}
-
-export default function Topbar({ user, appName, companyName }: TopbarProps) {
-  const router = useRouter();
-
-  const [logoutLoading, setLogoutLoading] = useState(false);
-  const [clearLoading, setClearLoading] = useState(false);
 
   async function handleLogout() {
     try {
-      setLogoutLoading(true);
+      setLoading(
+        true
+      );
 
       await logoutCurrentUser();
 
-      router.push("/login");
+      setUser(
+        null
+      );
+
+      router.push(
+        "/login"
+      );
+
       router.refresh();
     } catch (error) {
-      console.error(error);
+      console.error(
+        error
+      );
+
       alert(
         error instanceof Error
           ? error.message
           : "Logout konnte nicht durchgeführt werden."
       );
     } finally {
-      setLogoutLoading(false);
+      setLoading(
+        false
+      );
     }
   }
 
-  async function handleClearEverything() {
-    const confirmed = window.confirm(
-      "Cache, LocalStorage, SessionStorage und Cookies wirklich löschen? Du wirst danach neu geladen und wahrscheinlich abgemeldet."
-    );
+  const headerClass =
+    isModern
+      ? "h-20 bg-zinc-950 text-white border-b border-zinc-800 flex items-center justify-between px-8"
+      : "h-20 bg-white border-b border-zinc-200 flex items-center justify-between px-8";
 
-    if (!confirmed) {
-      return;
-    }
+  const mutedTextClass =
+    isModern
+      ? "text-sm text-zinc-400"
+      : "text-sm text-zinc-500";
 
-    try {
-      setClearLoading(true);
-
-      localStorage.clear();
-      sessionStorage.clear();
-      clearCookies();
-
-      await clearBrowserCaches();
-
-      window.location.href = "/login";
-    } catch (error) {
-      console.error("Cache konnte nicht vollständig gelöscht werden:", error);
-
-      localStorage.clear();
-      sessionStorage.clear();
-      clearCookies();
-
-      window.location.reload();
-    }
-  }
+  const buttonClass =
+    isModern
+      ? "bg-white text-zinc-950 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+      : "bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950 px-4 py-3 text-white shadow-sm md:px-8">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium uppercase tracking-wide text-zinc-500">
-            {companyName}
-          </p>
+    <header className={headerClass}>
+      <div>
+        <p className={mutedTextClass}>
+          {settings.companyName ||
+            "Intern"}
+        </p>
 
-          <h2 className="truncate text-lg font-semibold text-white">
-            {appName}
-          </h2>
-        </div>
+        <h1 className="text-xl font-bold">
+          {settings.appName ||
+            "Intranet"}
+        </h1>
+      </div>
 
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex items-center gap-4">
+        {user ? (
+          <div className="text-right">
+            <p className="font-semibold">
+              {user.name}
+            </p>
+
+            <p className={mutedTextClass}>
+              {getRoleLabel(
+                user.role
+              )}
+              {" · "}
+              {user.company ||
+                "Intern"}
+            </p>
+          </div>
+        ) : (
+          <div className="text-right">
+            <p className="font-semibold">
+              Nicht angemeldet
+            </p>
+
+            <p className={mutedTextClass}>
+              Bitte anmelden
+            </p>
+          </div>
+        )}
+
+        {user ? (
           <button
             type="button"
-            onClick={handleClearEverything}
-            disabled={clearLoading}
-            className="hidden rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
+            onClick={() =>
+              void handleLogout()
+            }
+            disabled={loading}
+            className={buttonClass}
           >
-            {clearLoading ? "Lösche..." : "Cache löschen"}
+            {loading
+              ? "Abmelden..."
+              : "Logout"}
           </button>
-
-          <div className="flex min-w-0 items-center gap-3 rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-semibold text-zinc-950">
-              {(user?.name || "U").slice(0, 1).toUpperCase()}
-            </div>
-
-            <div className="hidden min-w-0 text-left md:block">
-              <p className="max-w-48 truncate text-sm font-medium text-white">
-                {user?.name || "Nicht angemeldet"}
-              </p>
-
-              <p className="max-w-48 truncate text-xs text-zinc-400">
-                {user
-                  ? `${getRoleLabel(user.role)} · ${
-                      user.department || user.company || "Intern"
-                    }`
-                  : "Bitte anmelden"}
-              </p>
-            </div>
-          </div>
-
-          {user ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={logoutLoading}
-              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {logoutLoading ? "..." : "Logout"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-zinc-200"
-            >
-              Login
-            </button>
-          )}
-        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                "/login"
+              )
+            }
+            className={buttonClass}
+          >
+            Login
+          </button>
+        )}
       </div>
     </header>
   );

@@ -6,110 +6,43 @@ import type {
   AppSettings,
 } from "../types/settings";
 
-function getSettings(): AppSettings {
-  return appSettingsRepository.get();
+export async function getFeatureSettings(): Promise<AppSettings> {
+  try {
+    return await appSettingsRepository.get();
+  } catch (error) {
+    console.error(
+      "Feature-Einstellungen konnten nicht geladen werden:",
+      error
+    );
+
+    return appSettingsRepository.getDefault();
+  }
 }
 
-export function areTicketTemplatesEnabled() {
+export async function areTicketTemplatesEnabled() {
   const settings =
-    getSettings();
+    await getFeatureSettings();
 
-  return Boolean(
-    settings.enableTicketTemplates
-  );
+  return settings.enableTicketTemplates;
 }
 
-export function areTicketCommentsEnabled() {
+export async function areTicketCommentsEnabled() {
   const settings =
-    getSettings();
+    await getFeatureSettings();
 
-  return Boolean(
-    settings.enableTicketComments
-  );
+  return settings.enableTicketComments;
 }
 
-export function isActivityLogEnabled() {
+export async function isActivityLogEnabled() {
   const settings =
-    getSettings();
+    await getFeatureSettings();
 
-  return Boolean(
-    settings.enableActivityLog
-  );
+  return settings.enableActivityLog;
 }
 
-export function shouldShowDemoHints() {
+export async function areDemoHintsEnabled() {
   const settings =
-    getSettings();
+    await getFeatureSettings();
 
-  return Boolean(
-    settings.showDemoHints
-  );
-}
-
-export function isCompactModeEnabled() {
-  const settings =
-    getSettings();
-
-  return Boolean(
-    settings.compactMode
-  );
-}
-
-export function isDarkModeEnabled() {
-  const settings =
-    getSettings();
-
-  return Boolean(
-    settings.darkMode
-  );
-}
-
-export function shouldShowVersion() {
-  const settings =
-    getSettings();
-
-  return Boolean(
-    settings.showVersion
-  );
-}
-
-export function getConfiguredTheme() {
-  const settings =
-    getSettings();
-
-  return (
-    settings.theme ||
-    "modern"
-  );
-}
-
-export function getConfiguredAccentColor() {
-  const settings =
-    getSettings();
-
-  return (
-    settings.accentColor ||
-    settings.appAccentColor ||
-    "zinc"
-  );
-}
-
-export function getConfiguredSidebarPosition() {
-  const settings =
-    getSettings();
-
-  return (
-    settings.sidebarPosition ||
-    "left"
-  );
-}
-
-export function getConfiguredDefaultUserRole() {
-  const settings =
-    getSettings();
-
-  return (
-    settings.defaultUserRole ||
-    "viewer"
-  );
+  return settings.showDemoHints;
 }

@@ -1,81 +1,61 @@
 "use client";
 
 import {
-  ReactNode,
   useEffect,
   useState,
 } from "react";
 
 import {
-  areDemoHintsEnabled,
-} from "../lib/featureFlags";
+  useAppSettings,
+} from "../hooks/useAppSettings";
 
 type DemoHintProps = {
   title?: string;
-  children: ReactNode;
+  description?: string;
+  className?: string;
 };
 
 export default function DemoHint({
-  title = "Demo-Hinweis",
-  children,
+  title = "Hinweis",
+  description = "Diese Anwendung läuft jetzt mit PostgreSQL.",
+  className = "",
 }: DemoHintProps) {
   const [mounted, setMounted] =
     useState(false);
 
-  const [enabled, setEnabled] =
-    useState(true);
+  const {
+    settings,
+    loading,
+  } =
+    useAppSettings();
 
   useEffect(() => {
-    setMounted(true);
-
-    setEnabled(
-      areDemoHintsEnabled()
+    setMounted(
+      true
     );
-
-    function handleSettingsUpdated() {
-      setEnabled(
-        areDemoHintsEnabled()
-      );
-    }
-
-    window.addEventListener(
-      "appSettingsUpdated",
-      handleSettingsUpdated
-    );
-
-    return () => {
-      window.removeEventListener(
-        "appSettingsUpdated",
-        handleSettingsUpdated
-      );
-    };
   }, []);
 
   if (!mounted) {
     return null;
   }
 
-  if (!enabled) {
+  if (loading) {
+    return null;
+  }
+
+  if (!settings.showDemoHints) {
     return null;
   }
 
   return (
-    <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center text-xl shrink-0">
-          💡
-        </div>
+    <div className={`bg-blue-50 border border-blue-100 text-blue-800 rounded-3xl p-5 ${className}`}>
+      <p className="font-semibold">
+        {title}
+      </p>
 
-        <div className="min-w-0">
-          <h2 className="font-semibold">
-            {title}
-          </h2>
-
-          <div className="text-sm mt-2 leading-relaxed">
-            {children}
-          </div>
-        </div>
-      </div>
+      <p className="text-sm mt-2 leading-relaxed">
+        {description}
+      </p>
     </div>
   );
 }

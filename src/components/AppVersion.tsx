@@ -14,22 +14,27 @@ export default function AppVersion({
   prefix = "Version",
 }: AppVersionProps) {
   const {
-    mounted,
-    appVersion,
-    showVersion,
-  } = useAppSettings();
+    settings,
+    loading,
+  } =
+    useAppSettings();
 
-  if (!mounted) {
+  const version =
+    settings.appVersion ||
+    settings.version ||
+    "0.1.0";
+
+  if (loading) {
     return null;
   }
 
-  if (!showVersion) {
+  if (!settings.showVersion) {
     return null;
   }
 
   return (
-    <p className={className}>
-      {prefix} {appVersion}
-    </p>
+    <span className={className}>
+      {prefix} {version}
+    </span>
   );
 }

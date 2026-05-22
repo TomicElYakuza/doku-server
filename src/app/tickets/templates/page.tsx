@@ -13,6 +13,8 @@ import {
   ticketTemplateRepository,
 } from "../../../lib/ticketTemplateRepository";
 
+import FeatureGate from "../../../components/FeatureGate";
+
 import {
   companyRepository,
 } from "../../../lib/companyRepository";
@@ -631,6 +633,29 @@ export default function TicketTemplatesPage() {
   }
 
   return (
+  <FeatureGate
+    feature="ticketTemplates"
+    fallback={
+      <div className="space-y-6">
+        <Link
+          href="/tickets"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zu Tickets
+        </Link>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Ticket-Vorlagen deaktiviert
+          </h1>
+
+          <p className="text-zinc-500 mt-2">
+            Dieses Modul ist aktuell in den Einstellungen deaktiviert.
+          </p>
+        </div>
+      </div>
+    }
+  >
     <div className="space-y-8">
       <div>
         <Link
@@ -1203,6 +1228,7 @@ export default function TicketTemplatesPage() {
           )
         )}
       </div>
-    </div>
+        </div>
+  </FeatureGate>
   );
 }

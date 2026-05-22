@@ -11,7 +11,6 @@ import {
 } from "../lib/appSettingsRepository";
 
 import type {
-  AppAccentColor,
   AppSettings,
 } from "../types/settings";
 
@@ -19,30 +18,34 @@ type AppThemeProviderProps = {
   children: ReactNode;
 };
 
-function getAccentClass(
-  color: AppAccentColor | string
+function getAccentColorValue(
+  accentColor?: string
 ) {
-  if (color === "blue") {
-    return "theme-blue";
+  if (accentColor === "blue") {
+    return "#2563eb";
   }
 
-  if (color === "indigo") {
-    return "theme-indigo";
+  if (accentColor === "green") {
+    return "#16a34a";
   }
 
-  if (color === "emerald") {
-    return "theme-emerald";
+  if (accentColor === "red") {
+    return "#dc2626";
   }
 
-  if (color === "amber") {
-    return "theme-amber";
+  if (accentColor === "orange") {
+    return "#ea580c";
   }
 
-  if (color === "red") {
-    return "theme-red";
+  if (accentColor === "purple") {
+    return "#7c3aed";
   }
 
-  return "theme-zinc";
+  if (accentColor === "indigo") {
+    return "#4f46e5";
+  }
+
+  return "#18181b";
 }
 
 function applyTheme(
@@ -55,56 +58,74 @@ function applyTheme(
   const root =
     document.documentElement;
 
-  root.classList.remove(
+  const body =
+    document.body;
+
+  const darkModeEnabled =
+    Boolean(
+      settings.darkMode
+    ) ||
+    settings.theme === "dark";
+
+  root.classList.toggle(
     "dark",
-    "theme-zinc",
-    "theme-blue",
-    "theme-indigo",
-    "theme-emerald",
-    "theme-amber",
-    "theme-red",
-    "compact-mode"
+    darkModeEnabled
   );
 
-  if (
-    settings.darkMode ||
-    settings.theme === "dark"
-  ) {
-    root.classList.add(
-      "dark"
-    );
-  }
+  root.classList.toggle(
+    "light",
+    !darkModeEnabled
+  );
 
-  root.classList.add(
-    getAccentClass(
+  root.dataset.theme =
+    darkModeEnabled
+      ? "dark"
+      : "light";
+
+  root.dataset.accent =
+    settings.accentColor ||
+    settings.appAccentColor ||
+    "zinc";
+
+  root.style.setProperty(
+    "--app-accent",
+    getAccentColorValue(
       settings.accentColor ||
-        settings.appAccentColor ||
-        "zinc"
+      settings.appAccentColor
     )
   );
 
-  if (settings.compactMode) {
-    root.classList.add(
-      "compact-mode"
-    );
-  }
+  body.classList.toggle(
+    "app-dark",
+    darkModeEnabled
+  );
+
+  body.classList.toggle(
+    "app-light",
+    !darkModeEnabled
+  );
+
+  body.classList.toggle(
+    "app-compact",
+    Boolean(
+      settings.compactMode
+    )
+  );
 }
 
 export default function AppThemeProvider({
   children,
 }: AppThemeProviderProps) {
-  const [mounted, setMounted] =
-    useState(false);
-
-  useEffect(() => {
-    setMounted(
-      true
+  const [settings, setSettings] =
+    useState<AppSettings>(
+      appSettingsRepository.getDefault()
     );
 
-    void loadAndApplyTheme();
+  useEffect(() => {
+    void loadSettings();
 
     function handleSettingsUpdated() {
-      void loadAndApplyTheme();
+      void loadSettings();
     }
 
     window.addEventListener(
@@ -120,32 +141,43 @@ export default function AppThemeProvider({
     };
   }, []);
 
-  async function loadAndApplyTheme() {
+  useEffect(() => {
+    applyTheme(
+      settings
+    );
+  }, [
+    settings,
+  ]);
+
+  async function loadSettings() {
     try {
-      const settings =
+      const nextSettings =
         await appSettingsRepository.get();
 
+      setSettings(
+        nextSettings
+      );
+
       applyTheme(
-        settings
+        nextSettings
       );
     } catch (error) {
       console.error(
-        "Theme konnte nicht geladen werden:",
+        "Theme-Einstellungen konnten nicht geladen werden:",
         error
       );
 
+      const fallbackSettings =
+        appSettingsRepository.getDefault();
+
+      setSettings(
+        fallbackSettings
+      );
+
       applyTheme(
-        appSettingsRepository.getDefault()
+        fallbackSettings
       );
     }
-  }
-
-  if (!mounted) {
-    return (
-      <>
-        {children}
-      </>
-    );
   }
 
   return (

@@ -1,4 +1,4 @@
-import TicketsSidebar from "../components/tickets/TicketsSidebar";
+import TicketsSidebar from "../../components/tickets/TicketsSidebar";
 
 export default function TicketsLayout({
   children,
@@ -7,7 +7,7 @@ export default function TicketsLayout({
 }) {
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-6">
+      <div className="grid grid-cols-1 2xl:grid-cols-[300px_minmax(0,1fr)] gap-6">
         <TicketsSidebar />
 
         <div className="min-w-0 w-full">

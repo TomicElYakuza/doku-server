@@ -5,37 +5,70 @@ import {
 } from "../hooks/useAppSettings";
 
 type AppIdentityProps = {
+  compact?: boolean;
   className?: string;
-  titleClassName?: string;
-  subtitleClassName?: string;
-  showCompanyName?: boolean;
 };
 
 export default function AppIdentity({
+  compact = false,
   className = "",
-  titleClassName = "",
-  subtitleClassName = "",
-  showCompanyName = true,
 }: AppIdentityProps) {
   const {
-    mounted,
-    appName,
-    companyName,
-  } = useAppSettings();
+    settings,
+    loading,
+  } =
+    useAppSettings();
 
-  if (!mounted) {
-    return null;
+  const appName =
+    settings.appName ||
+    "Intranet";
+
+  const companyName =
+    settings.companyName ||
+    "Intern";
+
+  const version =
+    settings.appVersion ||
+    settings.version ||
+    "0.1.0";
+
+  if (loading) {
+    return (
+      <div className={className}>
+        <p className="text-sm text-zinc-400">
+          Anwendung wird geladen...
+        </p>
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className={className}>
+        <p className="font-bold">
+          {appName}
+        </p>
+
+        <p className="text-xs text-zinc-500">
+          {companyName}
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className={className}>
-      <p className={titleClassName}>
-        {appName}
+      <p className="text-sm text-zinc-500">
+        {companyName}
       </p>
 
-      {showCompanyName && (
-        <p className={subtitleClassName}>
-          {companyName}
+      <h1 className="text-2xl font-bold">
+        {appName}
+      </h1>
+
+      {settings.showVersion && (
+        <p className="text-xs text-zinc-400 mt-1">
+          Version {version}
         </p>
       )}
     </div>

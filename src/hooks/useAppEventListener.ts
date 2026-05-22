@@ -4,34 +4,92 @@ import {
   useEffect,
 } from "react";
 
-import {
-  addMultipleAppEventListeners,
-} from "../lib/appEvents";
+export type AppEventName =
+  | "activitiesUpdated"
+  | "adminUsersUpdated"
+  | "appSettingsUpdated"
+  | "commentsUpdated"
+  | "companiesUpdated"
+  | "currentUserUpdated"
+  | "departmentsUpdated"
+  | "filesUpdated"
+  | "newsOpenedUpdated"
+  | "newsUpdated"
+  | "ticketTemplatesUpdated"
+  | "ticketsUpdated"
+  | "wikiPagesUpdated";
 
-import type {
-  AppEventName,
-} from "../lib/appEvents";
+type AppEventHandler =
+  () => void;
 
 export function useAppEventListener(
-  eventNames: AppEventName[],
-  handler: () => void
+  eventName: AppEventName,
+  handler: AppEventHandler
 ) {
-  useEffect(() => {
-    function handleEvent() {
-      handler();
-    }
-
-    const removeListeners =
-      addMultipleAppEventListeners(
-        eventNames,
-        handleEvent
+  useEffect(
+    () => {
+      window.addEventListener(
+        eventName,
+        handler
       );
 
-    return () => {
-      removeListeners();
-    };
-  }, [
-    eventNames.join("|"),
-    handler,
-  ]);
+      return () => {
+        window.removeEventListener(
+          eventName,
+          handler
+        );
+      };
+    },
+    [
+      eventName,
+      handler,
+    ]
+  );
+}
+
+export function useAppEventListeners(
+  eventNames: AppEventName[],
+  handler: AppEventHandler
+) {
+  useEffect(
+    () => {
+      eventNames.forEach(
+        (eventName) => {
+          window.addEventListener(
+            eventName,
+            handler
+          );
+        }
+      );
+
+      return () => {
+        eventNames.forEach(
+          (eventName) => {
+            window.removeEventListener(
+              eventName,
+              handler
+            );
+          }
+        );
+      };
+    },
+    [
+      eventNames,
+      handler,
+    ]
+  );
+}
+
+export function dispatchAppEvent(
+  eventName: AppEventName
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event(
+      eventName
+    )
+  );
 }
