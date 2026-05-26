@@ -9,10 +9,6 @@ import {
 } from "react";
 
 import {
-  useFeatureFlags,
-} from "../../hooks/useFeatureFlags";
-
-import {
   canViewAdmin,
 } from "../../lib/permissions";
 
@@ -47,6 +43,10 @@ import {
 import {
   appSettingsRepository,
 } from "../../lib/appSettingsRepository";
+
+import {
+  useFeatureFlags,
+} from "../../hooks/useFeatureFlags";
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
@@ -109,12 +109,11 @@ function getActivityClass(
 }
 
 export default function AdminPage() {
-
-    const {
+  const {
     activityLogEnabled,
     ticketTemplatesEnabled,
-    } =
-      useFeatureFlags();
+  } =
+    useFeatureFlags();
 
   const [mounted, setMounted] =
     useState(false);
@@ -160,42 +159,6 @@ export default function AdminPage() {
     );
 
     void loadData();
-
-    const events = [
-      "adminUsersUpdated",
-      "companiesUpdated",
-      "departmentsUpdated",
-      "ticketsUpdated",
-      "ticketTemplatesUpdated",
-      "newsUpdated",
-      "wikiPagesUpdated",
-      "activitiesUpdated",
-      "appSettingsUpdated",
-    ];
-
-    function handleDataUpdated() {
-      void loadData();
-    }
-
-    events.forEach(
-      (eventName) => {
-        window.addEventListener(
-          eventName,
-          handleDataUpdated
-        );
-      }
-    );
-
-    return () => {
-      events.forEach(
-        (eventName) => {
-          window.removeEventListener(
-            eventName,
-            handleDataUpdated
-          );
-        }
-      );
-    };
   }, []);
 
   async function loadData() {
@@ -388,67 +351,71 @@ export default function AdminPage() {
       ]
     );
 
-    const modules: AdminModule[] = [
-    {
-      title:
-        "Benutzerverwaltung",
-
-      description:
-        "Benutzer, Rollen, Status und Organisationszuordnung verwalten.",
-
-      href:
-        "/admin/users",
-
-      icon:
-        "👥",
-
-      badge:
-        `${users.length} Benutzer`,
-
-      accent:
-        "bg-blue-50 text-blue-700",
-    },
-    {
-      title:
-        "Firmen & Abteilungen",
-
-      description:
-        "Firmenstruktur und Abteilungen zentral konfigurieren.",
-
-      href:
-        "/admin/companies",
-
-      icon:
-        "🏢",
-
-      badge:
-        `${companies.length}/${departments.length}`,
-
-      accent:
-        "bg-emerald-50 text-emerald-700",
-    },
-    {
-      title:
-        "News-Verwaltung",
-
-      description:
-        "Neuigkeiten erstellen, bearbeiten, fixieren und löschen.",
-
-      href:
-        "/admin/news",
-
-      icon:
-        "📰",
-
-      badge:
-        `${news.length} Beiträge`,
-
-      accent:
-        "bg-orange-50 text-orange-700",
-    },
-    ...(ticketTemplatesEnabled
-      ? [
+  const modules =
+    useMemo<AdminModule[]>(
+      () => {
+        const nextModules: AdminModule[] = [
           {
+            title:
+              "Benutzerverwaltung",
+
+            description:
+              "Benutzer, Rollen, Status und Organisationszuordnung verwalten.",
+
+            href:
+              "/admin/users",
+
+            icon:
+              "👥",
+
+            badge:
+              `${users.length} Benutzer`,
+
+            accent:
+              "bg-blue-50 text-blue-700",
+          },
+          {
+            title:
+              "Firmen & Abteilungen",
+
+            description:
+              "Firmenstruktur und Abteilungen zentral konfigurieren.",
+
+            href:
+              "/admin/companies",
+
+            icon:
+              "🏢",
+
+            badge:
+              `${companies.length}/${departments.length}`,
+
+            accent:
+              "bg-emerald-50 text-emerald-700",
+          },
+          {
+            title:
+              "News-Verwaltung",
+
+            description:
+              "Neuigkeiten erstellen, bearbeiten, fixieren und löschen.",
+
+            href:
+              "/admin/news",
+
+            icon:
+              "📰",
+
+            badge:
+              `${news.length} Beiträge`,
+
+            accent:
+              "bg-orange-50 text-orange-700",
+          },
+        ];
+
+        if (ticketTemplatesEnabled) {
+          nextModules.push({
             title:
               "Ticket-Vorlagen",
 
@@ -466,31 +433,31 @@ export default function AdminPage() {
 
             accent:
               "bg-purple-50 text-purple-700",
-          },
-        ]
-      : []),
-    {
-      title:
-        "Einstellungen",
+          });
+        }
 
-      description:
-        "App-Name, Oberfläche, Features und Standardrollen konfigurieren.",
+        nextModules.push({
+          title:
+            "Einstellungen",
 
-      href:
-        "/settings",
+          description:
+            "App-Name, Oberfläche, Features und Standardrollen konfigurieren.",
 
-      icon:
-        "⚙️",
+          href:
+            "/settings",
 
-      badge:
-        "System",
+          icon:
+            "⚙️",
 
-      accent:
-        "bg-zinc-100 text-zinc-700",
-    },
-    ...(activityLogEnabled
-      ? [
-          {
+          badge:
+            "System",
+
+          accent:
+            "bg-zinc-100 text-zinc-700",
+        });
+
+        if (activityLogEnabled) {
+          nextModules.push({
             title:
               "Aktivitätsprotokoll",
 
@@ -508,10 +475,22 @@ export default function AdminPage() {
 
             accent:
               "bg-indigo-50 text-indigo-700",
-          },
-        ]
-      : []),
-  ];
+          });
+        }
+
+        return nextModules;
+      },
+      [
+        users.length,
+        companies.length,
+        departments.length,
+        news.length,
+        templates.length,
+        activities.length,
+        ticketTemplatesEnabled,
+        activityLogEnabled,
+      ]
+    );
 
   if (!mounted) {
     return null;
@@ -771,58 +750,60 @@ export default function AdminPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                Letzte Aktivitäten
-              </h2>
+        {activityLogEnabled && (
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <h2 className="text-2xl font-semibold">
+                  Letzte Aktivitäten
+                </h2>
 
-              <p className="text-zinc-500 mt-1">
-                Kurzer Systemauszug.
-              </p>
+                <p className="text-zinc-500 mt-1">
+                  Kurzer Systemauszug.
+                </p>
+              </div>
+
+              <Link
+                href="/activity"
+                className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+              >
+                Alle
+              </Link>
             </div>
 
-            <Link
-              href="/activity"
-              className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
-            >
-              Alle
-            </Link>
-          </div>
+            <div className="space-y-3 mt-6">
+              {latestActivities.length === 0 && (
+                <p className="text-zinc-500">
+                  Noch keine Aktivitäten vorhanden.
+                </p>
+              )}
 
-          <div className="space-y-3 mt-6">
-            {latestActivities.length === 0 && (
-              <p className="text-zinc-500">
-                Noch keine Aktivitäten vorhanden.
-              </p>
-            )}
+              {latestActivities.map(
+                (activity) => (
+                  <Link
+                    key={activity.id}
+                    href="/activity"
+                    className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
+                  >
+                    <span className={`text-xs px-3 py-1 rounded-full ${getActivityClass(activity.type)}`}>
+                      {getActivityLabel(
+                        activity.type
+                      )}
+                    </span>
 
-            {latestActivities.map(
-              (activity) => (
-                <Link
-                  key={activity.id}
-                  href="/activity"
-                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
-                >
-                  <span className={`text-xs px-3 py-1 rounded-full ${getActivityClass(activity.type)}`}>
-                    {getActivityLabel(
-                      activity.type
-                    )}
-                  </span>
+                    <p className="font-medium mt-3 line-clamp-2">
+                      {activity.title}
+                    </p>
 
-                  <p className="font-medium mt-3 line-clamp-2">
-                    {activity.title}
-                  </p>
-
-                  <p className="text-xs text-zinc-400 mt-2">
-                    {activity.createdAt}
-                  </p>
-                </Link>
-              )
-            )}
-          </div>
-        </section>
+                    <p className="text-xs text-zinc-400 mt-2">
+                      {activity.createdAt}
+                    </p>
+                  </Link>
+                )
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

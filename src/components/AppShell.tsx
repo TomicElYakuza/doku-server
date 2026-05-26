@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -16,6 +17,7 @@ import {
 import {
   getCachedCurrentUser,
   loadCurrentUser,
+  logoutCurrentUser,
 } from "../lib/currentUserRepository";
 
 import {
@@ -42,6 +44,9 @@ type NavigationItem = {
   icon: string;
   adminOnly?: boolean;
 };
+
+const INACTIVITY_TIMEOUT_MS =
+  60 * 60 * 1000;
 
 const navigationItems: NavigationItem[] = [
   {
@@ -132,6 +137,14 @@ export default function AppShell({
   const router =
     useRouter();
 
+  const logoutTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+  const logoutRunningRef =
+    useRef(false);
+
   const {
     settings,
   } =
@@ -163,6 +176,8 @@ export default function AppShell({
         false
       );
 
+      clearInactivityTimer();
+
       return;
     }
 
@@ -188,6 +203,132 @@ export default function AppShell({
   }, [
     pathname,
   ]);
+
+  useEffect(() => {
+    if (
+      isPublicPath(
+        pathname
+      ) ||
+      !user
+    ) {
+      clearInactivityTimer();
+
+      return;
+    }
+
+    const activityEvents = [
+      "click",
+      "keydown",
+      "mousemove",
+      "mousedown",
+      "scroll",
+      "touchstart",
+      "wheel",
+    ];
+
+    function handleActivity() {
+      resetInactivityTimer();
+    }
+
+    activityEvents.forEach(
+      (eventName) => {
+        window.addEventListener(
+          eventName,
+          handleActivity,
+          {
+            passive:
+              true,
+          }
+        );
+      }
+    );
+
+    resetInactivityTimer();
+
+    return () => {
+      activityEvents.forEach(
+        (eventName) => {
+          window.removeEventListener(
+            eventName,
+            handleActivity
+          );
+        }
+      );
+
+      clearInactivityTimer();
+    };
+  }, [
+    pathname,
+    user,
+  ]);
+
+  function clearInactivityTimer() {
+    if (logoutTimerRef.current) {
+      clearTimeout(
+        logoutTimerRef.current
+      );
+
+      logoutTimerRef.current =
+        null;
+    }
+  }
+
+  function resetInactivityTimer() {
+    clearInactivityTimer();
+
+    logoutTimerRef.current =
+      setTimeout(
+        () => {
+          void handleInactiveLogout();
+        },
+        INACTIVITY_TIMEOUT_MS
+      );
+  }
+
+  async function handleInactiveLogout() {
+    if (logoutRunningRef.current) {
+      return;
+    }
+
+    logoutRunningRef.current =
+      true;
+
+    try {
+      await logoutCurrentUser();
+
+      setUser(
+        null
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "currentUserUpdated"
+        )
+      );
+
+      alert(
+        "Du wurdest wegen 60 Minuten Inaktivität automatisch abgemeldet."
+      );
+
+      router.push(
+        "/login"
+      );
+
+      router.refresh();
+    } catch (error) {
+      console.error(
+        "Automatischer Logout fehlgeschlagen:",
+        error
+      );
+
+      router.push(
+        "/login"
+      );
+    } finally {
+      logoutRunningRef.current =
+        false;
+    }
+  }
 
   async function ensureUser() {
     try {

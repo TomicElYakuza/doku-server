@@ -16,12 +16,47 @@ export type User = {
   departmentId: string;
   company: string;
   department: string;
+  passwordMustChange: boolean;
 };
 
 export type AdminUser = {
   id: string;
   name: string;
   email: string;
+  username: string;
+  role: UserRole;
+  status: AdminUserStatus;
+  companyId: string;
+  departmentId: string;
+  company: string;
+  department: string;
+  passwordMustChange: boolean;
+  hasPassword: boolean;
+  lastLoginAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminUserCreateInput = {
+  name: string;
+  email: string;
+  username: string;
+  password: string;
+  passwordMustChange: boolean;
+  role: UserRole;
+  status: AdminUserStatus;
+  companyId: string;
+  departmentId: string;
+  company: string;
+  department: string;
+};
+
+export type AdminUserUpdateInput = Partial<{
+  name: string;
+  email: string;
+  username: string;
+  password: string;
+  passwordMustChange: boolean;
   role: UserRole;
   status: AdminUserStatus;
   companyId: string;
@@ -29,19 +64,4 @@ export type AdminUser = {
   company: string;
   department: string;
   lastLoginAt: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AdminUserCreateInput = Omit<
-  AdminUser,
-  "id" | "createdAt" | "updatedAt" | "lastLoginAt"
->;
-
-export type AdminUserUpdateInput =
-  Partial<
-    Omit<
-      AdminUser,
-      "id" | "createdAt" | "updatedAt"
-    >
-  >;
+}>;

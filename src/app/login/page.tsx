@@ -11,261 +11,119 @@ import {
 } from "next/navigation";
 
 import {
-  adminUserRepository,
-} from "../../lib/adminUserRepository";
-
-import {
-  companyRepository,
-} from "../../lib/companyRepository";
-
-import {
+  getCachedCurrentUser,
+  loadCurrentUser,
   loginCurrentUser,
 } from "../../lib/currentUserRepository";
 
 import {
-  saveUserCreatedActivity,
-  saveUserLoginActivity,
-} from "../../lib/userActivityHelpers";
+  appSettingsRepository,
+} from "../../lib/appSettingsRepository";
 
 import type {
-  AdminUser,
-  UserRole,
-} from "../../types/user";
-
-import type {
-  Company,
-  Department,
-} from "../../types/company";
-
-function getRoleLabel(
-  role: UserRole | string
-) {
-  if (role === "admin") {
-    return "Administrator";
-  }
-
-  if (role === "editor") {
-    return "Bearbeiter";
-  }
-
-  return "Leser";
-}
+  AppSettings,
+} from "../../types/settings";
 
 export default function LoginPage() {
   const router =
     useRouter();
 
-  const [mounted, setMounted] =
-    useState(false);
+  const [settings, setSettings] =
+    useState<AppSettings>(
+      appSettingsRepository.getDefault()
+    );
+
+  const [username, setUsername] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
 
   const [loading, setLoading] =
-    useState(true);
-
-  const [submitting, setSubmitting] =
     useState(false);
 
-  const [users, setUsers] =
-    useState<AdminUser[]>([]);
-
-  const [companies, setCompanies] =
-    useState<Company[]>([]);
-
-  const [departments, setDepartments] =
-    useState<Department[]>([]);
-
-  const [selectedEmail, setSelectedEmail] =
-    useState("");
-
-  const [manualEmail, setManualEmail] =
-    useState("");
-
-  const [firstAdminName, setFirstAdminName] =
-    useState("Administrator");
-
-  const [firstAdminEmail, setFirstAdminEmail] =
-    useState("");
-
-  const [firstAdminCompanyId, setFirstAdminCompanyId] =
-    useState("");
-
-  const [firstAdminDepartmentId, setFirstAdminDepartmentId] =
-    useState("");
+  const [checkingSession, setCheckingSession] =
+    useState(true);
 
   const [error, setError] =
     useState("");
 
   useEffect(() => {
-    setMounted(
-      true
-    );
-
-    void loadData();
+    void initializeLogin();
   }, []);
 
-  async function loadData() {
+  async function initializeLogin() {
     try {
-      setLoading(
-        true
-      );
-
-      setError(
-        ""
-      );
-
       const [
-        nextUsers,
-        nextCompanies,
-        nextDepartments,
+        nextSettings,
+        currentUser,
       ] =
         await Promise.all([
-          adminUserRepository.list(),
-          companyRepository.listCompanies(),
-          companyRepository.listDepartments(),
+          appSettingsRepository.get(),
+          loadCurrentUser(),
         ]);
 
-      setUsers(
-        nextUsers
+      setSettings(
+        nextSettings
       );
 
-      setCompanies(
-        nextCompanies
-      );
-
-      setDepartments(
-        nextDepartments
-      );
-
-      const firstActiveUser =
-        nextUsers.find(
-          (user) =>
-            user.status === "active"
-        );
-
-      setSelectedEmail(
-        firstActiveUser?.email ||
-          ""
-      );
-
-      if (nextCompanies.length > 0) {
-        setFirstAdminCompanyId(
-          nextCompanies[0].id
+      if (
+        currentUser ||
+        getCachedCurrentUser()
+      ) {
+        router.push(
+          "/dashboard"
         );
       }
-
-      const firstDepartment =
-        nextDepartments.find(
-          (department) =>
-            department.companyId === nextCompanies[0]?.id
-        );
-
-      setFirstAdminDepartmentId(
-        firstDepartment?.id ||
-          ""
-      );
     } catch (loadError) {
       console.error(
+        "Login konnte nicht vorbereitet werden:",
         loadError
       );
-
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Login-Daten konnten nicht geladen werden."
-      );
     } finally {
-      setLoading(
+      setCheckingSession(
         false
       );
     }
   }
 
-  function getCompanyName(
-    companyId: string
-  ) {
-    return (
-      companies.find(
-        (company) =>
-          company.id === companyId
-      )?.name ||
-      "Intern"
-    );
-  }
-
-  function getDepartmentName(
-    departmentId: string
-  ) {
-    return (
-      departments.find(
-        (department) =>
-          department.id === departmentId
-      )?.name ||
-      "Allgemein"
-    );
-  }
-
-  function getDepartmentsForFirstAdminCompany() {
-    if (!firstAdminCompanyId) {
-      return departments;
-    }
-
-    return departments.filter(
-      (department) =>
-        department.companyId === firstAdminCompanyId
-    );
-  }
-
-  async function handleLogin(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    const email =
-      manualEmail.trim() ||
-      selectedEmail.trim();
+    setError(
+      ""
+    );
 
-    if (!email) {
+    if (!username.trim()) {
       setError(
-        "Bitte einen Benutzer auswählen oder eine E-Mail eingeben."
+        "Bitte Benutzername eingeben."
+      );
+
+      return;
+    }
+
+    if (!password) {
+      setError(
+        "Bitte Passwort eingeben."
       );
 
       return;
     }
 
     try {
-      setSubmitting(
+      setLoading(
         true
       );
 
-      setError(
-        ""
-      );
-
-      const currentUser =
-        await loginCurrentUser(
-          email
-        );
-
-      if (!currentUser) {
-        setError(
-          "Benutzer wurde nicht gefunden oder ist nicht aktiv."
-        );
-
-        return;
-      }
-
-      const adminUser =
-        await adminUserRepository.findByEmail(
-          currentUser.email
-        );
-
-      if (adminUser) {
-        saveUserLoginActivity(
-          adminUser
-        );
-      }
+      await loginCurrentUser({
+        username,
+        password,
+      });
 
       router.push(
-        "/news"
+        "/dashboard"
       );
 
       router.refresh();
@@ -277,459 +135,205 @@ export default function LoginPage() {
       setError(
         loginError instanceof Error
           ? loginError.message
-          : "Login konnte nicht durchgeführt werden."
+          : "Login fehlgeschlagen."
       );
     } finally {
-      setSubmitting(
+      setLoading(
         false
       );
     }
   }
 
-  async function handleCreateFirstAdmin(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    if (!firstAdminName.trim()) {
-      setError(
-        "Bitte einen Namen eingeben."
-      );
-
-      return;
-    }
-
-    if (!firstAdminEmail.trim()) {
-      setError(
-        "Bitte eine E-Mail eingeben."
-      );
-
-      return;
-    }
-
-    try {
-      setSubmitting(
-        true
-      );
-
-      setError(
-        ""
-      );
-
-      const companyName =
-        getCompanyName(
-          firstAdminCompanyId
-        );
-
-      const departmentName =
-        getDepartmentName(
-          firstAdminDepartmentId
-        );
-
-      const newAdmin =
-        await adminUserRepository.create({
-          name:
-            firstAdminName.trim(),
-
-          email:
-            firstAdminEmail.trim().toLowerCase(),
-
-          role:
-            "admin",
-
-          status:
-            "active",
-
-          companyId:
-            firstAdminCompanyId,
-
-          departmentId:
-            firstAdminDepartmentId,
-
-          company:
-            companyName,
-
-          department:
-            departmentName,
-        });
-
-      saveUserCreatedActivity(
-        newAdmin
-      );
-
-      const currentUser =
-        await loginCurrentUser(
-          newAdmin.email
-        );
-
-      if (!currentUser) {
-        setError(
-          "Administrator wurde erstellt, konnte aber nicht angemeldet werden."
-        );
-
-        await loadData();
-
-        return;
-      }
-
-      saveUserLoginActivity(
-        newAdmin
-      );
-
-      router.push(
-        "/news"
-      );
-
-      router.refresh();
-    } catch (createError) {
-      console.error(
-        createError
-      );
-
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Administrator konnte nicht erstellt werden."
-      );
-    } finally {
-      setSubmitting(
-        false
-      );
-    }
-  }
-
-  if (!mounted) {
-    return null;
-  }
-
-  const activeUsers =
-    users.filter(
-      (user) =>
-        user.status === "active"
+  if (checkingSession) {
+    return (
+      <main className="min-h-screen w-full bg-zinc-950 text-white flex items-center justify-center px-4">
+        <div className="bg-white/10 border border-white/10 rounded-3xl p-8 shadow-sm">
+          <p className="text-zinc-300">
+            Anmeldung wird geprüft...
+          </p>
+        </div>
+      </main>
     );
-
-  const showFirstAdminSetup =
-    !loading &&
-    users.length === 0;
+  }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-[1fr_440px] gap-8">
-        <section className="bg-zinc-900 text-white rounded-3xl p-10 shadow-sm flex flex-col justify-between min-h-[560px]">
-          <div>
+    <main className="min-h-screen w-full bg-zinc-950 text-white">
+      <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_520px]">
+        <section className="hidden lg:flex relative overflow-hidden p-12 flex-col justify-between">
+          <div className="relative z-10">
             <p className="text-zinc-400">
-              DMS · Ticket · Intranet
+              {settings.companyName ||
+                "Intern"}
             </p>
 
-            <h1 className="text-5xl font-bold mt-5 leading-tight">
-              Willkommen im internen Portal
+            <h1 className="text-5xl font-bold mt-4 max-w-3xl leading-tight">
+              {settings.appName ||
+                "Intranet"}
             </h1>
 
-            <p className="text-zinc-300 mt-5 text-lg leading-relaxed">
-              Melde dich mit einem aktiven PostgreSQL-Benutzer an.
-              Die alte LocalStorage-Anmeldung wurde entfernt.
+            <p className="text-zinc-300 text-lg mt-6 max-w-2xl">
+              Zentrales System für Dokumentation, Tickets, News, Dateien und interne Abläufe.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
-            <div className="bg-white/10 rounded-2xl p-5">
-              <p className="text-sm text-zinc-400">
-                Benutzer
+          <div className="relative z-10 grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className="bg-white/10 border border-white/10 rounded-3xl p-6">
+              <p className="text-3xl">
+                📚
               </p>
 
-              <p className="text-3xl font-bold mt-2">
-                {users.length}
-              </p>
-            </div>
+              <h2 className="font-semibold mt-4">
+                Wiki
+              </h2>
 
-            <div className="bg-white/10 rounded-2xl p-5">
-              <p className="text-sm text-zinc-400">
-                Firmen
-              </p>
-
-              <p className="text-3xl font-bold mt-2">
-                {companies.length}
+              <p className="text-sm text-zinc-400 mt-2">
+                Wissen und Anleitungen zentral verwalten.
               </p>
             </div>
 
-            <div className="bg-white/10 rounded-2xl p-5">
-              <p className="text-sm text-zinc-400">
-                Abteilungen
+            <div className="bg-white/10 border border-white/10 rounded-3xl p-6">
+              <p className="text-3xl">
+                🎫
               </p>
 
-              <p className="text-3xl font-bold mt-2">
-                {departments.length}
+              <h2 className="font-semibold mt-4">
+                Tickets
+              </h2>
+
+              <p className="text-sm text-zinc-400 mt-2">
+                Aufgaben und Supportfälle nachvollziehbar bearbeiten.
+              </p>
+            </div>
+
+            <div className="bg-white/10 border border-white/10 rounded-3xl p-6">
+              <p className="text-3xl">
+                📰
+              </p>
+
+              <h2 className="font-semibold mt-4">
+                News
+              </h2>
+
+              <p className="text-sm text-zinc-400 mt-2">
+                Interne Informationen schnell teilen.
               </p>
             </div>
           </div>
+
+          <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/10" />
+          <div className="absolute left-1/3 bottom-1/4 h-72 w-72 rounded-full bg-white/5" />
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          {loading && (
-            <div>
-              <h2 className="text-3xl font-bold">
-                Login wird vorbereitet
-              </h2>
-
-              <p className="text-zinc-500 mt-3">
-                Benutzer werden aus PostgreSQL geladen...
+        <section className="bg-zinc-50 text-zinc-950 flex items-center justify-center px-4 py-10">
+          <div className="w-full max-w-md">
+            <div className="lg:hidden mb-8">
+              <p className="text-zinc-500">
+                {settings.companyName ||
+                  "Intern"}
               </p>
+
+              <h1 className="text-4xl font-bold mt-2">
+                {settings.appName ||
+                  "Intranet"}
+              </h1>
             </div>
-          )}
 
-          {!loading && showFirstAdminSetup && (
-            <form
-              onSubmit={(event) =>
-                void handleCreateFirstAdmin(
-                  event
-                )
-              }
-              className="space-y-6"
-            >
+            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
               <div>
-                <h2 className="text-3xl font-bold">
-                  Ersten Administrator erstellen
-                </h2>
-
-                <p className="text-zinc-500 mt-3">
-                  Es gibt noch keinen Benutzer in PostgreSQL. Erstelle jetzt den ersten Admin.
+                <p className="text-sm text-zinc-500">
+                  Willkommen zurück
                 </p>
-              </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4">
-                  {error}
-                </div>
-              )}
-
-              <div>
-                <label className="block mb-2 font-medium">
-                  Name
-                </label>
-
-                <input
-                  value={firstAdminName}
-                  onChange={(event) =>
-                    setFirstAdminName(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                  placeholder="Administrator"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 font-medium">
-                  E-Mail
-                </label>
-
-                <input
-                  type="email"
-                  value={firstAdminEmail}
-                  onChange={(event) =>
-                    setFirstAdminEmail(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                  placeholder="admin@firma.local"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 font-medium">
-                  Firma
-                </label>
-
-                <select
-                  value={firstAdminCompanyId}
-                  onChange={(event) => {
-                    const companyId =
-                      event.target.value;
-
-                    setFirstAdminCompanyId(
-                      companyId
-                    );
-
-                    const firstDepartment =
-                      departments.find(
-                        (department) =>
-                          department.companyId === companyId
-                      );
-
-                    setFirstAdminDepartmentId(
-                      firstDepartment?.id ||
-                        ""
-                    );
-                  }}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                >
-                  <option value="">
-                    Keine Firma
-                  </option>
-
-                  {companies.map(
-                    (company) => (
-                      <option
-                        key={company.id}
-                        value={company.id}
-                      >
-                        {company.name}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block mb-2 font-medium">
-                  Abteilung
-                </label>
-
-                <select
-                  value={firstAdminDepartmentId}
-                  onChange={(event) =>
-                    setFirstAdminDepartmentId(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                >
-                  <option value="">
-                    Keine Abteilung
-                  </option>
-
-                  {getDepartmentsForFirstAdminCompany().map(
-                    (department) => (
-                      <option
-                        key={department.id}
-                        value={department.id}
-                      >
-                        {department.name}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-              >
-                {submitting
-                  ? "Admin wird erstellt..."
-                  : "Admin erstellen und anmelden"}
-              </button>
-            </form>
-          )}
-
-          {!loading && !showFirstAdminSetup && (
-            <form
-              onSubmit={(event) =>
-                void handleLogin(
-                  event
-                )
-              }
-              className="space-y-6"
-            >
-              <div>
-                <h2 className="text-3xl font-bold">
+                <h2 className="text-3xl font-bold mt-2">
                   Login
                 </h2>
 
                 <p className="text-zinc-500 mt-3">
-                  Wähle einen aktiven Benutzer oder gib eine E-Mail-Adresse ein.
+                  Melde dich mit Benutzername und Passwort an.
                 </p>
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4">
-                  {error}
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mt-6">
+                  <p className="text-red-700 text-sm font-medium">
+                    {error}
+                  </p>
                 </div>
               )}
 
-              <div>
-                <label className="block mb-2 font-medium">
-                  Benutzer auswählen
-                </label>
-
-                <select
-                  value={selectedEmail}
-                  onChange={(event) =>
-                    setSelectedEmail(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-                >
-                  <option value="">
-                    Benutzer auswählen
-                  </option>
-
-                  {activeUsers.map(
-                    (user) => (
-                      <option
-                        key={user.id}
-                        value={user.email}
-                      >
-                        {user.name} · {getRoleLabel(user.role)} · {user.email}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-x-0 top-1/2 h-px bg-zinc-200" />
-
-                <div className="relative flex justify-center">
-                  <span className="bg-white px-4 text-sm text-zinc-400">
-                    oder
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-2 font-medium">
-                  E-Mail manuell
-                </label>
-
-                <input
-                  type="email"
-                  value={manualEmail}
-                  onChange={(event) =>
-                    setManualEmail(
-                      event.target.value
-                    )
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                  placeholder="name@firma.local"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-              >
-                {submitting
-                  ? "Anmelden..."
-                  : "Anmelden"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  void loadData()
+              <form
+                onSubmit={(event) =>
+                  void handleSubmit(
+                    event
+                  )
                 }
-                className="w-full bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+                className="space-y-5 mt-8"
               >
-                Benutzer neu laden
-              </button>
-            </form>
-          )}
+                <div>
+                  <label className="block mb-2 font-medium">
+                    Benutzername
+                  </label>
+
+                  <input
+                    value={username}
+                    onChange={(event) =>
+                      setUsername(
+                        event.target.value
+                      )
+                    }
+                    autoComplete="username"
+                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                    placeholder="admin"
+                  />
+                </div>
+
+                <div>
+                  <label className="block mb-2 font-medium">
+                    Passwort
+                  </label>
+
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) =>
+                      setPassword(
+                        event.target.value
+                      )
+                    }
+                    autoComplete="current-password"
+                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                    placeholder="Passwort"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+                >
+                  {loading
+                    ? "Anmeldung läuft..."
+                    : "Einloggen"}
+                </button>
+              </form>
+
+              <div className="bg-zinc-50 rounded-2xl p-4 mt-6">
+                <p className="text-sm text-zinc-500">
+                  Du wirst nach ungefähr 60 Minuten Inaktivität automatisch abgemeldet.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-400 text-center mt-6">
+              {settings.appName ||
+                "Intranet"}
+              {" · "}
+              Version{" "}
+              {settings.appVersion ||
+                settings.version ||
+                "0.1.0"}
+            </p>
+          </div>
         </section>
       </div>
     </main>

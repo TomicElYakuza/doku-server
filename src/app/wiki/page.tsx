@@ -641,13 +641,6 @@ export default function WikiPageList() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href="/wiki/trash"
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Papierkorb
-          </Link>
-
           {canCreate() && (
             <Link
               href="/wiki/create"

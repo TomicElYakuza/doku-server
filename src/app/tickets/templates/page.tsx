@@ -13,84 +13,159 @@ import {
   ticketTemplateRepository,
 } from "../../../lib/ticketTemplateRepository";
 
-import FeatureGate from "../../../components/FeatureGate";
-
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
-
 import {
   canCreate,
   canDelete,
   canEdit,
 } from "../../../lib/permissions";
 
-import {
-  saveTicketTemplateCreatedActivity,
-  saveTicketTemplateDeletedActivity,
-  saveTicketTemplateUpdatedActivity,
-} from "../../../lib/ticketTemplateActivityHelpers";
-
-import type {
-  Company,
-  Department,
-} from "../../../types/company";
+import FeatureGate from "../../../components/FeatureGate";
 
 import type {
   TicketTemplate,
-  TicketTemplatePriority,
-  TicketTemplateStatus,
 } from "../../../types/ticketTemplate";
 
-function getStatusLabel(
-  status: TicketTemplateStatus | string
+type TemplateStatus =
+  | "active"
+  | "inactive";
+
+function getValue(
+  template: TicketTemplate,
+  key: string,
+  fallback = ""
 ) {
-  return ticketTemplateRepository.getStatusLabel(
-    status
+  const value =
+    (template as unknown as Record<string, unknown>)[key];
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return fallback;
+  }
+
+  return String(
+    value
   );
+}
+
+function getArrayValue(
+  template: TicketTemplate,
+  key: string
+) {
+  const value =
+    (template as unknown as Record<string, unknown>)[key];
+
+  if (Array.isArray(value)) {
+    return value
+      .map(
+        (item) =>
+          String(
+            item
+          )
+      )
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map(
+        (item) =>
+          item.trim()
+      )
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function splitTags(
+  value: string
+) {
+  return value
+    .split(",")
+    .map(
+      (tag) =>
+        tag.trim()
+    )
+    .filter(Boolean);
 }
 
 function getStatusClass(
-  status: TicketTemplateStatus | string
+  status: string
 ) {
-  return ticketTemplateRepository.getStatusClass(
-    status
-  );
+  if (status === "active") {
+    return "bg-green-50 text-green-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
+}
+
+function getStatusLabel(
+  status: string
+) {
+  if (status === "active") {
+    return "Aktiv";
+  }
+
+  if (status === "inactive") {
+    return "Inaktiv";
+  }
+
+  return status ||
+    "Unbekannt";
 }
 
 function getPriorityLabel(
-  priority: TicketTemplatePriority | string
+  priority: string
 ) {
-  return ticketTemplateRepository.getPriorityLabel(
-    priority
-  );
+  if (priority === "low") {
+    return "Niedrig";
+  }
+
+  if (priority === "medium") {
+    return "Mittel";
+  }
+
+  if (priority === "high") {
+    return "Hoch";
+  }
+
+  if (priority === "urgent") {
+    return "Dringend";
+  }
+
+  return priority ||
+    "Mittel";
 }
 
 function getPriorityClass(
-  priority: TicketTemplatePriority | string
+  priority: string
 ) {
-  return ticketTemplateRepository.getPriorityClass(
-    priority
-  );
+  if (priority === "urgent") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (priority === "high") {
+    return "bg-orange-50 text-orange-700";
+  }
+
+  if (priority === "medium") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  return "bg-zinc-100 text-zinc-700";
 }
 
 export default function TicketTemplatesPage() {
   const [templates, setTemplates] =
     useState<TicketTemplate[]>([]);
 
-  const [companies, setCompanies] =
-    useState<Company[]>([]);
-
-  const [departments, setDepartments] =
-    useState<Department[]>([]);
-
   const [search, setSearch] =
     useState("");
 
   const [statusFilter, setStatusFilter] =
-    useState("");
-
-  const [priorityFilter, setPriorityFilter] =
     useState("");
 
   const [showForm, setShowForm] =
@@ -105,20 +180,14 @@ export default function TicketTemplatesPage() {
   const [description, setDescription] =
     useState("");
 
-  const [status, setStatus] =
-    useState<TicketTemplateStatus>("open");
-
-  const [priority, setPriority] =
-    useState<TicketTemplatePriority>("medium");
-
   const [category, setCategory] =
     useState("Allgemein");
 
-  const [companyId, setCompanyId] =
-    useState("");
+  const [priority, setPriority] =
+    useState("medium");
 
-  const [departmentId, setDepartmentId] =
-    useState("");
+  const [status, setStatus] =
+    useState<TemplateStatus>("active");
 
   const [assignedTo, setAssignedTo] =
     useState("");
@@ -136,26 +205,26 @@ export default function TicketTemplatesPage() {
     useState("");
 
   useEffect(() => {
-    void loadData();
+    void loadTemplates();
 
-    function handleTicketTemplatesUpdated() {
-      void loadData();
+    function handleTemplatesUpdated() {
+      void loadTemplates();
     }
 
     window.addEventListener(
       "ticketTemplatesUpdated",
-      handleTicketTemplatesUpdated
+      handleTemplatesUpdated
     );
 
     return () => {
       window.removeEventListener(
         "ticketTemplatesUpdated",
-        handleTicketTemplatesUpdated
+        handleTemplatesUpdated
       );
     };
   }, []);
 
-  async function loadData() {
+  async function loadTemplates() {
     try {
       setLoading(
         true
@@ -165,27 +234,15 @@ export default function TicketTemplatesPage() {
         ""
       );
 
-      const [
-        nextTemplates,
-        nextCompanies,
-        nextDepartments,
-      ] =
-        await Promise.all([
-          ticketTemplateRepository.list(),
-          companyRepository.listCompanies(),
-          companyRepository.listDepartments(),
-        ]);
+      const nextTemplates =
+        await ticketTemplateRepository.list();
 
       setTemplates(
-        nextTemplates
-      );
-
-      setCompanies(
-        nextCompanies
-      );
-
-      setDepartments(
-        nextDepartments
+        Array.isArray(
+          nextTemplates
+        )
+          ? nextTemplates
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -204,68 +261,6 @@ export default function TicketTemplatesPage() {
     }
   }
 
-  function splitTags(
-    value: string
-  ) {
-    return value
-      .split(",")
-      .map(
-        (tag) =>
-          tag.trim()
-      )
-      .filter(Boolean);
-  }
-
-  function getCompanyName(
-    id?: string
-  ) {
-    if (!id) {
-      return "Intern";
-    }
-
-    return (
-      companies.find(
-        (company) =>
-          company.id === id
-      )?.name ||
-      "Intern"
-    );
-  }
-
-  function getDepartmentName(
-    id?: string
-  ) {
-    if (!id) {
-      return "Allgemein";
-    }
-
-    return (
-      departments.find(
-        (department) =>
-          department.id === id
-      )?.name ||
-      "Allgemein"
-    );
-  }
-
-  const departmentOptions =
-    useMemo(
-      () => {
-        if (!companyId) {
-          return departments;
-        }
-
-        return departments.filter(
-          (department) =>
-            department.companyId === companyId
-        );
-      },
-      [
-        departments,
-        companyId,
-      ]
-    );
-
   const filteredTemplates =
     useMemo(
       () => {
@@ -274,18 +269,55 @@ export default function TicketTemplatesPage() {
 
         return templates.filter(
           (template) => {
+            const templateStatus =
+              getValue(
+                template,
+                "status",
+                "active"
+              );
+
+            const templateTags =
+              getArrayValue(
+                template,
+                "tags"
+              ).join(" ");
+
             const matchesSearch =
               !query ||
               [
-                template.title,
-                template.description,
-                template.status,
-                template.priority,
-                template.category,
-                template.company,
-                template.department,
-                template.assignedTo,
-                template.tags?.join(" "),
+                getValue(
+                  template,
+                  "id"
+                ),
+                getValue(
+                  template,
+                  "title"
+                ),
+                getValue(
+                  template,
+                  "description"
+                ),
+                getValue(
+                  template,
+                  "category"
+                ),
+                getValue(
+                  template,
+                  "priority"
+                ),
+                getValue(
+                  template,
+                  "assignedTo"
+                ),
+                templateTags,
+                getValue(
+                  template,
+                  "createdAt"
+                ),
+                getValue(
+                  template,
+                  "updatedAt"
+                ),
               ]
                 .filter(Boolean)
                 .join(" ")
@@ -296,16 +328,11 @@ export default function TicketTemplatesPage() {
 
             const matchesStatus =
               !statusFilter ||
-              template.status === statusFilter;
-
-            const matchesPriority =
-              !priorityFilter ||
-              template.priority === priorityFilter;
+              templateStatus === statusFilter;
 
             return (
               matchesSearch &&
-              matchesStatus &&
-              matchesPriority
+              matchesStatus
             );
           }
         );
@@ -314,26 +341,36 @@ export default function TicketTemplatesPage() {
         templates,
         search,
         statusFilter,
-        priorityFilter,
       ]
     );
 
-  const highOrUrgentTemplates =
+  const activeTemplates =
     templates.filter(
       (template) =>
-        template.priority === "high" ||
-        template.priority === "urgent"
+        getValue(
+          template,
+          "status",
+          "active"
+        ) === "active"
+    );
+
+  const inactiveTemplates =
+    templates.filter(
+      (template) =>
+        getValue(
+          template,
+          "status",
+          "active"
+        ) === "inactive"
     );
 
   function resetForm() {
     setEditingTemplateId("");
     setTitle("");
     setDescription("");
-    setStatus("open");
-    setPriority("medium");
     setCategory("Allgemein");
-    setCompanyId("");
-    setDepartmentId("");
+    setPriority("medium");
+    setStatus("active");
     setAssignedTo("");
     setTags("");
     setShowForm(false);
@@ -341,25 +378,6 @@ export default function TicketTemplatesPage() {
 
   function openCreateForm() {
     resetForm();
-
-    const firstCompany =
-      companies[0];
-
-    const firstDepartment =
-      departments.find(
-        (department) =>
-          department.companyId === firstCompany?.id
-      );
-
-    setCompanyId(
-      firstCompany?.id ||
-        ""
-    );
-
-    setDepartmentId(
-      firstDepartment?.id ||
-        ""
-    );
 
     setShowForm(
       true
@@ -370,47 +388,62 @@ export default function TicketTemplatesPage() {
     template: TicketTemplate
   ) {
     setEditingTemplateId(
-      template.id
+      getValue(
+        template,
+        "id"
+      )
     );
 
     setTitle(
-      template.title
+      getValue(
+        template,
+        "title"
+      )
     );
 
     setDescription(
-      template.description
-    );
-
-    setStatus(
-      template.status
-    );
-
-    setPriority(
-      template.priority
+      getValue(
+        template,
+        "description"
+      )
     );
 
     setCategory(
-      template.category ||
+      getValue(
+        template,
+        "category",
         "Allgemein"
+      )
     );
 
-    setCompanyId(
-      template.companyId ||
-        ""
+    setPriority(
+      getValue(
+        template,
+        "priority",
+        "medium"
+      )
     );
 
-    setDepartmentId(
-      template.departmentId ||
-        ""
+    setStatus(
+      getValue(
+        template,
+        "status",
+        "active"
+      ) as TemplateStatus
     );
 
     setAssignedTo(
-      template.assignedTo ||
-        ""
+      getValue(
+        template,
+        "assignedTo"
+      )
     );
 
     setTags(
-      template.tags.join(
+      getArrayValue(
+        template,
+        "tags"
+      ).join(
         ", "
       )
     );
@@ -433,22 +466,6 @@ export default function TicketTemplatesPage() {
   ) {
     event.preventDefault();
 
-    if (!canCreate() && !editingTemplateId) {
-      alert(
-        "Du hast keine Berechtigung, Vorlagen zu erstellen."
-      );
-
-      return;
-    }
-
-    if (!canEdit() && editingTemplateId) {
-      alert(
-        "Du hast keine Berechtigung, Vorlagen zu bearbeiten."
-      );
-
-      return;
-    }
-
     if (!title.trim()) {
       alert(
         "Bitte einen Titel eingeben."
@@ -457,15 +474,51 @@ export default function TicketTemplatesPage() {
       return;
     }
 
-    const companyName =
-      getCompanyName(
-        companyId
+    if (
+      editingTemplateId &&
+      !canEdit()
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Vorlagen zu bearbeiten."
       );
 
-    const departmentName =
-      getDepartmentName(
-        departmentId
+      return;
+    }
+
+    if (
+      !editingTemplateId &&
+      !canCreate()
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Vorlagen zu erstellen."
       );
+
+      return;
+    }
+
+    const payload = {
+      title:
+        title.trim(),
+
+      description:
+        description.trim(),
+
+      category:
+        category.trim() ||
+        "Allgemein",
+
+      priority,
+
+      status,
+
+      assignedTo:
+        assignedTo.trim(),
+
+      tags:
+        splitTags(
+          tags
+        ),
+    };
 
     try {
       setSaving(
@@ -473,99 +526,25 @@ export default function TicketTemplatesPage() {
       );
 
       if (editingTemplateId) {
-        const updatedTemplate =
-          await ticketTemplateRepository.update(
-            editingTemplateId,
-            {
-              title:
-                title.trim(),
-
-              description:
-                description.trim(),
-
-              status,
-
-              priority,
-
-              category:
-                category.trim() ||
-                "Allgemein",
-
-              companyId,
-
-              departmentId,
-
-              company:
-                companyName,
-
-              department:
-                departmentName,
-
-              assignedTo:
-                assignedTo.trim(),
-
-              tags:
-                splitTags(
-                  tags
-                ),
-            }
-          );
-
-        if (updatedTemplate) {
-          saveTicketTemplateUpdatedActivity(
-            updatedTemplate
-          );
-        }
+        await ticketTemplateRepository.update(
+          editingTemplateId,
+          payload as never
+        );
 
         resetForm();
 
-        await loadData();
+        await loadTemplates();
 
         return;
       }
 
-      const createdTemplate =
-        await ticketTemplateRepository.create({
-          title:
-            title.trim(),
-
-          description:
-            description.trim(),
-
-          status,
-
-          priority,
-
-          category:
-            category.trim() ||
-            "Allgemein",
-
-          companyId,
-
-          departmentId,
-
-          company:
-            companyName,
-
-          department:
-            departmentName,
-
-          assignedTo:
-            assignedTo.trim(),
-
-          tags:
-            splitTags(
-              tags
-            ),
-        });
-
-      saveTicketTemplateCreatedActivity(
-        createdTemplate
+      await ticketTemplateRepository.create(
+        payload as never
       );
 
       resetForm();
 
-      await loadData();
+      await loadTemplates();
     } catch (saveError) {
       console.error(
         saveError
@@ -574,7 +553,7 @@ export default function TicketTemplatesPage() {
       alert(
         saveError instanceof Error
           ? saveError.message
-          : "Ticket-Vorlage konnte nicht gespeichert werden."
+          : "Vorlage konnte nicht gespeichert werden."
       );
     } finally {
       setSaving(
@@ -594,9 +573,22 @@ export default function TicketTemplatesPage() {
       return;
     }
 
+    const templateId =
+      getValue(
+        template,
+        "id"
+      );
+
+    const templateTitle =
+      getValue(
+        template,
+        "title",
+        "Vorlage"
+      );
+
     const confirmed =
       confirm(
-        `Vorlage "${template.title}" wirklich löschen?`
+        `Ticket-Vorlage "${templateTitle}" wirklich löschen?`
       );
 
     if (!confirmed) {
@@ -604,15 +596,11 @@ export default function TicketTemplatesPage() {
     }
 
     try {
-      saveTicketTemplateDeletedActivity(
-        template
-      );
-
       await ticketTemplateRepository.delete(
-        template.id
+        templateId
       );
 
-      await loadData();
+      await loadTemplates();
     } catch (deleteError) {
       console.error(
         deleteError
@@ -621,7 +609,7 @@ export default function TicketTemplatesPage() {
       alert(
         deleteError instanceof Error
           ? deleteError.message
-          : "Ticket-Vorlage konnte nicht gelöscht werden."
+          : "Vorlage konnte nicht gelöscht werden."
       );
     }
   }
@@ -629,606 +617,533 @@ export default function TicketTemplatesPage() {
   function resetFilters() {
     setSearch("");
     setStatusFilter("");
-    setPriorityFilter("");
   }
 
   return (
-  <FeatureGate
-    feature="ticketTemplates"
-    fallback={
-      <div className="space-y-6">
-        <Link
-          href="/tickets"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Tickets
-        </Link>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            Ticket-Vorlagen deaktiviert
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Dieses Modul ist aktuell in den Einstellungen deaktiviert.
-          </p>
-        </div>
-      </div>
-    }
-  >
-    <div className="space-y-8">
-      <div>
-        <Link
-          href="/tickets"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Tickets
-        </Link>
-      </div>
-
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Ticket-Vorlagen
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Wiederverwendbare Ticket-Vorlagen aus PostgreSQL verwalten.
-          </p>
-        </div>
-
-        {canCreate() && (
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+    <FeatureGate
+      feature="ticketTemplates"
+      fallback={
+        <div className="space-y-6">
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            Vorlage erstellen
-          </button>
-        )}
-      </div>
+            ← Zurück zu Tickets
+          </Link>
 
-      {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Vorlagen werden geladen...
-          </p>
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h1 className="text-3xl font-bold">
+              Ticket-Vorlagen deaktiviert
+            </h1>
+
+            <p className="text-zinc-500 mt-2">
+              Dieses Modul ist aktuell in den Einstellungen deaktiviert.
+            </p>
+          </div>
         </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
+      }
+    >
+      <div className="space-y-8">
+        <div>
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zu Tickets
+          </Link>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Vorlagen gesamt
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {templates.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setStatusFilter(
-              "open"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Standard offen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {
-              templates.filter(
-                (template) =>
-                  template.status === "open"
-              ).length
-            }
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setPriorityFilter(
-              "urgent"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Hoch/Dringend
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {highOrUrgentTemplates.length}
-          </h2>
-        </button>
-      </div>
-
-      {showForm && (
-        <form
-          onSubmit={(event) =>
-            void handleSubmit(
-              event
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
-        >
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
           <div>
-            <h2 className="text-2xl font-semibold">
-              {editingTemplateId
-                ? "Vorlage bearbeiten"
-                : "Vorlage erstellen"}
-            </h2>
+            <h1 className="text-4xl font-bold">
+              Ticket-Vorlagen
+            </h1>
 
-            <p className="text-zinc-500 mt-1">
-              Vorlage wird direkt in PostgreSQL gespeichert.
+            <p className="text-zinc-500 mt-2">
+              Wiederverwendbare Vorlagen für Supportfälle aus PostgreSQL verwalten.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
-
-              <input
-                value={title}
-                onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Vorlagentitel"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Beschreibung
-              </label>
-
-              <textarea
-                value={description}
-                onChange={(event) =>
-                  setDescription(
-                    event.target.value
-                  )
-                }
-                rows={5}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                placeholder="Beschreibung der Vorlage..."
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Standard-Status
-              </label>
-
-              <select
-                value={status}
-                onChange={(event) =>
-                  setStatus(
-                    event.target.value as TicketTemplateStatus
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="open">
-                  Offen
-                </option>
-
-                <option value="in_progress">
-                  In Bearbeitung
-                </option>
-
-                <option value="waiting">
-                  Wartend
-                </option>
-
-                <option value="done">
-                  Erledigt
-                </option>
-
-                <option value="closed">
-                  Geschlossen
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Standard-Priorität
-              </label>
-
-              <select
-                value={priority}
-                onChange={(event) =>
-                  setPriority(
-                    event.target.value as TicketTemplatePriority
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="low">
-                  Niedrig
-                </option>
-
-                <option value="medium">
-                  Mittel
-                </option>
-
-                <option value="high">
-                  Hoch
-                </option>
-
-                <option value="urgent">
-                  Dringend
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie
-              </label>
-
-              <input
-                value={category}
-                onChange={(event) =>
-                  setCategory(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Allgemein"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Zugewiesen an
-              </label>
-
-              <input
-                value={assignedTo}
-                onChange={(event) =>
-                  setAssignedTo(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Name oder Team"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-
-              <select
-                value={companyId}
-                onChange={(event) => {
-                  const nextCompanyId =
-                    event.target.value;
-
-                  setCompanyId(
-                    nextCompanyId
-                  );
-
-                  const firstDepartment =
-                    departments.find(
-                      (department) =>
-                        department.companyId === nextCompanyId
-                    );
-
-                  setDepartmentId(
-                    firstDepartment?.id ||
-                      ""
-                  );
-                }}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Keine Firma
-                </option>
-
-                {companies.map(
-                  (company) => (
-                    <option
-                      key={company.id}
-                      value={company.id}
-                    >
-                      {company.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Abteilung
-              </label>
-
-              <select
-                value={departmentId}
-                onChange={(event) =>
-                  setDepartmentId(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Keine Abteilung
-                </option>
-
-                {departmentOptions.map(
-                  (department) => (
-                    <option
-                      key={department.id}
-                      value={department.id}
-                    >
-                      {department.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block mb-2 font-medium">
-                Tags
-              </label>
-
-              <input
-                value={tags}
-                onChange={(event) =>
-                  setTags(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="hardware, onboarding, support"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+          {canCreate() && (
             <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+              type="button"
+              onClick={openCreateForm}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
             >
-              {saving
-                ? "Speichert..."
-                : editingTemplateId
-                  ? "Änderungen speichern"
-                  : "Vorlage erstellen"}
+              Vorlage erstellen
             </button>
+          )}
+        </div>
+
+        {loading && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <p className="text-zinc-500">
+              Ticket-Vorlagen werden geladen...
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-red-700">
+              Fehler
+            </h2>
+
+            <p className="text-red-600 mt-2">
+              {error}
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Vorlagen gesamt
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {templates.length}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                "active"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Aktiv
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {activeTemplates.length}
+            </h2>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter(
+                "inactive"
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Inaktiv
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {inactiveTemplates.length}
+            </h2>
+          </button>
+        </div>
+
+        {showForm && (
+          <form
+            onSubmit={(event) =>
+              void handleSubmit(
+                event
+              )
+            }
+            className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+          >
+            <div>
+              <h2 className="text-2xl font-semibold">
+                {editingTemplateId
+                  ? "Vorlage bearbeiten"
+                  : "Vorlage erstellen"}
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Vorlage wird direkt in PostgreSQL gespeichert.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <label className="block mb-2 font-medium">
+                  Titel
+                </label>
+
+                <input
+                  value={title}
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="z. B. Neuer Arbeitsplatz"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block mb-2 font-medium">
+                  Beschreibung
+                </label>
+
+                <textarea
+                  value={description}
+                  onChange={(event) =>
+                    setDescription(
+                      event.target.value
+                    )
+                  }
+                  rows={5}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                  placeholder="Standardbeschreibung für das Ticket..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Kategorie
+                </label>
+
+                <input
+                  value={category}
+                  onChange={(event) =>
+                    setCategory(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Allgemein"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Priorität
+                </label>
+
+                <select
+                  value={priority}
+                  onChange={(event) =>
+                    setPriority(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="low">
+                    Niedrig
+                  </option>
+
+                  <option value="medium">
+                    Mittel
+                  </option>
+
+                  <option value="high">
+                    Hoch
+                  </option>
+
+                  <option value="urgent">
+                    Dringend
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Status
+                </label>
+
+                <select
+                  value={status}
+                  onChange={(event) =>
+                    setStatus(
+                      event.target.value as TemplateStatus
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="active">
+                    Aktiv
+                  </option>
+
+                  <option value="inactive">
+                    Inaktiv
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Zugewiesen an
+                </label>
+
+                <input
+                  value={assignedTo}
+                  onChange={(event) =>
+                    setAssignedTo(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Name oder Team"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block mb-2 font-medium">
+                  Tags
+                </label>
+
+                <input
+                  value={tags}
+                  onChange={(event) =>
+                    setTags(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="hardware, onboarding, support"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+              >
+                {saving
+                  ? "Speichert..."
+                  : editingTemplateId
+                    ? "Vorlage speichern"
+                    : "Vorlage erstellen"}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetForm}
+                className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        )}
+
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Suche & Filter
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Suche nach Titel, Beschreibung, Kategorie oder Tags.
+              </p>
+            </div>
 
             <button
               type="button"
-              onClick={resetForm}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+              onClick={resetFilters}
+              className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Abbrechen
+              Zurücksetzen
             </button>
           </div>
-        </form>
-      )}
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input
-            value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-            placeholder="Vorlagen suchen..."
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+            <input
+              value={search}
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+              className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              placeholder="Vorlagen suchen..."
+            />
 
-          <select
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value
-              )
-            }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-
-            <option value="open">
-              Offen
-            </option>
-
-            <option value="in_progress">
-              In Bearbeitung
-            </option>
-
-            <option value="waiting">
-              Wartend
-            </option>
-
-            <option value="done">
-              Erledigt
-            </option>
-
-            <option value="closed">
-              Geschlossen
-            </option>
-          </select>
-
-          <select
-            value={priorityFilter}
-            onChange={(event) =>
-              setPriorityFilter(
-                event.target.value
-              )
-            }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-          >
-            <option value="">
-              Alle Prioritäten
-            </option>
-
-            <option value="low">
-              Niedrig
-            </option>
-
-            <option value="medium">
-              Mittel
-            </option>
-
-            <option value="high">
-              Hoch
-            </option>
-
-            <option value="urgent">
-              Dringend
-            </option>
-          </select>
-        </div>
-
-        <p className="text-sm text-zinc-500 mt-5">
-          {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        {filteredTemplates.length === 0 && (
-          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <h2 className="text-xl font-semibold">
-              Keine Vorlagen gefunden
-            </h2>
-
-            <p className="text-zinc-500 mt-2">
-              Erstelle eine neue Vorlage oder passe die Filter an.
-            </p>
-          </div>
-        )}
-
-        {filteredTemplates.map(
-          (template) => (
-            <div
-              key={template.id}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(
+                  event.target.value
+                )
+              }
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
             >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(template.status)}`}>
-                      {getStatusLabel(
-                        template.status
-                      )}
-                    </span>
+              <option value="">
+                Alle Status
+              </option>
 
-                    <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(template.priority)}`}>
-                      {getPriorityLabel(
-                        template.priority
-                      )}
-                    </span>
+              <option value="active">
+                Aktiv
+              </option>
 
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {template.company ||
-                        "Intern"}
-                    </span>
-                  </div>
+              <option value="inactive">
+                Inaktiv
+              </option>
+            </select>
+          </div>
 
-                  <h2 className="text-2xl font-bold mt-4">
-                    {template.title}
-                  </h2>
+          <p className="text-sm text-zinc-500 mt-5">
+            {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
+          </p>
+        </section>
 
-                  <p className="text-zinc-500 mt-2 line-clamp-2">
-                    {template.description ||
-                      "Keine Beschreibung vorhanden."}
-                  </p>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {filteredTemplates.length === 0 && (
+            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm xl:col-span-2">
+              <h2 className="text-xl font-semibold">
+                Keine Vorlagen gefunden
+              </h2>
 
-                  <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
-                    <span>
-                      Kategorie:{" "}
-                      {template.category ||
-                        "Allgemein"}
-                    </span>
-
-                    <span>
-                      Zugewiesen:{" "}
-                      {template.assignedTo ||
-                        "Niemand"}
-                    </span>
-
-                    <span>
-                      Aktualisiert:{" "}
-                      {template.updatedAt}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3 shrink-0">
-                  {canEdit() && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startEditTemplate(
-                          template
-                        )
-                      }
-                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                    >
-                      Bearbeiten
-                    </button>
-                  )}
-
-                  {canDelete() && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleDeleteTemplate(
-                          template
-                        )
-                      }
-                      className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                    >
-                      Löschen
-                    </button>
-                  )}
-                </div>
-              </div>
+              <p className="text-zinc-500 mt-2">
+                Erstelle eine neue Vorlage oder passe die Filter an.
+              </p>
             </div>
-          )
-        )}
-      </div>
+          )}
+
+          {filteredTemplates.map(
+            (template) => {
+              const templateId =
+                getValue(
+                  template,
+                  "id"
+                );
+
+              const templateTitle =
+                getValue(
+                  template,
+                  "title",
+                  "Unbenannte Vorlage"
+                );
+
+              const templateDescription =
+                getValue(
+                  template,
+                  "description",
+                  "Keine Beschreibung vorhanden."
+                );
+
+              const templateCategory =
+                getValue(
+                  template,
+                  "category",
+                  "Allgemein"
+                );
+
+              const templatePriority =
+                getValue(
+                  template,
+                  "priority",
+                  "medium"
+                );
+
+              const templateStatus =
+                getValue(
+                  template,
+                  "status",
+                  "active"
+                );
+
+              const templateTags =
+                getArrayValue(
+                  template,
+                  "tags"
+                );
+
+              return (
+                <div
+                  key={templateId}
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(templateStatus)}`}>
+                          {getStatusLabel(
+                            templateStatus
+                          )}
+                        </span>
+
+                        <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(templatePriority)}`}>
+                          {getPriorityLabel(
+                            templatePriority
+                          )}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                          {templateCategory}
+                        </span>
+                      </div>
+
+                      <h2 className="text-2xl font-bold mt-4">
+                        {templateTitle}
+                      </h2>
+
+                      <p className="text-zinc-500 mt-2 whitespace-pre-wrap">
+                        {templateDescription}
+                      </p>
+
+                      {templateTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-5">
+                          {templateTags.map(
+                            (tag) => (
+                              <span
+                                key={tag}
+                                className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full"
+                              >
+                                #{tag}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 shrink-0">
+                      {canEdit() && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startEditTemplate(
+                              template
+                            )
+                          }
+                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                        >
+                          Bearbeiten
+                        </button>
+                      )}
+
+                      {canDelete() && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleDeleteTemplate(
+                              template
+                            )
+                          }
+                          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
+                        >
+                          Löschen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+          )}
         </div>
-  </FeatureGate>
+      </div>
+    </FeatureGate>
   );
 }

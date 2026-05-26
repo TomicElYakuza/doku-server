@@ -73,6 +73,16 @@ function getStatusClass(
   );
 }
 
+function buildUsernameFromEmail(
+  email: string
+) {
+  return email
+    .split("@")[0]
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ".");
+}
+
 export default function AdminUsersPage() {
   const [mounted, setMounted] =
     useState(false);
@@ -112,6 +122,15 @@ export default function AdminUsersPage() {
 
   const [email, setEmail] =
     useState("");
+
+  const [username, setUsername] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [passwordMustChange, setPasswordMustChange] =
+    useState(true);
 
   const [role, setRole] =
     useState<UserRole>("viewer");
@@ -265,6 +284,9 @@ export default function AdminUsersPage() {
     setEditingUserId("");
     setName("");
     setEmail("");
+    setUsername("");
+    setPassword("");
+    setPasswordMustChange(true);
     setRole("viewer");
     setStatus("active");
     setCompanyId("");
@@ -310,6 +332,21 @@ export default function AdminUsersPage() {
 
     setEmail(
       user.email
+    );
+
+    setUsername(
+      user.username ||
+        buildUsernameFromEmail(
+          user.email
+        )
+    );
+
+    setPassword("");
+
+    setPasswordMustChange(
+      Boolean(
+        user.passwordMustChange
+      )
     );
 
     setRole(
@@ -432,12 +469,19 @@ export default function AdminUsersPage() {
               [
                 user.name,
                 user.email,
+                user.username,
                 user.role,
                 user.status,
                 user.company,
                 user.department,
                 companyName,
                 departmentName,
+                user.hasPassword
+                  ? "passwort gesetzt"
+                  : "kein passwort",
+                user.passwordMustChange
+                  ? "passwort ändern"
+                  : "",
                 user.createdAt,
                 user.updatedAt,
                 user.lastLoginAt,
@@ -505,6 +549,12 @@ export default function AdminUsersPage() {
         user.status === "invited"
     );
 
+  const passwordResetUsers =
+    users.filter(
+      (user) =>
+        user.passwordMustChange
+    );
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -529,6 +579,25 @@ export default function AdminUsersPage() {
     if (!email.trim()) {
       alert(
         "Bitte eine E-Mail eingeben."
+      );
+
+      return;
+    }
+
+    if (!username.trim()) {
+      alert(
+        "Bitte einen Benutzernamen eingeben."
+      );
+
+      return;
+    }
+
+    if (
+      !editingUserId &&
+      !password.trim()
+    ) {
+      alert(
+        "Bitte ein vordefiniertes Passwort eingeben."
       );
 
       return;
@@ -559,6 +628,18 @@ export default function AdminUsersPage() {
 
               email:
                 email.trim().toLowerCase(),
+
+              username:
+                username.trim().toLowerCase(),
+
+              ...(password.trim()
+                ? {
+                    password:
+                      password.trim(),
+                  }
+                : {}),
+
+              passwordMustChange,
 
               role,
 
@@ -596,6 +677,14 @@ export default function AdminUsersPage() {
 
           email:
             email.trim().toLowerCase(),
+
+          username:
+            username.trim().toLowerCase(),
+
+          password:
+            password.trim(),
+
+          passwordMustChange,
 
           role,
 
@@ -715,7 +804,7 @@ export default function AdminUsersPage() {
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Benutzer, Rollen, Status und Organisationszuordnung aus PostgreSQL verwalten.
+            Benutzer, Login-Daten, Rollen, Status und Organisation aus PostgreSQL verwalten.
           </p>
         </div>
 
@@ -804,19 +893,23 @@ export default function AdminUsersPage() {
         <button
           type="button"
           onClick={() =>
-            setStatusFilter(
-              "invited"
+            setSearch(
+              "passwort ändern"
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
+          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-orange-50 transition"
         >
           <p className="text-sm text-zinc-500">
-            Eingeladen
+            Passwort ändern
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {invitedUsers.length}
+            {passwordResetUsers.length}
           </h2>
+
+          <p className="text-sm text-zinc-400 mt-2">
+            {invitedUsers.length} eingeladen
+          </p>
         </button>
       </div>
 
@@ -837,7 +930,7 @@ export default function AdminUsersPage() {
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Benutzer wird direkt in PostgreSQL gespeichert.
+              Account wird direkt in PostgreSQL gespeichert.
             </p>
           </div>
 
@@ -867,15 +960,90 @@ export default function AdminUsersPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextEmail =
+                    event.target.value;
+
                   setEmail(
-                    event.target.value
-                  )
-                }
+                    nextEmail
+                  );
+
+                  if (!editingUserId && !username) {
+                    setUsername(
+                      buildUsernameFromEmail(
+                        nextEmail
+                      )
+                    );
+                  }
+                }}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
                 placeholder="max@firma.local"
               />
             </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Benutzername
+              </label>
+
+              <input
+                value={username}
+                onChange={(event) =>
+                  setUsername(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="max.mustermann"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                {editingUserId
+                  ? "Neues Passwort setzen"
+                  : "Vordefiniertes Passwort"}
+              </label>
+
+              <input
+                type="password"
+                value={password}
+                onChange={(event) =>
+                  setPassword(
+                    event.target.value
+                  )
+                }
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder={
+                  editingUserId
+                    ? "Leer lassen = unverändert"
+                    : "Startpasswort"
+                }
+              />
+            </div>
+
+            <label className="md:col-span-2 flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
+              <span>
+                <span className="block font-medium">
+                  Passwort bei nächster Anmeldung ändern
+                </span>
+
+                <span className="block text-sm text-zinc-500 mt-1">
+                  AD-ähnlich: Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
+                </span>
+              </span>
+
+              <input
+                type="checkbox"
+                checked={passwordMustChange}
+                onChange={(event) =>
+                  setPasswordMustChange(
+                    event.target.checked
+                  )
+                }
+                className="h-5 w-5"
+              />
+            </label>
 
             <div>
               <label className="block mb-2 font-medium">
@@ -1213,6 +1381,22 @@ export default function AdminUsersPage() {
                       )}
                     </span>
 
+                    {user.hasPassword ? (
+                      <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full">
+                        Passwort gesetzt
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full">
+                        Kein Passwort
+                      </span>
+                    )}
+
+                    {user.passwordMustChange && (
+                      <span className="text-xs bg-orange-50 text-orange-700 px-3 py-1 rounded-full">
+                        Passwort ändern
+                      </span>
+                    )}
+
                     <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                       {getCompanyName(
                         user.companyId
@@ -1230,9 +1414,20 @@ export default function AdminUsersPage() {
                     {user.name}
                   </h2>
 
-                  <p className="text-zinc-500 mt-1">
-                    {user.email}
-                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-zinc-500 mt-2">
+                    <p>
+                      E-Mail:{" "}
+                      {user.email}
+                    </p>
+
+                    <p>
+                      Benutzername:{" "}
+                      <span className="font-medium text-zinc-700">
+                        {user.username ||
+                          "-"}
+                      </span>
+                    </p>
+                  </div>
 
                   <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                     <span>

@@ -14,6 +14,10 @@ import {
   mapAdminUserRow,
 } from "../../../../lib/database/mappers/adminUserMapper";
 
+import {
+  verifyPassword,
+} from "../../../../lib/password";
+
 import type {
   AdminUserRow,
 } from "../../../../lib/database/mappers/adminUserMapper";
@@ -21,9 +25,19 @@ import type {
 const AUTH_COOKIE_NAME =
   "dms_user_email";
 
+const SESSION_MAX_AGE_SECONDS =
+  60 * 60;
+
 type LoginBody = {
-  email?: string;
+  username?: string;
+  password?: string;
 };
+
+type LoginUserRow =
+  AdminUserRow & {
+    username: string | null;
+    password_hash: string | null;
+  };
 
 export async function POST(
   request: Request
@@ -32,14 +46,30 @@ export async function POST(
     const body =
       await request.json() as LoginBody;
 
-    const email =
-      body.email?.trim().toLowerCase();
+    const username =
+      body.username?.trim().toLowerCase();
 
-    if (!email) {
+    const password =
+      body.password || "";
+
+    if (!username) {
       return NextResponse.json(
         {
           message:
-            "E-Mail ist erforderlich.",
+            "Benutzername ist erforderlich.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    if (!password) {
+      return NextResponse.json(
+        {
+          message:
+            "Passwort ist erforderlich.",
         },
         {
           status:
@@ -49,14 +79,76 @@ export async function POST(
     }
 
     const row =
+      await queryOne<LoginUserRow>(
+        `
+        SELECT
+          id,
+          name,
+          email,
+          role,
+          status,
+          company_id,
+          department_id,
+          company,
+          department,
+          last_login_at,
+          created_at,
+          updated_at,
+          username,
+          password_hash
+        FROM admin_users
+        WHERE LOWER(username) = LOWER($1)
+        AND status = 'active'
+        LIMIT 1
+        `,
+        [
+          username,
+        ]
+      );
+
+    if (
+      !row ||
+      !row.password_hash
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Benutzername oder Passwort ist falsch.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+    const passwordValid =
+      await verifyPassword(
+        password,
+        row.password_hash
+      );
+
+    if (!passwordValid) {
+      return NextResponse.json(
+        {
+          message:
+            "Benutzername oder Passwort ist falsch.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+    const updatedRow =
       await queryOne<AdminUserRow>(
         `
         UPDATE admin_users
         SET
           last_login_at = NOW(),
           updated_at = NOW()
-        WHERE LOWER(email) = LOWER($1)
-        AND status = 'active'
+        WHERE id = $1
         RETURNING
           id,
           name,
@@ -72,26 +164,26 @@ export async function POST(
           updated_at
         `,
         [
-          email,
+          row.id,
         ]
       );
 
-    if (!row) {
+    if (!updatedRow) {
       return NextResponse.json(
         {
           message:
-            "Benutzer nicht gefunden oder nicht aktiv.",
+            "Login konnte nicht abgeschlossen werden.",
         },
         {
           status:
-            401,
+            500,
         }
       );
     }
 
     const adminUser =
       mapAdminUserRow(
-        row
+        updatedRow
       );
 
     const cookieStore =
@@ -113,7 +205,7 @@ export async function POST(
           "/",
 
         maxAge:
-          60 * 60 * 24 * 7,
+          SESSION_MAX_AGE_SECONDS,
       }
     );
 

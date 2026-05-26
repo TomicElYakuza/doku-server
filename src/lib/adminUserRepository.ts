@@ -70,12 +70,19 @@ function userMatchesQuery(
     user.id,
     user.name,
     user.email,
+    user.username,
     user.role,
     user.status,
     user.companyId,
     user.departmentId,
     user.company,
     user.department,
+    user.passwordMustChange
+      ? "passwort ändern"
+      : "",
+    user.hasPassword
+      ? "passwort gesetzt"
+      : "kein passwort",
     user.createdAt,
     user.updatedAt,
     user.lastLoginAt,
@@ -229,14 +236,47 @@ export const postgresAdminUserRepository: AdminUserRepository = {
           if (user.id) {
             await postgresAdminUserRepository.update(
               user.id,
-              user
+              {
+                name:
+                  user.name,
+
+                email:
+                  user.email,
+
+                username:
+                  user.username,
+
+                passwordMustChange:
+                  user.passwordMustChange,
+
+                role:
+                  user.role,
+
+                status:
+                  user.status,
+
+                companyId:
+                  user.companyId,
+
+                departmentId:
+                  user.departmentId,
+
+                company:
+                  user.company,
+
+                department:
+                  user.department,
+
+                lastLoginAt:
+                  user.lastLoginAt,
+              }
             );
 
             return;
           }
 
-          await postgresAdminUserRepository.create(
-            user
+          throw new Error(
+            "Neue Benutzer müssen über create() mit Passwort erstellt werden."
           );
         }
       )

@@ -33,6 +33,10 @@ import {
   loadCurrentUser,
 } from "../../lib/currentUserRepository";
 
+import {
+  useFeatureFlags,
+} from "../../hooks/useFeatureFlags";
+
 import type {
   Ticket,
 } from "../../types/ticket";
@@ -59,6 +63,13 @@ type HealthState = {
   ok: boolean;
   database: string;
   error?: string;
+};
+
+type QuickLink = {
+  title: string;
+  description: string;
+  href: string;
+  icon: string;
 };
 
 function getTicketStatusLabel(
@@ -130,6 +141,11 @@ function getRoleLabel(
 }
 
 export default function DashboardPage() {
+  const {
+    ticketTemplatesEnabled,
+  } =
+    useFeatureFlags();
+
   const [currentUser, setCurrentUser] =
     useState<User | null>(
       getCachedCurrentUser()
@@ -167,8 +183,8 @@ export default function DashboardPage() {
     useState("");
 
   useEffect(() => {
-  void loadDashboard();
-}, []);
+    void loadDashboard();
+  }, []);
 
   async function loadHealth() {
     try {
@@ -443,60 +459,89 @@ export default function DashboardPage() {
           closedTickets.length / tickets.length * 100
         );
 
-  const quickLinks = [
-    {
-      title:
-        "Neues Ticket",
+  const quickLinks =
+    useMemo<QuickLink[]>(
+      () => {
+        const links: QuickLink[] = [
+          {
+            title:
+              "Tickets öffnen",
 
-      description:
-        "Supportfall oder Aufgabe erfassen",
+            description:
+              "Supportfälle und Aufgaben verwalten",
 
-      href:
-        "/tickets",
+            href:
+              "/tickets",
 
-      icon:
-        "🎫",
-    },
-    {
-      title:
-        "Wiki öffnen",
+            icon:
+              "🎫",
+          },
+          {
+            title:
+              "Wiki öffnen",
 
-      description:
-        "Dokumentation durchsuchen",
+            description:
+              "Dokumentation durchsuchen",
 
-      href:
-        "/wiki",
+            href:
+              "/wiki",
 
-      icon:
-        "📚",
-    },
-    {
-      title:
-        "News lesen",
+            icon:
+              "📚",
+          },
+          {
+            title:
+              "News lesen",
 
-      description:
-        "Aktuelle interne Meldungen",
+            description:
+              "Aktuelle interne Meldungen",
 
-      href:
-        "/news",
+            href:
+              "/news",
 
-      icon:
-        "📰",
-    },
-    {
-      title:
-        "Dateien",
+            icon:
+              "📰",
+          },
+          {
+            title:
+              "Dateien",
 
-      description:
-        "Anhänge und Uploads verwalten",
+            description:
+              "Anhänge und Uploads verwalten",
 
-      href:
-        "/files",
+            href:
+              "/files",
 
-      icon:
-        "📎",
-    },
-  ];
+            icon:
+              "📎",
+          },
+        ];
+
+        if (ticketTemplatesEnabled) {
+          links.push({
+            title:
+              "Ticket-Vorlagen",
+
+            description:
+              "Vorlagen für wiederkehrende Fälle",
+
+            href:
+              "/tickets/templates",
+
+            icon:
+              "📋",
+          });
+        }
+
+        return links;
+      },
+      [
+        ticketTemplatesEnabled,
+      ]
+    );
+
+  const userIsAdmin =
+    currentUser?.role === "admin";
 
   return (
     <div className="space-y-8">
@@ -640,22 +685,41 @@ export default function DashboardPage() {
           </p>
         </Link>
 
-        <Link
-          href="/admin/users"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Benutzer
-          </p>
+        {userIsAdmin ? (
+          <Link
+            href="/admin/users"
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Benutzer
+            </p>
 
-          <h2 className="text-4xl font-bold mt-3">
-            {activeUsers.length}
-          </h2>
+            <h2 className="text-4xl font-bold mt-3">
+              {activeUsers.length}
+            </h2>
 
-          <p className="text-sm text-zinc-500 mt-3">
-            {users.length} insgesamt
-          </p>
-        </Link>
+            <p className="text-sm text-zinc-500 mt-3">
+              {users.length} insgesamt
+            </p>
+          </Link>
+        ) : (
+          <Link
+            href="/wiki"
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+          >
+            <p className="text-sm text-zinc-500">
+              Wissen
+            </p>
+
+            <h2 className="text-4xl font-bold mt-3">
+              {companies.length + departments.length}
+            </h2>
+
+            <p className="text-sm text-zinc-500 mt-3">
+              Organisationsbereiche
+            </p>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.6fr)] gap-8">

@@ -11,6 +11,10 @@ import {
   mapAdminUserRow,
 } from "../../../lib/database/mappers/adminUserMapper";
 
+import {
+  hashPassword,
+} from "../../../lib/password";
+
 import type {
   AdminUserRow,
 } from "../../../lib/database/mappers/adminUserMapper";
@@ -18,6 +22,9 @@ import type {
 type CreateAdminUserBody = {
   name?: string;
   email?: string;
+  username?: string;
+  password?: string;
+  passwordMustChange?: boolean;
   role?: string;
   status?: string;
   companyId?: string;
@@ -25,6 +32,43 @@ type CreateAdminUserBody = {
   company?: string;
   department?: string;
 };
+
+type AdminUserWithLoginRow =
+  AdminUserRow & {
+    username: string | null;
+    password_must_change: boolean;
+  };
+
+function mapAdminUserWithLoginRow(
+  row: AdminUserWithLoginRow
+) {
+  return {
+    ...mapAdminUserRow(
+      row
+    ),
+
+    username:
+      row.username ||
+      "",
+
+    passwordMustChange:
+      Boolean(
+        row.password_must_change
+      ),
+  };
+}
+
+function normalizeUsername(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      "."
+    );
+}
 
 export async function GET(
   request: Request
@@ -107,7 +151,7 @@ export async function GET(
         : "";
 
     const rows =
-      await query<AdminUserRow>(
+      await query<AdminUserWithLoginRow>(
         `
         SELECT
           id,
@@ -121,7 +165,9 @@ export async function GET(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_must_change
         FROM admin_users
         ${whereSql}
         ORDER BY name ASC
@@ -131,7 +177,7 @@ export async function GET(
 
     return NextResponse.json(
       rows.map(
-        mapAdminUserRow
+        mapAdminUserWithLoginRow
       )
     );
   } catch (error) {
@@ -170,6 +216,20 @@ export async function POST(
     const email =
       body.email?.trim().toLowerCase();
 
+    const username =
+      normalizeUsername(
+        body.username ||
+        email?.split(
+          "@"
+        )[0] ||
+        name ||
+        ""
+      );
+
+    const password =
+      body.password ||
+      "";
+
     if (!name) {
       return NextResponse.json(
         {
@@ -196,12 +256,46 @@ export async function POST(
       );
     }
 
+    if (!username) {
+      return NextResponse.json(
+        {
+          message:
+            "Benutzername ist erforderlich.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    if (!password) {
+      return NextResponse.json(
+        {
+          message:
+            "Vordefiniertes Passwort ist erforderlich.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const passwordHash =
+      await hashPassword(
+        password
+      );
+
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         INSERT INTO admin_users (
           name,
           email,
+          username,
+          password_hash,
+          password_must_change,
           role,
           status,
           company_id,
@@ -217,7 +311,10 @@ export async function POST(
           $5,
           $6,
           $7,
-          $8
+          $8,
+          $9,
+          $10,
+          $11
         )
         RETURNING
           id,
@@ -231,11 +328,16 @@ export async function POST(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_must_change
         `,
         [
           name,
           email,
+          username,
+          passwordHash,
+          body.passwordMustChange !== false,
           body.role ||
             "viewer",
           body.status ||
@@ -265,7 +367,7 @@ export async function POST(
     }
 
     return NextResponse.json(
-      mapAdminUserRow(
+      mapAdminUserWithLoginRow(
         row
       ),
       {

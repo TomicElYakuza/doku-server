@@ -1,19 +1,18 @@
-import {
-  requestJson,
-} from "./apiClient";
-
 import type {
   User,
 } from "../types/user";
 
-type CurrentUserResponse = {
-  user: User | null;
+let cachedCurrentUser: User | null =
+  null;
+
+type LoginInput = {
+  username: string;
+  password: string;
 };
 
-let cachedCurrentUser:
-  | User
-  | null =
-  null;
+type LoginResponse = {
+  user: User;
+};
 
 function dispatchCurrentUserUpdated() {
   if (typeof window === "undefined") {
@@ -27,36 +26,109 @@ function dispatchCurrentUserUpdated() {
   );
 }
 
+async function requestJson<T>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...(options?.headers || {}),
+        },
+      }
+    );
+
+  const data =
+    await response.json().catch(
+      () => ({})
+    );
+
+  if (!response.ok) {
+    const message =
+      typeof data?.message === "string"
+        ? data.message
+        : "Anfrage fehlgeschlagen.";
+
+    throw new Error(
+      message
+    );
+  }
+
+  return data as T;
+}
+
 export function getCachedCurrentUser() {
   return cachedCurrentUser;
 }
 
-export function getCachedCurrentUserRole() {
-  return (
-    cachedCurrentUser?.role ||
-    "viewer"
-  );
+export function setCachedCurrentUser(
+  user: User | null
+) {
+  cachedCurrentUser =
+    user;
+
+  dispatchCurrentUserUpdated();
 }
 
 export async function loadCurrentUser() {
-  const response =
-    await requestJson<CurrentUserResponse>(
-      "/api/auth/current-user"
-    );
+  try {
+    const data =
+      await requestJson<{
+        user: User | null;
+      }>(
+        "/api/auth/current-user",
+        {
+          method:
+            "GET",
+        }
+      );
 
-  cachedCurrentUser =
-    response.user;
+    cachedCurrentUser =
+      data.user;
 
-  dispatchCurrentUserUpdated();
+    dispatchCurrentUserUpdated();
 
-  return cachedCurrentUser;
+    return cachedCurrentUser;
+  } catch (error) {
+    cachedCurrentUser =
+      null;
+
+    dispatchCurrentUserUpdated();
+
+    return null;
+  }
 }
 
 export async function loginCurrentUser(
-  email: string
+  input: LoginInput
 ) {
-  const response =
-    await requestJson<CurrentUserResponse>(
+  const username =
+    input.username.trim();
+
+  const password =
+    input.password;
+
+  if (!username) {
+    throw new Error(
+      "Benutzername ist erforderlich."
+    );
+  }
+
+  if (!password) {
+    throw new Error(
+      "Passwort ist erforderlich."
+    );
+  }
+
+  const data =
+    await requestJson<LoginResponse>(
       "/api/auth/login",
       {
         method:
@@ -64,13 +136,14 @@ export async function loginCurrentUser(
 
         body:
           JSON.stringify({
-            email,
+            username,
+            password,
           }),
       }
     );
 
   cachedCurrentUser =
-    response.user;
+    data.user;
 
   dispatchCurrentUserUpdated();
 
@@ -78,16 +151,27 @@ export async function loginCurrentUser(
 }
 
 export async function logoutCurrentUser() {
-  await requestJson<{
-    ok: boolean;
-  }>(
-    "/api/auth/logout",
-    {
-      method:
-        "POST",
-    }
-  );
+  try {
+    await requestJson<{
+      ok: boolean;
+    }>(
+      "/api/auth/logout",
+      {
+        method:
+          "POST",
+        body:
+          JSON.stringify({}),
+      }
+    );
+  } finally {
+    cachedCurrentUser =
+      null;
 
+    dispatchCurrentUserUpdated();
+  }
+}
+
+export function clearCurrentUserCache() {
   cachedCurrentUser =
     null;
 

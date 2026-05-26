@@ -10,6 +10,10 @@ import {
   mapAdminUserRow,
 } from "../../../../lib/database/mappers/adminUserMapper";
 
+import {
+  hashPassword,
+} from "../../../../lib/password";
+
 import type {
   AdminUserRow,
 } from "../../../../lib/database/mappers/adminUserMapper";
@@ -23,6 +27,9 @@ type RouteContext = {
 type UpdateAdminUserBody = {
   name?: string;
   email?: string;
+  username?: string;
+  password?: string;
+  passwordMustChange?: boolean;
   role?: string;
   status?: string;
   companyId?: string;
@@ -31,6 +38,49 @@ type UpdateAdminUserBody = {
   department?: string;
   lastLoginAt?: string;
 };
+
+type AdminUserWithLoginRow =
+  AdminUserRow & {
+    username: string | null;
+    password_hash?: string | null;
+    password_must_change: boolean;
+  };
+
+function normalizeUsername(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      "."
+    );
+}
+
+function mapAdminUserWithLoginRow(
+  row: AdminUserWithLoginRow
+) {
+  return {
+    ...mapAdminUserRow(
+      row
+    ),
+
+    username:
+      row.username ||
+      "",
+
+    passwordMustChange:
+      Boolean(
+        row.password_must_change
+      ),
+
+    hasPassword:
+      Boolean(
+        row.password_hash
+      ),
+  };
+}
 
 export async function GET(
   _request: Request,
@@ -43,7 +93,7 @@ export async function GET(
       await context.params;
 
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         SELECT
           id,
@@ -57,7 +107,10 @@ export async function GET(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         FROM admin_users
         WHERE id = $1
         `,
@@ -80,7 +133,7 @@ export async function GET(
     }
 
     return NextResponse.json(
-      mapAdminUserRow(
+      mapAdminUserWithLoginRow(
         row
       )
     );
@@ -121,7 +174,7 @@ export async function PATCH(
       await request.json() as UpdateAdminUserBody;
 
     const current =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         SELECT
           id,
@@ -135,7 +188,10 @@ export async function PATCH(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         FROM admin_users
         WHERE id = $1
         `,
@@ -157,22 +213,72 @@ export async function PATCH(
       );
     }
 
+    const nextName =
+      body.name?.trim() ||
+      current.name;
+
+    const nextEmail =
+      body.email?.trim().toLowerCase() ||
+      current.email;
+
+    const nextUsername =
+      body.username !== undefined
+        ? normalizeUsername(
+            body.username
+          )
+        : current.username ||
+          normalizeUsername(
+            nextEmail.split(
+              "@"
+            )[0] ||
+            nextName
+          );
+
+    if (!nextUsername) {
+      return NextResponse.json(
+        {
+          message:
+            "Benutzername ist erforderlich.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const nextPasswordHash =
+      body.password
+        ? await hashPassword(
+            body.password
+          )
+        : current.password_hash ||
+          null;
+
+    const nextPasswordMustChange =
+      body.passwordMustChange !== undefined
+        ? body.passwordMustChange
+        : current.password_must_change;
+
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         UPDATE admin_users
         SET
           name = $1,
           email = $2,
-          role = $3,
-          status = $4,
-          company_id = $5,
-          department_id = $6,
-          company = $7,
-          department = $8,
-          last_login_at = $9,
+          username = $3,
+          password_hash = $4,
+          password_must_change = $5,
+          role = $6,
+          status = $7,
+          company_id = $8,
+          department_id = $9,
+          company = $10,
+          department = $11,
+          last_login_at = $12,
           updated_at = NOW()
-        WHERE id = $10
+        WHERE id = $13
         RETURNING
           id,
           name,
@@ -185,13 +291,17 @@ export async function PATCH(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         `,
         [
-          body.name?.trim() ||
-            current.name,
-          body.email?.trim().toLowerCase() ||
-            current.email,
+          nextName,
+          nextEmail,
+          nextUsername,
+          nextPasswordHash,
+          nextPasswordMustChange,
           body.role ||
             current.role,
           body.status ||
@@ -215,9 +325,10 @@ export async function PATCH(
             : current.department ||
               "Allgemein",
           body.lastLoginAt !== undefined
-            ? body.lastLoginAt
+            ? body.lastLoginAt ||
+              null
             : current.last_login_at ||
-              "",
+              null,
           id,
         ]
       );
@@ -236,7 +347,7 @@ export async function PATCH(
     }
 
     return NextResponse.json(
-      mapAdminUserRow(
+      mapAdminUserWithLoginRow(
         row
       )
     );
