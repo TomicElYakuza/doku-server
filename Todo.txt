@@ -1,9 +1,9 @@
 Ticket:
 -	Drop Down bei allem
+-	Baumverzeichnis mit genaueren Kategorien zum Filtern z.B. Intranet > Wiki > 404 Error
 
 Grundlegendes zum Intranet:
 -	Berechtigungen
-	-	Firmen und Abteilungen können nur eigene sehen
 	-	Auch Vergabe von Sidebar Features
 
 Admin Dashboard:
@@ -15,13 +15,10 @@ Wichtig:
 -	Cookies
 
 
-
 Einstellungen und Tickets und Aktivitäten, zurück zum Dashboard button weg
 
 bei erstellen immer fenster aufplopen:
--	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen; BENUTZER
-
-Settings für alle, alles andere Admin Backend
+-	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen; BENUTZER erstellen
 
 Altes Layout zurück
 

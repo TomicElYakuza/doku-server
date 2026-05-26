@@ -364,7 +364,7 @@ export default function AdminPage() {
     );
 
   const modules =
-    useMemo<AdminModule[]>(
+    useMemo(
       () => {
         const nextModules: AdminModule[] = [
           {
@@ -469,13 +469,13 @@ export default function AdminPage() {
 
         nextModules.push({
           title:
-            "Einstellungen",
+            "Systemeinstellungen",
 
           description:
-            "App-Name, Oberfläche, Features und Standardrollen konfigurieren.",
+            "App-Name, globale Oberfläche, Features und Standardrollen konfigurieren.",
 
           href:
-            "/settings",
+            "/admin/settings",
 
           icon:
             "⚙️",
@@ -499,7 +499,7 @@ export default function AdminPage() {
               "/activity",
 
             icon:
-              "🕘",
+              "🧾",
 
             badge:
               `${activities.length} Einträge`,
@@ -535,8 +535,8 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <section className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
+      <section className="bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
           <div>
             <p className="text-zinc-300">
               Verwaltung
@@ -547,8 +547,7 @@ export default function AdminPage() {
             </h1>
 
             <p className="text-zinc-300 mt-3 max-w-3xl">
-              Zentrale Verwaltung für {settings.appName || "Intranet"}.
-              Alle aktiven Module arbeiten jetzt auf PostgreSQL/API-Basis.
+              Zentrale Verwaltung für {settings.appName || "Intranet"}. Alle aktiven Module arbeiten auf PostgreSQL/API-Basis.
             </p>
 
             <div className="flex flex-wrap gap-3 mt-6">
@@ -579,15 +578,12 @@ export default function AdminPage() {
 
             <Link
               href="/dashboard"
-              className="bg-white/10 border border-white/10 text-white px-5 py-3 rounded-2xl hover:bg-white/15 transition"
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
             >
               Zum Dashboard
             </Link>
           </div>
         </div>
-
-        <div className="absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute right-24 -top-28 h-56 w-56 rounded-full bg-white/5" />
       </section>
 
       {loading && (
@@ -610,7 +606,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <Link
           href="/admin/users"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -680,8 +676,8 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
           <div>
             <h2 className="text-2xl font-semibold">
               Module
@@ -697,7 +693,7 @@ export default function AdminPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-6">
           {modules.map(
             (module) => (
               <Link
@@ -706,11 +702,11 @@ export default function AdminPage() {
                 className="border border-zinc-200 rounded-3xl p-6 hover:bg-zinc-50 transition"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                  <div className="text-3xl">
                     {module.icon}
                   </div>
 
-                  <span className={`px-3 py-1 rounded-full text-xs ${module.accent}`}>
+                  <span className={`text-xs px-3 py-1 rounded-full ${module.accent}`}>
                     {module.badge}
                   </span>
                 </div>
@@ -719,7 +715,7 @@ export default function AdminPage() {
                   {module.title}
                 </h3>
 
-                <p className="text-zinc-500 mt-2 leading-relaxed">
+                <p className="text-zinc-500 mt-2">
                   {module.description}
                 </p>
               </Link>
@@ -728,8 +724,8 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_420px] gap-8">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
             Systemübersicht
           </h2>
@@ -738,13 +734,13 @@ export default function AdminPage() {
             Aktuelle Basisdaten der Anwendung.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             <div className="bg-zinc-50 rounded-2xl p-5">
               <p className="text-sm text-zinc-500">
                 App
               </p>
 
-              <p className="font-semibold mt-2">
+              <p className="font-semibold mt-1">
                 {settings.appName || "Intranet"}
               </p>
             </div>
@@ -754,7 +750,7 @@ export default function AdminPage() {
                 Firma
               </p>
 
-              <p className="font-semibold mt-2">
+              <p className="font-semibold mt-1">
                 {settings.companyName || "Intern"}
               </p>
             </div>
@@ -764,7 +760,7 @@ export default function AdminPage() {
                 Organisation
               </p>
 
-              <p className="font-semibold mt-2">
+              <p className="font-semibold mt-1">
                 {companies.length} Firmen · {departments.length} Abteilungen
               </p>
             </div>
@@ -774,7 +770,7 @@ export default function AdminPage() {
                 Datenquelle
               </p>
 
-              <p className="font-semibold mt-2">
+              <p className="font-semibold mt-1">
                 PostgreSQL/API
               </p>
             </div>
@@ -782,7 +778,7 @@ export default function AdminPage() {
         </section>
 
         {activityLogEnabled && (
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <div className="flex items-start justify-between gap-5">
               <div>
                 <h2 className="text-2xl font-semibold">
@@ -796,7 +792,7 @@ export default function AdminPage() {
 
               <Link
                 href="/activity"
-                className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+                className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
               >
                 Alle
               </Link>
@@ -811,10 +807,9 @@ export default function AdminPage() {
 
               {latestActivities.map(
                 (activity) => (
-                  <Link
+                  <div
                     key={activity.id}
-                    href="/activity"
-                    className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
+                    className="border border-zinc-200 rounded-2xl p-4"
                   >
                     <span className={`text-xs px-3 py-1 rounded-full ${getActivityClass(activity.type)}`}>
                       {getActivityLabel(
@@ -822,14 +817,14 @@ export default function AdminPage() {
                       )}
                     </span>
 
-                    <p className="font-medium mt-3 line-clamp-2">
+                    <h3 className="font-semibold mt-3">
                       {activity.title}
-                    </p>
+                    </h3>
 
-                    <p className="text-xs text-zinc-400 mt-2">
+                    <p className="text-sm text-zinc-500 mt-1">
                       {activity.createdAt}
                     </p>
-                  </Link>
+                  </div>
                 )
               )}
             </div>

@@ -1,7 +1,3 @@
-import type {
-  UserRole,
-} from "./user";
-
 export type AppTheme =
   | "modern"
   | "light"
@@ -23,28 +19,28 @@ export type SidebarPosition =
   | "left"
   | "right";
 
+export type AppDefaultUserRole =
+  | "admin"
+  | "department_lead"
+  | "employee";
+
 export type AppSettings = {
   appName: string;
   companyName: string;
   appVersion: string;
   version: string;
-
-  theme: AppTheme | string;
+  theme: AppTheme;
   darkMode: boolean;
-  accentColor: AppAccentColor | string;
-  appAccentColor: AppAccentColor | string;
-  compactMode: boolean;
-  sidebarPosition: SidebarPosition | string;
-
+  accentColor: AppAccentColor;
+  appAccentColor: AppAccentColor;
+  sidebarPosition: SidebarPosition;
   showVersion: boolean;
+  compactMode: boolean;
   showDemoHints: boolean;
-
-  enableTicketComments: boolean;
   enableTicketTemplates: boolean;
+  enableTicketComments: boolean;
   enableActivityLog: boolean;
-
-  defaultUserRole: UserRole;
-
+  defaultUserRole: AppDefaultUserRole;
   updatedAt: string;
 };
 
