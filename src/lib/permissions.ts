@@ -1,61 +1,86 @@
 import {
   getCachedCurrentUser,
-  getCachedCurrentUserRole,
 } from "./currentUserRepository";
 
 import type {
   UserRole,
 } from "../types/user";
 
-export function getCurrentUser() {
-  return getCachedCurrentUser();
+type AppRole =
+  | UserRole
+  | "admin"
+  | "department_lead"
+  | "employee";
+
+function getCurrentUserRole(): AppRole {
+  const user =
+    getCachedCurrentUser();
+
+  return (
+    user?.role ||
+    "employee"
+  ) as AppRole;
 }
 
-export function getCurrentUserRole(): UserRole {
-  return getCachedCurrentUserRole();
-}
-
-export function getRoleLabel(
-  role: UserRole | string
+function isAdminRole(
+  role: AppRole
 ) {
-  if (role === "admin") {
-    return "Administrator";
-  }
+  return role === "admin";
+}
 
-  if (role === "editor") {
-    return "Bearbeiter";
-  }
+function isDepartmentLeadRole(
+  role: AppRole
+) {
+  return role === "department_lead";
+}
 
-  return "Leser";
+function isEmployeeRole(
+  role: AppRole
+) {
+  return role === "employee";
+}
+
+function isAdminOrDepartmentLead(
+  role: AppRole
+) {
+  return (
+    isAdminRole(
+      role
+    ) ||
+    isDepartmentLeadRole(
+      role
+    )
+  );
 }
 
 export function isAdmin() {
-  return getCurrentUserRole() === "admin";
+  return isAdminRole(
+    getCurrentUserRole()
+  );
 }
 
 export function isEditor() {
-  return getCurrentUserRole() === "editor";
+  return isDepartmentLeadRole(
+    getCurrentUserRole()
+  );
 }
 
 export function isViewer() {
-  return getCurrentUserRole() === "viewer";
+  return isEmployeeRole(
+    getCurrentUserRole()
+  );
 }
 
-export function canViewAdmin() {
-  return isAdmin();
-}
-
-export function canManageSystem() {
-  return isAdmin();
+export function canView() {
+  return true;
 }
 
 export function canCreate() {
   const role =
     getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "editor"
+  return isAdminOrDepartmentLead(
+    role
   );
 }
 
@@ -63,34 +88,144 @@ export function canEdit() {
   const role =
     getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "editor"
+  return isAdminOrDepartmentLead(
+    role
   );
 }
 
 export function canDelete() {
-  return isAdmin();
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canViewAdmin() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canManageUsers() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canManageCompanies() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canManageSettings() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canManageSystem() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
+}
+
+export function canManageNews() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
 }
 
 export function canViewActivity() {
   const role =
     getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "editor"
+  return isAdminRole(
+    role
   );
 }
 
-export function canManageUsers() {
-  return isAdmin();
+export function canManageActivity() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminRole(
+    role
+  );
 }
 
-export function canManageCompanies() {
-  return isAdmin();
+export function canManageFiles() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminOrDepartmentLead(
+    role
+  );
 }
 
-export function canManageSettings() {
-  return isAdmin();
+export function canUploadFiles() {
+  const role =
+    getCurrentUserRole();
+
+  return (
+    isAdminRole(
+      role
+    ) ||
+    isDepartmentLeadRole(
+      role
+    ) ||
+    isEmployeeRole(
+      role
+    )
+  );
+}
+
+export function canManageTickets() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminOrDepartmentLead(
+    role
+  );
+}
+
+export function canManageWiki() {
+  const role =
+    getCurrentUserRole();
+
+  return isAdminOrDepartmentLead(
+    role
+  );
+}
+
+export function hasRole(
+  roles: UserRole[]
+) {
+  return roles.includes(
+    getCurrentUserRole() as UserRole
+  );
+}
+
+export function getCurrentRole() {
+  return getCurrentUserRole();
 }

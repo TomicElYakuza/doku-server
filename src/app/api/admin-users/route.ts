@@ -36,8 +36,15 @@ type CreateAdminUserBody = {
 type AdminUserWithLoginRow =
   AdminUserRow & {
     username: string | null;
+    password_hash: string | null;
     password_must_change: boolean;
   };
+
+type DatabaseError = Error & {
+  code?: string;
+  constraint?: string;
+  detail?: string;
+};
 
 function mapAdminUserWithLoginRow(
   row: AdminUserWithLoginRow
@@ -55,6 +62,11 @@ function mapAdminUserWithLoginRow(
       Boolean(
         row.password_must_change
       ),
+
+    hasPassword:
+      Boolean(
+        row.password_hash
+      ),
   };
 }
 
@@ -68,6 +80,58 @@ function normalizeUsername(
       /\s+/g,
       "."
     );
+}
+
+function getDatabaseErrorMessage(
+  error: unknown
+) {
+  const databaseError =
+    error as DatabaseError;
+
+  if (databaseError.code === "23505") {
+    const detail =
+      databaseError.detail ||
+      "";
+
+    if (
+      detail.includes(
+        "username"
+      ) ||
+      databaseError.constraint?.includes(
+        "username"
+      )
+    ) {
+      return "Dieser Benutzername ist bereits vergeben.";
+    }
+
+    if (
+      detail.includes(
+        "email"
+      ) ||
+      databaseError.constraint?.includes(
+        "email"
+      )
+    ) {
+      return "Diese E-Mail-Adresse ist bereits vergeben.";
+    }
+
+    return "Benutzername oder E-Mail ist bereits vergeben.";
+  }
+
+  if (databaseError.message.includes("password_must_change")) {
+    return "Die Datenbankspalte password_must_change fehlt noch.";
+  }
+
+  if (databaseError.message.includes("password_hash")) {
+    return "Die Datenbankspalte password_hash fehlt noch.";
+  }
+
+  if (databaseError.message.includes("username")) {
+    return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungültig.";
+  }
+
+  return databaseError.message ||
+    "Unbekannter Datenbankfehler.";
 }
 
 export async function GET(
@@ -167,6 +231,7 @@ export async function GET(
           created_at,
           updated_at,
           username,
+          password_hash,
           password_must_change
         FROM admin_users
         ${whereSql}
@@ -191,9 +256,9 @@ export async function GET(
           "Benutzer konnten nicht geladen werden.",
 
         error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+          getDatabaseErrorMessage(
+            error
+          ),
       },
       {
         status:
@@ -282,6 +347,57 @@ export async function POST(
       );
     }
 
+    const existingUser =
+      await queryOne<{
+        id: string;
+        email: string;
+        username: string | null;
+      }>(
+        `
+        SELECT
+          id,
+          email,
+          username
+        FROM admin_users
+        WHERE LOWER(email) = LOWER($1)
+        OR LOWER(username) = LOWER($2)
+        LIMIT 1
+        `,
+        [
+          email,
+          username,
+        ]
+      );
+
+    if (existingUser) {
+      if (
+        existingUser.email.toLowerCase() ===
+        email
+      ) {
+        return NextResponse.json(
+          {
+            message:
+              "Diese E-Mail-Adresse ist bereits vergeben.",
+          },
+          {
+            status:
+              409,
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          message:
+            "Dieser Benutzername ist bereits vergeben.",
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
     const passwordHash =
       await hashPassword(
         password
@@ -330,6 +446,7 @@ export async function POST(
           created_at,
           updated_at,
           username,
+          password_hash,
           password_must_change
         `,
         [
@@ -383,12 +500,14 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnte nicht erstellt werden.",
+          getDatabaseErrorMessage(
+            error
+          ),
 
         error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+          getDatabaseErrorMessage(
+            error
+          ),
       },
       {
         status:

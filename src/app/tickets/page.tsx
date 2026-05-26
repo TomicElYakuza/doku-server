@@ -22,12 +22,6 @@ import {
 } from "../../lib/companyRepository";
 
 import {
-  canCreate,
-  canDelete,
-  canEdit,
-} from "../../lib/permissions";
-
-import {
   saveTicketCreatedActivity,
   saveTicketDeletedActivity,
   saveTicketUpdatedActivity,
@@ -36,6 +30,10 @@ import {
 import {
   useFeatureFlags,
 } from "../../hooks/useFeatureFlags";
+
+import {
+  usePermissions,
+} from "../../hooks/usePermissions";
 
 import type {
   Ticket,
@@ -93,11 +91,60 @@ export default function TicketsPage() {
   } =
     useFeatureFlags();
 
+  const {
+    user,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageTickets =
+    isAdmin ||
+    hasAnyPermission([
+      "tickets.manage",
+    ]);
+
+  const canCreateTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.create",
+    ]);
+
+  const canEditTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.edit",
+    ]);
+
+  const canDeleteTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.delete",
+    ]);
+
+  const canAssignTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.assign",
+    ]);
+
+  const canCloseTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.close",
+    ]);
+
   const urlStatusFilter =
-    searchParams.get("status") || "";
+    searchParams.get(
+      "status"
+    ) ||
+    "";
 
   const urlPriorityFilter =
-    searchParams.get("priority") || "";
+    searchParams.get(
+      "priority"
+    ) ||
+    "";
 
   const [tickets, setTickets] =
     useState<Ticket[]>([]);
@@ -340,7 +387,9 @@ export default function TicketsPage() {
     value: string
   ) {
     return value
-      .split(",")
+      .split(
+        ","
+      )
       .map(
         (tag) =>
           tag.trim()
@@ -379,6 +428,42 @@ export default function TicketsPage() {
       "Allgemein"
     );
   }
+
+  function userCanSeeTicket(
+    ticket: Ticket
+  ) {
+    if (isAdmin || canManageTickets) {
+      return true;
+    }
+
+    if (!user) {
+      return false;
+    }
+
+    if (user.departmentId) {
+      return ticket.departmentId === user.departmentId;
+    }
+
+    if (user.companyId) {
+      return ticket.companyId === user.companyId;
+    }
+
+    return false;
+  }
+
+  const visibleTickets =
+    useMemo(
+      () =>
+        tickets.filter(
+          userCanSeeTicket
+        ),
+      [
+        tickets,
+        user,
+        isAdmin,
+        canManageTickets,
+      ]
+    );
 
   const departmentOptions =
     useMemo(
@@ -422,7 +507,7 @@ export default function TicketsPage() {
         const query =
           search.trim().toLowerCase();
 
-        return tickets.filter(
+        return visibleTickets.filter(
           (ticket) => {
             if (
               hideClosed &&
@@ -446,7 +531,9 @@ export default function TicketsPage() {
               Array.isArray(
                 ticket.tags
               )
-                ? ticket.tags.join(" ")
+                ? ticket.tags.join(
+                    " "
+                  )
                 : "";
 
             const matchesSearch =
@@ -502,7 +589,7 @@ export default function TicketsPage() {
         );
       },
       [
-        tickets,
+        visibleTickets,
         search,
         statusFilter,
         priorityFilter,
@@ -515,26 +602,26 @@ export default function TicketsPage() {
     );
 
   const openTickets =
-    tickets.filter(
+    visibleTickets.filter(
       (ticket) =>
         ticket.status === "open"
     );
 
   const inProgressTickets =
-    tickets.filter(
+    visibleTickets.filter(
       (ticket) =>
         ticket.status === "in_progress"
     );
 
   const highOrUrgentTickets =
-    tickets.filter(
+    visibleTickets.filter(
       (ticket) =>
         ticket.priority === "high" ||
         ticket.priority === "urgent"
     );
 
   const closedTickets =
-    tickets.filter(
+    visibleTickets.filter(
       (ticket) =>
         ticket.status === "closed"
     );
@@ -546,35 +633,54 @@ export default function TicketsPage() {
     setStatus("open");
     setPriority("medium");
     setCategory("Allgemein");
-    setCompanyId("");
-    setDepartmentId("");
+    setCompanyId(
+      user?.companyId ||
+        ""
+    );
+    setDepartmentId(
+      user?.departmentId ||
+        ""
+    );
     setAssignedTo("");
-    setCreatedBy("System");
+    setCreatedBy(
+      user?.name ||
+        "System"
+    );
     setTags("");
     setShowForm(false);
   }
 
   function openCreateForm() {
-    resetForm();
-
-    const firstCompany =
-      companies[0];
-
-    const firstDepartment =
-      departments.find(
-        (department) =>
-          department.companyId === firstCompany?.id
+    if (!canCreateTicket) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu erstellen."
       );
 
-    setCompanyId(
-      firstCompany?.id ||
-        ""
-    );
+      return;
+    }
 
-    setDepartmentId(
-      firstDepartment?.id ||
-        ""
-    );
+    resetForm();
+
+    if (isAdmin || canManageTickets) {
+      const firstCompany =
+        companies[0];
+
+      const firstDepartment =
+        departments.find(
+          (department) =>
+            department.companyId === firstCompany?.id
+        );
+
+      setCompanyId(
+        firstCompany?.id ||
+          ""
+      );
+
+      setDepartmentId(
+        firstDepartment?.id ||
+          ""
+      );
+    }
 
     setShowForm(
       true
@@ -584,6 +690,14 @@ export default function TicketsPage() {
   function startEditTicket(
     ticket: Ticket
   ) {
+    if (!canEditTicket) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu bearbeiten."
+      );
+
+      return;
+    }
+
     setEditingTicketId(
       ticket.id
     );
@@ -626,6 +740,7 @@ export default function TicketsPage() {
 
     setCreatedBy(
       ticket.createdBy ||
+        user?.name ||
         "System"
     );
 
@@ -657,7 +772,10 @@ export default function TicketsPage() {
   ) {
     event.preventDefault();
 
-    if (!canCreate() && !editingTicketId) {
+    if (
+      !canCreateTicket &&
+      !editingTicketId
+    ) {
       alert(
         "Du hast keine Berechtigung, Tickets zu erstellen."
       );
@@ -665,9 +783,43 @@ export default function TicketsPage() {
       return;
     }
 
-    if (!canEdit() && editingTicketId) {
+    if (
+      !canEditTicket &&
+      editingTicketId
+    ) {
       alert(
         "Du hast keine Berechtigung, Tickets zu bearbeiten."
+      );
+
+      return;
+    }
+
+    if (
+      status === "closed" &&
+      !canCloseTicket
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu schließen."
+      );
+
+      return;
+    }
+
+    const currentTicket =
+      editingTicketId
+        ? tickets.find(
+            (ticket) =>
+              ticket.id === editingTicketId
+          )
+        : null;
+
+    if (
+      currentTicket &&
+      currentTicket.assignedTo !== assignedTo.trim() &&
+      !canAssignTicket
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zuzuweisen."
       );
 
       return;
@@ -730,6 +882,7 @@ export default function TicketsPage() {
 
               createdBy:
                 createdBy.trim() ||
+                user?.name ||
                 "System",
 
               tags:
@@ -783,6 +936,7 @@ export default function TicketsPage() {
 
           createdBy:
             createdBy.trim() ||
+            user?.name ||
             "System",
 
           tags:
@@ -815,10 +969,60 @@ export default function TicketsPage() {
     }
   }
 
+  async function handleCloseTicket(
+    ticket: Ticket
+  ) {
+    if (!canCloseTicket) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu schließen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        `Ticket #${ticket.id} "${ticket.title}" wirklich schließen?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const updatedTicket =
+        await ticketRepository.update(
+          ticket.id,
+          {
+            status:
+              "closed",
+          }
+        );
+
+      if (updatedTicket) {
+        saveTicketUpdatedActivity(
+          updatedTicket
+        );
+      }
+
+      await loadData();
+    } catch (closeError) {
+      console.error(
+        closeError
+      );
+
+      alert(
+        closeError instanceof Error
+          ? closeError.message
+          : "Ticket konnte nicht geschlossen werden."
+      );
+    }
+  }
+
   async function handleDeleteTicket(
     ticket: Ticket
   ) {
-    if (!canDelete()) {
+    if (!canDeleteTicket) {
       alert(
         "Du hast keine Berechtigung, Tickets zu löschen."
       );
@@ -881,7 +1085,7 @@ export default function TicketsPage() {
           Öffnen
         </Link>
 
-        {canEdit() && (
+        {canEditTicket && (
           <button
             type="button"
             onClick={() =>
@@ -895,7 +1099,21 @@ export default function TicketsPage() {
           </button>
         )}
 
-        {canDelete() && (
+        {ticket.status !== "closed" && canCloseTicket && (
+          <button
+            type="button"
+            onClick={() =>
+              void handleCloseTicket(
+                ticket
+              )
+            }
+            className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-500 transition"
+          >
+            Schließen
+          </button>
+        )}
+
+        {canDeleteTicket && (
           <button
             type="button"
             onClick={() =>
@@ -926,7 +1144,7 @@ export default function TicketsPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {ticketTemplatesEnabled && (
+          {ticketTemplatesEnabled && canManageTickets && (
             <Link
               href="/tickets/templates"
               className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
@@ -935,7 +1153,7 @@ export default function TicketsPage() {
             </Link>
           )}
 
-          {canCreate() && (
+          {canCreateTicket && (
             <button
               type="button"
               onClick={openCreateForm}
@@ -978,7 +1196,7 @@ export default function TicketsPage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {tickets.length}
+            {visibleTickets.length}
           </h2>
         </button>
 
@@ -1195,7 +1413,8 @@ export default function TicketsPage() {
                     event.target.value
                   )
                 }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                disabled={!canAssignTicket}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 disabled:bg-zinc-100 disabled:text-zinc-400"
                 placeholder="Name oder Team"
               />
             </div>
@@ -1226,7 +1445,8 @@ export default function TicketsPage() {
                       ""
                   );
                 }}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                disabled={!isAdmin && !canManageTickets}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Keine Firma
@@ -1257,7 +1477,8 @@ export default function TicketsPage() {
                     event.target.value
                   )
                 }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                disabled={!isAdmin && !canManageTickets}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Keine Abteilung
@@ -1541,7 +1762,7 @@ export default function TicketsPage() {
         </div>
 
         <p className="text-sm text-zinc-500">
-          {filteredTickets.length} von {tickets.length} Tickets gefunden.
+          {filteredTickets.length} von {visibleTickets.length} Tickets gefunden.
         </p>
       </div>
 

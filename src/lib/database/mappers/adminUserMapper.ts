@@ -8,6 +8,9 @@ export type AdminUserRow = {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
+  password_hash?: string | null;
+  password_must_change?: boolean | null;
   role: string;
   status: string;
   company_id: string | null;
@@ -18,6 +21,47 @@ export type AdminUserRow = {
   created_at: string;
   updated_at: string;
 };
+
+function normalizeRole(
+  role: string
+): UserRole {
+  if (role === "admin") {
+    return "admin";
+  }
+
+  if (role === "department_lead") {
+    return "department_lead";
+  }
+
+  return "employee";
+}
+
+function normalizeStatus(
+  status: string
+): AdminUserStatus {
+  if (status === "active") {
+    return "active";
+  }
+
+  if (status === "invited") {
+    return "invited";
+  }
+
+  return "inactive";
+}
+
+function getFallbackUsername(
+  email: string
+) {
+  return email
+    .split("@")[0]
+    .trim()
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      "."
+    );
+}
 
 export function mapAdminUserRow(
   row: AdminUserRow
@@ -32,11 +76,21 @@ export function mapAdminUserRow(
     email:
       row.email,
 
+    username:
+      row.username ||
+      getFallbackUsername(
+        row.email
+      ),
+
     role:
-      row.role as UserRole,
+      normalizeRole(
+        row.role
+      ),
 
     status:
-      row.status as AdminUserStatus,
+      normalizeStatus(
+        row.status
+      ),
 
     companyId:
       row.company_id ||
@@ -54,18 +108,24 @@ export function mapAdminUserRow(
       row.department ||
       "Allgemein",
 
+    passwordMustChange:
+      Boolean(
+        row.password_must_change
+      ),
+
+    hasPassword:
+      Boolean(
+        row.password_hash
+      ),
+
     lastLoginAt:
       row.last_login_at ||
       "",
 
     createdAt:
-      new Date(
-        row.created_at
-      ).toLocaleString(),
+      row.created_at,
 
     updatedAt:
-      new Date(
-        row.updated_at
-      ).toLocaleString(),
+      row.updated_at,
   };
 }

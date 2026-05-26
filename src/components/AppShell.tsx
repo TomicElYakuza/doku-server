@@ -25,8 +25,8 @@ import {
 } from "../hooks/useAppSettings";
 
 import {
-  useFeatureFlags,
-} from "../hooks/useFeatureFlags";
+  usePermissions,
+} from "../hooks/usePermissions";
 
 import type {
   User,
@@ -43,6 +43,13 @@ type NavigationItem = {
   label: string;
   icon: string;
   adminOnly?: boolean;
+  permissionAny?: string[];
+};
+
+type ProtectedRoute = {
+  path: string;
+  adminOnly?: boolean;
+  permissionAny?: string[];
 };
 
 const INACTIVITY_TIMEOUT_MS =
@@ -53,6 +60,10 @@ const navigationItems: NavigationItem[] = [
     href: "/news",
     label: "News",
     icon: "📰",
+    permissionAny: [
+      "news.view",
+      "news.manage",
+    ],
   },
   {
     href: "/dashboard",
@@ -63,21 +74,36 @@ const navigationItems: NavigationItem[] = [
     href: "/wiki",
     label: "Wiki",
     icon: "📚",
+    permissionAny: [
+      "wiki.view",
+      "wiki.manage",
+    ],
   },
   {
     href: "/tickets",
     label: "Tickets",
     icon: "🎫",
+    permissionAny: [
+      "tickets.view",
+      "tickets.manage",
+    ],
   },
   {
     href: "/files",
     label: "Dateien",
     icon: "📎",
+    permissionAny: [
+      "files.view",
+      "files.manage",
+    ],
   },
   {
     href: "/activity",
     label: "Aktivität",
     icon: "🕘",
+    permissionAny: [
+      "activity.view",
+    ],
   },
   {
     href: "/settings",
@@ -92,10 +118,79 @@ const navigationItems: NavigationItem[] = [
   },
 ];
 
+const protectedRoutes: ProtectedRoute[] = [
+  {
+    path:
+      "/admin",
+
+    adminOnly:
+      true,
+  },
+  {
+    path:
+      "/activity",
+
+    permissionAny: [
+      "activity.view",
+    ],
+  },
+  {
+    path:
+      "/tickets",
+
+    permissionAny: [
+      "tickets.view",
+      "tickets.manage",
+    ],
+  },
+  {
+    path:
+      "/wiki",
+
+    permissionAny: [
+      "wiki.view",
+      "wiki.manage",
+    ],
+  },
+  {
+    path:
+      "/files",
+
+    permissionAny: [
+      "files.view",
+      "files.manage",
+    ],
+  },
+  {
+    path:
+      "/news",
+
+    permissionAny: [
+      "news.view",
+      "news.manage",
+    ],
+  },
+];
+
 function isPublicPath(
   pathname: string
 ) {
-  return pathname === "/login";
+  return (
+    pathname === "/login" ||
+    pathname === "/change-password"
+  );
+}
+
+function matchesProtectedPath(
+  pathname: string,
+  path: string
+) {
+  return (
+    pathname === path ||
+    pathname.startsWith(
+      `${path}/`
+    )
+  );
 }
 
 function isActivePath(
@@ -121,11 +216,11 @@ function getRoleLabel(
     return "Administrator";
   }
 
-  if (role === "editor") {
-    return "Bearbeiter";
+  if (role === "department_lead") {
+    return "Abteilungsleiter";
   }
 
-  return "Leser";
+  return "Mitarbeiter";
 }
 
 export default function AppShell({
@@ -151,9 +246,11 @@ export default function AppShell({
     useAppSettings();
 
   const {
-    activityLogEnabled,
+    loading: permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
   } =
-    useFeatureFlags();
+    usePermissions();
 
   const isModern =
     settings.theme === "modern";
@@ -262,6 +359,30 @@ export default function AppShell({
     user,
   ]);
 
+  useEffect(() => {
+    if (
+      loading ||
+      permissionsLoading ||
+      !user
+    ) {
+      return;
+    }
+
+    if (!canAccessCurrentPath()) {
+      router.replace(
+        "/dashboard"
+      );
+    }
+  }, [
+    pathname,
+    user,
+    loading,
+    permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+    router,
+  ]);
+
   function clearInactivityTimer() {
     if (logoutTimerRef.current) {
       clearTimeout(
@@ -347,6 +468,18 @@ export default function AppShell({
         router.push(
           "/login"
         );
+
+        return;
+      }
+
+      if (
+        nextUser.passwordMustChange
+      ) {
+        router.push(
+          "/change-password"
+        );
+
+        return;
       }
     } catch (error) {
       console.error(
@@ -368,6 +501,55 @@ export default function AppShell({
     }
   }
 
+  function canAccessCurrentPath() {
+    const protectedRoute =
+      protectedRoutes.find(
+        (route) =>
+          matchesProtectedPath(
+            pathname,
+            route.path
+          )
+      );
+
+    if (!protectedRoute) {
+      return true;
+    }
+
+    if (protectedRoute.adminOnly) {
+      return isAdmin;
+    }
+
+    if (
+      !protectedRoute.permissionAny ||
+      protectedRoute.permissionAny.length === 0
+    ) {
+      return true;
+    }
+
+    return hasAnyPermission(
+      protectedRoute.permissionAny
+    );
+  }
+
+  function canShowNavigationItem(
+    item: NavigationItem
+  ) {
+    if (item.adminOnly) {
+      return isAdmin;
+    }
+
+    if (
+      !item.permissionAny ||
+      item.permissionAny.length === 0
+    ) {
+      return true;
+    }
+
+    return hasAnyPermission(
+      item.permissionAny
+    );
+  }
+
   if (
     isPublicPath(
       pathname
@@ -380,12 +562,27 @@ export default function AppShell({
     );
   }
 
-  if (loading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
       <main className="min-h-screen w-full bg-zinc-50 flex items-center justify-center">
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <p className="text-zinc-500">
             Anwendung wird geladen...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!canAccessCurrentPath()) {
+    return (
+      <main className="min-h-screen w-full bg-zinc-50 flex items-center justify-center">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <p className="text-zinc-500">
+            Weiterleitung...
           </p>
         </div>
       </main>
@@ -417,19 +614,7 @@ export default function AppShell({
 
   const visibleNavigationItems =
     navigationItems.filter(
-      (item) => {
-        if (
-          item.href === "/activity" &&
-          !activityLogEnabled
-        ) {
-          return false;
-        }
-
-        return (
-          !item.adminOnly ||
-          user.role === "admin"
-        );
-      }
+      canShowNavigationItem
     );
 
   const sidebarClass =

@@ -107,7 +107,7 @@ const defaultSettings: AppSettings = {
     true,
 
   defaultUserRole:
-    "viewer",
+    "employee",
 
   updatedAt:
     new Date().toLocaleString(),
@@ -173,7 +173,11 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     theme: AppTheme | string
   ) {
     if (theme === "dark") {
-      return "Dark";
+      return "Dunkel";
+    }
+
+    if (theme === "light") {
+      return "Hell";
     }
 
     if (theme === "system") {
@@ -198,15 +202,27 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       return "Emerald";
     }
 
+    if (color === "green") {
+      return "Grün";
+    }
+
     if (color === "amber") {
       return "Amber";
+    }
+
+    if (color === "orange") {
+      return "Orange";
     }
 
     if (color === "red") {
       return "Rot";
     }
 
-    return "Zinc";
+    if (color === "purple") {
+      return "Lila";
+    }
+
+    return "Neutral";
   },
 
   getSidebarPositionLabel(
@@ -226,11 +242,11 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       return "Administrator";
     }
 
-    if (role === "editor") {
-      return "Bearbeiter";
+    if (role === "department_lead") {
+      return "Abteilungsleiter";
     }
 
-    return "Leser";
+    return "Mitarbeiter";
   },
 
   getThemeOptions() {
@@ -244,17 +260,17 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       },
       {
         value:
-          "dark",
+          "light",
 
         label:
-          "Dark",
+          "Hell",
       },
       {
         value:
-          "system",
+          "dark",
 
         label:
-          "System",
+          "Dunkel",
       },
     ];
   },
@@ -266,7 +282,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
           "zinc",
 
         label:
-          "Zinc",
+          "Neutral",
       },
       {
         value:
@@ -277,24 +293,10 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       },
       {
         value:
-          "indigo",
+          "green",
 
         label:
-          "Indigo",
-      },
-      {
-        value:
-          "emerald",
-
-        label:
-          "Emerald",
-      },
-      {
-        value:
-          "amber",
-
-        label:
-          "Amber",
+          "Grün",
       },
       {
         value:
@@ -302,6 +304,27 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
 
         label:
           "Rot",
+      },
+      {
+        value:
+          "orange",
+
+        label:
+          "Orange",
+      },
+      {
+        value:
+          "purple",
+
+        label:
+          "Lila",
+      },
+      {
+        value:
+          "indigo",
+
+        label:
+          "Indigo",
       },
     ];
   },
@@ -329,17 +352,17 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return [
       {
         value:
-          "viewer",
+          "employee",
 
         label:
-          "Leser",
+          "Mitarbeiter",
       },
       {
         value:
-          "editor",
+          "department_lead",
 
         label:
-          "Bearbeiter",
+          "Abteilungsleiter",
       },
       {
         value:

@@ -133,7 +133,7 @@ export default function AdminUsersPage() {
     useState(true);
 
   const [role, setRole] =
-    useState<UserRole>("viewer");
+    useState<UserRole>("employee");
 
   const [status, setStatus] =
     useState<AdminUserStatus>("active");
@@ -287,7 +287,7 @@ export default function AdminUsersPage() {
     setUsername("");
     setPassword("");
     setPasswordMustChange(true);
-    setRole("viewer");
+    setRole("employee");
     setStatus("active");
     setCompanyId("");
     setDepartmentId("");
@@ -543,10 +543,10 @@ export default function AdminUsersPage() {
         user.role === "admin"
     );
 
-  const invitedUsers =
+  const departmentLeadUsers =
     users.filter(
       (user) =>
-        user.status === "invited"
+        user.role === "department_lead"
     );
 
   const passwordResetUsers =
@@ -908,7 +908,7 @@ export default function AdminUsersPage() {
           </h2>
 
           <p className="text-sm text-zinc-400 mt-2">
-            {invitedUsers.length} eingeladen
+            {departmentLeadUsers.length} Abteilungsleiter
           </p>
         </button>
       </div>
@@ -1059,12 +1059,12 @@ export default function AdminUsersPage() {
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
-                <option value="viewer">
-                  Leser
+                <option value="employee">
+                  Mitarbeiter
                 </option>
 
-                <option value="editor">
-                  Bearbeiter
+                <option value="department_lead">
+                  Abteilungsleiter
                 </option>
 
                 <option value="admin">
@@ -1252,12 +1252,12 @@ export default function AdminUsersPage() {
               Administrator
             </option>
 
-            <option value="editor">
-              Bearbeiter
+            <option value="department_lead">
+              Abteilungsleiter
             </option>
 
-            <option value="viewer">
-              Leser
+            <option value="employee">
+              Mitarbeiter
             </option>
           </select>
 

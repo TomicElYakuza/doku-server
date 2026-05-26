@@ -21,10 +21,8 @@ import {
 } from "../../lib/companyRepository";
 
 import {
-  canCreate,
-  canDelete,
-  canEdit,
-} from "../../lib/permissions";
+  usePermissions,
+} from "../../hooks/usePermissions";
 
 import {
   activityRepository,
@@ -64,6 +62,37 @@ function getWikiHref(
 export default function WikiPageList() {
   const searchParams =
     useSearchParams();
+
+  const {
+    user,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
+
+  const canCreateWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.create",
+    ]);
+
+  const canEditWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
+  const canDeleteWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.delete",
+    ]);
 
   const urlCompanyFilter =
     searchParams.get("company") || "";
@@ -265,12 +294,51 @@ export default function WikiPageList() {
     }
   }
 
+  function userCanSeePage(
+    page: WikiPage
+  ) {
+    if (isAdmin || canManageWiki) {
+      return true;
+    }
+
+    if (!user) {
+      return false;
+    }
+
+    if (user.department) {
+      return (
+        page.department === user.department ||
+        page.category === user.department
+      );
+    }
+
+    if (user.company) {
+      return page.company === user.company;
+    }
+
+    return false;
+  }
+
+  const visiblePages =
+    useMemo(
+      () =>
+        pages.filter(
+          userCanSeePage
+        ),
+      [
+        pages,
+        user,
+        isAdmin,
+        canManageWiki,
+      ]
+    );
+
   const allTags =
     useMemo(
       () =>
         Array.from(
           new Set(
-            pages.flatMap(
+            visiblePages.flatMap(
               (page) =>
                 formatTags(
                   page.tags
@@ -284,7 +352,7 @@ export default function WikiPageList() {
             )
         ),
       [
-        pages,
+        visiblePages,
       ]
     );
 
@@ -297,7 +365,7 @@ export default function WikiPageList() {
               (company) =>
                 company.name
             ),
-            ...pages.map(
+            ...visiblePages.map(
               (page) =>
                 page.company ||
                 "Intern"
@@ -313,7 +381,7 @@ export default function WikiPageList() {
           ),
       [
         companies,
-        pages,
+        visiblePages,
       ]
     );
 
@@ -327,7 +395,7 @@ export default function WikiPageList() {
                 (department) =>
                   department.name
               ),
-              ...pages.map(
+              ...visiblePages.map(
                 (page) =>
                   page.department ||
                   page.category ||
@@ -371,7 +439,7 @@ export default function WikiPageList() {
         return Array.from(
           new Set([
             ...filteredByCompany,
-            ...pages
+            ...visiblePages
               .filter(
                 (page) =>
                   page.company === companyFilter
@@ -395,7 +463,7 @@ export default function WikiPageList() {
       [
         departments,
         companies,
-        pages,
+        visiblePages,
         companyFilter,
       ]
     );
@@ -406,7 +474,7 @@ export default function WikiPageList() {
         const query =
           search.trim().toLowerCase();
 
-        return pages.filter(
+        return visiblePages.filter(
           (page) => {
             const pageCompany =
               page.company ||
@@ -468,7 +536,7 @@ export default function WikiPageList() {
         );
       },
       [
-        pages,
+        visiblePages,
         search,
         companyFilter,
         departmentFilter,
@@ -480,13 +548,13 @@ export default function WikiPageList() {
     useMemo(
       () =>
         [
-          ...pages,
+          ...visiblePages,
         ].slice(
           0,
           5
         ),
       [
-        pages,
+        visiblePages,
       ]
     );
 
@@ -500,7 +568,7 @@ export default function WikiPageList() {
   async function handleDeletePage(
     page: WikiPage
   ) {
-    if (!canDelete()) {
+    if (!canDeleteWiki) {
       alert(
         "Du hast keine Berechtigung, Wiki-Seiten zu löschen."
       );
@@ -599,7 +667,7 @@ export default function WikiPageList() {
           Öffnen
         </Link>
 
-        {canEdit() && (
+        {canEditWiki && (
           <Link
             href={`/wiki/edit/${encodeURIComponent(
               page.slug
@@ -610,7 +678,7 @@ export default function WikiPageList() {
           </Link>
         )}
 
-        {canDelete() && (
+        {canDeleteWiki && (
           <button
             type="button"
             onClick={() =>
@@ -641,7 +709,7 @@ export default function WikiPageList() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {canCreate() && (
+          {canCreateWiki && (
             <Link
               href="/wiki/create"
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
@@ -683,7 +751,7 @@ export default function WikiPageList() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {pages.length}
+            {visiblePages.length}
           </h2>
         </button>
 
@@ -866,7 +934,7 @@ export default function WikiPageList() {
         </div>
 
         <p className="text-sm text-zinc-500">
-          {filteredPages.length} von {pages.length} Wiki-Seiten gefunden.
+          {filteredPages.length} von {visiblePages.length} Wiki-Seiten gefunden.
         </p>
       </div>
 

@@ -30,11 +30,11 @@ function getRoleLabel(
     return "Administrator";
   }
 
-  if (role === "editor") {
-    return "Bearbeiter";
+  if (role === "department_lead") {
+    return "Abteilungsleiter";
   }
 
-  return "Leser";
+  return "Mitarbeiter";
 }
 
 export default function Topbar() {

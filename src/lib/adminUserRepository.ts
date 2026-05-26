@@ -394,11 +394,11 @@ export const postgresAdminUserRepository: AdminUserRepository = {
       return "Administrator";
     }
 
-    if (role === "editor") {
-      return "Bearbeiter";
+    if (role === "department_lead") {
+      return "Abteilungsleiter";
     }
 
-    return "Leser";
+    return "Mitarbeiter";
   },
 
   getRoleClass(
@@ -408,7 +408,7 @@ export const postgresAdminUserRepository: AdminUserRepository = {
       return "bg-red-50 text-red-700";
     }
 
-    if (role === "editor") {
+    if (role === "department_lead") {
       return "bg-indigo-50 text-indigo-700";
     }
 

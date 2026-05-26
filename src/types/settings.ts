@@ -1,15 +1,23 @@
+import type {
+  UserRole,
+} from "./user";
+
 export type AppTheme =
   | "modern"
+  | "light"
   | "dark"
   | "system";
 
 export type AppAccentColor =
   | "zinc"
   | "blue"
+  | "green"
+  | "red"
+  | "orange"
+  | "purple"
   | "indigo"
   | "emerald"
-  | "amber"
-  | "red";
+  | "amber";
 
 export type SidebarPosition =
   | "left"
@@ -20,18 +28,23 @@ export type AppSettings = {
   companyName: string;
   appVersion: string;
   version: string;
-  theme: AppTheme;
+
+  theme: AppTheme | string;
   darkMode: boolean;
-  accentColor: AppAccentColor;
-  appAccentColor: AppAccentColor;
-  sidebarPosition: SidebarPosition;
-  showVersion: boolean;
+  accentColor: AppAccentColor | string;
+  appAccentColor: AppAccentColor | string;
   compactMode: boolean;
+  sidebarPosition: SidebarPosition | string;
+
+  showVersion: boolean;
   showDemoHints: boolean;
-  enableTicketTemplates: boolean;
+
   enableTicketComments: boolean;
+  enableTicketTemplates: boolean;
   enableActivityLog: boolean;
-  defaultUserRole: "admin" | "editor" | "viewer";
+
+  defaultUserRole: UserRole;
+
   updatedAt: string;
 };
 

@@ -37,6 +37,7 @@ type LoginUserRow =
   AdminUserRow & {
     username: string | null;
     password_hash: string | null;
+    password_must_change: boolean;
   };
 
 export async function POST(
@@ -95,7 +96,8 @@ export async function POST(
           created_at,
           updated_at,
           username,
-          password_hash
+          password_hash,
+          password_must_change
         FROM admin_users
         WHERE LOWER(username) = LOWER($1)
         AND status = 'active'
@@ -142,7 +144,7 @@ export async function POST(
     }
 
     const updatedRow =
-      await queryOne<AdminUserRow>(
+      await queryOne<LoginUserRow>(
         `
         UPDATE admin_users
         SET
@@ -161,7 +163,10 @@ export async function POST(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         `,
         [
           row.id,
@@ -211,6 +216,9 @@ export async function POST(
 
     return NextResponse.json({
       user: {
+        id:
+          adminUser.id,
+
         name:
           adminUser.name,
 
@@ -231,6 +239,11 @@ export async function POST(
 
         department:
           adminUser.department,
+
+        passwordMustChange:
+          Boolean(
+            updatedRow.password_must_change
+          ),
       },
     });
   } catch (error) {

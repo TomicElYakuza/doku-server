@@ -302,6 +302,18 @@ export default function AdminPage() {
       ]
     );
 
+  const departmentLeadUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role === "department_lead"
+        ),
+      [
+        users,
+      ]
+    );
+
   const openTickets =
     useMemo(
       () =>
@@ -360,7 +372,7 @@ export default function AdminPage() {
               "Benutzerverwaltung",
 
             description:
-              "Benutzer, Rollen, Status und Organisationszuordnung verwalten.",
+              "Benutzer, Rollen, Login-Daten, Status und Organisationszuordnung verwalten.",
 
             href:
               "/admin/users",
@@ -373,6 +385,25 @@ export default function AdminPage() {
 
             accent:
               "bg-blue-50 text-blue-700",
+          },
+          {
+            title:
+              "Berechtigungen",
+
+            description:
+              "Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.",
+
+            href:
+              "/admin/permissions",
+
+            icon:
+              "🔐",
+
+            badge:
+              "Rechte",
+
+            accent:
+              "bg-red-50 text-red-700",
           },
           {
             title:
@@ -593,7 +624,7 @@ export default function AdminPage() {
           </h2>
 
           <p className="text-sm text-zinc-500 mt-3">
-            {adminUsers.length} Administratoren
+            {adminUsers.length} Administratoren · {departmentLeadUsers.length} Abteilungsleiter
           </p>
         </Link>
 

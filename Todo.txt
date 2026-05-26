@@ -7,8 +7,6 @@ Grundlegendes zum Intranet:
 	-	Auch Vergabe von Sidebar Features
 
 Admin Dashboard:
--	Rechte Vergabe (auch Abteilungen und Firmen, können auch mehr sein)übers Admin 	Backend
-	-	Höchster Rank Administrator mit Abteilung Administration
 -	UI Anpassungen, damit man nicht mehr im Quellcode oder DB was ändern muss
 
 Wichtig:
@@ -21,9 +19,9 @@ Wichtig:
 Einstellungen und Tickets und Aktivitäten, zurück zum Dashboard button weg
 
 bei erstellen immer fenster aufplopen:
--	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen
+-	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen; BENUTZER
 
-Eingeloggt Seite
+Settings für alle, alles andere Admin Backend
 
 Altes Layout zurück
 

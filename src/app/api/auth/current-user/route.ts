@@ -21,25 +21,35 @@ import type {
 const AUTH_COOKIE_NAME =
   "dms_user_email";
 
+type CurrentUserRow =
+  AdminUserRow & {
+    password_must_change: boolean;
+  };
+
 export async function GET() {
   try {
     const cookieStore =
       await cookies();
 
-    const email =
+    const rawEmail =
       cookieStore.get(
         AUTH_COOKIE_NAME
-      )?.value || "";
+      )?.value;
 
-    if (!email) {
+    if (!rawEmail) {
       return NextResponse.json({
         user:
           null,
       });
     }
 
+    const email =
+      decodeURIComponent(
+        rawEmail
+      );
+
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<CurrentUserRow>(
         `
         SELECT
           id,
@@ -53,19 +63,25 @@ export async function GET() {
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         FROM admin_users
         WHERE LOWER(email) = LOWER($1)
         AND status = 'active'
+        LIMIT 1
         `,
         [
-          decodeURIComponent(
-            email
-          ),
+          email,
         ]
       );
 
     if (!row) {
+      cookieStore.delete(
+        AUTH_COOKIE_NAME
+      );
+
       return NextResponse.json({
         user:
           null,
@@ -79,6 +95,9 @@ export async function GET() {
 
     return NextResponse.json({
       user: {
+        id:
+          adminUser.id,
+
         name:
           adminUser.name,
 
@@ -99,6 +118,11 @@ export async function GET() {
 
         department:
           adminUser.department,
+
+        passwordMustChange:
+          Boolean(
+            row.password_must_change
+          ),
       },
     });
   } catch (error) {
@@ -108,9 +132,6 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        user:
-          null,
-
         message:
           "Aktueller Benutzer konnte nicht geladen werden.",
 

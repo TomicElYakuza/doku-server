@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   FormEvent,
   useEffect,
@@ -198,6 +200,9 @@ export default function SettingsPage() {
   } =
     useAppSettings();
 
+  const canManageSystemSettings =
+    canManageSettings();
+
   const [form, setForm] =
     useState(
       getDefaultEditableSettings(
@@ -245,7 +250,7 @@ export default function SettingsPage() {
   ) {
     event.preventDefault();
 
-    if (!canManageSettings()) {
+    if (!canManageSystemSettings) {
       return;
     }
 
@@ -337,7 +342,7 @@ export default function SettingsPage() {
   }
 
   async function handleReset() {
-    if (!canManageSettings()) {
+    if (!canManageSystemSettings) {
       return;
     }
 
@@ -385,12 +390,6 @@ export default function SettingsPage() {
     }
   }
 
-  if (!canManageSettings()) {
-    return (
-      <AccessDeniedCard />
-    );
-  }
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
@@ -400,21 +399,48 @@ export default function SettingsPage() {
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            App-Name, Design, Darstellung und Features zentral aus PostgreSQL konfigurieren.
+            Konto, Sicherheit, App-Name, Design, Darstellung und Features zentral konfigurieren.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() =>
-            void handleReset()
-          }
-          disabled={saving}
-          className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
-        >
-          Zurücksetzen
-        </button>
+        {canManageSystemSettings && (
+          <button
+            type="button"
+            onClick={() =>
+              void handleReset()
+            }
+            disabled={saving}
+            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+          >
+            Zurücksetzen
+          </button>
+        )}
       </div>
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+          <div>
+            <p className="text-sm text-zinc-500">
+              Mein Konto
+            </p>
+
+            <h2 className="text-2xl font-semibold mt-1">
+              Sicherheit
+            </h2>
+
+            <p className="text-zinc-500 mt-2">
+              Ändere hier dein eigenes Passwort. Bei erzwungenem Passwortwechsel wirst du automatisch zur Passwortänderung weitergeleitet.
+            </p>
+          </div>
+
+          <Link
+            href="/change-password"
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition text-center"
+          >
+            Passwort ändern
+          </Link>
+        </div>
+      </section>
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -440,191 +466,259 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <form
-        onSubmit={(event) =>
-          void handleSubmit(
-            event
-          )
-        }
-        className="space-y-8"
-      >
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-2xl font-semibold">
-              Allgemein
-            </h2>
+      {!canManageSystemSettings && (
+        <AccessDeniedCard />
+      )}
 
-            <p className="text-zinc-500 mt-1">
-              Name und Basisinformationen der Anwendung.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      {canManageSystemSettings && (
+        <form
+          onSubmit={(event) =>
+            void handleSubmit(
+              event
+            )
+          }
+          className="space-y-8"
+        >
+          <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
             <div>
-              <label className="block mb-2 font-medium">
-                App-Name
-              </label>
+              <h2 className="text-2xl font-semibold">
+                Allgemein
+              </h2>
 
-              <input
-                value={form.appName}
-                onChange={(event) =>
-                  updateField(
-                    "appName",
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Intranet"
-              />
+              <p className="text-zinc-500 mt-1">
+                Name und Basisinformationen der Anwendung.
+              </p>
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  App-Name
+                </label>
 
-              <input
-                value={form.companyName}
-                onChange={(event) =>
-                  updateField(
-                    "companyName",
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Intern"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Version
-              </label>
-
-              <input
-                value={form.appVersion}
-                onChange={(event) =>
-                  updateField(
-                    "appVersion",
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="0.1.0"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-2xl font-semibold">
-              Design
-            </h2>
-
-            <p className="text-zinc-500 mt-1">
-              Modern nutzt schwarze Topbar und Sidebar. Dark Mode macht die gesamte App dunkel.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            {themeOptions.map(
-              (option) => {
-                const active =
-                  form.theme === option.value;
-
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => {
-                      updateField(
-                        "theme",
-                          option.value as typeof form.theme
-                      );
-
-                      updateField(
-                        "darkMode",
-                        option.value === "dark"
-                      );
-                    }}
-                    className={`text-left border rounded-3xl p-6 transition ${
-                      active
-                        ? "border-zinc-900 bg-zinc-900 text-white"
-                        : "border-zinc-200 bg-white hover:bg-zinc-50"
-                    }`}
-                  >
-                    <h3 className="text-xl font-semibold">
-                      {option.label}
-                    </h3>
-
-                    <p className={`mt-2 ${
-                      active
-                        ? "text-zinc-200"
-                        : "text-zinc-500"
-                    }`}>
-                      {option.description}
-                    </p>
-                  </button>
-                );
-              }
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div>
-              <label className="block mb-3 font-medium">
-                Akzentfarbe
-              </label>
-
-              <div className="flex flex-wrap gap-3">
-                {accentOptions.map(
-                  (option) => {
-                    const active =
-                      form.accentColor === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() =>
-                          updateField(
-  "accentColor",
-  option.value as typeof form.accentColor
-)
-                        }
-                        className={`px-4 py-2 rounded-xl transition ${
-                          active
-                            ? "bg-zinc-900 text-white"
-                            : "bg-zinc-100 hover:bg-zinc-200"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
+                <input
+                  value={form.appName}
+                  onChange={(event) =>
+                    updateField(
+                      "appName",
+                      event.target.value
+                    )
                   }
-                )}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Intranet"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firma
+                </label>
+
+                <input
+                  value={form.companyName}
+                  onChange={(event) =>
+                    updateField(
+                      "companyName",
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Intern"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Version
+                </label>
+
+                <input
+                  value={form.appVersion}
+                  onChange={(event) =>
+                    updateField(
+                      "appVersion",
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="0.1.0"
+                />
               </div>
             </div>
+          </section>
 
-            <div className="space-y-3">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-2xl font-semibold">
+                Design
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Modern nutzt schwarze Topbar und Sidebar. Dark Mode macht die gesamte App dunkel.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              {themeOptions.map(
+                (option) => {
+                  const active =
+                    form.theme === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        updateField(
+                          "theme",
+                          option.value as typeof form.theme
+                        );
+
+                        updateField(
+                          "darkMode",
+                          option.value === "dark"
+                        );
+                      }}
+                      className={`text-left border rounded-3xl p-6 transition ${
+                        active
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50"
+                      }`}
+                    >
+                      <h3 className="text-xl font-semibold">
+                        {option.label}
+                      </h3>
+
+                      <p className={`mt-2 ${
+                        active
+                          ? "text-zinc-200"
+                          : "text-zinc-500"
+                      }`}>
+                        {option.description}
+                      </p>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div>
+                <label className="block mb-3 font-medium">
+                  Akzentfarbe
+                </label>
+
+                <div className="flex flex-wrap gap-3">
+                  {accentOptions.map(
+                    (option) => {
+                      const active =
+                        form.accentColor === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            updateField(
+                              "accentColor",
+                              option.value as typeof form.accentColor
+                            )
+                          }
+                          className={`px-4 py-2 rounded-xl transition ${
+                            active
+                              ? "bg-zinc-900 text-white"
+                              : "bg-zinc-100 hover:bg-zinc-200"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
+                  <span>
+                    <span className="block font-medium">
+                      Kompakter Modus
+                    </span>
+
+                    <span className="block text-sm text-zinc-500 mt-1">
+                      Reduziert vertikale Abstände.
+                    </span>
+                  </span>
+
+                  <input
+                    type="checkbox"
+                    checked={form.compactMode}
+                    onChange={(event) =>
+                      updateField(
+                        "compactMode",
+                        event.target.checked
+                      )
+                    }
+                    className="h-5 w-5"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
+                  <span>
+                    <span className="block font-medium">
+                      Version anzeigen
+                    </span>
+
+                    <span className="block text-sm text-zinc-500 mt-1">
+                      Zeigt die App-Version in unterstützten Komponenten.
+                    </span>
+                  </span>
+
+                  <input
+                    type="checkbox"
+                    checked={form.showVersion}
+                    onChange={(event) =>
+                      updateField(
+                        "showVersion",
+                        event.target.checked
+                      )
+                    }
+                    className="h-5 w-5"
+                  />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
+            <div>
+              <h2 className="text-2xl font-semibold">
+                Features
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Module ein- oder ausschalten, ohne alte lokale Storage-Logik.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
               <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
                 <span>
                   <span className="block font-medium">
-                    Kompakter Modus
+                    Ticket-Kommentare
                   </span>
 
                   <span className="block text-sm text-zinc-500 mt-1">
-                    Reduziert vertikale Abstände.
+                    Kommentare in Tickets erlauben.
                   </span>
                 </span>
 
                 <input
                   type="checkbox"
-                  checked={form.compactMode}
+                  checked={form.enableTicketComments}
                   onChange={(event) =>
                     updateField(
-                      "compactMode",
+                      "enableTicketComments",
                       event.target.checked
                     )
                   }
@@ -635,20 +729,68 @@ export default function SettingsPage() {
               <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
                 <span>
                   <span className="block font-medium">
-                    Version anzeigen
+                    Ticket-Vorlagen
                   </span>
 
                   <span className="block text-sm text-zinc-500 mt-1">
-                    Zeigt die App-Version in unterstützten Komponenten.
+                    Wiederverwendbare Ticket-Vorlagen aktivieren.
                   </span>
                 </span>
 
                 <input
                   type="checkbox"
-                  checked={form.showVersion}
+                  checked={form.enableTicketTemplates}
                   onChange={(event) =>
                     updateField(
-                      "showVersion",
+                      "enableTicketTemplates",
+                      event.target.checked
+                    )
+                  }
+                  className="h-5 w-5"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
+                <span>
+                  <span className="block font-medium">
+                    Aktivitätsprotokoll
+                  </span>
+
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Systemaktivitäten anzeigen.
+                  </span>
+                </span>
+
+                <input
+                  type="checkbox"
+                  checked={form.enableActivityLog}
+                  onChange={(event) =>
+                    updateField(
+                      "enableActivityLog",
+                      event.target.checked
+                    )
+                  }
+                  className="h-5 w-5"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
+                <span>
+                  <span className="block font-medium">
+                    Hinweise anzeigen
+                  </span>
+
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Hilfetexte und Hinweise anzeigen.
+                  </span>
+                </span>
+
+                <input
+                  type="checkbox"
+                  checked={form.showDemoHints}
+                  onChange={(event) =>
+                    updateField(
+                      "showDemoHints",
                       event.target.checked
                     )
                   }
@@ -656,146 +798,36 @@ export default function SettingsPage() {
                 />
               </label>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-2xl font-semibold">
-              Features
-            </h2>
+          <section className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : "Einstellungen speichern"}
+            </button>
 
-            <p className="text-zinc-500 mt-1">
-              Module ein- oder ausschalten, ohne alte LocalStorage-Logik.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
-              <span>
-                <span className="block font-medium">
-                  Ticket-Kommentare
-                </span>
-
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Kommentare in Tickets erlauben.
-                </span>
-              </span>
-
-              <input
-                type="checkbox"
-                checked={form.enableTicketComments}
-                onChange={(event) =>
-                  updateField(
-                    "enableTicketComments",
-                    event.target.checked
+            <button
+              type="button"
+              onClick={() =>
+                setForm(
+                  getDefaultEditableSettings(
+                    settings
                   )
-                }
-                className="h-5 w-5"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
-              <span>
-                <span className="block font-medium">
-                  Ticket-Vorlagen
-                </span>
-
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Wiederverwendbare Ticket-Vorlagen aktivieren.
-                </span>
-              </span>
-
-              <input
-                type="checkbox"
-                checked={form.enableTicketTemplates}
-                onChange={(event) =>
-                  updateField(
-                    "enableTicketTemplates",
-                    event.target.checked
-                  )
-                }
-                className="h-5 w-5"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
-              <span>
-                <span className="block font-medium">
-                  Aktivitätsprotokoll
-                </span>
-
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Systemaktivitäten anzeigen.
-                </span>
-              </span>
-
-              <input
-                type="checkbox"
-                checked={form.enableActivityLog}
-                onChange={(event) =>
-                  updateField(
-                    "enableActivityLog",
-                    event.target.checked
-                  )
-                }
-                className="h-5 w-5"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
-              <span>
-                <span className="block font-medium">
-                  Demo-Hinweise
-                </span>
-
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Hilfetexte und Hinweise anzeigen.
-                </span>
-              </span>
-
-              <input
-                type="checkbox"
-                checked={form.showDemoHints}
-                onChange={(event) =>
-                  updateField(
-                    "showDemoHints",
-                    event.target.checked
-                  )
-                }
-                className="h-5 w-5"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-          >
-            {saving
-              ? "Speichert..."
-              : "Einstellungen speichern"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setForm(
-                getDefaultEditableSettings(
-                  settings
                 )
-              )
-            }
-            disabled={saving}
-            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
-          >
-            Änderungen verwerfen
-          </button>
-        </section>
-      </form>
+              }
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+            >
+              Änderungen verwerfen
+            </button>
+          </section>
+        </form>
+      )}
     </div>
   );
 }

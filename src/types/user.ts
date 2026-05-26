@@ -1,7 +1,7 @@
 export type UserRole =
   | "admin"
-  | "editor"
-  | "viewer";
+  | "department_lead"
+  | "employee";
 
 export type AdminUserStatus =
   | "active"
@@ -9,6 +9,7 @@ export type AdminUserStatus =
   | "inactive";
 
 export type User = {
+  id: string;
   name: string;
   email: string;
   role: UserRole;

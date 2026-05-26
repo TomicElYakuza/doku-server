@@ -4,17 +4,22 @@ import {
 
 import {
   queryOne,
-} from "@/lib/database/db";
+} from "../../../../lib/database/db";
 
 type HealthRow = {
   now: string;
+  database: string;
 };
 
 export async function GET() {
   try {
-    const result =
+    const row =
       await queryOne<HealthRow>(
-        "SELECT NOW()::TEXT AS now"
+        `
+        SELECT
+          NOW()::TEXT AS now,
+          current_database() AS database
+        `
       );
 
     return NextResponse.json({
@@ -22,11 +27,12 @@ export async function GET() {
         true,
 
       database:
-        "connected",
+        row?.database ||
+        "unknown",
 
       now:
-        result?.now ||
-        null,
+        row?.now ||
+        "",
     });
   } catch (error) {
     console.error(
@@ -40,6 +46,9 @@ export async function GET() {
 
         database:
           "error",
+
+        message:
+          "Datenbankstatus konnte nicht geladen werden.",
 
         error:
           error instanceof Error
