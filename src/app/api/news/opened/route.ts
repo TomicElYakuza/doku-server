@@ -6,40 +6,74 @@ import {
   query,
 } from "../../../../lib/database/db";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 type OpenedRow = {
   news_id: number | string;
 };
 
 type MarkOpenedBody = {
   id?: string;
-  userEmail?: string;
   all?: boolean;
 };
 
-function getUserEmail(
-  value?: string
+function getErrorStatus(
+  error: unknown
 ) {
-  return (
-    value?.trim().toLowerCase() ||
-    "anonymous"
-  );
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
 }
 
-export async function GET(
-  request: Request
+function getErrorMessage(
+  error: unknown,
+  fallback: string
 ) {
-  try {
-    const url =
-      new URL(
-        request.url
-      );
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
 
-    const userEmail =
-      getUserEmail(
-        url.searchParams.get(
-          "userEmail"
-        ) || ""
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+export async function GET() {
+  try {
+    await requireAnyServerPermission([
+      "news.view",
+      "news.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
       );
+    }
 
     const rows =
       await query<OpenedRow>(
@@ -50,7 +84,7 @@ export async function GET(
         WHERE user_email = $1
         `,
         [
-          userEmail,
+          currentUser.email.toLowerCase(),
         ]
       );
 
@@ -70,7 +104,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Gelesene News konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Gelesene News konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -79,7 +116,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -89,13 +128,32 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "news.view",
+      "news.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as MarkOpenedBody;
 
     const userEmail =
-      getUserEmail(
-        body.userEmail
-      );
+      currentUser.email.toLowerCase();
 
     if (body.all) {
       await query(
@@ -172,7 +230,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "News konnte nicht als gelesen markiert werden.",
+          getErrorMessage(
+            error,
+            "News konnte nicht als gelesen markiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -181,7 +242,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

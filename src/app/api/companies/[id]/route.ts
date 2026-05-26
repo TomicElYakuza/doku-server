@@ -14,6 +14,12 @@ import {
   mapCompanyRow,
 } from "../../../../lib/database/mappers/companyMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   CompanyRow,
 } from "../../../../lib/database/mappers/companyMapper";
@@ -31,11 +37,73 @@ type UpdateCompanyBody = {
   status?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessCompany(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  companyId: string
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  return currentUser.companyId === companyId;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -73,6 +141,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessCompany(
+        currentUser,
+        row.id
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapCompanyRow(
         row
@@ -86,7 +172,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Firma konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Firma konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -95,7 +184,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -106,6 +197,30 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "organization.manage",
+      "companies.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Firmen bearbeiten.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -216,7 +331,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Firma konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Firma konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -225,7 +343,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -236,21 +356,61 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "organization.manage",
+      "companies.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Firmen löschen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
 
-    await queryOne(
-      `
-      DELETE FROM companies
-      WHERE id = $1
-      RETURNING id
-      `,
-      [
-        id,
-      ]
-    );
+    const row =
+      await queryOne<{
+        id: string;
+      }>(
+        `
+        DELETE FROM companies
+        WHERE id = $1
+        RETURNING id
+        `,
+        [
+          id,
+        ]
+      );
+
+    if (!row) {
+      return NextResponse.json(
+        {
+          message:
+            "Firma nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
 
     return NextResponse.json({
       ok:
@@ -264,7 +424,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Firma konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Firma konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -273,7 +436,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

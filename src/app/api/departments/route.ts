@@ -15,6 +15,12 @@ import {
   mapDepartmentRow,
 } from "../../../lib/database/mappers/companyMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   DepartmentRow,
 } from "../../../lib/database/mappers/companyMapper";
@@ -27,10 +33,57 @@ type CreateDepartmentBody = {
   status?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -72,6 +125,30 @@ export async function GET(
       );
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.departmentId) {
+        params.push(
+          currentUser.departmentId
+        );
+
+        whereParts.push(
+          `id = $${params.length}`
+        );
+      } else if (currentUser.companyId) {
+        params.push(
+          currentUser.companyId
+        );
+
+        whereParts.push(
+          `company_id = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
+    }
+
     const whereSql =
       whereParts.length > 0
         ? `WHERE ${whereParts.join(" AND ")}`
@@ -109,7 +186,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Abteilungen konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Abteilungen konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -118,7 +198,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -128,6 +210,30 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "organization.manage",
+      "departments.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Abteilungen erstellen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateDepartmentBody;
 
@@ -237,7 +343,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Abteilung konnte nicht erstellt werden.",
+          getErrorMessage(
+            error,
+            "Abteilung konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -246,7 +355,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

@@ -11,6 +11,12 @@ import {
   mapTicketRow,
 } from "../../../lib/database/mappers/ticketMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   TicketRow,
 } from "../../../lib/database/mappers/ticketMapper";
@@ -30,10 +36,67 @@ type CreateTicketBody = {
   tags?: string[];
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.view",
+      "tickets.manage",
+      "tickets.create",
+      "tickets.edit",
+      "tickets.assign",
+      "tickets.close",
+      "tickets.delete",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -105,6 +168,30 @@ export async function GET(
       );
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.departmentId) {
+        params.push(
+          currentUser.departmentId
+        );
+
+        whereParts.push(
+          `department_id = $${params.length}`
+        );
+      } else if (currentUser.companyId) {
+        params.push(
+          currentUser.companyId
+        );
+
+        whereParts.push(
+          `company_id = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
+    }
+
     const whereSql =
       whereParts.length > 0
         ? `WHERE ${whereParts.join(" AND ")}`
@@ -149,7 +236,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Tickets konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Tickets konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -158,7 +248,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -168,6 +260,27 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.create",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateTicketBody;
 
@@ -186,6 +299,39 @@ export async function POST(
         }
       );
     }
+
+    const canChooseScope =
+      currentUser.role === "admin";
+
+    const companyId =
+      canChooseScope
+        ? body.companyId ||
+          null
+        : currentUser.companyId ||
+          null;
+
+    const departmentId =
+      canChooseScope
+        ? body.departmentId ||
+          null
+        : currentUser.departmentId ||
+          null;
+
+    const company =
+      canChooseScope
+        ? body.company ||
+          currentUser.company ||
+          "Intern"
+        : currentUser.company ||
+          "Intern";
+
+    const department =
+      canChooseScope
+        ? body.department ||
+          currentUser.department ||
+          "Allgemein"
+        : currentUser.department ||
+          "Allgemein";
 
     const row =
       await queryOne<TicketRow>(
@@ -245,18 +391,15 @@ export async function POST(
             "medium",
           body.category ||
             "Allgemein",
-          body.companyId ||
-            null,
-          body.departmentId ||
-            null,
-          body.company ||
-            "Intern",
-          body.department ||
-            "Allgemein",
+          companyId,
+          departmentId,
+          company,
+          department,
           body.assignedTo ||
             "",
           body.createdBy ||
-            "",
+            currentUser.name ||
+            "System",
           Array.isArray(
             body.tags
           )
@@ -295,7 +438,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Ticket konnte nicht erstellt werden.",
+          getErrorMessage(
+            error,
+            "Ticket konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -304,7 +450,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

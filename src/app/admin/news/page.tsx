@@ -14,15 +14,14 @@ import {
 } from "../../../lib/newsRepository";
 
 import {
-  canManageSystem,
-  canViewAdmin,
-} from "../../../lib/permissions";
-
-import {
   saveNewsCreatedActivity,
   saveNewsDeletedActivity,
   saveNewsUpdatedActivity,
 } from "../../../lib/newsActivityHelpers";
+
+import {
+  usePermissions,
+} from "../../../hooks/usePermissions";
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
@@ -31,7 +30,7 @@ import type {
   NewsPost,
 } from "../../../types/news";
 
-const defaultCategories: Array<NewsCategory | string> = [
+const defaultCategories: NewsCategory[] = [
   "Allgemein",
   "System",
   "Tickets",
@@ -62,6 +61,45 @@ function getCategoryClass(
 }
 
 export default function AdminNewsPage() {
+  const {
+    user,
+    loading:
+      permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.manage",
+    ]);
+
+  const canCreateNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.create",
+    ]);
+
+  const canEditNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.edit",
+    ]);
+
+  const canDeleteNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.delete",
+    ]);
+
+  const canUseAdminNews =
+    canManageNews ||
+    canCreateNews ||
+    canEditNews ||
+    canDeleteNews;
+
   const [mounted, setMounted] =
     useState(false);
 
@@ -93,7 +131,7 @@ export default function AdminNewsPage() {
     useState("");
 
   const [category, setCategory] =
-    useState<NewsCategory | string>("Allgemein");
+    useState<NewsCategory>("Allgemein");
 
   const [author, setAuthor] =
     useState("System");
@@ -148,7 +186,11 @@ export default function AdminNewsPage() {
         await newsRepository.list();
 
       setPosts(
-        nextPosts
+        Array.isArray(
+          nextPosts
+        )
+          ? nextPosts
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -173,20 +215,41 @@ export default function AdminNewsPage() {
     setDescription("");
     setContent("");
     setCategory("Allgemein");
-    setAuthor("System");
+    setAuthor(
+      user?.name ||
+        "System"
+    );
     setPinned(false);
     setShowForm(false);
   }
 
   function openCreateForm() {
+    if (!canCreateNews) {
+      alert(
+        "Du hast keine Berechtigung, News zu erstellen."
+      );
+
+      return;
+    }
+
     resetForm();
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
   }
 
   function startEditPost(
     post: NewsPost
   ) {
+    if (!canEditNews) {
+      alert(
+        "Du hast keine Berechtigung, News zu bearbeiten."
+      );
+
+      return;
+    }
+
     setEditingPostId(
       post.id
     );
@@ -204,12 +267,13 @@ export default function AdminNewsPage() {
     );
 
     setCategory(
-      post.category ||
-        "Allgemein"
+      (post.category ||
+        "Allgemein") as NewsCategory
     );
 
     setAuthor(
       post.author ||
+        user?.name ||
         "System"
     );
 
@@ -219,7 +283,9 @@ export default function AdminNewsPage() {
       )
     );
 
-    setShowForm(true);
+    setShowForm(
+      true
+    );
 
     window.scrollTo({
       top:
@@ -241,7 +307,7 @@ export default function AdminNewsPage() {
                 String(
                   post.category ||
                     "Allgemein"
-                )
+                ) as NewsCategory
             ),
           ])
         ),
@@ -281,8 +347,14 @@ export default function AdminNewsPage() {
 
             const matchesPinned =
               !pinnedFilter ||
-              (pinnedFilter === "pinned" && post.pinned) ||
-              (pinnedFilter === "normal" && !post.pinned);
+              (
+                pinnedFilter === "pinned" &&
+                post.pinned
+              ) ||
+              (
+                pinnedFilter === "normal" &&
+                !post.pinned
+              );
 
             return (
               matchesSearch &&
@@ -311,9 +383,23 @@ export default function AdminNewsPage() {
   ) {
     event.preventDefault();
 
-    if (!canManageSystem()) {
+    if (
+      editingPostId &&
+      !canEditNews
+    ) {
       alert(
-        "Du hast keine Berechtigung, News zu verwalten."
+        "Du hast keine Berechtigung, News zu bearbeiten."
+      );
+
+      return;
+    }
+
+    if (
+      !editingPostId &&
+      !canCreateNews
+    ) {
+      alert(
+        "Du hast keine Berechtigung, News zu erstellen."
       );
 
       return;
@@ -347,10 +433,13 @@ export default function AdminNewsPage() {
                 content.trim(),
 
               category:
-                category || "Allgemein",
+                category ||
+                "Allgemein",
 
               author:
-                author.trim() || "System",
+                author.trim() ||
+                user?.name ||
+                "System",
 
               pinned,
             }
@@ -381,10 +470,13 @@ export default function AdminNewsPage() {
             content.trim(),
 
           category:
-            category || "Allgemein",
+            category ||
+            "Allgemein",
 
           author:
-            author.trim() || "System",
+            author.trim() ||
+            user?.name ||
+            "System",
 
           pinned,
         });
@@ -416,7 +508,7 @@ export default function AdminNewsPage() {
   async function handleDeletePost(
     post: NewsPost
   ) {
-    if (!canManageSystem()) {
+    if (!canDeleteNews) {
       alert(
         "Du hast keine Berechtigung, News zu löschen."
       );
@@ -466,7 +558,23 @@ export default function AdminNewsPage() {
     return null;
   }
 
-  if (!canViewAdmin()) {
+  if (permissionsLoading) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <p className="text-zinc-500">
+          Berechtigungen werden geladen...
+        </p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <AccessDeniedCard />
+    );
+  }
+
+  if (!canUseAdminNews) {
     return (
       <AccessDeniedCard />
     );
@@ -494,7 +602,7 @@ export default function AdminNewsPage() {
           </p>
         </div>
 
-        {canManageSystem() && (
+        {canCreateNews && (
           <button
             type="button"
             onClick={openCreateForm}
@@ -625,7 +733,7 @@ export default function AdminNewsPage() {
                 value={category}
                 onChange={(event) =>
                   setCategory(
-                    event.target.value
+                    event.target.value as NewsCategory
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
@@ -660,23 +768,21 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            <div className="flex items-end">
-              <label className="flex items-center gap-3 bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 w-full">
-                <input
-                  type="checkbox"
-                  checked={pinned}
-                  onChange={(event) =>
-                    setPinned(
-                      event.target.checked
-                    )
-                  }
-                />
+            <label className="flex items-center gap-3 bg-zinc-50 rounded-2xl p-5">
+              <input
+                type="checkbox"
+                checked={pinned}
+                onChange={(event) =>
+                  setPinned(
+                    event.target.checked
+                  )
+                }
+              />
 
-                <span className="font-medium">
-                  News fixieren
-                </span>
-              </label>
-            </div>
+              <span className="font-medium">
+                News fixieren
+              </span>
+            </label>
 
             <div className="md:col-span-2">
               <label className="block mb-2 font-medium">
@@ -847,8 +953,14 @@ export default function AdminNewsPage() {
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
-                      {post.category || "Allgemein"}
+                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                      String(
+                        post.category ||
+                          "Allgemein"
+                      )
+                    )}`}>
+                      {post.category ||
+                        "Allgemein"}
                     </span>
 
                     {post.pinned && (
@@ -881,15 +993,15 @@ export default function AdminNewsPage() {
                   </div>
                 </div>
 
-                {canManageSystem() && (
-                  <div className="flex flex-wrap gap-3 shrink-0">
-                    <Link
-                      href={`/news/${post.id}`}
-                      className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                    >
-                      Öffnen
-                    </Link>
+                <div className="flex flex-wrap gap-3 shrink-0">
+                  <Link
+                    href={`/news/${post.id}`}
+                    className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                  >
+                    Öffnen
+                  </Link>
 
+                  {canEditNews && (
                     <button
                       type="button"
                       onClick={() =>
@@ -901,7 +1013,9 @@ export default function AdminNewsPage() {
                     >
                       Bearbeiten
                     </button>
+                  )}
 
+                  {canDeleteNews && (
                     <button
                       type="button"
                       onClick={() =>
@@ -913,8 +1027,8 @@ export default function AdminNewsPage() {
                     >
                       Löschen
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           )

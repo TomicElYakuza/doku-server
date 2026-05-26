@@ -3,8 +3,13 @@ import {
 } from "next/server";
 
 import {
-  queryOne,
+  query,
 } from "../../../../../lib/database/db";
+
+import {
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../../lib/serverPermissions";
 
 type RouteContext = {
   params: Promise<{
@@ -12,11 +17,47 @@ type RouteContext = {
   }>;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function DELETE(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "files.delete",
+      "files.manage",
+    ]);
+
     const {
       key,
     } =
@@ -27,11 +68,10 @@ export async function DELETE(
         key
       );
 
-    await queryOne(
+    await query(
       `
       DELETE FROM files
       WHERE storage_key = $1
-      RETURNING id
       `,
       [
         decodedKey,
@@ -50,7 +90,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Dateien konnten nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Dateien konnten nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -59,7 +102,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

@@ -10,6 +10,12 @@ import {
   mapTicketRow,
 } from "../../../../lib/database/mappers/ticketMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   TicketRow,
 } from "../../../../lib/database/mappers/ticketMapper";
@@ -35,11 +41,124 @@ type UpdateTicketBody = {
   tags?: string[];
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessTicket(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  ticket: TicketRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    ticket.department_id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    ticket.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function statusIsClosing(
+  nextStatus: string | undefined,
+  currentStatus: string
+) {
+  return (
+    nextStatus === "closed" &&
+    currentStatus !== "closed"
+  );
+}
+
+function assignmentIsChanging(
+  nextAssignedTo: string | undefined,
+  currentAssignedTo: string | null
+) {
+  if (nextAssignedTo === undefined) {
+    return false;
+  }
+
+  return (
+    nextAssignedTo !==
+    (
+      currentAssignedTo ||
+      ""
+    )
+  );
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.view",
+      "tickets.manage",
+      "tickets.create",
+      "tickets.edit",
+      "tickets.assign",
+      "tickets.close",
+      "tickets.delete",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -85,6 +204,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessTicket(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapTicketRow(
         row
@@ -98,7 +235,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Ticket konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Ticket konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -107,7 +247,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -118,6 +260,29 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.edit",
+      "tickets.assign",
+      "tickets.close",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -165,6 +330,51 @@ export async function PATCH(
         }
       );
     }
+
+    if (
+      !userCanAccessTicket(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    if (
+      statusIsClosing(
+        body.status,
+        current.status
+      )
+    ) {
+      await requireAnyServerPermission([
+        "tickets.close",
+        "tickets.manage",
+      ]);
+    }
+
+    if (
+      assignmentIsChanging(
+        body.assignedTo,
+        current.assigned_to
+      )
+    ) {
+      await requireAnyServerPermission([
+        "tickets.assign",
+        "tickets.manage",
+      ]);
+    }
+
+    const canChooseScope =
+      currentUser.role === "admin";
 
     const row =
       await queryOne<TicketRow>(
@@ -216,23 +426,35 @@ export async function PATCH(
           body.category ||
             current.category ||
             "Allgemein",
-          body.companyId !== undefined
-            ? body.companyId ||
-              null
+          canChooseScope
+            ? body.companyId !== undefined
+              ? body.companyId ||
+                null
+              : current.company_id
             : current.company_id,
-          body.departmentId !== undefined
-            ? body.departmentId ||
-              null
+          canChooseScope
+            ? body.departmentId !== undefined
+              ? body.departmentId ||
+                null
+              : current.department_id
             : current.department_id,
-          body.company !== undefined
-            ? body.company ||
-              "Intern"
+          canChooseScope
+            ? body.company !== undefined
+              ? body.company ||
+                "Intern"
+              : current.company ||
+                "Intern"
             : current.company ||
+              currentUser.company ||
               "Intern",
-          body.department !== undefined
-            ? body.department ||
-              "Allgemein"
+          canChooseScope
+            ? body.department !== undefined
+              ? body.department ||
+                "Allgemein"
+              : current.department ||
+                "Allgemein"
             : current.department ||
+              currentUser.department ||
               "Allgemein",
           body.assignedTo !== undefined
             ? body.assignedTo
@@ -278,7 +500,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Ticket konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Ticket konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -287,7 +512,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -298,10 +525,89 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.delete",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
+
+    const current =
+      await queryOne<TicketRow>(
+        `
+        SELECT
+          id,
+          title,
+          description,
+          status,
+          priority,
+          category,
+          company_id,
+          department_id,
+          company,
+          department,
+          assigned_to,
+          created_by,
+          tags,
+          created_at,
+          updated_at
+        FROM tickets
+        WHERE id = $1
+        `,
+        [
+          id,
+        ]
+      );
+
+    if (!current) {
+      return NextResponse.json(
+        {
+          message:
+            "Ticket nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+    if (
+      !userCanAccessTicket(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
 
     await queryOne(
       `
@@ -326,7 +632,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Ticket konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Ticket konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -335,7 +644,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

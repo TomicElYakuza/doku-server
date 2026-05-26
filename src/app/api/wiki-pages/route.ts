@@ -15,6 +15,12 @@ import {
   mapWikiPageRow,
 } from "../../../lib/database/mappers/wikiMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   WikiPageRow,
 } from "../../../lib/database/mappers/wikiMapper";
@@ -32,10 +38,65 @@ type CreateWikiPageBody = {
   content?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "wiki.view",
+      "wiki.manage",
+      "wiki.create",
+      "wiki.edit",
+      "wiki.delete",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -107,6 +168,30 @@ export async function GET(
       );
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.department) {
+        params.push(
+          currentUser.department
+        );
+
+        whereParts.push(
+          `(department = $${params.length} OR category = $${params.length})`
+        );
+      } else if (currentUser.company) {
+        params.push(
+          currentUser.company
+        );
+
+        whereParts.push(
+          `company = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
+    }
+
     const whereSql =
       whereParts.length > 0
         ? `WHERE ${whereParts.join(" AND ")}`
@@ -149,7 +234,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Wiki-Seiten konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Wiki-Seiten konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -158,7 +246,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -168,6 +258,27 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "wiki.create",
+      "wiki.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateWikiPageBody;
 
@@ -195,6 +306,24 @@ export async function POST(
         : createSlug(
             title
           );
+
+    const canChooseScope =
+      currentUser.role === "admin";
+
+    const company =
+      canChooseScope
+        ? body.company ||
+          "Intern"
+        : currentUser.company ||
+          "Intern";
+
+    const department =
+      canChooseScope
+        ? body.department ||
+          body.category ||
+          "Allgemein"
+        : currentUser.department ||
+          "Allgemein";
 
     const row =
       await queryOne<WikiPageRow>(
@@ -246,15 +375,11 @@ export async function POST(
           body.excerpt?.trim() ||
             body.description?.trim() ||
             "",
-          body.company ||
-            "Intern",
-          body.category ||
-            body.department ||
-            "Allgemein",
-          body.department ||
-            body.category ||
-            "Allgemein",
+          company,
+          department,
+          department,
           body.author ||
+            currentUser.name ||
             "Unbekannt",
           Array.isArray(
             body.tags
@@ -296,7 +421,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Wiki-Seite konnte nicht erstellt werden.",
+          getErrorMessage(
+            error,
+            "Wiki-Seite konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -305,7 +433,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

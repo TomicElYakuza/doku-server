@@ -3,12 +3,312 @@ import {
 } from "next/server";
 
 import {
-  initDatabase,
-} from "../../../../lib/database/initDatabase";
+  query,
+} from "../../../../lib/database/db";
+
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
 
 export async function POST() {
   try {
-    await initDatabase();
+    await requireAnyServerPermission([
+      "settings.manage",
+      "organization.manage",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen die Datenbankinitialisierung ausführen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    await query(`
+      CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS departments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(company_id, slug)
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        username TEXT UNIQUE,
+        password_hash TEXT,
+        password_must_change BOOLEAN NOT NULL DEFAULT TRUE,
+        role TEXT NOT NULL DEFAULT 'employee',
+        status TEXT NOT NULL DEFAULT 'active',
+        company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+        department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+        company TEXT NOT NULL DEFAULT 'Intern',
+        department TEXT NOT NULL DEFAULT 'Allgemein',
+        last_login_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS permissions (
+        id TEXT PRIMARY KEY,
+        permission_key TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'Allgemein',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS company_permissions (
+        id TEXT PRIMARY KEY,
+        company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        permission_key TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(company_id, permission_key)
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS department_permissions (
+        id TEXT PRIMARY KEY,
+        department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        permission_key TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(department_id, permission_key)
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_permissions (
+        id TEXT PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+        permission_key TEXT NOT NULL,
+        scope_type TEXT NOT NULL DEFAULT 'global',
+        scope_id TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, permission_key, scope_type, scope_id)
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS tickets (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'open',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        category TEXT NOT NULL DEFAULT 'Allgemein',
+        company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+        department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+        company TEXT NOT NULL DEFAULT 'Intern',
+        department TEXT NOT NULL DEFAULT 'Allgemein',
+        assigned_to TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL DEFAULT 'System',
+        tags TEXT[] NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS ticket_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'open',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        category TEXT NOT NULL DEFAULT 'Allgemein',
+        company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+        department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+        company TEXT NOT NULL DEFAULT 'Intern',
+        department TEXT NOT NULL DEFAULT 'Allgemein',
+        assigned_to TEXT NOT NULL DEFAULT '',
+        tags TEXT[] NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS wiki_pages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        slug TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        excerpt TEXT NOT NULL DEFAULT '',
+        company TEXT NOT NULL DEFAULT 'Intern',
+        category TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT 'Allgemein',
+        author TEXT NOT NULL DEFAULT 'System',
+        tags TEXT[] NOT NULL DEFAULT '{}',
+        content TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS news_posts (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'Allgemein',
+        author TEXT NOT NULL DEFAULT 'System',
+        pinned BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS news_opened (
+        news_id TEXT NOT NULL REFERENCES news_posts(id) ON DELETE CASCADE,
+        user_email TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        PRIMARY KEY(news_id, user_email)
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS files (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        storage_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'application/octet-stream',
+        size INTEGER NOT NULL DEFAULT 0,
+        data TEXT NOT NULL,
+        uploaded_by TEXT NOT NULL DEFAULT 'System',
+        uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        author TEXT NOT NULL DEFAULT 'Unbekannt',
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS activities (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'system',
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        entity_type TEXT NOT NULL DEFAULT 'system',
+        entity_id TEXT NOT NULL DEFAULT '',
+        user_name TEXT NOT NULL DEFAULT 'System',
+        user_email TEXT NOT NULL DEFAULT '',
+        user_display TEXT NOT NULL DEFAULT 'System',
+        company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+        department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+        company TEXT NOT NULL DEFAULT 'Intern',
+        department TEXT NOT NULL DEFAULT 'Allgemein',
+        metadata JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id TEXT PRIMARY KEY,
+        app_name TEXT NOT NULL DEFAULT 'Intranet',
+        company_name TEXT NOT NULL DEFAULT 'Intern',
+        app_version TEXT NOT NULL DEFAULT '0.1.0',
+        theme TEXT NOT NULL DEFAULT 'modern',
+        dark_mode BOOLEAN NOT NULL DEFAULT FALSE,
+        accent_color TEXT NOT NULL DEFAULT 'zinc',
+        app_accent_color TEXT NOT NULL DEFAULT 'zinc',
+        sidebar_position TEXT NOT NULL DEFAULT 'left',
+        compact_mode BOOLEAN NOT NULL DEFAULT FALSE,
+        show_version BOOLEAN NOT NULL DEFAULT TRUE,
+        show_demo_hints BOOLEAN NOT NULL DEFAULT TRUE,
+        enable_ticket_comments BOOLEAN NOT NULL DEFAULT TRUE,
+        enable_ticket_templates BOOLEAN NOT NULL DEFAULT TRUE,
+        enable_activity_log BOOLEAN NOT NULL DEFAULT TRUE,
+        default_user_role TEXT NOT NULL DEFAULT 'employee',
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
 
     return NextResponse.json({
       ok:
@@ -24,11 +324,11 @@ export async function POST() {
 
     return NextResponse.json(
       {
-        ok:
-          false,
-
         message:
-          "Datenbank konnte nicht initialisiert werden.",
+          getErrorMessage(
+            error,
+            "Datenbank konnte nicht initialisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -37,7 +337,9 @@ export async function POST() {
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

@@ -8,12 +8,28 @@ import {
 } from "../../../lib/database/db";
 
 import {
-  mapActivityRow,
-} from "../../../lib/database/mappers/activityMapper";
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
 
-import type {
-  ActivityRow,
-} from "../../../lib/database/mappers/activityMapper";
+type ActivityRow = {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  entity_type: string;
+  entity_id: string;
+  user_name: string;
+  user_email: string;
+  user_display: string;
+  company_id: string | null;
+  department_id: string | null;
+  company: string;
+  department: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
 
 type CreateActivityBody = {
   type?: string;
@@ -31,10 +47,122 @@ type CreateActivityBody = {
   metadata?: Record<string, unknown>;
 };
 
+function mapActivityRow(
+  row: ActivityRow
+) {
+  return {
+    id:
+      row.id,
+
+    type:
+      row.type,
+
+    title:
+      row.title,
+
+    description:
+      row.description,
+
+    entityType:
+      row.entity_type,
+
+    entityId:
+      row.entity_id,
+
+    userName:
+      row.user_name,
+
+    userEmail:
+      row.user_email,
+
+    user:
+      row.user_display,
+
+    companyId:
+      row.company_id ||
+      "",
+
+    departmentId:
+      row.department_id ||
+      "",
+
+    company:
+      row.company,
+
+    department:
+      row.department,
+
+    metadata:
+      row.metadata ||
+      {},
+
+    createdAt:
+      row.created_at,
+  };
+}
+
+function createActivityId() {
+  return `activity-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "activity.view",
+      "activity.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -48,11 +176,6 @@ export async function GET(
     const entityType =
       url.searchParams.get(
         "entityType"
-      );
-
-    const entityId =
-      url.searchParams.get(
-        "entityId"
       );
 
     const companyId =
@@ -81,24 +204,13 @@ export async function GET(
       );
     }
 
-    if (
-      entityType &&
-      entityId
-    ) {
+    if (entityType) {
       params.push(
         entityType
       );
 
       whereParts.push(
         `entity_type = $${params.length}`
-      );
-
-      params.push(
-        entityId
-      );
-
-      whereParts.push(
-        `entity_id = $${params.length}`
       );
     }
 
@@ -122,6 +234,30 @@ export async function GET(
       );
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.departmentId) {
+        params.push(
+          currentUser.departmentId
+        );
+
+        whereParts.push(
+          `department_id = $${params.length}`
+        );
+      } else if (currentUser.companyId) {
+        params.push(
+          currentUser.companyId
+        );
+
+        whereParts.push(
+          `company_id = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
+    }
+
     const whereSql =
       whereParts.length > 0
         ? `WHERE ${whereParts.join(" AND ")}`
@@ -139,7 +275,7 @@ export async function GET(
           entity_id,
           user_name,
           user_email,
-          user_label,
+          user_display,
           company_id,
           department_id,
           company,
@@ -166,7 +302,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Aktivitäten konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Aktivitäten konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -175,7 +314,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -185,23 +326,29 @@ export async function POST(
   request: Request
 ) {
   try {
-    const body =
-      await request.json() as CreateActivityBody;
+    const currentUser =
+      await getCurrentServerUser();
 
-    if (!body.type) {
+    if (!currentUser) {
       return NextResponse.json(
         {
           message:
-            "Aktivitätstyp ist erforderlich.",
+            "Nicht angemeldet.",
         },
         {
           status:
-            400,
+            401,
         }
       );
     }
 
-    if (!body.title) {
+    const body =
+      await request.json() as CreateActivityBody;
+
+    const title =
+      body.title?.trim();
+
+    if (!title) {
       return NextResponse.json(
         {
           message:
@@ -218,6 +365,7 @@ export async function POST(
       await queryOne<ActivityRow>(
         `
         INSERT INTO activities (
+          id,
           type,
           title,
           description,
@@ -225,7 +373,7 @@ export async function POST(
           entity_id,
           user_name,
           user_email,
-          user_label,
+          user_display,
           company_id,
           department_id,
           company,
@@ -245,7 +393,8 @@ export async function POST(
           $10,
           $11,
           $12,
-          $13
+          $13,
+          $14
         )
         RETURNING
           id,
@@ -256,7 +405,7 @@ export async function POST(
           entity_id,
           user_name,
           user_email,
-          user_label,
+          user_display,
           company_id,
           department_id,
           company,
@@ -265,29 +414,37 @@ export async function POST(
           created_at
         `,
         [
-          body.type,
-          body.title,
-          body.description ||
+          createActivityId(),
+          body.type ||
+            "system",
+          title,
+          body.description?.trim() ||
             "",
           body.entityType ||
-            "",
+            "system",
           body.entityId ||
             "",
           body.userName ||
-            body.user ||
-            "",
+            currentUser.name ||
+            "System",
           body.userEmail ||
+            currentUser.email ||
             "",
           body.user ||
             body.userName ||
-            "Unbekannt",
+            currentUser.name ||
+            "System",
           body.companyId ||
+            currentUser.companyId ||
             null,
           body.departmentId ||
+            currentUser.departmentId ||
             null,
           body.company ||
+            currentUser.company ||
             "Intern",
           body.department ||
+            currentUser.department ||
             "Allgemein",
           body.metadata ||
             {},
@@ -298,7 +455,7 @@ export async function POST(
       return NextResponse.json(
         {
           message:
-            "Aktivität konnte nicht gespeichert werden.",
+            "Aktivität konnte nicht erstellt werden.",
         },
         {
           status:
@@ -324,7 +481,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Aktivität konnte nicht gespeichert werden.",
+          getErrorMessage(
+            error,
+            "Aktivität konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -333,7 +493,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

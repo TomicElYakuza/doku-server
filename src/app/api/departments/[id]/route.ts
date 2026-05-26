@@ -14,6 +14,12 @@ import {
   mapDepartmentRow,
 } from "../../../../lib/database/mappers/companyMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   DepartmentRow,
 } from "../../../../lib/database/mappers/companyMapper";
@@ -32,11 +38,87 @@ type UpdateDepartmentBody = {
   status?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessDepartment(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  department: DepartmentRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    department.id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    department.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -75,6 +157,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessDepartment(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapDepartmentRow(
         row
@@ -88,7 +188,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Abteilung konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Abteilung konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -97,7 +200,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -108,6 +213,30 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "organization.manage",
+      "departments.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Abteilungen bearbeiten.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -223,7 +352,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Abteilung konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Abteilung konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -232,7 +364,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -243,21 +377,61 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "organization.manage",
+      "departments.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Abteilungen löschen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
 
-    await queryOne(
-      `
-      DELETE FROM departments
-      WHERE id = $1
-      RETURNING id
-      `,
-      [
-        id,
-      ]
-    );
+    const row =
+      await queryOne<{
+        id: string;
+      }>(
+        `
+        DELETE FROM departments
+        WHERE id = $1
+        RETURNING id
+        `,
+        [
+          id,
+        ]
+      );
+
+    if (!row) {
+      return NextResponse.json(
+        {
+          message:
+            "Abteilung nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
 
     return NextResponse.json({
       ok:
@@ -271,7 +445,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Abteilung konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Abteilung konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -280,7 +457,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

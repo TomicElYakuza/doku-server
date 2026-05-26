@@ -11,6 +11,12 @@ import {
   mapCommentRow,
 } from "../../../lib/database/mappers/commentMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   CommentRow,
 } from "../../../lib/database/mappers/commentMapper";
@@ -22,10 +28,127 @@ type CreateCommentBody = {
   content?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function getViewPermissionsForEntity(
+  entityType?: string
+) {
+  if (entityType === "ticket") {
+    return [
+      "tickets.view",
+      "tickets.manage",
+    ];
+  }
+
+  if (entityType === "wiki") {
+    return [
+      "wiki.view",
+      "wiki.manage",
+    ];
+  }
+
+  if (entityType === "news") {
+    return [
+      "news.view",
+      "news.manage",
+    ];
+  }
+
+  return [
+    "tickets.view",
+    "tickets.manage",
+    "wiki.view",
+    "wiki.manage",
+    "news.view",
+    "news.manage",
+    "activity.view",
+    "activity.manage",
+  ];
+}
+
+function getCreatePermissionsForEntity(
+  entityType?: string
+) {
+  if (entityType === "ticket") {
+    return [
+      "tickets.edit",
+      "tickets.manage",
+    ];
+  }
+
+  if (entityType === "wiki") {
+    return [
+      "wiki.edit",
+      "wiki.manage",
+    ];
+  }
+
+  if (entityType === "news") {
+    return [
+      "news.edit",
+      "news.manage",
+    ];
+  }
+
+  return [
+    "tickets.edit",
+    "tickets.manage",
+    "wiki.edit",
+    "wiki.manage",
+    "news.edit",
+    "news.manage",
+  ];
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -34,12 +157,19 @@ export async function GET(
     const entityType =
       url.searchParams.get(
         "entityType"
-      );
+      ) ||
+      "";
 
     const entityId =
       url.searchParams.get(
         "entityId"
       );
+
+    await requireAnyServerPermission(
+      getViewPermissionsForEntity(
+        entityType
+      )
+    );
 
     const params: unknown[] =
       [];
@@ -102,7 +232,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Kommentare konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Kommentare konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -111,7 +244,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -121,6 +256,22 @@ export async function POST(
   request: Request
 ) {
   try {
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateCommentBody;
 
@@ -163,6 +314,12 @@ export async function POST(
       );
     }
 
+    await requireAnyServerPermission(
+      getCreatePermissionsForEntity(
+        body.entityType
+      )
+    );
+
     const row =
       await queryOne<CommentRow>(
         `
@@ -190,6 +347,7 @@ export async function POST(
           body.entityType,
           body.entityId,
           body.author ||
+            currentUser.name ||
             "Unbekannt",
           body.content.trim(),
         ]
@@ -225,7 +383,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Kommentar konnte nicht gespeichert werden.",
+          getErrorMessage(
+            error,
+            "Kommentar konnte nicht gespeichert werden."
+          ),
 
         error:
           error instanceof Error
@@ -234,7 +395,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

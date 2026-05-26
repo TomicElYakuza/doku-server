@@ -14,6 +14,12 @@ import {
   mapWikiPageRow,
 } from "../../../../lib/database/mappers/wikiMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   WikiPageRow,
 } from "../../../../lib/database/mappers/wikiMapper";
@@ -37,11 +43,100 @@ type UpdateWikiPageBody = {
   content?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessPage(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  page: WikiPageRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  const pageDepartment =
+    page.department ||
+    page.category ||
+    "";
+
+  if (
+    currentUser.department &&
+    pageDepartment === currentUser.department
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.company &&
+    page.company === currentUser.company
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "wiki.view",
+      "wiki.manage",
+      "wiki.create",
+      "wiki.edit",
+      "wiki.delete",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       slug,
     } =
@@ -90,6 +185,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessPage(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapWikiPageRow(
         row
@@ -103,7 +216,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Wiki-Seite konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Wiki-Seite konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -112,7 +228,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -123,6 +241,27 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "wiki.edit",
+      "wiki.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       slug,
     } =
@@ -132,9 +271,6 @@ export async function PATCH(
       decodeURIComponent(
         slug
       );
-
-    const body =
-      await request.json() as UpdateWikiPageBody;
 
     const current =
       await queryOne<WikiPageRow>(
@@ -174,6 +310,30 @@ export async function PATCH(
       );
     }
 
+    if (
+      !userCanAccessPage(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    const body =
+      await request.json() as UpdateWikiPageBody;
+
+    const canChooseScope =
+      currentUser.role === "admin";
+
     const nextTitle =
       body.title?.trim() ||
       current.title;
@@ -184,6 +344,31 @@ export async function PATCH(
             body.slug
           )
         : current.slug;
+
+    const nextCompany =
+      canChooseScope
+        ? body.company !== undefined
+          ? body.company ||
+            "Intern"
+          : current.company ||
+            "Intern"
+        : current.company ||
+          currentUser.company ||
+          "Intern";
+
+    const nextDepartment =
+      canChooseScope
+        ? body.department !== undefined
+          ? body.department ||
+            body.category ||
+            "Allgemein"
+          : current.department ||
+            current.category ||
+            "Allgemein"
+        : current.department ||
+          current.category ||
+          currentUser.department ||
+          "Allgemein";
 
     const row =
       await queryOne<WikiPageRow>(
@@ -229,24 +414,12 @@ export async function PATCH(
             : current.excerpt ||
               current.description ||
               "",
-          body.company !== undefined
-            ? body.company ||
-              "Intern"
-            : current.company ||
-              "Intern",
-          body.category !== undefined
-            ? body.category ||
-              "Allgemein"
-            : current.category ||
-              "Allgemein",
-          body.department !== undefined
-            ? body.department ||
-              "Allgemein"
-            : current.department ||
-              current.category ||
-              "Allgemein",
+          nextCompany,
+          nextDepartment,
+          nextDepartment,
           body.author !== undefined
             ? body.author ||
+              currentUser.name ||
               "Unbekannt"
             : current.author ||
               "Unbekannt",
@@ -290,7 +463,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Wiki-Seite konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Wiki-Seite konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -299,7 +475,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -310,6 +488,27 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "wiki.delete",
+      "wiki.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       slug,
     } =
@@ -319,6 +518,62 @@ export async function DELETE(
       decodeURIComponent(
         slug
       );
+
+    const current =
+      await queryOne<WikiPageRow>(
+        `
+        SELECT
+          id,
+          slug,
+          title,
+          description,
+          excerpt,
+          company,
+          category,
+          department,
+          author,
+          tags,
+          content,
+          created_at,
+          updated_at
+        FROM wiki_pages
+        WHERE slug = $1
+        `,
+        [
+          decodedSlug,
+        ]
+      );
+
+    if (!current) {
+      return NextResponse.json(
+        {
+          message:
+            "Wiki-Seite nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+    if (
+      !userCanAccessPage(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
 
     await queryOne(
       `
@@ -343,7 +598,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Wiki-Seite konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Wiki-Seite konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -352,7 +610,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

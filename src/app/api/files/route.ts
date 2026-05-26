@@ -11,6 +11,11 @@ import {
   mapFileRow,
 } from "../../../lib/database/mappers/fileMapper";
 
+import {
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   FileRow,
 } from "../../../lib/database/mappers/fileMapper";
@@ -25,10 +30,48 @@ type CreateFileBody = {
   uploadedBy?: string;
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "files.view",
+      "files.upload",
+      "files.delete",
+      "files.manage",
+    ]);
+
     const url =
       new URL(
         request.url
@@ -85,7 +128,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Dateien konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Dateien konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -94,7 +140,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -104,6 +152,11 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "files.upload",
+      "files.manage",
+    ]);
+
     const body =
       await request.json() as CreateFileBody;
 
@@ -222,7 +275,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Datei konnte nicht gespeichert werden.",
+          getErrorMessage(
+            error,
+            "Datei konnte nicht gespeichert werden."
+          ),
 
         error:
           error instanceof Error
@@ -231,7 +287,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

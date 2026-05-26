@@ -10,6 +10,12 @@ import {
   mapTicketTemplateRow,
 } from "../../../../lib/database/mappers/ticketMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   TicketTemplateRow,
 } from "../../../../lib/database/mappers/ticketMapper";
@@ -34,11 +40,96 @@ type UpdateTicketTemplateBody = {
   tags?: string[];
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessTemplate(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  template: TicketTemplateRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    template.department_id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    template.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.view",
+      "tickets.templates.manage",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -83,6 +174,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessTemplate(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapTicketTemplateRow(
         row
@@ -96,7 +205,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Ticket-Vorlage konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Ticket-Vorlage konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -105,7 +217,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -116,13 +230,32 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.edit",
+      "tickets.templates.manage",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
-
-    const body =
-      await request.json() as UpdateTicketTemplateBody;
 
     const current =
       await queryOne<TicketTemplateRow>(
@@ -162,6 +295,30 @@ export async function PATCH(
         }
       );
     }
+
+    if (
+      !userCanAccessTemplate(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    const body =
+      await request.json() as UpdateTicketTemplateBody;
+
+    const canChooseScope =
+      currentUser.role === "admin";
 
     const row =
       await queryOne<TicketTemplateRow>(
@@ -211,23 +368,35 @@ export async function PATCH(
           body.category ||
             current.category ||
             "Allgemein",
-          body.companyId !== undefined
-            ? body.companyId ||
-              null
+          canChooseScope
+            ? body.companyId !== undefined
+              ? body.companyId ||
+                null
+              : current.company_id
             : current.company_id,
-          body.departmentId !== undefined
-            ? body.departmentId ||
-              null
+          canChooseScope
+            ? body.departmentId !== undefined
+              ? body.departmentId ||
+                null
+              : current.department_id
             : current.department_id,
-          body.company !== undefined
-            ? body.company ||
-              "Intern"
+          canChooseScope
+            ? body.company !== undefined
+              ? body.company ||
+                "Intern"
+              : current.company ||
+                "Intern"
             : current.company ||
+              currentUser.company ||
               "Intern",
-          body.department !== undefined
-            ? body.department ||
-              "Allgemein"
+          canChooseScope
+            ? body.department !== undefined
+              ? body.department ||
+                "Allgemein"
+              : current.department ||
+                "Allgemein"
             : current.department ||
+              currentUser.department ||
               "Allgemein",
           body.assignedTo !== undefined
             ? body.assignedTo
@@ -269,7 +438,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Ticket-Vorlage konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Ticket-Vorlage konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -278,7 +450,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -289,10 +463,89 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.delete",
+      "tickets.templates.manage",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
+
+    const current =
+      await queryOne<TicketTemplateRow>(
+        `
+        SELECT
+          id,
+          title,
+          description,
+          status,
+          priority,
+          category,
+          company_id,
+          department_id,
+          company,
+          department,
+          assigned_to,
+          tags,
+          created_at,
+          updated_at
+        FROM ticket_templates
+        WHERE id = $1
+        `,
+        [
+          id,
+        ]
+      );
+
+    if (!current) {
+      return NextResponse.json(
+        {
+          message:
+            "Ticket-Vorlage nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+    if (
+      !userCanAccessTemplate(
+        currentUser,
+        current
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
 
     await queryOne(
       `
@@ -317,7 +570,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Ticket-Vorlage konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Ticket-Vorlage konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -326,7 +582,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

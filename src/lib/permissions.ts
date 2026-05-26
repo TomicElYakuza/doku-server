@@ -3,84 +3,163 @@ import {
 } from "./currentUserRepository";
 
 import type {
+  User,
   UserRole,
 } from "../types/user";
 
-type AppRole =
-  | UserRole
-  | "admin"
-  | "department_lead"
-  | "employee";
+export type PermissionKey =
+  | "*"
+  | "dashboard.view"
+  | "news.view"
+  | "news.create"
+  | "news.edit"
+  | "news.delete"
+  | "news.manage"
+  | "wiki.view"
+  | "wiki.create"
+  | "wiki.edit"
+  | "wiki.delete"
+  | "wiki.manage"
+  | "tickets.view"
+  | "tickets.create"
+  | "tickets.edit"
+  | "tickets.assign"
+  | "tickets.close"
+  | "tickets.delete"
+  | "tickets.manage"
+  | "tickets.templates.view"
+  | "tickets.templates.create"
+  | "tickets.templates.edit"
+  | "tickets.templates.delete"
+  | "tickets.templates.manage"
+  | "files.view"
+  | "files.upload"
+  | "files.delete"
+  | "files.manage"
+  | "activity.view"
+  | "activity.manage"
+  | "settings.view"
+  | "settings.manage"
+  | "users.view"
+  | "users.create"
+  | "users.edit"
+  | "users.delete"
+  | "users.manage_permissions"
+  | "organization.view"
+  | "organization.manage"
+  | "companies.manage"
+  | "departments.manage";
 
-function getCurrentUserRole(): AppRole {
-  const user =
-    getCachedCurrentUser();
+export type PermissionContext = {
+  companyId?: string;
+  departmentId?: string;
+  ownerId?: string;
+};
+
+export function getCurrentUser() {
+  return getCachedCurrentUser();
+}
+
+export function getCurrentUserRole(): UserRole {
+  return getCachedCurrentUser()?.role ||
+    "employee";
+}
+
+export function isAdmin(
+  user: User | null = getCachedCurrentUser()
+) {
+  return user?.role === "admin";
+}
+
+export function isDepartmentLead(
+  user: User | null = getCachedCurrentUser()
+) {
+  return user?.role === "department_lead";
+}
+
+export function isEmployee(
+  user: User | null = getCachedCurrentUser()
+) {
+  return user?.role === "employee";
+}
+
+export function getRoleLabel(
+  role?: string
+) {
+  if (role === "admin") {
+    return "Administrator";
+  }
+
+  if (role === "department_lead") {
+    return "Abteilungsleiter";
+  }
+
+  return "Mitarbeiter";
+}
+
+export function getRoleDescription(
+  role?: string
+) {
+  if (role === "admin") {
+    return "Hat vollständigen Zugriff auf alle Bereiche, Einstellungen und Admin-Funktionen.";
+  }
+
+  if (role === "department_lead") {
+    return "Kann die eigene Abteilung verwalten und Inhalte der zugeordneten Abteilung bearbeiten.";
+  }
+
+  return "Hat Grundberechtigungen und erhält zusätzliche Rechte über Firma, Abteilung oder Einzelberechtigungen.";
+}
+
+export function canViewAdmin() {
+  return isAdmin();
+}
+
+export function canViewActivity() {
+  const role =
+    getCurrentUserRole();
 
   return (
-    user?.role ||
-    "employee"
-  ) as AppRole;
-}
-
-function isAdminRole(
-  role: AppRole
-) {
-  return role === "admin";
-}
-
-function isDepartmentLeadRole(
-  role: AppRole
-) {
-  return role === "department_lead";
-}
-
-function isEmployeeRole(
-  role: AppRole
-) {
-  return role === "employee";
-}
-
-function isAdminOrDepartmentLead(
-  role: AppRole
-) {
-  return (
-    isAdminRole(
-      role
-    ) ||
-    isDepartmentLeadRole(
-      role
-    )
+    role === "admin" ||
+    role === "department_lead"
   );
 }
 
-export function isAdmin() {
-  return isAdminRole(
-    getCurrentUserRole()
-  );
+export function canManageSettings() {
+  return isAdmin();
 }
 
-export function isEditor() {
-  return isDepartmentLeadRole(
-    getCurrentUserRole()
-  );
+export function canManageUsers() {
+  return isAdmin();
 }
 
-export function isViewer() {
-  return isEmployeeRole(
-    getCurrentUserRole()
-  );
+export function canManagePermissions() {
+  return isAdmin();
 }
 
-export function canView() {
-  return true;
+export function canManageOrganization() {
+  return isAdmin();
+}
+
+export function canManageCompanies() {
+  return isAdmin();
+}
+
+export function canManageDepartments() {
+  return isAdmin();
+}
+
+export function canManageSystem() {
+  return isAdmin();
 }
 
 export function canCreate() {
   const role =
     getCurrentUserRole();
 
-  return isAdminOrDepartmentLead(
-    role
+  return (
+    role === "admin" ||
+    role === "department_lead"
   );
 }
 
@@ -88,144 +167,100 @@ export function canEdit() {
   const role =
     getCurrentUserRole();
 
-  return isAdminOrDepartmentLead(
-    role
+  return (
+    role === "admin" ||
+    role === "department_lead"
   );
 }
 
 export function canDelete() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminRole(
-    role
-  );
+  return isAdmin();
 }
 
-export function canViewAdmin() {
-  const role =
-    getCurrentUserRole();
+export function canViewCompanyScope(
+  companyId?: string,
+  user: User | null = getCachedCurrentUser()
+) {
+  if (!user) {
+    return false;
+  }
 
-  return isAdminRole(
-    role
-  );
+  if (user.role === "admin") {
+    return true;
+  }
+
+  if (!companyId) {
+    return true;
+  }
+
+  return user.companyId === companyId;
 }
 
-export function canManageUsers() {
-  const role =
-    getCurrentUserRole();
+export function canViewDepartmentScope(
+  departmentId?: string,
+  user: User | null = getCachedCurrentUser()
+) {
+  if (!user) {
+    return false;
+  }
 
-  return isAdminRole(
-    role
-  );
+  if (user.role === "admin") {
+    return true;
+  }
+
+  if (!departmentId) {
+    return true;
+  }
+
+  return user.departmentId === departmentId;
 }
 
-export function canManageCompanies() {
-  const role =
-    getCurrentUserRole();
+export function canEditDepartmentScope(
+  departmentId?: string,
+  user: User | null = getCachedCurrentUser()
+) {
+  if (!user) {
+    return false;
+  }
 
-  return isAdminRole(
-    role
-  );
+  if (user.role === "admin") {
+    return true;
+  }
+
+  if (user.role === "department_lead") {
+    return (
+      !departmentId ||
+      user.departmentId === departmentId
+    );
+  }
+
+  return false;
 }
 
-export function canManageSettings() {
-  const role =
-    getCurrentUserRole();
+export function getRoleHierarchyValue(
+  role?: string
+) {
+  if (role === "admin") {
+    return 3;
+  }
 
-  return isAdminRole(
-    role
-  );
+  if (role === "department_lead") {
+    return 2;
+  }
+
+  return 1;
 }
 
-export function canManageSystem() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminRole(
-    role
-  );
-}
-
-export function canManageNews() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminRole(
-    role
-  );
-}
-
-export function canViewActivity() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminRole(
-    role
-  );
-}
-
-export function canManageActivity() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminRole(
-    role
-  );
-}
-
-export function canManageFiles() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminOrDepartmentLead(
-    role
-  );
-}
-
-export function canUploadFiles() {
-  const role =
-    getCurrentUserRole();
-
+export function roleIsAtLeast(
+  currentRole: string | undefined,
+  requiredRole: UserRole
+) {
   return (
-    isAdminRole(
-      role
-    ) ||
-    isDepartmentLeadRole(
-      role
-    ) ||
-    isEmployeeRole(
-      role
+    getRoleHierarchyValue(
+      currentRole
+    ) >=
+    getRoleHierarchyValue(
+      requiredRole
     )
   );
-}
-
-export function canManageTickets() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminOrDepartmentLead(
-    role
-  );
-}
-
-export function canManageWiki() {
-  const role =
-    getCurrentUserRole();
-
-  return isAdminOrDepartmentLead(
-    role
-  );
-}
-
-export function hasRole(
-  roles: UserRole[]
-) {
-  return roles.includes(
-    getCurrentUserRole() as UserRole
-  );
-}
-
-export function getCurrentRole() {
-  return getCurrentUserRole();
 }

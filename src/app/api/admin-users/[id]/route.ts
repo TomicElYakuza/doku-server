@@ -14,6 +14,12 @@ import {
   hashPassword,
 } from "../../../../lib/password";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
+
 import type {
   AdminUserRow,
 } from "../../../../lib/database/mappers/adminUserMapper";
@@ -42,21 +48,15 @@ type UpdateAdminUserBody = {
 type AdminUserWithLoginRow =
   AdminUserRow & {
     username: string | null;
-    password_hash?: string | null;
+    password_hash: string | null;
     password_must_change: boolean;
   };
 
-function normalizeUsername(
-  value: string
-) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(
-      /\s+/g,
-      "."
-    );
-}
+type DatabaseError = Error & {
+  code?: string;
+  constraint?: string;
+  detail?: string;
+};
 
 function mapAdminUserWithLoginRow(
   row: AdminUserWithLoginRow
@@ -82,11 +82,175 @@ function mapAdminUserWithLoginRow(
   };
 }
 
+function normalizeUsername(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      "."
+    );
+}
+
+function normalizeRole(
+  value?: string
+) {
+  if (value === "admin") {
+    return "admin";
+  }
+
+  if (value === "department_lead") {
+    return "department_lead";
+  }
+
+  return "employee";
+}
+
+function normalizeStatus(
+  value?: string
+) {
+  if (value === "inactive") {
+    return "inactive";
+  }
+
+  if (value === "invited") {
+    return "invited";
+  }
+
+  return "active";
+}
+
+function getDatabaseErrorMessage(
+  error: unknown
+) {
+  const databaseError =
+    error as DatabaseError;
+
+  if (databaseError.code === "23505") {
+    const detail =
+      databaseError.detail ||
+      "";
+
+    if (
+      detail.includes(
+        "username"
+      ) ||
+      databaseError.constraint?.includes(
+        "username"
+      )
+    ) {
+      return "Dieser Benutzername ist bereits vergeben.";
+    }
+
+    if (
+      detail.includes(
+        "email"
+      ) ||
+      databaseError.constraint?.includes(
+        "email"
+      )
+    ) {
+      return "Diese E-Mail-Adresse ist bereits vergeben.";
+    }
+
+    return "Benutzername oder E-Mail ist bereits vergeben.";
+  }
+
+  return databaseError.message ||
+    "Unbekannter Datenbankfehler.";
+}
+
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return getDatabaseErrorMessage(
+    error
+  ) ||
+    fallback;
+}
+
+function userCanAccessTargetUser(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  targetUser: AdminUserWithLoginRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    targetUser.department_id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    targetUser.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.view",
+      "users.edit",
+      "users.delete",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
@@ -113,6 +277,7 @@ export async function GET(
           password_must_change
         FROM admin_users
         WHERE id = $1
+        LIMIT 1
         `,
         [
           id,
@@ -132,6 +297,24 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessTargetUser(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
       mapAdminUserWithLoginRow(
         row
@@ -145,7 +328,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Benutzer konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -154,7 +340,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -165,15 +353,33 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.edit",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
 
-    const body =
-      await request.json() as UpdateAdminUserBody;
-
-    const current =
+    const existingUser =
       await queryOne<AdminUserWithLoginRow>(
         `
         SELECT
@@ -194,13 +400,14 @@ export async function PATCH(
           password_must_change
         FROM admin_users
         WHERE id = $1
+        LIMIT 1
         `,
         [
           id,
         ]
       );
 
-    if (!current) {
+    if (!existingUser) {
       return NextResponse.json(
         {
           message:
@@ -213,52 +420,107 @@ export async function PATCH(
       );
     }
 
-    const nextName =
-      body.name?.trim() ||
-      current.name;
-
-    const nextEmail =
-      body.email?.trim().toLowerCase() ||
-      current.email;
-
-    const nextUsername =
-      body.username !== undefined
-        ? normalizeUsername(
-            body.username
-          )
-        : current.username ||
-          normalizeUsername(
-            nextEmail.split(
-              "@"
-            )[0] ||
-            nextName
-          );
-
-    if (!nextUsername) {
+    if (
+      currentUser.role !== "admin"
+    ) {
       return NextResponse.json(
         {
           message:
-            "Benutzername ist erforderlich.",
+            "Nur Administratoren dürfen Benutzer bearbeiten.",
         },
         {
           status:
-            400,
+            403,
         }
       );
     }
 
-    const nextPasswordHash =
-      body.password
-        ? await hashPassword(
-            body.password
-          )
-        : current.password_hash ||
-          null;
+    const body =
+      await request.json() as UpdateAdminUserBody;
 
-    const nextPasswordMustChange =
-      body.passwordMustChange !== undefined
-        ? body.passwordMustChange
-        : current.password_must_change;
+    const nextName =
+      body.name?.trim() ||
+      existingUser.name;
+
+    const nextEmail =
+      body.email?.trim().toLowerCase() ||
+      existingUser.email;
+
+    const nextUsername =
+      normalizeUsername(
+        body.username ||
+        existingUser.username ||
+        nextEmail.split(
+          "@"
+        )[0] ||
+        nextName
+      );
+
+    const duplicateUser =
+      await queryOne<{
+        id: string;
+        email: string;
+        username: string | null;
+      }>(
+        `
+        SELECT
+          id,
+          email,
+          username
+        FROM admin_users
+        WHERE id <> $1
+        AND (
+          LOWER(email) = LOWER($2)
+          OR LOWER(username) = LOWER($3)
+        )
+        LIMIT 1
+        `,
+        [
+          id,
+          nextEmail,
+          nextUsername,
+        ]
+      );
+
+    if (duplicateUser) {
+      if (
+        duplicateUser.email.toLowerCase() ===
+        nextEmail
+      ) {
+        return NextResponse.json(
+          {
+            message:
+              "Diese E-Mail-Adresse ist bereits vergeben.",
+          },
+          {
+            status:
+              409,
+          }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          message:
+            "Dieser Benutzername ist bereits vergeben.",
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    const password =
+      body.password ||
+      "";
+
+    const passwordHash =
+      password
+        ? await hashPassword(
+            password
+          )
+        : existingUser.password_hash;
 
     const row =
       await queryOne<AdminUserWithLoginRow>(
@@ -276,9 +538,8 @@ export async function PATCH(
           department_id = $9,
           company = $10,
           department = $11,
-          last_login_at = $12,
           updated_at = NOW()
-        WHERE id = $13
+        WHERE id = $12
         RETURNING
           id,
           name,
@@ -300,35 +561,34 @@ export async function PATCH(
           nextName,
           nextEmail,
           nextUsername,
-          nextPasswordHash,
-          nextPasswordMustChange,
-          body.role ||
-            current.role,
-          body.status ||
-            current.status,
+          passwordHash,
+          typeof body.passwordMustChange === "boolean"
+            ? body.passwordMustChange
+            : existingUser.password_must_change,
+          normalizeRole(
+            body.role ||
+            existingUser.role
+          ),
+          normalizeStatus(
+            body.status ||
+            existingUser.status
+          ),
           body.companyId !== undefined
             ? body.companyId ||
               null
-            : current.company_id,
+            : existingUser.company_id,
           body.departmentId !== undefined
             ? body.departmentId ||
               null
-            : current.department_id,
+            : existingUser.department_id,
           body.company !== undefined
             ? body.company ||
               "Intern"
-            : current.company ||
-              "Intern",
+            : existingUser.company,
           body.department !== undefined
             ? body.department ||
               "Allgemein"
-            : current.department ||
-              "Allgemein",
-          body.lastLoginAt !== undefined
-            ? body.lastLoginAt ||
-              null
-            : current.last_login_at ||
-              null,
+            : existingUser.department,
           id,
         ]
       );
@@ -359,7 +619,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Benutzer konnte nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -368,7 +631,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -379,21 +644,84 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.delete",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+    if (currentUser.role !== "admin") {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Benutzer löschen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       id,
     } =
       await context.params;
 
-    await queryOne(
-      `
-      DELETE FROM admin_users
-      WHERE id = $1
-      RETURNING id
-      `,
-      [
-        id,
-      ]
-    );
+    if (currentUser.id === id) {
+      return NextResponse.json(
+        {
+          message:
+            "Du kannst deinen eigenen Benutzer nicht löschen.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const row =
+      await queryOne<{
+        id: string;
+      }>(
+        `
+        DELETE FROM admin_users
+        WHERE id = $1
+        RETURNING id
+        `,
+        [
+          id,
+        ]
+      );
+
+    if (!row) {
+      return NextResponse.json(
+        {
+          message:
+            "Benutzer nicht gefunden.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
 
     return NextResponse.json({
       ok:
@@ -407,7 +735,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnte nicht gelöscht werden.",
+          getErrorMessage(
+            error,
+            "Benutzer konnte nicht gelöscht werden."
+          ),
 
         error:
           error instanceof Error
@@ -416,7 +747,9 @@ export async function DELETE(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

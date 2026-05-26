@@ -22,12 +22,10 @@ import {
 } from "../../lib/activityRepository";
 
 import {
-  canDelete,
-  canEdit,
-} from "../../lib/permissions";
+  usePermissions,
+} from "../../hooks/usePermissions";
 
 import type {
-  FileMap,
   StoredFile,
 } from "../../types/file";
 
@@ -77,11 +75,17 @@ function getKeyLabel(
   }
 
   if (key.startsWith("ticket-")) {
-    return `Ticket #${key.replace("ticket-", "")}`;
+    return `Ticket #${key.replace(
+      "ticket-",
+      ""
+    )}`;
   }
 
   if (key.startsWith("news-")) {
-    return `News #${key.replace("news-", "")}`;
+    return `News #${key.replace(
+      "news-",
+      ""
+    )}`;
   }
 
   return key;
@@ -120,32 +124,84 @@ function getKeyHref(
   return "";
 }
 
+function getFileCompany(
+  entry: FileEntry,
+  wikiPages: WikiPage[]
+) {
+  if (entry.key.startsWith("wiki-")) {
+    const slug =
+      entry.key.replace(
+        "wiki-",
+        ""
+      );
+
+    const page =
+      wikiPages.find(
+        (item) =>
+          item.slug === slug
+      );
+
+    return page?.company ||
+      "";
+  }
+
+  return "";
+}
+
+function getFileDepartment(
+  entry: FileEntry,
+  wikiPages: WikiPage[]
+) {
+  if (entry.key.startsWith("wiki-")) {
+    const slug =
+      entry.key.replace(
+        "wiki-",
+        ""
+      );
+
+    const page =
+      wikiPages.find(
+        (item) =>
+          item.slug === slug
+      );
+
+    return (
+      page?.department ||
+      page?.category ||
+      ""
+    );
+  }
+
+  return "";
+}
+
 function readFileAsDataUrl(
   file: File
 ): Promise<string> {
   return new Promise(
-    (resolve, reject) => {
+    (
+      resolve,
+      reject
+    ) => {
       const reader =
         new FileReader();
 
-      reader.onload =
-        () => {
-          resolve(
-            String(
-              reader.result ||
-                ""
-            )
-          );
-        };
+      reader.onload = () => {
+        resolve(
+          String(
+            reader.result ||
+              ""
+          )
+        );
+      };
 
-      reader.onerror =
-        () => {
-          reject(
-            new Error(
-              "Datei konnte nicht gelesen werden."
-            )
-          );
-        };
+      reader.onerror = () => {
+        reject(
+          new Error(
+            "Datei konnte nicht gelesen werden."
+          )
+        );
+      };
 
       reader.readAsDataURL(
         file
@@ -155,8 +211,39 @@ function readFileAsDataUrl(
 }
 
 export default function FilesPage() {
+  const {
+    user,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageFiles =
+    isAdmin ||
+    hasAnyPermission([
+      "files.manage",
+    ]);
+
+  const canViewFiles =
+    canManageFiles ||
+    hasAnyPermission([
+      "files.view",
+    ]);
+
+  const canUploadFiles =
+    canManageFiles ||
+    hasAnyPermission([
+      "files.upload",
+    ]);
+
+  const canDeleteFiles =
+    canManageFiles ||
+    hasAnyPermission([
+      "files.delete",
+    ]);
+
   const [fileMap, setFileMap] =
-    useState<FileMap>({});
+    useState<Record<string, StoredFile[]>>({});
 
   const [wikiPages, setWikiPages] =
     useState<WikiPage[]>([]);
@@ -222,7 +309,11 @@ export default function FilesPage() {
         await wikiRepository.list();
 
       setWikiPages(
-        nextWikiPages
+        Array.isArray(
+          nextWikiPages
+        )
+          ? nextWikiPages
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -251,17 +342,25 @@ export default function FilesPage() {
           wikiRepository.list(),
         ]);
 
+      const safeFileMap =
+        nextFileMap ||
+        {};
+
       setFileMap(
-        nextFileMap
+        safeFileMap
       );
 
       setWikiPages(
-        nextWikiPages
+        Array.isArray(
+          nextWikiPages
+        )
+          ? nextWikiPages
+          : []
       );
 
       const keys =
         Object.keys(
-          nextFileMap
+          safeFileMap
         );
 
       if (
@@ -289,6 +388,49 @@ export default function FilesPage() {
     }
   }
 
+  function userCanSeeEntry(
+    entry: FileEntry
+  ) {
+    if (isAdmin || canManageFiles) {
+      return true;
+    }
+
+    if (
+      !user ||
+      !canViewFiles
+    ) {
+      return false;
+    }
+
+    const fileCompany =
+      getFileCompany(
+        entry,
+        wikiPages
+      );
+
+    const fileDepartment =
+      getFileDepartment(
+        entry,
+        wikiPages
+      );
+
+    if (
+      fileDepartment &&
+      user.department
+    ) {
+      return fileDepartment === user.department;
+    }
+
+    if (
+      fileCompany &&
+      user.company
+    ) {
+      return fileCompany === user.company;
+    }
+
+    return true;
+  }
+
   const keys =
     useMemo(
       () =>
@@ -302,22 +444,56 @@ export default function FilesPage() {
 
   const entries =
     useMemo(
-      () => {
-        return Object.entries(
+      () =>
+        Object.entries(
           fileMap
         ).flatMap(
           ([key, files]) =>
             files.map(
-              (file, index) => ({
+              (
+                file,
+                index
+              ) => ({
                 key,
                 index,
                 file,
               })
             )
-        );
-      },
+        ),
       [
         fileMap,
+      ]
+    );
+
+  const visibleEntries =
+    useMemo(
+      () =>
+        entries.filter(
+          userCanSeeEntry
+        ),
+      [
+        entries,
+        user,
+        isAdmin,
+        canManageFiles,
+        canViewFiles,
+        wikiPages,
+      ]
+    );
+
+  const visibleKeys =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            visibleEntries.map(
+              (entry) =>
+                entry.key
+            )
+          )
+        ).sort(),
+      [
+        visibleEntries,
       ]
     );
 
@@ -325,9 +501,11 @@ export default function FilesPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
-        return entries.filter(
+        return visibleEntries.filter(
           (entry) => {
             const label =
               getKeyLabel(
@@ -365,7 +543,7 @@ export default function FilesPage() {
         );
       },
       [
-        entries,
+        visibleEntries,
         search,
         keyFilter,
         wikiPages,
@@ -373,12 +551,16 @@ export default function FilesPage() {
     );
 
   const totalFiles =
-    entries.length;
+    visibleEntries.length;
 
   const totalSize =
-    entries.reduce(
-      (sum, entry) =>
-        sum + (
+    visibleEntries.reduce(
+      (
+        sum,
+        entry
+      ) =>
+        sum +
+        (
           entry.file.size ||
           0
         ),
@@ -388,7 +570,7 @@ export default function FilesPage() {
   async function handleFileChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    if (!canEdit()) {
+    if (!canUploadFiles) {
       alert(
         "Du hast keine Berechtigung, Dateien hochzuladen."
       );
@@ -448,6 +630,7 @@ export default function FilesPage() {
               new Date().toLocaleString(),
 
             uploadedBy:
+              user?.name ||
               "System",
           }
         );
@@ -469,24 +652,31 @@ export default function FilesPage() {
             targetKey,
 
           userName:
+            user?.name ||
             "System",
 
           userEmail:
+            user?.email ||
             "",
 
           user:
+            user?.name ||
             "System",
 
           companyId:
+            user?.companyId ||
             "",
 
           departmentId:
+            user?.departmentId ||
             "",
 
           company:
+            user?.company ||
             "Intern",
 
           department:
+            user?.department ||
             "Allgemein",
 
           metadata: {
@@ -530,7 +720,7 @@ export default function FilesPage() {
   async function handleDeleteFile(
     entry: FileEntry
   ) {
-    if (!canDelete()) {
+    if (!canDeleteFiles) {
       alert(
         "Du hast keine Berechtigung, Dateien zu löschen."
       );
@@ -570,24 +760,31 @@ export default function FilesPage() {
           entry.key,
 
         userName:
+          user?.name ||
           "System",
 
         userEmail:
+          user?.email ||
           "",
 
         user:
+          user?.name ||
           "System",
 
         companyId:
+          user?.companyId ||
           "",
 
         departmentId:
+          user?.departmentId ||
           "",
 
         company:
+          user?.company ||
           "Intern",
 
         department:
+          user?.department ||
           "Allgemein",
 
         metadata: {
@@ -616,7 +813,7 @@ export default function FilesPage() {
   async function handleDeleteKey(
     key: string
   ) {
-    if (!canDelete()) {
+    if (!canDeleteFiles) {
       alert(
         "Du hast keine Berechtigung, Dateigruppen zu löschen."
       );
@@ -651,28 +848,35 @@ export default function FilesPage() {
         entityType:
           "file",
 
-          entityId:
+        entityId:
           key,
 
         userName:
+          user?.name ||
           "System",
 
         userEmail:
+          user?.email ||
           "",
 
         user:
+          user?.name ||
           "System",
 
         companyId:
+          user?.companyId ||
           "",
 
         departmentId:
+          user?.departmentId ||
           "",
 
         company:
+          user?.company ||
           "Intern",
 
         department:
+          user?.department ||
           "Allgemein",
 
         metadata: {
@@ -699,8 +903,27 @@ export default function FilesPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setKeyFilter("");
+    setSearch(
+      ""
+    );
+
+    setKeyFilter(
+      ""
+    );
+  }
+
+  if (!canViewFiles) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h1 className="text-3xl font-bold">
+          Keine Berechtigung
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Du hast keine Berechtigung, Dateien zu sehen.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -748,11 +971,7 @@ export default function FilesPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Dateien gesamt
           </p>
@@ -760,7 +979,7 @@ export default function FilesPage() {
           <h2 className="text-4xl font-bold mt-3">
             {totalFiles}
           </h2>
-        </button>
+        </div>
 
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
@@ -768,7 +987,7 @@ export default function FilesPage() {
           </p>
 
           <h2 className="text-4xl font-bold mt-3">
-            {keys.length}
+            {visibleKeys.length}
           </h2>
         </div>
 
@@ -785,8 +1004,8 @@ export default function FilesPage() {
         </div>
       </div>
 
-      {canEdit() && (
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+      {canUploadFiles && (
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <h2 className="text-2xl font-semibold">
             Datei hochladen
           </h2>
@@ -795,7 +1014,7 @@ export default function FilesPage() {
             Dateien werden in PostgreSQL gespeichert.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
             <div>
               <label className="block mb-2 font-medium">
                 Vorhandene Gruppe
@@ -867,15 +1086,15 @@ export default function FilesPage() {
           </div>
 
           {uploading && (
-            <p className="text-sm text-zinc-500 mt-4">
+            <p className="text-zinc-500 mt-4">
               Upload läuft...
             </p>
           )}
         </section>
       )}
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
               Suche & Filter
@@ -889,13 +1108,13 @@ export default function FilesPage() {
           <button
             type="button"
             onClick={resetFilters}
-            className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+            className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
             Zurücksetzen
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
             value={search}
             onChange={(event) =>
@@ -920,7 +1139,7 @@ export default function FilesPage() {
               Alle Gruppen
             </option>
 
-            {keys.map(
+            {visibleKeys.map(
               (key) => (
                 <option
                   key={key}
@@ -936,24 +1155,24 @@ export default function FilesPage() {
           </select>
         </div>
 
-        <p className="text-sm text-zinc-500 mt-5">
+        <p className="text-sm text-zinc-500">
           {filteredEntries.length} von {totalFiles} Dateien gefunden.
         </p>
       </section>
 
-      <section className="space-y-4">
-        {filteredEntries.length === 0 && (
-          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <h2 className="text-xl font-semibold">
-              Keine Dateien gefunden
-            </h2>
+      {filteredEntries.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h2 className="text-xl font-semibold">
+            Keine Dateien gefunden
+          </h2>
 
-            <p className="text-zinc-500 mt-2">
-              Lade Dateien hoch oder passe die Filter an.
-            </p>
-          </div>
-        )}
+          <p className="text-zinc-500 mt-2">
+            Lade Dateien hoch oder passe die Filter an.
+          </p>
+        </div>
+      )}
 
+      <div className="space-y-4">
         {filteredEntries.map(
           (entry) => {
             const href =
@@ -963,11 +1182,11 @@ export default function FilesPage() {
 
             return (
               <div
-                key={`${entry.key}-${entry.index}-${entry.file.name}`}
+                key={`${entry.key}-${entry.index}`}
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div className="min-w-0">
+                  <div>
                     <div className="flex flex-wrap gap-2">
                       <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                         {getKeyLabel(
@@ -976,17 +1195,17 @@ export default function FilesPage() {
                         )}
                       </span>
 
-                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                      <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
                         {entry.file.type ||
                           "application/octet-stream"}
                       </span>
                     </div>
 
-                    <h2 className="text-2xl font-bold mt-4 truncate">
+                    <h2 className="text-2xl font-bold mt-4">
                       {entry.file.name}
                     </h2>
 
-                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
                       <span>
                         Größe:{" "}
                         {formatFileSize(
@@ -1017,15 +1236,17 @@ export default function FilesPage() {
                       </Link>
                     )}
 
-                    <a
-                      href={entry.file.data}
-                      download={entry.file.name}
-                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
-                    >
-                      Download
-                    </a>
+                    {entry.file.data && (
+                      <a
+                        href={entry.file.data}
+                        download={entry.file.name}
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                      >
+                        Download
+                      </a>
+                    )}
 
-                    {canDelete() && (
+                    {canDeleteFiles && (
                       <button
                         type="button"
                         onClick={() =>
@@ -1044,10 +1265,10 @@ export default function FilesPage() {
             );
           }
         )}
-      </section>
+      </div>
 
-      {keyFilter && canDelete() && (
-        <section className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+      {keyFilter && canDeleteFiles && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-red-700">
             Dateigruppe löschen
           </h2>
@@ -1067,7 +1288,7 @@ export default function FilesPage() {
           >
             Ganze Gruppe löschen
           </button>
-        </section>
+        </div>
       )}
     </div>
   );

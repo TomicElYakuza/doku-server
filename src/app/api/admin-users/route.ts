@@ -15,6 +15,12 @@ import {
   hashPassword,
 } from "../../../lib/password";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   AdminUserRow,
 } from "../../../lib/database/mappers/adminUserMapper";
@@ -82,6 +88,34 @@ function normalizeUsername(
     );
 }
 
+function normalizeRole(
+  value?: string
+) {
+  if (value === "admin") {
+    return "admin";
+  }
+
+  if (value === "department_lead") {
+    return "department_lead";
+  }
+
+  return "employee";
+}
+
+function normalizeStatus(
+  value?: string
+) {
+  if (value === "inactive") {
+    return "inactive";
+  }
+
+  if (value === "invited") {
+    return "invited";
+  }
+
+  return "active";
+}
+
 function getDatabaseErrorMessage(
   error: unknown
 ) {
@@ -118,15 +152,15 @@ function getDatabaseErrorMessage(
     return "Benutzername oder E-Mail ist bereits vergeben.";
   }
 
-  if (databaseError.message.includes("password_must_change")) {
+  if (databaseError.message?.includes("password_must_change")) {
     return "Die Datenbankspalte password_must_change fehlt noch.";
   }
 
-  if (databaseError.message.includes("password_hash")) {
+  if (databaseError.message?.includes("password_hash")) {
     return "Die Datenbankspalte password_hash fehlt noch.";
   }
 
-  if (databaseError.message.includes("username")) {
+  if (databaseError.message?.includes("username")) {
     return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungültig.";
   }
 
@@ -134,10 +168,66 @@ function getDatabaseErrorMessage(
     "Unbekannter Datenbankfehler.";
 }
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return getDatabaseErrorMessage(
+    error
+  ) ||
+    fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.view",
+      "users.create",
+      "users.edit",
+      "users.delete",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -209,6 +299,30 @@ export async function GET(
       );
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.departmentId) {
+        params.push(
+          currentUser.departmentId
+        );
+
+        whereParts.push(
+          `department_id = $${params.length}`
+        );
+      } else if (currentUser.companyId) {
+        params.push(
+          currentUser.companyId
+        );
+
+        whereParts.push(
+          `company_id = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
+    }
+
     const whereSql =
       whereParts.length > 0
         ? `WHERE ${whereParts.join(" AND ")}`
@@ -253,16 +367,21 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Benutzer konnten nicht geladen werden."
+          ),
 
         error:
-          getDatabaseErrorMessage(
-            error
-          ),
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -272,6 +391,40 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.create",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+    if (currentUser.role !== "admin") {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Benutzer erstellen.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateAdminUserBody;
 
@@ -455,10 +608,12 @@ export async function POST(
           username,
           passwordHash,
           body.passwordMustChange !== false,
-          body.role ||
-            "viewer",
-          body.status ||
-            "active",
+          normalizeRole(
+            body.role
+          ),
+          normalizeStatus(
+            body.status
+          ),
           body.companyId ||
             null,
           body.departmentId ||
@@ -500,18 +655,21 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          getDatabaseErrorMessage(
-            error
+          getErrorMessage(
+            error,
+            "Benutzer konnte nicht erstellt werden."
           ),
 
         error:
-          getDatabaseErrorMessage(
-            error
-          ),
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

@@ -10,6 +10,12 @@ import {
   mapAdminUserRow,
 } from "../../../../../lib/database/mappers/adminUserMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../../lib/serverPermissions";
+
 import type {
   AdminUserRow,
 } from "../../../../../lib/database/mappers/adminUserMapper";
@@ -20,18 +26,144 @@ type RouteContext = {
   }>;
 };
 
+type AdminUserWithLoginRow =
+  AdminUserRow & {
+    username: string | null;
+    password_hash: string | null;
+    password_must_change: boolean;
+  };
+
+function mapAdminUserWithLoginRow(
+  row: AdminUserWithLoginRow
+) {
+  return {
+    ...mapAdminUserRow(
+      row
+    ),
+
+    username:
+      row.username ||
+      "",
+
+    passwordMustChange:
+      Boolean(
+        row.password_must_change
+      ),
+
+    hasPassword:
+      Boolean(
+        row.password_hash
+      ),
+  };
+}
+
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function userCanAccessTargetUser(
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+  targetUser: AdminUserWithLoginRow
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.email.toLowerCase() ===
+    targetUser.email.toLowerCase()
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    targetUser.department_id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    targetUser.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.view",
+      "users.edit",
+      "users.delete",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const {
       email,
     } =
       await context.params;
 
+    const decodedEmail =
+      decodeURIComponent(
+        email
+      );
+
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         SELECT
           id,
@@ -45,14 +177,16 @@ export async function GET(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         FROM admin_users
         WHERE LOWER(email) = LOWER($1)
+        LIMIT 1
         `,
         [
-          decodeURIComponent(
-            email
-          ),
+          decodedEmail,
         ]
       );
 
@@ -69,8 +203,26 @@ export async function GET(
       );
     }
 
+    if (
+      !userCanAccessTargetUser(
+        currentUser,
+        row
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Keine Berechtigung.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     return NextResponse.json(
-      mapAdminUserRow(
+      mapAdminUserWithLoginRow(
         row
       )
     );
@@ -82,7 +234,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Benutzer konnte nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Benutzer konnte nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -91,7 +246,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -102,13 +259,52 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.edit",
+      "users.manage_permissions",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
+    if (currentUser.role !== "admin") {
+      return NextResponse.json(
+        {
+          message:
+            "Nur Administratoren dürfen Login-Daten aktualisieren.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
     const {
       email,
     } =
       await context.params;
 
+    const decodedEmail =
+      decodeURIComponent(
+        email
+      );
+
     const row =
-      await queryOne<AdminUserRow>(
+      await queryOne<AdminUserWithLoginRow>(
         `
         UPDATE admin_users
         SET
@@ -127,12 +323,13 @@ export async function PATCH(
           department,
           last_login_at,
           created_at,
-          updated_at
+          updated_at,
+          username,
+          password_hash,
+          password_must_change
         `,
         [
-          decodeURIComponent(
-            email
-          ),
+          decodedEmail,
         ]
       );
 
@@ -150,7 +347,7 @@ export async function PATCH(
     }
 
     return NextResponse.json(
-      mapAdminUserRow(
+      mapAdminUserWithLoginRow(
         row
       )
     );
@@ -162,7 +359,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         message:
-          "Letzter Login konnte nicht aktualisiert werden.",
+          getErrorMessage(
+            error,
+            "Login-Daten konnten nicht aktualisiert werden."
+          ),
 
         error:
           error instanceof Error
@@ -171,7 +371,9 @@ export async function PATCH(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

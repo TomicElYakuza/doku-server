@@ -37,6 +37,10 @@ import {
   useFeatureFlags,
 } from "../../hooks/useFeatureFlags";
 
+import {
+  usePermissions,
+} from "../../hooks/usePermissions";
+
 import type {
   Ticket,
 } from "../../types/ticket";
@@ -70,6 +74,8 @@ type QuickLink = {
   description: string;
   href: string;
   icon: string;
+  permissionAny?: string[];
+  adminOnly?: boolean;
 };
 
 function getTicketStatusLabel(
@@ -133,11 +139,11 @@ function getRoleLabel(
     return "Administrator";
   }
 
-  if (role === "editor") {
-    return "Bearbeiter";
+  if (role === "department_lead") {
+    return "Abteilungsleiter";
   }
 
-  return "Leser";
+  return "Mitarbeiter";
 }
 
 export default function DashboardPage() {
@@ -145,6 +151,12 @@ export default function DashboardPage() {
     ticketTemplatesEnabled,
   } =
     useFeatureFlags();
+
+  const {
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
 
   const [currentUser, setCurrentUser] =
     useState<User | null>(
@@ -228,28 +240,27 @@ export default function DashboardPage() {
         ""
       );
 
+      const nextUser =
+        await loadCurrentUser();
+
+      setCurrentUser(
+        nextUser
+      );
+
       const [
-        nextUser,
         nextTickets,
         nextNewsPosts,
         nextSettings,
         nextCompanies,
         nextDepartments,
-        nextUsers,
       ] =
         await Promise.all([
-          loadCurrentUser(),
           ticketRepository.list(),
           newsRepository.list(),
           appSettingsRepository.get(),
           companyRepository.listCompanies(),
           companyRepository.listDepartments(),
-          adminUserRepository.list(),
         ]);
-
-      setCurrentUser(
-        nextUser
-      );
 
       setTickets(
         Array.isArray(
@@ -287,13 +298,22 @@ export default function DashboardPage() {
           : []
       );
 
-      setUsers(
-        Array.isArray(
-          nextUsers
-        )
-          ? nextUsers
-          : []
-      );
+      if (nextUser?.role === "admin") {
+        const nextUsers =
+          await adminUserRepository.list();
+
+        setUsers(
+          Array.isArray(
+            nextUsers
+          )
+            ? nextUsers
+            : []
+        );
+      } else {
+        setUsers(
+          []
+        );
+      }
 
       await loadHealth();
     } catch (loadError) {
@@ -456,11 +476,13 @@ export default function DashboardPage() {
     tickets.length === 0
       ? 0
       : Math.round(
-          closedTickets.length / tickets.length * 100
+          closedTickets.length /
+            tickets.length *
+            100
         );
 
   const quickLinks =
-    useMemo<QuickLink[]>(
+    useMemo(
       () => {
         const links: QuickLink[] = [
           {
@@ -475,6 +497,11 @@ export default function DashboardPage() {
 
             icon:
               "🎫",
+
+            permissionAny: [
+              "tickets.view",
+              "tickets.manage",
+            ],
           },
           {
             title:
@@ -488,6 +515,11 @@ export default function DashboardPage() {
 
             icon:
               "📚",
+
+            permissionAny: [
+              "wiki.view",
+              "wiki.manage",
+            ],
           },
           {
             title:
@@ -501,6 +533,11 @@ export default function DashboardPage() {
 
             icon:
               "📰",
+
+            permissionAny: [
+              "news.view",
+              "news.manage",
+            ],
           },
           {
             title:
@@ -514,6 +551,11 @@ export default function DashboardPage() {
 
             icon:
               "📎",
+
+            permissionAny: [
+              "files.view",
+              "files.manage",
+            ],
           },
         ];
 
@@ -530,6 +572,31 @@ export default function DashboardPage() {
 
             icon:
               "📋",
+
+            permissionAny: [
+              "tickets.manage",
+              "tickets.templates.view",
+              "tickets.templates.manage",
+            ],
+          });
+        }
+
+        if (isAdmin) {
+          links.push({
+            title:
+              "Admin Backend",
+
+            description:
+              "Benutzer, Rechte und System verwalten",
+
+            href:
+              "/admin",
+
+            icon:
+              "🛡️",
+
+            adminOnly:
+              true,
           });
         }
 
@@ -537,15 +604,41 @@ export default function DashboardPage() {
       },
       [
         ticketTemplatesEnabled,
+        isAdmin,
       ]
     );
 
-  const userIsAdmin =
-    currentUser?.role === "admin";
+  const visibleQuickLinks =
+    useMemo(
+      () =>
+        quickLinks.filter(
+          (link) => {
+            if (link.adminOnly) {
+              return isAdmin;
+            }
+
+            if (
+              !link.permissionAny ||
+              link.permissionAny.length === 0
+            ) {
+              return true;
+            }
+
+            return hasAnyPermission(
+              link.permissionAny
+            );
+          }
+        ),
+      [
+        quickLinks,
+        isAdmin,
+        hasAnyPermission,
+      ]
+    );
 
   return (
     <div className="space-y-8">
-      <div className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
+      <section className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
         <div className="relative z-10 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
           <div>
             <p className="text-zinc-300">
@@ -581,7 +674,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white/10 border border-white/10 rounded-3xl p-6 min-w-[260px]">
+          <div className="bg-white/10 border border-white/10 rounded-3xl p-6 min-w-[220px]">
             <p className="text-zinc-300 text-sm">
               Datenbank
             </p>
@@ -592,7 +685,7 @@ export default function DashboardPage() {
                 : "Unbekannt"}
             </h2>
 
-            <p className="text-sm text-zinc-300 mt-2">
+            <p className="text-zinc-300 text-sm mt-1">
               {health?.database ||
                 "PostgreSQL"}
             </p>
@@ -611,7 +704,7 @@ export default function DashboardPage() {
 
         <div className="absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10" />
         <div className="absolute right-24 -top-28 h-56 w-56 rounded-full bg-white/5" />
-      </div>
+      </section>
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -633,7 +726,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <Link
           href="/tickets"
           className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -685,7 +778,7 @@ export default function DashboardPage() {
           </p>
         </Link>
 
-        {userIsAdmin ? (
+        {isAdmin ? (
           <Link
             href="/admin/users"
             className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
@@ -722,37 +815,33 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.6fr)] gap-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_420px] gap-8">
         <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                Schnellzugriff
-              </h2>
+          <h2 className="text-2xl font-semibold">
+            Schnellzugriff
+          </h2>
 
-              <p className="text-zinc-500 mt-1">
-                Häufige Bereiche direkt öffnen.
-              </p>
-            </div>
-          </div>
+          <p className="text-zinc-500 mt-1">
+            Häufige Bereiche direkt öffnen.
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            {quickLinks.map(
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            {visibleQuickLinks.map(
               (item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="border border-zinc-200 rounded-3xl p-6 hover:bg-zinc-50 transition"
+                  className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
                 >
-                  <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl">
+                  <div className="text-2xl">
                     {item.icon}
                   </div>
 
-                  <h3 className="text-xl font-semibold mt-5">
+                  <h3 className="font-semibold mt-4">
                     {item.title}
                   </h3>
 
-                  <p className="text-zinc-500 mt-2">
+                  <p className="text-sm text-zinc-500 mt-1">
                     {item.description}
                   </p>
                 </Link>
@@ -771,29 +860,7 @@ export default function DashboardPage() {
           </p>
 
           <div className="mt-8">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-5xl font-bold">
-                  {ticketCompletionPercent}%
-                </p>
-
-                <p className="text-sm text-zinc-500 mt-2">
-                  abgeschlossen
-                </p>
-              </div>
-
-              <div className="text-right text-sm text-zinc-500">
-                <p>
-                  {closedTickets.length} geschlossen
-                </p>
-
-                <p>
-                  {tickets.length} gesamt
-                </p>
-              </div>
-            </div>
-
-            <div className="h-4 bg-zinc-100 rounded-full overflow-hidden mt-6">
+            <div className="h-4 bg-zinc-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-zinc-900 rounded-full"
                 style={{
@@ -802,27 +869,35 @@ export default function DashboardPage() {
                 }}
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4 mt-8">
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-sm text-zinc-500">
-                Firmen
-              </p>
+            <p className="text-4xl font-bold mt-6">
+              {ticketCompletionPercent}%
+            </p>
 
-              <p className="text-2xl font-bold mt-1">
-                {companies.length}
-              </p>
-            </div>
+            <p className="text-zinc-500 mt-1">
+              abgeschlossen
+            </p>
 
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-sm text-zinc-500">
-                Abteilungen
-              </p>
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-sm text-zinc-500">
+                  Geschlossen
+                </p>
 
-              <p className="text-2xl font-bold mt-1">
-                {departments.length}
-              </p>
+                <p className="text-2xl font-bold mt-1">
+                  {closedTickets.length}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-sm text-zinc-500">
+                  Gesamt
+                </p>
+
+                <p className="text-2xl font-bold mt-1">
+                  {tickets.length}
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -849,7 +924,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="space-y-4 mt-6">
+          <div className="space-y-3 mt-6">
             {myTickets.length === 0 && (
               <p className="text-zinc-500">
                 Aktuell keine direkt zugeordneten Tickets.
@@ -864,7 +939,7 @@ export default function DashboardPage() {
                 <Link
                   key={ticket.id}
                   href={`/tickets/${ticket.id}`}
-                  className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
                 >
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
@@ -880,11 +955,11 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <h3 className="font-semibold mt-3 line-clamp-2">
+                  <h3 className="font-semibold mt-3">
                     #{ticket.id} · {ticket.title}
                   </h3>
 
-                  <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
+                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
                     {ticket.description ||
                       "Keine Beschreibung vorhanden."}
                   </p>
@@ -914,7 +989,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="space-y-4 mt-6">
+          <div className="space-y-3 mt-6">
             {latestNews.length === 0 && (
               <p className="text-zinc-500">
                 Noch keine News vorhanden.
@@ -926,26 +1001,31 @@ export default function DashboardPage() {
                 <Link
                   key={post.id}
                   href={`/news/${post.id}`}
-                  className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
                 >
                   <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category || "Allgemein"))}`}>
+                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                      String(
+                        post.category ||
+                          "Allgemein"
+                      )
+                    )}`}>
                       {post.category ||
                         "Allgemein"}
                     </span>
 
                     {post.pinned && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                      <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
                         Fixiert
                       </span>
                     )}
                   </div>
 
-                  <h3 className="font-semibold mt-3 line-clamp-2">
+                  <h3 className="font-semibold mt-3">
                     {post.title}
                   </h3>
 
-                  <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
+                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
                     {post.description ||
                       "Keine Beschreibung vorhanden."}
                   </p>
@@ -976,7 +1056,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-5 gap-4 mt-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
           {latestTickets.length === 0 && (
             <p className="text-zinc-500">
               Noch keine Tickets vorhanden.
@@ -991,24 +1071,24 @@ export default function DashboardPage() {
                 className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
               >
                 <div className="flex flex-wrap gap-2">
-                  <span className={`text-[11px] px-2 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
+                  <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
                     {getTicketStatusLabel(
                       ticket.status
                     )}
                   </span>
 
-                  <span className={`text-[11px] px-2 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
+                  <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
                     {getTicketPriorityLabel(
                       ticket.priority
                     )}
                   </span>
                 </div>
 
-                <p className="font-semibold mt-3 line-clamp-2">
+                <h3 className="font-semibold mt-3">
                   #{ticket.id} · {ticket.title}
-                </p>
+                </h3>
 
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-sm text-zinc-500 mt-1">
                   {ticket.company ||
                     "Intern"}
                   {" · "}

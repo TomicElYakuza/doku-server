@@ -16,8 +16,8 @@ import {
 } from "../../../lib/newsRepository";
 
 import {
-  canEdit,
-} from "../../../lib/permissions";
+  usePermissions,
+} from "../../../hooks/usePermissions";
 
 import NewsFileList from "../../../components/news/NewsFileList";
 
@@ -50,6 +50,29 @@ function getCategoryClass(
 export default function NewsDetailPage() {
   const params =
     useParams();
+
+  const {
+    loading:
+      permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.manage",
+      "news.create",
+      "news.edit",
+      "news.delete",
+    ]);
+
+  const canViewNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.view",
+    ]);
 
   const id =
     String(
@@ -143,11 +166,35 @@ export default function NewsDetailPage() {
     }
   }
 
-  if (loading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <p className="text-zinc-500">
           News wird geladen...
+        </p>
+      </div>
+    );
+  }
+
+  if (!canViewNews) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <Link
+          href="/news"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zu Neuigkeiten
+        </Link>
+
+        <h1 className="text-3xl font-bold mt-8">
+          Keine Berechtigung
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Du hast keine Berechtigung, diese News zu öffnen.
         </p>
       </div>
     );
@@ -158,7 +205,7 @@ export default function NewsDetailPage() {
     !post
   ) {
     return (
-      <div className="space-y-6">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <Link
           href="/news"
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
@@ -166,16 +213,14 @@ export default function NewsDetailPage() {
           ← Zurück zu Neuigkeiten
         </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            News nicht gefunden
-          </h1>
+        <h1 className="text-3xl font-bold mt-8">
+          News nicht gefunden
+        </h1>
 
-          <p className="text-zinc-500 mt-2">
-            {error ||
-              "Dieser Beitrag existiert nicht."}
-          </p>
-        </div>
+        <p className="text-zinc-500 mt-2">
+          {error ||
+            "Dieser Beitrag existiert nicht."}
+        </p>
       </div>
     );
   }
@@ -195,13 +240,18 @@ export default function NewsDetailPage() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
           <div className="min-w-0">
             <div className="flex flex-wrap gap-2">
-              <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
+              <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                String(
+                  post.category ||
+                    "Allgemein"
+                )
+              )}`}>
                 {post.category ||
                   "Allgemein"}
               </span>
 
               {post.pinned && (
-                <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
                   Fixiert
                 </span>
               )}
@@ -217,7 +267,7 @@ export default function NewsDetailPage() {
             </p>
           </div>
 
-          {canEdit() && (
+          {canManageNews && (
             <Link
               href="/admin/news"
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition shrink-0"
@@ -250,7 +300,7 @@ export default function NewsDetailPage() {
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <NewsFileList
           newsId={post.id}
-          editable={canEdit()}
+          editable={canManageNews}
         />
       </div>
     </div>

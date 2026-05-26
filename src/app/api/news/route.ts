@@ -8,12 +8,22 @@ import {
 } from "../../../lib/database/db";
 
 import {
-  mapNewsRow,
-} from "../../../lib/database/mappers/newsMapper";
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
 
-import type {
-  NewsRow,
-} from "../../../lib/database/mappers/newsMapper";
+type NewsRow = {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  category: string;
+  author: string;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 type CreateNewsBody = {
   title?: string;
@@ -24,51 +34,85 @@ type CreateNewsBody = {
   pinned?: boolean;
 };
 
-export async function GET(
-  request: Request
+function mapNewsRow(
+  row: NewsRow
 ) {
+  return {
+    id:
+      row.id,
+
+    title:
+      row.title,
+
+    description:
+      row.description,
+
+    content:
+      row.content,
+
+    category:
+      row.category,
+
+    author:
+      row.author,
+
+    pinned:
+      row.pinned,
+
+    createdAt:
+      row.created_at,
+
+    updatedAt:
+      row.updated_at,
+  };
+}
+
+function createNewsId() {
+  return `news-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+export async function GET() {
   try {
-    const url =
-      new URL(
-        request.url
-      );
-
-    const category =
-      url.searchParams.get(
-        "category"
-      );
-
-    const pinned =
-      url.searchParams.get(
-        "pinned"
-      );
-
-    const params: unknown[] =
-      [];
-
-    const whereParts: string[] =
-      [];
-
-    if (category) {
-      params.push(
-        category
-      );
-
-      whereParts.push(
-        `category = $${params.length}`
-      );
-    }
-
-    if (pinned === "true") {
-      whereParts.push(
-        "pinned = TRUE"
-      );
-    }
-
-    const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+    await requireAnyServerPermission([
+      "news.view",
+      "news.manage",
+      "news.create",
+      "news.edit",
+      "news.delete",
+    ]);
 
     const rows =
       await query<NewsRow>(
@@ -81,12 +125,11 @@ export async function GET(
           category,
           author,
           pinned,
-          created_at
+          created_at,
+          updated_at
         FROM news_posts
-        ${whereSql}
         ORDER BY pinned DESC, created_at DESC
-        `,
-        params
+        `
       );
 
     return NextResponse.json(
@@ -102,7 +145,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "News konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "News konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -111,7 +157,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -121,6 +169,27 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "news.create",
+      "news.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateNewsBody;
 
@@ -144,6 +213,7 @@ export async function POST(
       await queryOne<NewsRow>(
         `
         INSERT INTO news_posts (
+          id,
           title,
           description,
           content,
@@ -157,7 +227,8 @@ export async function POST(
           $3,
           $4,
           $5,
-          $6
+          $6,
+          $7
         )
         RETURNING
           id,
@@ -167,18 +238,21 @@ export async function POST(
           category,
           author,
           pinned,
-          created_at
+          created_at,
+          updated_at
         `,
         [
+          createNewsId(),
           title,
           body.description?.trim() ||
             "",
           body.content?.trim() ||
             "",
-          body.category ||
+          body.category?.trim() ||
             "Allgemein",
-          body.author ||
-            "Unbekannt",
+          body.author?.trim() ||
+            currentUser.name ||
+            "System",
           Boolean(
             body.pinned
           ),
@@ -215,7 +289,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "News konnte nicht erstellt werden.",
+          getErrorMessage(
+            error,
+            "News konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -224,7 +301,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

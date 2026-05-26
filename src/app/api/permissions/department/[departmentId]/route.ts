@@ -6,6 +6,11 @@ import {
   query,
 } from "../../../../../lib/database/db";
 
+import {
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../../lib/serverPermissions";
+
 type RouteContext = {
   params: Promise<{
     departmentId: string;
@@ -41,6 +46,10 @@ export async function GET(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+    ]);
+
     const {
       departmentId,
     } =
@@ -74,7 +83,11 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Abteilungsberechtigungen konnten nicht geladen werden.",
+          isPermissionError(
+            error
+          )
+            ? "Keine Berechtigung."
+            : "Abteilungsberechtigungen konnten nicht geladen werden.",
 
         error:
           error instanceof Error
@@ -83,7 +96,11 @@ export async function GET(
       },
       {
         status:
-          500,
+          isPermissionError(
+            error
+          )
+            ? 403
+            : 500,
       }
     );
   }
@@ -94,6 +111,10 @@ export async function PUT(
   context: RouteContext
 ) {
   try {
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+    ]);
+
     const {
       departmentId,
     } =
@@ -158,7 +179,11 @@ export async function PUT(
     return NextResponse.json(
       {
         message:
-          "Abteilungsberechtigungen konnten nicht gespeichert werden.",
+          isPermissionError(
+            error
+          )
+            ? "Keine Berechtigung."
+            : "Abteilungsberechtigungen konnten nicht gespeichert werden.",
 
         error:
           error instanceof Error
@@ -167,7 +192,11 @@ export async function PUT(
       },
       {
         status:
-          500,
+          isPermissionError(
+            error
+          )
+            ? 403
+            : 500,
       }
     );
   }

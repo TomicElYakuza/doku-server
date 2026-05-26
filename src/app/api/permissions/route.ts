@@ -6,6 +6,11 @@ import {
   query,
 } from "../../../lib/database/db";
 
+import {
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 type PermissionRow = {
   id: string;
   permission_key: string;
@@ -45,6 +50,10 @@ function mapPermissionRow(
 
 export async function GET() {
   try {
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+    ]);
+
     const rows =
       await query<PermissionRow>(
         `
@@ -74,7 +83,11 @@ export async function GET() {
     return NextResponse.json(
       {
         message:
-          "Berechtigungen konnten nicht geladen werden.",
+          isPermissionError(
+            error
+          )
+            ? "Keine Berechtigung."
+            : "Berechtigungen konnten nicht geladen werden.",
 
         error:
           error instanceof Error
@@ -83,7 +96,11 @@ export async function GET() {
       },
       {
         status:
-          500,
+          isPermissionError(
+            error
+          )
+            ? 403
+            : 500,
       }
     );
   }

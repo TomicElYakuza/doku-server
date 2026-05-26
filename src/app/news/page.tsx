@@ -16,6 +16,10 @@ import {
   newsRepository,
 } from "../../lib/newsRepository";
 
+import {
+  usePermissions,
+} from "../../hooks/usePermissions";
+
 import type {
   NewsPost,
 } from "../../types/news";
@@ -45,6 +49,21 @@ function getCategoryClass(
 export default function NewsLandingPage() {
   const searchParams =
     useSearchParams();
+
+  const {
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.manage",
+      "news.create",
+      "news.edit",
+      "news.delete",
+    ]);
 
   const [posts, setPosts] =
     useState<NewsPost[]>([]);
@@ -115,11 +134,19 @@ export default function NewsLandingPage() {
         ]);
 
       setPosts(
-        nextPosts
+        Array.isArray(
+          nextPosts
+        )
+          ? nextPosts
+          : []
       );
 
       setOpenedIds(
-        nextOpenedIds
+        Array.isArray(
+          nextOpenedIds
+        )
+          ? nextOpenedIds
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -144,7 +171,11 @@ export default function NewsLandingPage() {
         await newsRepository.getOpenedIds();
 
       setOpenedIds(
-        nextOpenedIds
+        Array.isArray(
+          nextOpenedIds
+        )
+          ? nextOpenedIds
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -174,7 +205,8 @@ export default function NewsLandingPage() {
   const categoryFilter =
     searchParams.get(
       "category"
-    ) || "";
+    ) ||
+    "";
 
   const categories =
     useMemo(
@@ -185,10 +217,15 @@ export default function NewsLandingPage() {
               (post) =>
                 String(
                   post.category ||
-                    "Allgemein"
+                  "Allgemein"
                 )
             )
           )
+        ).sort(
+          (a, b) =>
+            a.localeCompare(
+              b
+            )
         ),
       [
         posts,
@@ -199,14 +236,16 @@ export default function NewsLandingPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return posts.filter(
           (post) => {
             const category =
               String(
                 post.category ||
-                  "Allgemein"
+                "Allgemein"
               );
 
             const matchesCategory =
@@ -264,6 +303,69 @@ export default function NewsLandingPage() {
         )
     ).length;
 
+  function renderNewsCard(
+    post: NewsPost
+  ) {
+    const unread =
+      !openedIds.includes(
+        post.id
+      );
+
+    return (
+      <Link
+        key={post.id}
+        href={`/news/${encodeURIComponent(
+          post.id
+        )}`}
+        className="block bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
+      >
+        <div className="flex flex-wrap gap-2">
+          <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+            String(
+              post.category ||
+              "Allgemein"
+            )
+          )}`}>
+            {post.category ||
+              "Allgemein"}
+          </span>
+
+          {post.pinned && (
+            <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
+              Fixiert
+            </span>
+          )}
+
+          {unread && (
+            <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full">
+              Neu
+            </span>
+          )}
+        </div>
+
+        <h3 className="text-2xl font-bold mt-4">
+          {post.title}
+        </h3>
+
+        <p className="text-zinc-500 mt-2 line-clamp-2">
+          {post.description ||
+            "Keine Beschreibung vorhanden."}
+        </p>
+
+        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+          <span>
+            {post.author ||
+              "Unbekannt"}
+          </span>
+
+          <span>
+            {post.createdAt}
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
@@ -277,9 +379,9 @@ export default function NewsLandingPage() {
           </p>
 
           {categoryFilter && (
-            <p className="text-sm text-zinc-500 mt-3">
+            <p className="text-sm text-zinc-400 mt-2">
               Kategorie:{" "}
-              <span className="font-medium text-zinc-900">
+              <span className="font-medium text-zinc-600">
                 {categoryFilter}
               </span>
             </p>
@@ -299,16 +401,18 @@ export default function NewsLandingPage() {
             </button>
           )}
 
-          <Link
-            href="/admin/news"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            News verwalten
-          </Link>
+          {canManageNews && (
+            <Link
+              href="/admin/news"
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            >
+              News verwalten
+            </Link>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
             Beiträge
@@ -355,39 +459,51 @@ export default function NewsLandingPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-4">
-          <input
-            value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-            placeholder="News durchsuchen..."
-          />
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Suche & Filter
+            </h2>
+
+            <p className="text-zinc-500 mt-1">
+              Suche nach Titel, Beschreibung, Inhalt, Kategorie oder Autor.
+            </p>
+          </div>
 
           {(search || categoryFilter) && (
-            <Link
-              href="/news"
+            <button
+              type="button"
               onClick={() =>
-                setSearch("")
+                setSearch(
+                  ""
+                )
               }
-              className="inline-flex items-center justify-center bg-zinc-100 px-5 py-4 rounded-2xl hover:bg-zinc-200 transition"
+              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Filter zurücksetzen
-            </Link>
+              Suche zurücksetzen
+            </button>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-5">
+        <input
+          value={search}
+          onChange={(event) =>
+            setSearch(
+              event.target.value
+            )
+          }
+          className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+          placeholder="News durchsuchen..."
+        />
+
+        <div className="flex flex-wrap gap-2">
           <Link
             href="/news"
-            className={`text-xs px-3 py-1 rounded-full transition ${
+            className={`px-4 py-2 rounded-xl transition ${
               !categoryFilter
                 ? "bg-zinc-900 text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                : "bg-zinc-100 hover:bg-zinc-200"
             }`}
           >
             Alle
@@ -400,12 +516,10 @@ export default function NewsLandingPage() {
                 href={`/news?category=${encodeURIComponent(
                   category
                 )}`}
-                className={`text-xs px-3 py-1 rounded-full transition ${
+                className={`px-4 py-2 rounded-xl transition ${
                   categoryFilter === category
                     ? "bg-zinc-900 text-white"
-                    : getCategoryClass(
-                        category
-                      )
+                    : "bg-zinc-100 hover:bg-zinc-200"
                 }`}
               >
                 {category}
@@ -414,13 +528,13 @@ export default function NewsLandingPage() {
           )}
         </div>
 
-        <p className="text-sm text-zinc-500 mt-5">
+        <p className="text-sm text-zinc-500">
           {filteredPosts.length} von {posts.length} News gefunden.
         </p>
-      </div>
+      </section>
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-zinc-500">
             News werden geladen...
           </p>
@@ -428,7 +542,7 @@ export default function NewsLandingPage() {
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow-sm">
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-red-700">
             Fehler
           </h2>
@@ -453,66 +567,13 @@ export default function NewsLandingPage() {
 
       {pinnedPosts.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold">
+          <h2 className="text-2xl font-semibold">
             Fixiert
           </h2>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             {pinnedPosts.map(
-              (post) => {
-                const unread =
-                  !openedIds.includes(
-                    post.id
-                  );
-
-                return (
-                  <Link
-                    key={post.id}
-                    href={`/news/${post.id}`}
-                    className={`block border rounded-3xl p-6 shadow-sm transition ${
-                      unread
-                        ? "bg-red-50/40 border-red-100 hover:bg-red-50"
-                        : "bg-white border-zinc-200 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
-                        {post.category ||
-                          "Allgemein"}
-                      </span>
-
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
-                        Fixiert
-                      </span>
-
-                      {unread && (
-                        <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full">
-                          Neu
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-2xl font-bold mt-4 line-clamp-2">
-                      {post.title}
-                    </h3>
-
-                    <p className="text-zinc-500 mt-3 line-clamp-3">
-                      {post.description}
-                    </p>
-
-                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-6">
-                      <span>
-                        {post.author ||
-                          "Unbekannt"}
-                      </span>
-
-                      <span>
-                        {post.createdAt}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              }
+              renderNewsCard
             )}
           </div>
         </section>
@@ -520,62 +581,13 @@ export default function NewsLandingPage() {
 
       {normalPosts.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-2xl font-bold">
+          <h2 className="text-2xl font-semibold">
             Alle Neuigkeiten
           </h2>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             {normalPosts.map(
-              (post) => {
-                const unread =
-                  !openedIds.includes(
-                    post.id
-                  );
-
-                return (
-                  <Link
-                    key={post.id}
-                    href={`/news/${post.id}`}
-                    className={`block border rounded-3xl p-6 shadow-sm transition ${
-                      unread
-                        ? "bg-red-50/40 border-red-100 hover:bg-red-50"
-                        : "bg-white border-zinc-200 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
-                        {post.category ||
-                          "Allgemein"}
-                      </span>
-
-                      {unread && (
-                        <span className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full">
-                          Neu
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-2xl font-bold mt-4 line-clamp-2">
-                      {post.title}
-                    </h3>
-
-                    <p className="text-zinc-500 mt-3 line-clamp-3">
-                      {post.description}
-                    </p>
-
-                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-6">
-                      <span>
-                        {post.author ||
-                          "Unbekannt"}
-                      </span>
-
-                      <span>
-                        {post.createdAt}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              }
+              renderNewsCard
             )}
           </div>
         </section>

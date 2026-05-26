@@ -11,6 +11,12 @@ import {
   mapTicketTemplateRow,
 } from "../../../lib/database/mappers/ticketMapper";
 
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+
 import type {
   TicketTemplateRow,
 } from "../../../lib/database/mappers/ticketMapper";
@@ -29,10 +35,66 @@ type CreateTicketTemplateBody = {
   tags?: string[];
 };
 
+function getErrorStatus(
+  error: unknown
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+) {
+  if (
+    isPermissionError(
+      error
+    )
+  ) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
 export async function GET(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.view",
+      "tickets.templates.manage",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const url =
       new URL(
         request.url
@@ -72,6 +134,30 @@ export async function GET(
       whereParts.push(
         `priority = $${params.length}`
       );
+    }
+
+    if (currentUser.role !== "admin") {
+      if (currentUser.departmentId) {
+        params.push(
+          currentUser.departmentId
+        );
+
+        whereParts.push(
+          `department_id = $${params.length}`
+        );
+      } else if (currentUser.companyId) {
+        params.push(
+          currentUser.companyId
+        );
+
+        whereParts.push(
+          `company_id = $${params.length}`
+        );
+      } else {
+        whereParts.push(
+          "1 = 0"
+        );
+      }
     }
 
     const whereSql =
@@ -117,7 +203,10 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Ticket-Vorlagen konnten nicht geladen werden.",
+          getErrorMessage(
+            error,
+            "Ticket-Vorlagen konnten nicht geladen werden."
+          ),
 
         error:
           error instanceof Error
@@ -126,7 +215,9 @@ export async function GET(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }
@@ -136,6 +227,28 @@ export async function POST(
   request: Request
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.create",
+      "tickets.templates.manage",
+      "tickets.manage",
+    ]);
+
+    const currentUser =
+      await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message:
+            "Nicht angemeldet.",
+        },
+        {
+          status:
+            401,
+        }
+      );
+    }
+
     const body =
       await request.json() as CreateTicketTemplateBody;
 
@@ -154,6 +267,39 @@ export async function POST(
         }
       );
     }
+
+    const canChooseScope =
+      currentUser.role === "admin";
+
+    const companyId =
+      canChooseScope
+        ? body.companyId ||
+          null
+        : currentUser.companyId ||
+          null;
+
+    const departmentId =
+      canChooseScope
+        ? body.departmentId ||
+          null
+        : currentUser.departmentId ||
+          null;
+
+    const company =
+      canChooseScope
+        ? body.company ||
+          currentUser.company ||
+          "Intern"
+        : currentUser.company ||
+          "Intern";
+
+    const department =
+      canChooseScope
+        ? body.department ||
+          currentUser.department ||
+          "Allgemein"
+        : currentUser.department ||
+          "Allgemein";
 
     const row =
       await queryOne<TicketTemplateRow>(
@@ -210,14 +356,10 @@ export async function POST(
             "medium",
           body.category ||
             "Allgemein",
-          body.companyId ||
-            null,
-          body.departmentId ||
-            null,
-          body.company ||
-            "Intern",
-          body.department ||
-            "Allgemein",
+          companyId,
+          departmentId,
+          company,
+          department,
           body.assignedTo ||
             "",
           Array.isArray(
@@ -258,7 +400,10 @@ export async function POST(
     return NextResponse.json(
       {
         message:
-          "Ticket-Vorlage konnte nicht erstellt werden.",
+          getErrorMessage(
+            error,
+            "Ticket-Vorlage konnte nicht erstellt werden."
+          ),
 
         error:
           error instanceof Error
@@ -267,7 +412,9 @@ export async function POST(
       },
       {
         status:
-          500,
+          getErrorStatus(
+            error
+          ),
       }
     );
   }

@@ -3,29 +3,17 @@ import {
 } from "next/server";
 
 import {
-  query,
-  queryOne,
-} from "../../../../../lib/database/db";
+  getCurrentServerUser,
+  getEffectiveServerPermissionKeys,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../../lib/serverPermissions";
 
 type RouteContext = {
   params: Promise<{
     userId: string;
   }>;
 };
-
-type UserRow = {
-  id: string;
-  role: string;
-  company_id: string | null;
-  department_id: string | null;
-};
-
-type PermissionKeyRow = {
-  permission_key: string;
-};
-
-const ADMIN_PERMISSION_KEY =
-  "*";
 
 export async function GET(
   _request: Request,
@@ -37,155 +25,38 @@ export async function GET(
     } =
       await context.params;
 
-    const user =
-      await queryOne<UserRow>(
-        `
-        SELECT
-          id,
-          role,
-          company_id,
-          department_id
-        FROM admin_users
-        WHERE id = $1
-        LIMIT 1
-        `,
-        [
-          userId,
-        ]
-      );
+    const currentUser =
+      await getCurrentServerUser();
 
-    if (!user) {
+    if (!currentUser) {
       return NextResponse.json(
         {
           message:
-            "Benutzer nicht gefunden.",
+            "Nicht angemeldet.",
         },
         {
           status:
-            404,
+            401,
         }
       );
     }
 
-    if (user.role === "admin") {
-      return NextResponse.json({
-        permissionKeys: [
-          ADMIN_PERMISSION_KEY,
-        ],
-      });
+    const isOwnUser =
+      currentUser.id === userId;
+
+    if (!isOwnUser) {
+      await requireAnyServerPermission([
+        "users.manage_permissions",
+      ]);
     }
 
     const permissionKeys =
-      new Set<string>();
-
-    if (user.company_id) {
-      const companyPermissions =
-        await query<PermissionKeyRow>(
-          `
-          SELECT
-            permission_key
-          FROM company_permissions
-          WHERE company_id = $1
-          `,
-          [
-            user.company_id,
-          ]
-        );
-
-      companyPermissions.forEach(
-        (permission) =>
-          permissionKeys.add(
-            permission.permission_key
-          )
+      await getEffectiveServerPermissionKeys(
+        currentUser
       );
-    }
-
-    if (user.department_id) {
-      const departmentPermissions =
-        await query<PermissionKeyRow>(
-          `
-          SELECT
-            permission_key
-          FROM department_permissions
-          WHERE department_id = $1
-          `,
-          [
-            user.department_id,
-          ]
-        );
-
-      departmentPermissions.forEach(
-        (permission) =>
-          permissionKeys.add(
-            permission.permission_key
-          )
-      );
-    }
-
-    const userPermissions =
-      await query<PermissionKeyRow>(
-        `
-        SELECT
-          permission_key
-        FROM user_permissions
-        WHERE user_id = $1
-        `,
-        [
-          user.id,
-        ]
-      );
-
-    userPermissions.forEach(
-      (permission) =>
-        permissionKeys.add(
-          permission.permission_key
-        )
-    );
-
-    if (user.role === "department_lead") {
-      [
-        "wiki.view",
-        "wiki.create",
-        "wiki.edit",
-        "tickets.view",
-        "tickets.create",
-        "tickets.edit",
-        "tickets.assign",
-        "tickets.close",
-        "files.view",
-        "files.upload",
-        "news.view",
-        "users.view",
-        "organization.view",
-      ].forEach(
-        (permissionKey) =>
-          permissionKeys.add(
-            permissionKey
-          )
-      );
-    }
-
-    if (user.role === "employee") {
-      [
-        "wiki.view",
-        "tickets.view",
-        "tickets.create",
-        "files.view",
-        "files.upload",
-        "news.view",
-      ].forEach(
-        (permissionKey) =>
-          permissionKeys.add(
-            permissionKey
-          )
-      );
-    }
 
     return NextResponse.json({
-      permissionKeys:
-        Array.from(
-          permissionKeys
-        ).sort(),
+      permissionKeys,
     });
   } catch (error) {
     console.error(
@@ -195,7 +66,11 @@ export async function GET(
     return NextResponse.json(
       {
         message:
-          "Effektive Berechtigungen konnten nicht geladen werden.",
+          isPermissionError(
+            error
+          )
+            ? "Keine Berechtigung."
+            : "Effektive Berechtigungen konnten nicht geladen werden.",
 
         error:
           error instanceof Error
@@ -204,7 +79,11 @@ export async function GET(
       },
       {
         status:
-          500,
+          isPermissionError(
+            error
+          )
+            ? 403
+            : 500,
       }
     );
   }
