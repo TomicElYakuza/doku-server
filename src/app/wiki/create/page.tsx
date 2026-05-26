@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -21,22 +22,17 @@ import {
 } from "../../../lib/companyRepository";
 
 import {
-  getCachedCurrentUser,
-  loadCurrentUser,
-} from "../../../lib/currentUserRepository";
-
-import {
   activityRepository,
 } from "../../../lib/activityRepository";
+
+import {
+  usePermissions,
+} from "../../../hooks/usePermissions";
 
 import type {
   Company,
   Department,
 } from "../../../types/company";
-
-import type {
-  User,
-} from "../../../types/user";
 
 function createSlug(
   value: string
@@ -68,10 +64,25 @@ export default function CreateWikiPage() {
   const router =
     useRouter();
 
-  const [currentUser, setCurrentUser] =
-    useState<User | null>(
-      getCachedCurrentUser()
-    );
+  const {
+    user,
+    loading: permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
+
+  const canCreateWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.create",
+    ]);
 
   const [companies, setCompanies] =
     useState<Company[]>([]);
@@ -106,9 +117,36 @@ export default function CreateWikiPage() {
   const [loading, setLoading] =
     useState(true);
 
+  const [error, setError] =
+    useState("");
+
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    if (
+      !user ||
+      isAdmin ||
+      canManageWiki
+    ) {
+      return;
+    }
+
+    setCompany(
+      user.company ||
+        "Intern"
+    );
+
+    setDepartment(
+      user.department ||
+        "Allgemein"
+    );
+  }, [
+    user,
+    isAdmin,
+    canManageWiki,
+  ]);
 
   async function loadData() {
     try {
@@ -116,43 +154,74 @@ export default function CreateWikiPage() {
         true
       );
 
+      setError(
+        ""
+      );
+
       const [
-        user,
         nextCompanies,
         nextDepartments,
       ] =
         await Promise.all([
-          loadCurrentUser(),
           companyRepository.listCompanies(),
           companyRepository.listDepartments(),
         ]);
 
-      setCurrentUser(
-        user
-      );
-
       setCompanies(
-        nextCompanies
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
       );
 
+      if (user && !isAdmin && !canManageWiki) {
+        setCompany(
+          user.company ||
+            "Intern"
+        );
+
+        setDepartment(
+          user.department ||
+            "Allgemein"
+        );
+
+        return;
+      }
+
       setCompany(
-        user?.company ||
-          nextCompanies[0]?.name ||
+        nextCompanies[0]?.name ||
           "Intern"
       );
 
+      const firstDepartment =
+        nextDepartments.find(
+          (item) =>
+            item.companyId === nextCompanies[0]?.id
+        );
+
       setDepartment(
-        user?.department ||
+        firstDepartment?.name ||
           nextDepartments[0]?.name ||
           "Allgemein"
       );
-    } catch (error) {
+    } catch (loadError) {
       console.error(
-        error
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Daten konnten nicht geladen werden."
       );
     } finally {
       setLoading(
@@ -161,27 +230,43 @@ export default function CreateWikiPage() {
     }
   }
 
-  function getDepartmentOptions() {
-    const selectedCompany =
-      companies.find(
-        (item) =>
-          item.name === company
-      );
+  const departmentOptions =
+    useMemo(
+      () => {
+        const selectedCompany =
+          companies.find(
+            (item) =>
+              item.name === company
+          );
 
-    if (!selectedCompany) {
-      return departments;
-    }
+        if (!selectedCompany) {
+          return departments;
+        }
 
-    return departments.filter(
-      (item) =>
-        item.companyId === selectedCompany.id
+        return departments.filter(
+          (item) =>
+            item.companyId === selectedCompany.id
+        );
+      },
+      [
+        companies,
+        departments,
+        company,
+      ]
     );
-  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    if (!canCreateWiki) {
+      alert(
+        "Du hast keine Berechtigung, Wiki-Seiten zu erstellen."
+      );
+
+      return;
+    }
 
     if (!title.trim()) {
       alert(
@@ -240,7 +325,7 @@ export default function CreateWikiPage() {
             "Allgemein",
 
           author:
-            currentUser?.name ||
+            user?.name ||
             "System",
 
           tags:
@@ -269,23 +354,23 @@ export default function CreateWikiPage() {
           createdPage.slug,
 
         userName:
-          currentUser?.name ||
+          user?.name ||
           "System",
 
         userEmail:
-          currentUser?.email ||
+          user?.email ||
           "",
 
         user:
-          currentUser?.name ||
+          user?.name ||
           "System",
 
         companyId:
-          currentUser?.companyId ||
+          user?.companyId ||
           "",
 
         departmentId:
-          currentUser?.departmentId ||
+          user?.departmentId ||
           "",
 
         company:
@@ -308,14 +393,14 @@ export default function CreateWikiPage() {
           createdPage.slug
         )}`
       );
-    } catch (error) {
+    } catch (saveError) {
       console.error(
-        error
+        saveError
       );
 
       alert(
-        error instanceof Error
-          ? error.message
+        saveError instanceof Error
+          ? saveError.message
           : "Wiki-Seite konnte nicht erstellt werden."
       );
     } finally {
@@ -325,12 +410,36 @@ export default function CreateWikiPage() {
     }
   }
 
-  if (loading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <p className="text-zinc-500">
           Formular wird geladen...
         </p>
+      </div>
+    );
+  }
+
+  if (!canCreateWiki) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h1 className="text-3xl font-bold">
+          Keine Berechtigung
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Du hast keine Berechtigung, Wiki-Seiten zu erstellen.
+        </p>
+
+        <Link
+          href="/wiki"
+          className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+        >
+          Zurück zum Wiki
+        </Link>
       </div>
     );
   }
@@ -345,6 +454,14 @@ export default function CreateWikiPage() {
           ← Zurück zum Wiki
         </Link>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-red-700 font-medium">
+            {error}
+          </p>
+        </div>
+      )}
 
       <div>
         <h1 className="text-4xl font-bold">
@@ -444,7 +561,8 @@ export default function CreateWikiPage() {
                     "Allgemein"
                 );
               }}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              disabled={!isAdmin && !canManageWiki}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <option value="Intern">
                 Intern
@@ -475,13 +593,14 @@ export default function CreateWikiPage() {
                   event.target.value
                 )
               }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              disabled={!isAdmin && !canManageWiki}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <option value="Allgemein">
                 Allgemein
               </option>
 
-              {getDepartmentOptions().map(
+              {departmentOptions.map(
                 (item) => (
                   <option
                     key={item.id}

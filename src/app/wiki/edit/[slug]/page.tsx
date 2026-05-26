@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -22,22 +23,17 @@ import {
 } from "../../../../lib/companyRepository";
 
 import {
-  getCachedCurrentUser,
-  loadCurrentUser,
-} from "../../../../lib/currentUserRepository";
-
-import {
   activityRepository,
 } from "../../../../lib/activityRepository";
+
+import {
+  usePermissions,
+} from "../../../../hooks/usePermissions";
 
 import type {
   Company,
   Department,
 } from "../../../../types/company";
-
-import type {
-  User,
-} from "../../../../types/user";
 
 import type {
   WikiPage,
@@ -76,6 +72,27 @@ export default function EditWikiPage() {
   const router =
     useRouter();
 
+  const {
+    user,
+    loading:
+      permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
+
+  const canEditWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
   const originalSlug =
     String(
       params.slug ||
@@ -85,11 +102,6 @@ export default function EditWikiPage() {
   const decodedOriginalSlug =
     decodeURIComponent(
       originalSlug
-    );
-
-  const [currentUser, setCurrentUser] =
-    useState<User | null>(
-      getCachedCurrentUser()
     );
 
   const [page, setPage] =
@@ -152,13 +164,11 @@ export default function EditWikiPage() {
       );
 
       const [
-        user,
         nextPage,
         nextCompanies,
         nextDepartments,
       ] =
         await Promise.all([
-          loadCurrentUser(),
           wikiRepository.findBySlug(
             decodedOriginalSlug
           ),
@@ -166,16 +176,20 @@ export default function EditWikiPage() {
           companyRepository.listDepartments(),
         ]);
 
-      setCurrentUser(
-        user
-      );
-
       setCompanies(
-        nextCompanies
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
       );
 
       if (!nextPage) {
@@ -248,22 +262,64 @@ export default function EditWikiPage() {
     }
   }
 
-  function getDepartmentOptions() {
-    const selectedCompany =
-      companies.find(
-        (item) =>
-          item.name === company
-      );
-
-    if (!selectedCompany) {
-      return departments;
+  function userCanEditPage(
+    wikiPage: WikiPage
+  ) {
+    if (isAdmin || canManageWiki) {
+      return true;
     }
 
-    return departments.filter(
-      (item) =>
-        item.companyId === selectedCompany.id
-    );
+    if (
+      !user ||
+      !canEditWiki
+    ) {
+      return false;
+    }
+
+    const pageCompany =
+      wikiPage.company ||
+      "";
+
+    const pageDepartment =
+      wikiPage.department ||
+      wikiPage.category ||
+      "";
+
+    if (user.department) {
+      return pageDepartment === user.department;
+    }
+
+    if (user.company) {
+      return pageCompany === user.company;
+    }
+
+    return false;
   }
+
+  const departmentOptions =
+    useMemo(
+      () => {
+        const selectedCompany =
+          companies.find(
+            (item) =>
+              item.name === company
+          );
+
+        if (!selectedCompany) {
+          return departments;
+        }
+
+        return departments.filter(
+          (item) =>
+            item.companyId === selectedCompany.id
+        );
+      },
+      [
+        companies,
+        departments,
+        company,
+      ]
+    );
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -271,6 +327,14 @@ export default function EditWikiPage() {
     event.preventDefault();
 
     if (!page) {
+      return;
+    }
+
+    if (!userCanEditPage(page)) {
+      alert(
+        "Du hast keine Berechtigung, diese Wiki-Seite zu bearbeiten."
+      );
+
       return;
     }
 
@@ -334,7 +398,7 @@ export default function EditWikiPage() {
 
             author:
               page.author ||
-              currentUser?.name ||
+              user?.name ||
               "System",
 
             tags:
@@ -371,23 +435,23 @@ export default function EditWikiPage() {
           updatedPage.slug,
 
         userName:
-          currentUser?.name ||
+          user?.name ||
           "System",
 
         userEmail:
-          currentUser?.email ||
+          user?.email ||
           "",
 
         user:
-          currentUser?.name ||
+          user?.name ||
           "System",
 
         companyId:
-          currentUser?.companyId ||
+          user?.companyId ||
           "",
 
         departmentId:
-          currentUser?.departmentId ||
+          user?.departmentId ||
           "",
 
         company:
@@ -432,7 +496,10 @@ export default function EditWikiPage() {
     }
   }
 
-  if (loading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <p className="text-zinc-500">
@@ -447,7 +514,7 @@ export default function EditWikiPage() {
     !page
   ) {
     return (
-      <div className="space-y-6">
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <Link
           href="/wiki"
           className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
@@ -455,16 +522,37 @@ export default function EditWikiPage() {
           ← Zurück zum Wiki
         </Link>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            Seite nicht gefunden
-          </h1>
+        <h1 className="text-3xl font-bold mt-8">
+          Seite nicht gefunden
+        </h1>
 
-          <p className="text-zinc-500 mt-2">
-            {error ||
-              "Diese Wiki-Seite existiert nicht."}
-          </p>
-        </div>
+        <p className="text-zinc-500 mt-2">
+          {error ||
+            "Diese Wiki-Seite existiert nicht."}
+        </p>
+      </div>
+    );
+  }
+
+  if (!userCanEditPage(page)) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <Link
+          href={`/wiki/${encodeURIComponent(
+            decodedOriginalSlug
+          )}`}
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zur Wiki-Seite
+        </Link>
+
+        <h1 className="text-3xl font-bold mt-8">
+          Keine Berechtigung
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Du hast keine Berechtigung, diese Wiki-Seite zu bearbeiten.
+        </p>
       </div>
     );
   }
@@ -569,7 +657,8 @@ export default function EditWikiPage() {
                     "Allgemein"
                 );
               }}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              disabled={!isAdmin && !canManageWiki}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <option value="Intern">
                 Intern
@@ -600,13 +689,14 @@ export default function EditWikiPage() {
                   event.target.value
                 )
               }
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              disabled={!isAdmin && !canManageWiki}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
             >
               <option value="Allgemein">
                 Allgemein
               </option>
 
-              {getDepartmentOptions().map(
+              {departmentOptions.map(
                 (item) => (
                   <option
                     key={item.id}

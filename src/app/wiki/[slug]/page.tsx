@@ -16,14 +16,13 @@ import {
   wikiRepository,
 } from "../../../lib/wikiRepository";
 
+import {
+  usePermissions,
+} from "../../../hooks/usePermissions";
+
 import type {
   WikiPage,
 } from "../../../types/wiki";
-
-import {
-  canDelete,
-  canEdit,
-} from "../../../lib/permissions";
 
 import FileList from "../../../components/wiki/FileList";
 
@@ -82,6 +81,39 @@ export default function WikiDetailPage() {
   const router =
     useRouter();
 
+  const {
+    user,
+    loading:
+      permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
+
+  const canViewWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.view",
+    ]);
+
+  const canEditWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
+  const canDeleteWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.delete",
+    ]);
+
   const slug =
     String(
       params.slug ||
@@ -129,7 +161,9 @@ export default function WikiDetailPage() {
         true
       );
 
-      setError("");
+      setError(
+        ""
+      );
 
       const nextPage =
         await wikiRepository.findBySlug(
@@ -164,12 +198,43 @@ export default function WikiDetailPage() {
     }
   }
 
+  function userCanSeePage(
+    wikiPage: WikiPage
+  ) {
+    if (isAdmin || canManageWiki) {
+      return true;
+    }
+
+    if (!user || !canViewWiki) {
+      return false;
+    }
+
+    const pageCompany =
+      wikiPage.company ||
+      "";
+
+    const pageDepartment =
+      wikiPage.department ||
+      wikiPage.category ||
+      "";
+
+    if (user.department) {
+      return pageDepartment === user.department;
+    }
+
+    if (user.company) {
+      return pageCompany === user.company;
+    }
+
+    return false;
+  }
+
   async function handleDelete() {
     if (!page) {
       return;
     }
 
-    if (!canDelete()) {
+    if (!canDeleteWiki) {
       alert(
         "Du hast keine Berechtigung, diese Seite zu löschen."
       );
@@ -209,7 +274,10 @@ export default function WikiDetailPage() {
     }
   }
 
-  if (loading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <p className="text-zinc-500">
@@ -232,6 +300,27 @@ export default function WikiDetailPage() {
         <p className="text-zinc-500 mt-2">
           {error ||
             "Diese Wiki-Seite existiert nicht."}
+        </p>
+
+        <Link
+          href="/wiki"
+          className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+        >
+          Zurück zum Wiki
+        </Link>
+      </div>
+    );
+  }
+
+  if (!userCanSeePage(page)) {
+    return (
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <h1 className="text-3xl font-bold">
+          Keine Berechtigung
+        </h1>
+
+        <p className="text-zinc-500 mt-2">
+          Du hast keine Berechtigung, diese Wiki-Seite zu öffnen.
         </p>
 
         <Link
@@ -290,7 +379,7 @@ export default function WikiDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-3 shrink-0">
-            {canEdit() && (
+            {canEditWiki && (
               <Link
                 href={`/wiki/edit/${encodeURIComponent(
                   getPageSlug(
@@ -303,7 +392,7 @@ export default function WikiDetailPage() {
               </Link>
             )}
 
-            {canDelete() && (
+            {canDeleteWiki && (
               <button
                 type="button"
                 onClick={() =>
@@ -366,7 +455,7 @@ export default function WikiDetailPage() {
           pageSlug={getPageSlug(
             page
           )}
-          editable={canEdit()}
+          editable={canEditWiki}
         />
       </div>
 
