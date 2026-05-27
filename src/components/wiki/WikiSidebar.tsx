@@ -25,6 +25,14 @@ import type {
   WikiPage,
 } from "../../types/wiki";
 
+function getWikiHref(
+  slug: string
+) {
+  return `/wiki/${encodeURIComponent(
+    slug
+  )}`;
+}
+
 export default function WikiSidebar() {
   const pathname =
     usePathname();
@@ -159,7 +167,10 @@ export default function WikiSidebar() {
               .filter(Boolean)
           )
         ).sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             a.localeCompare(
               b
             )
@@ -184,7 +195,10 @@ export default function WikiSidebar() {
               .filter(Boolean)
           )
         ).sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             a.localeCompare(
               b
             )
@@ -201,12 +215,18 @@ export default function WikiSidebar() {
           new Set(
             pages.flatMap(
               (page) =>
-                page.tags ||
-                []
+                Array.isArray(
+                  page.tags
+                )
+                  ? page.tags
+                  : []
             )
           )
         ).sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             a.localeCompare(
               b
             )
@@ -219,18 +239,23 @@ export default function WikiSidebar() {
   const latestPages =
     useMemo(
       () =>
-        [...pages]
+        [
+          ...pages,
+        ]
           .sort(
-            (a, b) =>
+            (
+              a,
+              b
+            ) =>
               String(
                 b.updatedAt ||
-                b.createdAt ||
-                ""
+                  b.createdAt ||
+                  ""
               ).localeCompare(
                 String(
                   a.updatedAt ||
-                  a.createdAt ||
-                  ""
+                    a.createdAt ||
+                    ""
                 )
               )
           )
@@ -247,6 +272,8 @@ export default function WikiSidebar() {
     isAdmin ||
     hasAnyPermission([
       "wiki.manage",
+      "wiki.create",
+      "wiki.edit",
       "wiki.delete",
     ]);
 
@@ -255,81 +282,92 @@ export default function WikiSidebar() {
   }
 
   return (
-    <aside className="w-72 bg-white border border-zinc-200 rounded-3xl p-6 sticky top-6 h-fit">
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div>
-          <h2 className="text-xl font-bold">
-            Wiki
-          </h2>
+    <aside className="space-y-6">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Wiki
+            </h2>
 
-          <p className="text-sm text-zinc-500 mt-1">
-            {loading
-              ? "Lädt..."
-              : `${pages.length} Seiten`}
-          </p>
+            <p className="text-sm text-zinc-500 mt-1">
+              {loading
+                ? "Lädt..."
+                : `${pages.length} Seiten`}
+            </p>
+          </div>
+
+          {canManageWiki && (
+            <Link
+              href="/wiki"
+              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+            >
+              Neue Seite
+            </Link>
+          )}
         </div>
 
         <Link
-          href="/wiki/create"
-          className="bg-zinc-900 text-white px-3 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
-        >
-          Neu
-        </Link>
-      </div>
-
-      <div className="mb-8">
-        <Link
           href="/wiki"
-          className={`block p-3 rounded-xl transition ${
+          className={`block mt-5 px-4 py-3 rounded-2xl transition ${
             pathname === "/wiki" &&
             !activeCompany &&
             !activeDepartment &&
             !activeTag
               ? "bg-zinc-900 text-white"
-              : "hover:bg-zinc-100"
+              : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
           }`}
         >
-          📚 Alle Dokumente
+          Alle Dokumente
         </Link>
-      </div>
+      </section>
 
       {latestPages.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-sm font-semibold text-blue-600 uppercase mb-3">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
             Zuletzt aktualisiert
           </h3>
 
-          <div className="flex flex-col gap-1">
+          <div className="space-y-2 mt-4">
             {latestPages.map(
               (page) => (
                 <Link
                   key={page.slug}
-                  href={`/wiki/${encodeURIComponent(
+                  href={getWikiHref(
                     page.slug
-                  )}`}
-                  className={`p-3 rounded-xl transition ${
+                  )}
+                  className={`block px-4 py-3 rounded-2xl transition ${
                     pathname ===
-                    `/wiki/${page.slug}`
-                      ? "bg-blue-600 text-white"
-                      : "hover:bg-blue-50"
+                    getWikiHref(
+                      page.slug
+                    )
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                   }`}
                 >
-                  🕒 {page.title}
+                  <span className="font-medium line-clamp-1">
+                    {page.title}
+                  </span>
+
+                  <span className="block text-xs opacity-60 mt-1">
+                    {page.updatedAt ||
+                      page.createdAt}
+                  </span>
                 </Link>
               )
             )}
           </div>
-        </div>
+        </section>
       )}
 
-      <div className="mb-8">
-        <h3 className="text-sm font-semibold text-indigo-700 uppercase mb-3">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
           Firmen
         </h3>
 
-        <div className="flex flex-col gap-2">
+        <div className="space-y-2 mt-4">
           {companies.length === 0 && (
-            <p className="text-sm text-zinc-400 px-3">
+            <p className="text-sm text-zinc-500">
               Keine Firmen
             </p>
           )}
@@ -341,10 +379,10 @@ export default function WikiSidebar() {
                 href={wikiCompanyHref(
                   company
                 )}
-                className={`p-3 rounded-xl transition ${
+                className={`block px-4 py-3 rounded-2xl transition ${
                   activeCompany === company
-                    ? "bg-indigo-600 text-white"
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {company}
@@ -352,16 +390,16 @@ export default function WikiSidebar() {
             )
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="mb-8">
-        <h3 className="text-sm font-semibold text-indigo-700 uppercase mb-3">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
           Abteilungen
         </h3>
 
-        <div className="flex flex-col gap-2">
+        <div className="space-y-2 mt-4">
           {departments.length === 0 && (
-            <p className="text-sm text-zinc-400 px-3">
+            <p className="text-sm text-zinc-500">
               Keine Abteilungen
             </p>
           )}
@@ -373,10 +411,10 @@ export default function WikiSidebar() {
                 href={wikiDepartmentHref(
                   department
                 )}
-                className={`p-3 rounded-xl transition ${
+                className={`block px-4 py-3 rounded-2xl transition ${
                   activeDepartment === department
-                    ? "bg-indigo-600 text-white"
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {department}
@@ -384,16 +422,16 @@ export default function WikiSidebar() {
             )
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="mb-8">
-        <h3 className="text-sm font-semibold text-zinc-500 uppercase mb-3">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
           Tags
         </h3>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mt-4">
           {allTags.length === 0 && (
-            <p className="text-sm text-zinc-400 px-3">
+            <p className="text-sm text-zinc-500">
               Keine Tags
             </p>
           )}
@@ -405,10 +443,10 @@ export default function WikiSidebar() {
                 href={wikiTagHref(
                   tag
                 )}
-                className={`text-sm px-3 py-1 rounded-full transition ${
+                className={`text-xs px-3 py-1 rounded-full transition ${
                   activeTag === tag
                     ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
                 #{tag}
@@ -416,21 +454,25 @@ export default function WikiSidebar() {
             )
           )}
         </div>
-      </div>
+      </section>
 
       {canManageWiki && (
-        <div>
-          <h3 className="text-sm font-semibold text-red-600 uppercase mb-3">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
             Verwaltung
           </h3>
 
           <Link
             href="/wiki"
-            className="block p-3 rounded-xl hover:bg-red-50 text-red-600 transition"
+            className="block mt-4 bg-zinc-900 text-white px-4 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             Wiki verwalten
           </Link>
-        </div>
+
+          <p className="text-xs text-zinc-500 mt-3">
+            Erstellen und Bearbeiten läuft jetzt über die Wiki-Übersicht im Modal.
+          </p>
+        </section>
       )}
     </aside>
   );

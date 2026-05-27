@@ -50,6 +50,10 @@ import {
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
+
 import type {
   AdminUser,
 } from "../../types/user";
@@ -535,37 +539,27 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <section className="bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
-          <div>
-            <p className="text-zinc-300">
-              Verwaltung
-            </p>
-
-            <h1 className="text-4xl font-bold mt-2">
-              Admin Backend
-            </h1>
-
-            <p className="text-zinc-300 mt-3 max-w-3xl">
-              Zentrale Verwaltung für {settings.appName || "Intranet"}. Alle aktiven Module arbeiten auf PostgreSQL/API-Basis.
-            </p>
-
-            <div className="flex flex-wrap gap-3 mt-6">
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                PostgreSQL
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {settings.companyName || "Intern"}
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                Version {settings.appVersion || settings.version || "0.1.0"}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
+      <PageHero
+        eyebrow="Verwaltung"
+        title="Admin Backend"
+        description={`Zentrale Verwaltung für ${settings.appName || "Intranet"}. Benutzer, Rechte, Organisation, News und Systemeinstellungen sind hier gebündelt.`}
+        badges={[
+          {
+            label:
+              "PostgreSQL/API",
+          },
+          {
+            label:
+              settings.companyName ||
+              "Intern",
+          },
+          {
+            label:
+              `Version ${settings.appVersion || settings.version || "0.1.0"}`,
+          },
+        ]}
+        actions={(
+          <>
             <button
               type="button"
               onClick={() =>
@@ -582,9 +576,9 @@ export default function AdminPage() {
             >
               Zum Dashboard
             </Link>
-          </div>
-        </div>
-      </section>
+          </>
+        )}
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -607,72 +601,44 @@ export default function AdminPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Link
-          href="/admin/users"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Aktive Benutzer
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {activeUsers.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            {adminUsers.length} Administratoren · {departmentLeadUsers.length} Abteilungsleiter
-          </p>
+        <Link href="/admin/users">
+          <StatCard
+            label="Aktive Benutzer"
+            value={activeUsers.length}
+            description={`${adminUsers.length} Administratoren · ${departmentLeadUsers.length} Abteilungsleiter`}
+            icon="👥"
+            tone="blue"
+          />
         </Link>
 
-        <Link
-          href="/tickets"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Offene Tickets
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {openTickets.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            {urgentTickets.length} hoch/dringend
-          </p>
+        <Link href="/tickets">
+          <StatCard
+            label="Offene Tickets"
+            value={openTickets.length}
+            description={`${urgentTickets.length} hoch/dringend`}
+            icon="🎫"
+            tone="orange"
+          />
         </Link>
 
-        <Link
-          href="/wiki"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Wiki-Seiten
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {wikiPages.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            Dokumentation
-          </p>
+        <Link href="/wiki">
+          <StatCard
+            label="Wiki-Seiten"
+            value={wikiPages.length}
+            description="Dokumentation"
+            icon="📚"
+            tone="indigo"
+          />
         </Link>
 
-        <Link
-          href="/admin/news"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            News
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {news.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            {pinnedNews.length} fixiert
-          </p>
+        <Link href="/admin/news">
+          <StatCard
+            label="News"
+            value={news.length}
+            description={`${pinnedNews.length} fixiert`}
+            icon="📰"
+            tone="green"
+          />
         </Link>
       </div>
 
@@ -680,11 +646,11 @@ export default function AdminPage() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
           <div>
             <h2 className="text-2xl font-semibold">
-              Module
+              Admin-Module
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Aktive Verwaltungsbereiche ohne alte Storage-/Demo-Module.
+              Die wichtigsten Verwaltungsbereiche für Benutzer, Rechte, Organisation und System.
             </p>
           </div>
 
@@ -741,7 +707,8 @@ export default function AdminPage() {
               </p>
 
               <p className="font-semibold mt-1">
-                {settings.appName || "Intranet"}
+                {settings.appName ||
+                  "Intranet"}
               </p>
             </div>
 
@@ -751,7 +718,8 @@ export default function AdminPage() {
               </p>
 
               <p className="font-semibold mt-1">
-                {settings.companyName || "Intern"}
+                {settings.companyName ||
+                  "Intern"}
               </p>
             </div>
 

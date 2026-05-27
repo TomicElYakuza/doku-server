@@ -29,6 +29,12 @@ import {
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
+import AppModal from "../../../components/AppModal";
+
+import PageHero from "../../../components/PageHero";
+
+import StatCard from "../../../components/StatCard";
+
 import type {
   Company,
   CompanyStatus,
@@ -36,18 +42,80 @@ import type {
   DepartmentStatus,
 } from "../../../types/company";
 
+type FormMode =
+  | "company"
+  | "department"
+  | "";
+
+type StatusOption = {
+  value: CompanyStatus;
+  label: string;
+  description: string;
+};
+
+const statusOptions: StatusOption[] = [
+  {
+    value:
+      "active",
+
+    label:
+      "Aktiv",
+
+    description:
+      "Ist aktiv nutzbar und wird in Auswahlfeldern angezeigt.",
+  },
+  {
+    value:
+      "inactive",
+
+    label:
+      "Inaktiv",
+
+    description:
+      "Bleibt vorhanden, soll aber aktuell nicht aktiv genutzt werden.",
+  },
+  {
+    value:
+      "archived",
+
+    label:
+      "Archiviert",
+
+    description:
+      "Historischer Eintrag, nicht mehr für neue Zuordnungen gedacht.",
+  },
+];
+
 function createSlug(
   value: string
 ) {
   return value
     .trim()
     .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(
+      /ä/g,
+      "ae"
+    )
+    .replace(
+      /ö/g,
+      "oe"
+    )
+    .replace(
+      /ü/g,
+      "ue"
+    )
+    .replace(
+      /ß/g,
+      "ss"
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      ""
+    );
 }
 
 function getStatusLabel(
@@ -65,7 +133,8 @@ function getStatusLabel(
     return "Archiviert";
   }
 
-  return status || "Unbekannt";
+  return status ||
+    "Unbekannt";
 }
 
 function getStatusClass(
@@ -85,11 +154,6 @@ function getStatusClass(
 
   return "bg-zinc-100 text-zinc-700";
 }
-
-type FormMode =
-  | "company"
-  | "department"
-  | "";
 
 export default function AdminCompaniesPage() {
   const [mounted, setMounted] =
@@ -155,6 +219,9 @@ export default function AdminCompaniesPage() {
   const [error, setError] =
     useState("");
 
+  const [message, setMessage] =
+    useState("");
+
   useEffect(() => {
     setMounted(
       true
@@ -213,11 +280,19 @@ export default function AdminCompaniesPage() {
         ]);
 
       setCompanies(
-        nextCompanies
+        Array.isArray(
+          nextCompanies
+        )
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(
+          nextDepartments
+        )
+          ? nextDepartments
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -248,21 +323,63 @@ export default function AdminCompaniesPage() {
     );
   }
 
+  function getDepartmentCount(
+    companyId: string
+  ) {
+    return departments.filter(
+      (department) =>
+        department.companyId === companyId
+    ).length;
+  }
+
   function resetForms() {
-    setFormMode("");
-    setEditingCompanyId("");
-    setEditingDepartmentId("");
+    setFormMode(
+      ""
+    );
 
-    setCompanyName("");
-    setCompanySlug("");
-    setCompanyDescription("");
-    setCompanyStatus("active");
+    setEditingCompanyId(
+      ""
+    );
 
-    setDepartmentCompanyId("");
-    setDepartmentName("");
-    setDepartmentSlug("");
-    setDepartmentDescription("");
-    setDepartmentStatus("active");
+    setEditingDepartmentId(
+      ""
+    );
+
+    setCompanyName(
+      ""
+    );
+
+    setCompanySlug(
+      ""
+    );
+
+    setCompanyDescription(
+      ""
+    );
+
+    setCompanyStatus(
+      "active"
+    );
+
+    setDepartmentCompanyId(
+      ""
+    );
+
+    setDepartmentName(
+      ""
+    );
+
+    setDepartmentSlug(
+      ""
+    );
+
+    setDepartmentDescription(
+      ""
+    );
+
+    setDepartmentStatus(
+      "active"
+    );
   }
 
   function openCompanyCreateForm() {
@@ -314,14 +431,6 @@ export default function AdminCompaniesPage() {
     setFormMode(
       "company"
     );
-
-    window.scrollTo({
-      top:
-        0,
-
-      behavior:
-        "smooth",
-    });
   }
 
   function startEditDepartment(
@@ -356,21 +465,15 @@ export default function AdminCompaniesPage() {
     setFormMode(
       "department"
     );
-
-    window.scrollTo({
-      top:
-        0,
-
-      behavior:
-        "smooth",
-    });
   }
 
   const filteredCompanies =
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return companies.filter(
           (company) => {
@@ -381,6 +484,9 @@ export default function AdminCompaniesPage() {
                 company.slug,
                 company.description,
                 company.status,
+                getDepartmentCount(
+                  company.id
+                ).toString(),
                 company.createdAt,
                 company.updatedAt,
               ]
@@ -404,6 +510,7 @@ export default function AdminCompaniesPage() {
       },
       [
         companies,
+        departments,
         search,
         statusFilter,
       ]
@@ -413,7 +520,9 @@ export default function AdminCompaniesPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return departments.filter(
           (department) => {
@@ -466,15 +575,75 @@ export default function AdminCompaniesPage() {
     );
 
   const activeCompanies =
-    companies.filter(
-      (company) =>
-        company.status === "active"
+    useMemo(
+      () =>
+        companies.filter(
+          (company) =>
+            company.status === "active"
+        ),
+      [
+        companies,
+      ]
+    );
+
+  const inactiveCompanies =
+    useMemo(
+      () =>
+        companies.filter(
+          (company) =>
+            company.status === "inactive"
+        ),
+      [
+        companies,
+      ]
+    );
+
+  const archivedCompanies =
+    useMemo(
+      () =>
+        companies.filter(
+          (company) =>
+            company.status === "archived"
+        ),
+      [
+        companies,
+      ]
     );
 
   const activeDepartments =
-    departments.filter(
-      (department) =>
-        department.status === "active"
+    useMemo(
+      () =>
+        departments.filter(
+          (department) =>
+            department.status === "active"
+        ),
+      [
+        departments,
+      ]
+    );
+
+  const inactiveDepartments =
+    useMemo(
+      () =>
+        departments.filter(
+          (department) =>
+            department.status === "inactive"
+        ),
+      [
+        departments,
+      ]
+    );
+
+  const archivedDepartments =
+    useMemo(
+      () =>
+        departments.filter(
+          (department) =>
+            department.status === "archived"
+        ),
+      [
+        departments,
+      ]
     );
 
   async function handleCompanySubmit(
@@ -512,6 +681,14 @@ export default function AdminCompaniesPage() {
         true
       );
 
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       if (editingCompanyId) {
         const updatedCompany =
           await companyRepository.updateCompany(
@@ -541,6 +718,10 @@ export default function AdminCompaniesPage() {
 
         await loadData();
 
+        setMessage(
+          "Firma wurde gespeichert."
+        );
+
         return;
       }
 
@@ -566,12 +747,16 @@ export default function AdminCompaniesPage() {
       resetForms();
 
       await loadData();
+
+      setMessage(
+        "Firma wurde erstellt."
+      );
     } catch (saveError) {
       console.error(
         saveError
       );
 
-      alert(
+      setError(
         saveError instanceof Error
           ? saveError.message
           : "Firma konnte nicht gespeichert werden."
@@ -631,6 +816,14 @@ export default function AdminCompaniesPage() {
         true
       );
 
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       if (editingDepartmentId) {
         const updatedDepartment =
           await companyRepository.updateDepartment(
@@ -664,6 +857,10 @@ export default function AdminCompaniesPage() {
 
         await loadData();
 
+        setMessage(
+          "Abteilung wurde gespeichert."
+        );
+
         return;
       }
 
@@ -693,12 +890,16 @@ export default function AdminCompaniesPage() {
       resetForms();
 
       await loadData();
+
+      setMessage(
+        "Abteilung wurde erstellt."
+      );
     } catch (saveError) {
       console.error(
         saveError
       );
 
-      alert(
+      setError(
         saveError instanceof Error
           ? saveError.message
           : "Abteilung konnte nicht gespeichert werden."
@@ -737,6 +938,14 @@ export default function AdminCompaniesPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       saveCompanyDeletedActivity(
         company
       );
@@ -746,12 +955,16 @@ export default function AdminCompaniesPage() {
       );
 
       await loadData();
+
+      setMessage(
+        "Firma wurde gelöscht."
+      );
     } catch (deleteError) {
       console.error(
         deleteError
       );
 
-      alert(
+      setError(
         deleteError instanceof Error
           ? deleteError.message
           : "Firma konnte nicht gelöscht werden."
@@ -780,6 +993,14 @@ export default function AdminCompaniesPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       saveDepartmentDeletedActivity(
         department,
         getCompanyName(
@@ -792,12 +1013,16 @@ export default function AdminCompaniesPage() {
       );
 
       await loadData();
+
+      setMessage(
+        "Abteilung wurde gelöscht."
+      );
     } catch (deleteError) {
       console.error(
         deleteError
       );
 
-      alert(
+      setError(
         deleteError instanceof Error
           ? deleteError.message
           : "Abteilung konnte nicht gelöscht werden."
@@ -806,9 +1031,17 @@ export default function AdminCompaniesPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setCompanyFilter("");
-    setStatusFilter("");
+    setSearch(
+      ""
+    );
+
+    setCompanyFilter(
+      ""
+    );
+
+    setStatusFilter(
+      ""
+    );
   }
 
   if (!mounted) {
@@ -823,143 +1056,52 @@ export default function AdminCompaniesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Admin-Dashboard
-        </Link>
-      </div>
-
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Firmen & Abteilungen
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Organisationsstruktur aus PostgreSQL verwalten.
-          </p>
-        </div>
-
-        {canManageCompanies() && (
-          <div className="flex flex-wrap gap-3">
+      <AppModal
+        open={formMode === "company"}
+        title={
+          editingCompanyId
+            ? "Firma bearbeiten"
+            : "Firma erstellen"
+        }
+        description="Firmen werden direkt in PostgreSQL gespeichert und dienen als Basis für Benutzer- und Rechtezuordnung."
+        maxWidth="5xl"
+        onClose={resetForms}
+        footer={(
+          <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"
-              onClick={openCompanyCreateForm}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+              onClick={resetForms}
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
             >
-              Firma erstellen
+              Abbrechen
             </button>
 
             <button
-              type="button"
-              onClick={openDepartmentCreateForm}
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              type="submit"
+              form="company-form"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
             >
-              Abteilung erstellen
+              {saving
+                ? "Speichert..."
+                : editingCompanyId
+                  ? "Firma speichern"
+                  : "Firma erstellen"}
             </button>
           </div>
         )}
-      </div>
-
-      {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Organisation wird geladen...
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Firmen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {companies.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setStatusFilter(
-              "active"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Aktive Firmen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {activeCompanies.length}
-          </h2>
-        </button>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Abteilungen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {departments.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Aktive Abteilungen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {activeDepartments.length}
-          </h2>
-        </div>
-      </div>
-
-      {formMode === "company" && (
+      >
         <form
+          id="company-form"
           onSubmit={(event) =>
             void handleCompanySubmit(
               event
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+          className="space-y-8"
         >
-          <div>
-            <h2 className="text-2xl font-semibold">
-              {editingCompanyId
-                ? "Firma bearbeiten"
-                : "Firma erstellen"}
-            </h2>
-
-            <p className="text-zinc-500 mt-1">
-              Firma wird direkt in PostgreSQL gespeichert.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
               <label className="block mb-2 font-medium">
                 Name
@@ -1007,35 +1149,47 @@ export default function AdminCompaniesPage() {
               />
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
+            <div className="xl:col-span-2">
+              <p className="font-medium mb-3">
                 Status
-              </label>
+              </p>
 
-              <select
-                value={companyStatus}
-                onChange={(event) =>
-                  setCompanyStatus(
-                    event.target.value as CompanyStatus
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="active">
-                  Aktiv
-                </option>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {statusOptions.map(
+                  (option) => {
+                    const active =
+                      companyStatus === option.value;
 
-                <option value="inactive">
-                  Inaktiv
-                </option>
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setCompanyStatus(
+                            option.value
+                          )
+                        }
+                        className={`text-left border rounded-3xl p-5 transition ${
+                          active
+                            ? "border-zinc-900 bg-zinc-900 text-white"
+                            : "border-zinc-200 bg-white hover:bg-zinc-50"
+                        }`}
+                      >
+                        <p className="font-semibold">
+                          {option.label}
+                        </p>
 
-                <option value="archived">
-                  Archiviert
-                </option>
-              </select>
+                        <p className={active ? "text-zinc-300 text-sm mt-2" : "text-zinc-500 text-sm mt-2"}>
+                          {option.description}
+                        </p>
+                      </button>
+                    );
+                  }
+                )}
+              </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
@@ -1047,59 +1201,61 @@ export default function AdminCompaniesPage() {
                     event.target.value
                   )
                 }
-                rows={3}
+                rows={4}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
                 placeholder="Beschreibung..."
               />
             </div>
           </div>
+        </form>
+      </AppModal>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-            >
-              {saving
-                ? "Speichert..."
-                : editingCompanyId
-                  ? "Firma speichern"
-                  : "Firma erstellen"}
-            </button>
-
+      <AppModal
+        open={formMode === "department"}
+        title={
+          editingDepartmentId
+            ? "Abteilung bearbeiten"
+            : "Abteilung erstellen"
+        }
+        description="Abteilungen hängen an einer Firma und bestimmen Sichtbarkeit sowie Abteilungsrechte."
+        maxWidth="5xl"
+        onClose={resetForms}
+        footer={(
+          <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"
               onClick={resetForms}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
-          </div>
-        </form>
-      )}
 
-      {formMode === "department" && (
+            <button
+              type="submit"
+              form="department-form"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : editingDepartmentId
+                  ? "Abteilung speichern"
+                  : "Abteilung erstellen"}
+            </button>
+          </div>
+        )}
+      >
         <form
+          id="department-form"
           onSubmit={(event) =>
             void handleDepartmentSubmit(
               event
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+          className="space-y-8"
         >
-          <div>
-            <h2 className="text-2xl font-semibold">
-              {editingDepartmentId
-                ? "Abteilung bearbeiten"
-                : "Abteilung erstellen"}
-            </h2>
-
-            <p className="text-zinc-500 mt-1">
-              Abteilung wird direkt in PostgreSQL gespeichert.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
               <label className="block mb-2 font-medium">
                 Firma
@@ -1206,7 +1362,7 @@ export default function AdminCompaniesPage() {
               </select>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
@@ -1218,46 +1374,164 @@ export default function AdminCompaniesPage() {
                     event.target.value
                   )
                 }
-                rows={3}
+                rows={4}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
                 placeholder="Beschreibung..."
               />
             </div>
           </div>
+        </form>
+      </AppModal>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-            >
-              {saving
-                ? "Speichert..."
-                : editingDepartmentId
-                  ? "Abteilung speichern"
-                  : "Abteilung erstellen"}
-            </button>
+      <div>
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Admin-Dashboard
+        </Link>
+      </div>
 
+      <PageHero
+        eyebrow="Admin Backend"
+        title="Firmen & Abteilungen"
+        description="Organisationsstruktur verwalten. Firmen und Abteilungen bestimmen Sichtbarkeit, Benutzerzuordnung und die Grundlage für Berechtigungen."
+        badges={[
+          {
+            label:
+              `${companies.length} Firmen`,
+          },
+          {
+            label:
+              `${departments.length} Abteilungen`,
+          },
+          {
+            label:
+              "PostgreSQL",
+          },
+        ]}
+        actions={(
+          <>
             <button
               type="button"
-              onClick={resetForms}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+              onClick={() =>
+                void loadData()
+              }
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
             >
-              Abbrechen
+              Aktualisieren
             </button>
-          </div>
-        </form>
+
+            {canManageCompanies() && (
+              <>
+                <button
+                  type="button"
+                  onClick={openCompanyCreateForm}
+                  className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                >
+                  Firma erstellen
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openDepartmentCreateForm}
+                  className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                >
+                  Abteilung erstellen
+                </button>
+              </>
+            )}
+          </>
+        )}
+      />
+
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Organisation wird geladen...
+          </p>
+        </div>
       )}
 
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Firmen"
+          value={companies.length}
+          description={`${activeCompanies.length} aktiv`}
+          icon="🏢"
+          active={
+            !statusFilter &&
+            !companyFilter
+          }
+          onClick={resetFilters}
+        />
+
+        <StatCard
+          label="Aktive Firmen"
+          value={activeCompanies.length}
+          description={`${inactiveCompanies.length} inaktiv · ${archivedCompanies.length} archiviert`}
+          icon="✅"
+          tone="green"
+          active={statusFilter === "active"}
+          onClick={() =>
+            setStatusFilter(
+              "active"
+            )
+          }
+        />
+
+        <StatCard
+          label="Abteilungen"
+          value={departments.length}
+          description={`${activeDepartments.length} aktiv`}
+          icon="🧩"
+          tone="indigo"
+          onClick={resetFilters}
+        />
+
+        <StatCard
+          label="Archiv / Inaktiv"
+          value={inactiveDepartments.length + archivedDepartments.length}
+          description="Abteilungen nicht aktiv"
+          icon="🗄️"
+          active={statusFilter === "archived"}
+          onClick={() =>
+            setStatusFilter(
+              "archived"
+            )
+          }
+        />
+      </div>
+
       <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
               Suche & Filter
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Suche nach Firmen, Abteilungen, Slugs oder Status.
+              Suche nach Firmen, Abteilungen, Slugs, Beschreibung oder Status.
             </p>
           </div>
 
@@ -1270,7 +1544,7 @@ export default function AdminCompaniesPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mt-5">
           <input
             value={search}
             onChange={(event) =>
@@ -1278,7 +1552,7 @@ export default function AdminCompaniesPage() {
                 event.target.value
               )
             }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
             placeholder="Organisation suchen..."
           />
 
@@ -1333,13 +1607,23 @@ export default function AdminCompaniesPage() {
             </option>
           </select>
         </div>
+
+        <p className="text-sm text-zinc-500 mt-5">
+          {filteredCompanies.length} Firmen und {filteredDepartments.length} Abteilungen gefunden.
+        </p>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">
-            Firmen
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold">
+              Firmen
+            </h2>
+
+            <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+              {filteredCompanies.length}
+            </span>
+          </div>
 
           {filteredCompanies.length === 0 && (
             <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
@@ -1356,12 +1640,20 @@ export default function AdminCompaniesPage() {
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div>
-                    <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(company.status)}`}>
-                      {getStatusLabel(
-                        company.status
-                      )}
-                    </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(company.status)}`}>
+                        {getStatusLabel(
+                          company.status
+                        )}
+                      </span>
+
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                        {getDepartmentCount(
+                          company.id
+                        )} Abteilungen
+                      </span>
+                    </div>
 
                     <h3 className="text-2xl font-bold mt-4">
                       {company.name}
@@ -1372,9 +1664,28 @@ export default function AdminCompaniesPage() {
                         "Keine Beschreibung vorhanden."}
                     </p>
 
-                    <p className="text-sm text-zinc-400 mt-4">
-                      Slug: {company.slug}
-                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-zinc-500 mt-4">
+                      <p>
+                        Slug:{" "}
+                        <span className="text-zinc-700 font-mono">
+                          {company.slug}
+                        </span>
+                      </p>
+
+                      <p>
+                        Erstellt:{" "}
+                        <span className="text-zinc-700">
+                          {company.createdAt}
+                        </span>
+                      </p>
+
+                      <p>
+                        Aktualisiert:{" "}
+                        <span className="text-zinc-700">
+                          {company.updatedAt}
+                        </span>
+                      </p>
+                    </div>
                   </div>
 
                   {canManageCompanies() && (
@@ -1411,9 +1722,15 @@ export default function AdminCompaniesPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">
-            Abteilungen
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold">
+              Abteilungen
+            </h2>
+
+            <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+              {filteredDepartments.length}
+            </span>
+          </div>
 
           {filteredDepartments.length === 0 && (
             <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
@@ -1430,7 +1747,7 @@ export default function AdminCompaniesPage() {
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(department.status)}`}>
                         {getStatusLabel(
@@ -1438,7 +1755,7 @@ export default function AdminCompaniesPage() {
                         )}
                       </span>
 
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                         {getCompanyName(
                           department.companyId
                         )}
@@ -1454,9 +1771,28 @@ export default function AdminCompaniesPage() {
                         "Keine Beschreibung vorhanden."}
                     </p>
 
-                    <p className="text-sm text-zinc-400 mt-4">
-                      Slug: {department.slug}
-                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-zinc-500 mt-4">
+                      <p>
+                        Slug:{" "}
+                        <span className="text-zinc-700 font-mono">
+                          {department.slug}
+                        </span>
+                      </p>
+
+                      <p>
+                        Erstellt:{" "}
+                        <span className="text-zinc-700">
+                          {department.createdAt}
+                        </span>
+                      </p>
+
+                      <p>
+                        Aktualisiert:{" "}
+                        <span className="text-zinc-700">
+                          {department.updatedAt}
+                        </span>
+                      </p>
+                    </div>
                   </div>
 
                   {canManageCompanies() && (

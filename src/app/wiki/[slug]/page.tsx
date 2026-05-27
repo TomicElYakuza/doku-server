@@ -20,6 +20,8 @@ import {
   usePermissions,
 } from "../../../hooks/usePermissions";
 
+import PageHero from "../../../components/PageHero";
+
 import type {
   WikiPage,
 } from "../../../types/wiki";
@@ -121,7 +123,9 @@ export default function WikiDetailPage() {
     );
 
   const [page, setPage] =
-    useState<WikiPage | null>(null);
+    useState<WikiPage | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(true);
@@ -201,11 +205,17 @@ export default function WikiDetailPage() {
   function userCanSeePage(
     wikiPage: WikiPage
   ) {
-    if (isAdmin || canManageWiki) {
+    if (
+      isAdmin ||
+      canManageWiki
+    ) {
       return true;
     }
 
-    if (!user || !canViewWiki) {
+    if (
+      !user ||
+      !canViewWiki
+    ) {
       return false;
     }
 
@@ -244,7 +254,9 @@ export default function WikiDetailPage() {
 
     const confirmed =
       confirm(
-        `Wiki-Seite "${getPageTitle(page)}" wirklich löschen?`
+        `Wiki-Seite "${getPageTitle(
+          page
+        )}" wirklich löschen?`
       );
 
     if (!confirmed) {
@@ -292,49 +304,66 @@ export default function WikiDetailPage() {
     !page
   ) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h1 className="text-3xl font-bold">
-          Seite nicht gefunden
-        </h1>
+      <div className="space-y-8">
+        <div>
+          <Link
+            href="/wiki"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zum Wiki
+          </Link>
+        </div>
 
-        <p className="text-zinc-500 mt-2">
-          {error ||
-            "Diese Wiki-Seite existiert nicht."}
-        </p>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Seite nicht gefunden
+          </h1>
 
-        <Link
-          href="/wiki"
-          className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Zurück zum Wiki
-        </Link>
+          <p className="text-zinc-500 mt-2">
+            {error ||
+              "Diese Wiki-Seite existiert nicht."}
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (!userCanSeePage(page)) {
+  if (
+    !userCanSeePage(
+      page
+    )
+  ) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h1 className="text-3xl font-bold">
-          Keine Berechtigung
-        </h1>
+      <div className="space-y-8">
+        <div>
+          <Link
+            href="/wiki"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zum Wiki
+          </Link>
+        </div>
 
-        <p className="text-zinc-500 mt-2">
-          Du hast keine Berechtigung, diese Wiki-Seite zu öffnen.
-        </p>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Keine Berechtigung
+          </h1>
 
-        <Link
-          href="/wiki"
-          className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-        >
-          Zurück zum Wiki
-        </Link>
+          <p className="text-zinc-500 mt-2">
+            Du hast keine Berechtigung, diese Wiki-Seite zu öffnen.
+          </p>
+        </div>
       </div>
     );
   }
 
   const tags =
     getPageTags(
+      page
+    );
+
+  const pageSlug =
+    getPageSlug(
       page
     );
 
@@ -349,46 +378,43 @@ export default function WikiDetailPage() {
         </Link>
       </div>
 
-      <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap gap-2">
-              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                {page.company ||
-                  "Intern"}
-              </span>
-
-              <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                {page.department ||
-                  page.category ||
-                  "Allgemein"}
-              </span>
-            </div>
-
-            <h1 className="text-4xl font-bold mt-5">
-              {getPageTitle(
-                page
-              )}
-            </h1>
-
-            <p className="text-zinc-500 mt-3">
-              {page.description ||
-                page.excerpt ||
-                "Keine Beschreibung vorhanden."}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3 shrink-0">
+      <PageHero
+        eyebrow="Wiki"
+        title={getPageTitle(
+          page
+        )}
+        description={
+          page.description ||
+          page.excerpt ||
+          "Keine Beschreibung vorhanden."
+        }
+        badges={[
+          {
+            label:
+              page.company ||
+              "Intern",
+          },
+          {
+            label:
+              page.department ||
+              page.category ||
+              "Allgemein",
+          },
+          {
+            label:
+              page.author
+                ? `Autor: ${page.author}`
+                : "Autor: Unbekannt",
+          },
+        ]}
+        actions={(
+          <>
             {canEditWiki && (
               <Link
-                href={`/wiki/edit/${encodeURIComponent(
-                  getPageSlug(
-                    page
-                  )
-                )}`}
-                className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+                href="/wiki"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
               >
-                Bearbeiten
+                In Übersicht bearbeiten
               </Link>
             )}
 
@@ -403,11 +429,17 @@ export default function WikiDetailPage() {
                 Löschen
               </button>
             )}
-          </div>
-        </div>
+          </>
+        )}
+      />
 
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-6">
+      {tags.length > 0 && (
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold">
+            Tags
+          </h2>
+
+          <div className="flex flex-wrap gap-2 mt-4">
             {tags.map(
               (tag) => (
                 <Link
@@ -415,16 +447,18 @@ export default function WikiDetailPage() {
                   href={`/wiki?tag=${encodeURIComponent(
                     tag
                   )}`}
-                  className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                  className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
                 >
                   #{tag}
                 </Link>
               )
             )}
           </div>
-        )}
+        </section>
+      )}
 
-        <div className="flex flex-wrap gap-6 text-sm text-zinc-400 mt-6">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mb-8">
           <span>
             Autor:{" "}
             {page.author ||
@@ -442,30 +476,24 @@ export default function WikiDetailPage() {
           </span>
         </div>
 
-        <div className="prose prose-zinc max-w-none mt-10 whitespace-pre-wrap leading-relaxed">
-          {getPageContent(
-            page
-          ) ||
-            "Noch kein Inhalt vorhanden."}
-        </div>
-      </article>
+        <article className="prose prose-zinc max-w-none">
+          <div className="whitespace-pre-wrap text-zinc-800 leading-8">
+            {getPageContent(
+              page
+            ) ||
+              "Noch kein Inhalt vorhanden."}
+          </div>
+        </article>
+      </section>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <FileList
-          pageSlug={getPageSlug(
-            page
-          )}
-          editable={canEditWiki}
-        />
-      </div>
+      <FileList
+        pageSlug={pageSlug}
+        editable={canEditWiki}
+      />
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <Comments
-          pageSlug={getPageSlug(
-            page
-          )}
-        />
-      </div>
+      <Comments
+        pageSlug={pageSlug}
+      />
     </div>
   );
 }

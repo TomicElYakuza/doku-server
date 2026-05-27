@@ -30,6 +30,12 @@ import {
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
+import AppModal from "../../../components/AppModal";
+
+import PageHero from "../../../components/PageHero";
+
+import StatCard from "../../../components/StatCard";
+
 import type {
   AdminUser,
   AdminUserStatus,
@@ -40,6 +46,54 @@ import type {
   Company,
   Department,
 } from "../../../types/company";
+
+type RoleOption = {
+  value: UserRole;
+  label: string;
+  description: string;
+};
+
+type StatusOption = {
+  value: AdminUserStatus;
+  label: string;
+  description: string;
+};
+
+const roleOptions: RoleOption[] = [
+  {
+    value: "employee",
+    label: "Mitarbeiter",
+    description: "Standardrolle. Rechte kommen über Firma, Abteilung oder Einzelrechte.",
+  },
+  {
+    value: "department_lead",
+    label: "Abteilungsleiter",
+    description: "Kann Inhalte der eigenen Abteilung verwalten.",
+  },
+  {
+    value: "admin",
+    label: "Administrator",
+    description: "Vollzugriff auf System, Admin Backend und alle Daten.",
+  },
+];
+
+const statusOptions: StatusOption[] = [
+  {
+    value: "active",
+    label: "Aktiv",
+    description: "Benutzer kann sich anmelden.",
+  },
+  {
+    value: "invited",
+    label: "Eingeladen",
+    description: "Benutzer ist vorbereitet, aber noch nicht vollständig aktiv.",
+  },
+  {
+    value: "inactive",
+    label: "Inaktiv",
+    description: "Benutzer ist gesperrt.",
+  },
+];
 
 function getRoleLabel(
   role: UserRole | string
@@ -83,6 +137,15 @@ function buildUsernameFromEmail(
     .replace(/\s+/g, ".");
 }
 
+function normalizeUsername(
+  value: string
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ".");
+}
+
 export default function AdminUsersPage() {
   const [mounted, setMounted] =
     useState(false);
@@ -111,7 +174,7 @@ export default function AdminUsersPage() {
   const [departmentFilter, setDepartmentFilter] =
     useState("");
 
-  const [showForm, setShowForm] =
+  const [modalOpen, setModalOpen] =
     useState(false);
 
   const [editingUserId, setEditingUserId] =
@@ -151,6 +214,9 @@ export default function AdminUsersPage() {
     useState(false);
 
   const [error, setError] =
+    useState("");
+
+  const [message, setMessage] =
     useState("");
 
   useEffect(() => {
@@ -217,11 +283,15 @@ export default function AdminUsersPage() {
         ]);
 
       setCompanies(
-        nextCompanies
+        Array.isArray(nextCompanies)
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(nextDepartments)
+          ? nextDepartments
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -253,15 +323,21 @@ export default function AdminUsersPage() {
         ]);
 
       setUsers(
-        nextUsers
+        Array.isArray(nextUsers)
+          ? nextUsers
+          : []
       );
 
       setCompanies(
-        nextCompanies
+        Array.isArray(nextCompanies)
+          ? nextCompanies
+          : []
       );
 
       setDepartments(
-        nextDepartments
+        Array.isArray(nextDepartments)
+          ? nextDepartments
+          : []
       );
     } catch (loadError) {
       console.error(
@@ -278,104 +354,6 @@ export default function AdminUsersPage() {
         false
       );
     }
-  }
-
-  function resetForm() {
-    setEditingUserId("");
-    setName("");
-    setEmail("");
-    setUsername("");
-    setPassword("");
-    setPasswordMustChange(true);
-    setRole("employee");
-    setStatus("active");
-    setCompanyId("");
-    setDepartmentId("");
-    setShowForm(false);
-  }
-
-  function openCreateForm() {
-    resetForm();
-
-    const firstCompany =
-      companies[0];
-
-    const firstDepartment =
-      departments.find(
-        (department) =>
-          department.companyId === firstCompany?.id
-      );
-
-    setCompanyId(
-      firstCompany?.id ||
-        ""
-    );
-
-    setDepartmentId(
-      firstDepartment?.id ||
-        ""
-    );
-
-    setShowForm(true);
-  }
-
-  function startEditUser(
-    user: AdminUser
-  ) {
-    setEditingUserId(
-      user.id
-    );
-
-    setName(
-      user.name
-    );
-
-    setEmail(
-      user.email
-    );
-
-    setUsername(
-      user.username ||
-        buildUsernameFromEmail(
-          user.email
-        )
-    );
-
-    setPassword("");
-
-    setPasswordMustChange(
-      Boolean(
-        user.passwordMustChange
-      )
-    );
-
-    setRole(
-      user.role
-    );
-
-    setStatus(
-      user.status
-    );
-
-    setCompanyId(
-      user.companyId ||
-        ""
-    );
-
-    setDepartmentId(
-      user.departmentId ||
-        ""
-    );
-
-    setShowForm(true);
-
-    window.scrollTo({
-      top:
-        0,
-
-      behavior:
-        "smooth",
-    });
   }
 
   function getCompanyName(
@@ -410,19 +388,49 @@ export default function AdminUsersPage() {
     );
   }
 
+  const activeCompanies =
+    useMemo(
+      () =>
+        companies.filter(
+          (company) =>
+            company.status === "active"
+        ),
+      [
+        companies,
+      ]
+    );
+
+  const activeDepartments =
+    useMemo(
+      () =>
+        departments.filter(
+          (department) =>
+            department.status === "active"
+        ),
+      [
+        departments,
+      ]
+    );
+
   const departmentOptions =
     useMemo(
       () => {
+        const source =
+          activeDepartments.length > 0
+            ? activeDepartments
+            : departments;
+
         if (!companyId) {
-          return departments;
+          return source;
         }
 
-        return departments.filter(
+        return source.filter(
           (department) =>
             department.companyId === companyId
         );
       },
       [
+        activeDepartments,
         departments,
         companyId,
       ]
@@ -450,7 +458,9 @@ export default function AdminUsersPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return users.filter(
           (user) => {
@@ -489,9 +499,7 @@ export default function AdminUsersPage() {
                 .filter(Boolean)
                 .join(" ")
                 .toLowerCase()
-                .includes(
-                  query
-                );
+                .includes(query);
 
             const matchesRole =
               !roleFilter ||
@@ -532,28 +540,265 @@ export default function AdminUsersPage() {
     );
 
   const activeUsers =
-    users.filter(
-      (user) =>
-        user.status === "active"
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.status === "active"
+        ),
+      [
+        users,
+      ]
+    );
+
+  const inactiveUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.status === "inactive"
+        ),
+      [
+        users,
+      ]
+    );
+
+  const invitedUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.status === "invited"
+        ),
+      [
+        users,
+      ]
     );
 
   const adminUsers =
-    users.filter(
-      (user) =>
-        user.role === "admin"
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role === "admin"
+        ),
+      [
+        users,
+      ]
     );
 
   const departmentLeadUsers =
-    users.filter(
-      (user) =>
-        user.role === "department_lead"
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role === "department_lead"
+        ),
+      [
+        users,
+      ]
+    );
+
+  const employeeUsers =
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.role === "employee"
+        ),
+      [
+        users,
+      ]
     );
 
   const passwordResetUsers =
-    users.filter(
-      (user) =>
-        user.passwordMustChange
+    useMemo(
+      () =>
+        users.filter(
+          (user) =>
+            user.passwordMustChange
+        ),
+      [
+        users,
+      ]
     );
+
+  function resetForm() {
+    setEditingUserId(
+      ""
+    );
+
+    setName(
+      ""
+    );
+
+    setEmail(
+      ""
+    );
+
+    setUsername(
+      ""
+    );
+
+    setPassword(
+      ""
+    );
+
+    setPasswordMustChange(
+      true
+    );
+
+    setRole(
+      "employee"
+    );
+
+    setStatus(
+      "active"
+    );
+
+    setCompanyId(
+      ""
+    );
+
+    setDepartmentId(
+      ""
+    );
+  }
+
+  function closeModal() {
+    setModalOpen(
+      false
+    );
+
+    resetForm();
+  }
+
+  function openCreateForm() {
+    if (!canManageUsers()) {
+      alert(
+        "Du hast keine Berechtigung, Benutzer zu erstellen."
+      );
+
+      return;
+    }
+
+    resetForm();
+
+    const firstCompany =
+      activeCompanies[0] ||
+      companies[0];
+
+    const firstDepartment =
+      departments.find(
+        (department) =>
+          department.companyId === firstCompany?.id &&
+          department.status === "active"
+      ) ||
+      departments.find(
+        (department) =>
+          department.companyId === firstCompany?.id
+      ) ||
+      departments[0];
+
+    setCompanyId(
+      firstCompany?.id ||
+      ""
+    );
+
+    setDepartmentId(
+      firstDepartment?.id ||
+      ""
+    );
+
+    setModalOpen(
+      true
+    );
+  }
+
+  function startEditUser(
+    user: AdminUser
+  ) {
+    if (!canManageUsers()) {
+      alert(
+        "Du hast keine Berechtigung, Benutzer zu bearbeiten."
+      );
+
+      return;
+    }
+
+    setEditingUserId(
+      user.id
+    );
+
+    setName(
+      user.name
+    );
+
+    setEmail(
+      user.email
+    );
+
+    setUsername(
+      user.username ||
+      buildUsernameFromEmail(
+        user.email
+      )
+    );
+
+    setPassword(
+      ""
+    );
+
+    setPasswordMustChange(
+      Boolean(user.passwordMustChange)
+    );
+
+    setRole(
+      user.role
+    );
+
+    setStatus(
+      user.status
+    );
+
+    setCompanyId(
+      user.companyId ||
+      ""
+    );
+
+    setDepartmentId(
+      user.departmentId ||
+      ""
+    );
+
+    setModalOpen(
+      true
+    );
+  }
+
+  function handleCompanyChange(
+    nextCompanyId: string
+  ) {
+    setCompanyId(
+      nextCompanyId
+    );
+
+    const firstDepartment =
+      departments.find(
+        (department) =>
+          department.companyId === nextCompanyId &&
+          department.status === "active"
+      ) ||
+      departments.find(
+        (department) =>
+          department.companyId === nextCompanyId
+      );
+
+    setDepartmentId(
+      firstDepartment?.id ||
+      ""
+    );
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -618,6 +863,14 @@ export default function AdminUsersPage() {
         true
       );
 
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       if (editingUserId) {
         const updatedUser =
           await adminUserRepository.update(
@@ -630,7 +883,9 @@ export default function AdminUsersPage() {
                 email.trim().toLowerCase(),
 
               username:
-                username.trim().toLowerCase(),
+                normalizeUsername(
+                  username
+                ),
 
               ...(password.trim()
                 ? {
@@ -663,9 +918,13 @@ export default function AdminUsersPage() {
           );
         }
 
-        resetForm();
+        closeModal();
 
         await loadData();
+
+        setMessage(
+          "Benutzer wurde aktualisiert."
+        );
 
         return;
       }
@@ -679,7 +938,9 @@ export default function AdminUsersPage() {
             email.trim().toLowerCase(),
 
           username:
-            username.trim().toLowerCase(),
+            normalizeUsername(
+              username
+            ),
 
           password:
             password.trim(),
@@ -705,15 +966,19 @@ export default function AdminUsersPage() {
         createdUser
       );
 
-      resetForm();
+      closeModal();
 
       await loadData();
+
+      setMessage(
+        "Benutzer wurde erstellt."
+      );
     } catch (saveError) {
       console.error(
         saveError
       );
 
-      alert(
+      setError(
         saveError instanceof Error
           ? saveError.message
           : "Benutzer konnte nicht gespeichert werden."
@@ -746,6 +1011,14 @@ export default function AdminUsersPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       saveUserDeletedActivity(
         user
       );
@@ -755,12 +1028,16 @@ export default function AdminUsersPage() {
       );
 
       await loadData();
+
+      setMessage(
+        "Benutzer wurde gelöscht."
+      );
     } catch (deleteError) {
       console.error(
         deleteError
       );
 
-      alert(
+      setError(
         deleteError instanceof Error
           ? deleteError.message
           : "Benutzer konnte nicht gelöscht werden."
@@ -769,11 +1046,25 @@ export default function AdminUsersPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setRoleFilter("");
-    setStatusFilter("");
-    setCompanyFilter("");
-    setDepartmentFilter("");
+    setSearch(
+      ""
+    );
+
+    setRoleFilter(
+      ""
+    );
+
+    setStatusFilter(
+      ""
+    );
+
+    setCompanyFilter(
+      ""
+    );
+
+    setDepartmentFilter(
+      ""
+    );
   }
 
   if (!mounted) {
@@ -788,6 +1079,338 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-8">
+      <AppModal
+        open={modalOpen}
+        title={
+          editingUserId
+            ? "Benutzer bearbeiten"
+            : "Benutzer erstellen"
+        }
+        description="Account, Rolle, Status, Passwort und Organisationszuordnung verwalten."
+        maxWidth="5xl"
+        onClose={closeModal}
+        footer={(
+          <div className="flex flex-wrap gap-3 justify-end">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+
+            <button
+              type="submit"
+              form="admin-user-form"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : editingUserId
+                  ? "Änderungen speichern"
+                  : "Benutzer erstellen"}
+            </button>
+          </div>
+        )}
+      >
+        <form
+          id="admin-user-form"
+          onSubmit={(event) =>
+            void handleSubmit(
+              event
+            )
+          }
+          className="space-y-8"
+        >
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-semibold">
+                Login & Konto
+              </h3>
+
+              <p className="text-zinc-500 mt-1">
+                Grunddaten für Anmeldung und Passwort.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Name
+                </label>
+
+                <input
+                  value={name}
+                  onChange={(event) =>
+                    setName(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="Max Mustermann"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  E-Mail
+                </label>
+
+                <input
+                  value={email}
+                  onChange={(event) => {
+                    const nextEmail =
+                      event.target.value;
+
+                    setEmail(
+                      nextEmail
+                    );
+
+                    if (
+                      !editingUserId &&
+                      !username
+                    ) {
+                      setUsername(
+                        buildUsernameFromEmail(
+                          nextEmail
+                        )
+                      );
+                    }
+                  }}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="max@firma.local"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Benutzername
+                </label>
+
+                <input
+                  value={username}
+                  onChange={(event) =>
+                    setUsername(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder="max.mustermann"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  {editingUserId
+                    ? "Neues Passwort setzen"
+                    : "Vordefiniertes Passwort"}
+                </label>
+
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) =>
+                    setPassword(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                  placeholder={
+                    editingUserId
+                      ? "Leer lassen = unverändert"
+                      : "Startpasswort"
+                  }
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-5">
+              <span>
+                <span className="font-medium block">
+                  Passwort bei nächster Anmeldung ändern
+                </span>
+
+                <span className="text-sm text-zinc-500">
+                  Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
+                </span>
+              </span>
+
+              <input
+                type="checkbox"
+                checked={passwordMustChange}
+                onChange={(event) =>
+                  setPasswordMustChange(
+                    event.target.checked
+                  )
+                }
+                className="h-5 w-5"
+              />
+            </label>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-semibold">
+                Rolle & Status
+              </h3>
+
+              <p className="text-zinc-500 mt-1">
+                Die Rolle legt die Grundhierarchie fest. Konkrete Rechte kommen über Berechtigungen dazu.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {roleOptions.map(
+                (option) => {
+                  const active =
+                    role === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() =>
+                        setRole(
+                          option.value
+                        )
+                      }
+                      className={`text-left border rounded-3xl p-5 transition ${
+                        active
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50"
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {option.label}
+                      </p>
+
+                      <p className={active ? "text-zinc-300 text-sm mt-2" : "text-zinc-500 text-sm mt-2"}>
+                        {option.description}
+                      </p>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+              {statusOptions.map(
+                (option) => {
+                  const active =
+                    status === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() =>
+                        setStatus(
+                          option.value
+                        )
+                      }
+                      className={`text-left border rounded-3xl p-5 transition ${
+                        active
+                          ? "border-zinc-900 bg-zinc-900 text-white"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50"
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {option.label}
+                      </p>
+
+                      <p className={active ? "text-zinc-300 text-sm mt-2" : "text-zinc-500 text-sm mt-2"}>
+                        {option.description}
+                      </p>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-semibold">
+                Organisation
+              </h3>
+
+              <p className="text-zinc-500 mt-1">
+                Firma und Abteilung bestimmen, welche Bereichsdaten der Benutzer sieht.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firma
+                </label>
+
+                <select
+                  value={companyId}
+                  onChange={(event) =>
+                    handleCompanyChange(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="">
+                    Keine Firma
+                  </option>
+
+                  {(activeCompanies.length > 0
+                    ? activeCompanies
+                    : companies
+                  ).map(
+                    (company) => (
+                      <option
+                        key={company.id}
+                        value={company.id}
+                      >
+                        {company.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Abteilung
+                </label>
+
+                <select
+                  value={departmentId}
+                  onChange={(event) =>
+                    setDepartmentId(
+                      event.target.value
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                >
+                  <option value="">
+                    Keine Abteilung
+                  </option>
+
+                  {departmentOptions.map(
+                    (department) => (
+                      <option
+                        key={department.id}
+                        value={department.id}
+                      >
+                        {department.name}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            </div>
+          </section>
+        </form>
+      </AppModal>
+
       <div>
         <Link
           href="/admin"
@@ -797,32 +1420,65 @@ export default function AdminUsersPage() {
         </Link>
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Benutzerverwaltung
-          </h1>
+      <PageHero
+        eyebrow="Admin Backend"
+        title="Benutzerverwaltung"
+        description="Benutzer, Login-Daten, Rollen, Status und Organisationszuordnung verwalten. Rechte werden zusätzlich über Firma, Abteilung und Einzelberechtigungen gesteuert."
+        badges={[
+          {
+            label:
+              `${users.length} Benutzer`,
+          },
+          {
+            label:
+              `${activeUsers.length} aktiv`,
+          },
+          {
+            label:
+              `${adminUsers.length} Administratoren`,
+          },
+          {
+            label:
+              `${departmentLeadUsers.length} Abteilungsleiter`,
+          },
+        ]}
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void loadData()
+              }
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+            >
+              Aktualisieren
+            </button>
 
-          <p className="text-zinc-500 mt-2">
-            Benutzer, Login-Daten, Rollen, Status und Organisation aus PostgreSQL verwalten.
-          </p>
-        </div>
-
-        {canManageUsers() && (
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            Benutzer erstellen
-          </button>
+            {canManageUsers() && (
+              <button
+                type="button"
+                onClick={openCreateForm}
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Benutzer erstellen
+              </button>
+            )}
+          </>
         )}
-      </div>
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-zinc-500">
             Benutzer werden geladen...
+          </p>
+        </div>
+      )}
+
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
           </p>
         </div>
       )}
@@ -839,378 +1495,129 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <button
-          type="button"
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+        <StatCard
+          label="Gesamt"
+          value={users.length}
+          description="Alle Benutzer"
+          icon="👥"
+          active={
+            !roleFilter &&
+            !statusFilter &&
+            !search
+          }
           onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Benutzer gesamt
-          </p>
+        />
 
-          <h2 className="text-4xl font-bold mt-3">
-            {users.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
+        <StatCard
+          label="Aktiv"
+          value={activeUsers.length}
+          description="Kann sich anmelden"
+          icon="✅"
+          tone="green"
+          active={statusFilter === "active"}
           onClick={() =>
             setStatusFilter(
               "active"
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Aktiv
-          </p>
+        />
 
-          <h2 className="text-4xl font-bold mt-3">
-            {activeUsers.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
+        <StatCard
+          label="Administratoren"
+          value={adminUsers.length}
+          description="Vollzugriff"
+          icon="🛡️"
+          tone="red"
+          active={roleFilter === "admin"}
           onClick={() =>
             setRoleFilter(
               "admin"
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Administratoren
-          </p>
+        />
 
-          <h2 className="text-4xl font-bold mt-3">
-            {adminUsers.length}
-          </h2>
-        </button>
+        <StatCard
+          label="Abteilungsleiter"
+          value={departmentLeadUsers.length}
+          description="Bereichsverantwortung"
+          icon="🧭"
+          tone="blue"
+          active={roleFilter === "department_lead"}
+          onClick={() =>
+            setRoleFilter(
+              "department_lead"
+            )
+          }
+        />
 
-        <button
-          type="button"
+        <StatCard
+          label="Passwort ändern"
+          value={passwordResetUsers.length}
+          description="Passwortwechsel offen"
+          icon="🔑"
+          tone="orange"
+          active={search === "passwort ändern"}
           onClick={() =>
             setSearch(
               "passwort ändern"
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-orange-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Passwort ändern
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {passwordResetUsers.length}
-          </h2>
-
-          <p className="text-sm text-zinc-400 mt-2">
-            {departmentLeadUsers.length} Abteilungsleiter
-          </p>
-        </button>
+        />
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={(event) =>
-            void handleSubmit(
-              event
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard
+          label="Mitarbeiter"
+          value={employeeUsers.length}
+          description="Standardrolle"
+          icon="👤"
+          active={roleFilter === "employee"}
+          onClick={() =>
+            setRoleFilter(
+              "employee"
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
-        >
-          <div>
-            <h2 className="text-2xl font-semibold">
-              {editingUserId
-                ? "Benutzer bearbeiten"
-                : "Benutzer erstellen"}
-            </h2>
+        />
 
-            <p className="text-zinc-500 mt-1">
-              Account wird direkt in PostgreSQL gespeichert.
-            </p>
-          </div>
+        <StatCard
+          label="Eingeladen"
+          value={invitedUsers.length}
+          description="Noch nicht vollständig aktiv"
+          icon="✉️"
+          tone="purple"
+          active={statusFilter === "invited"}
+          onClick={() =>
+            setStatusFilter(
+              "invited"
+            )
+          }
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block mb-2 font-medium">
-                Name
-              </label>
+        <StatCard
+          label="Inaktiv"
+          value={inactiveUsers.length}
+          description="Gesperrt oder deaktiviert"
+          icon="⛔"
+          tone="red"
+          active={statusFilter === "inactive"}
+          onClick={() =>
+            setStatusFilter(
+              "inactive"
+            )
+          }
+        />
+      </div>
 
-              <input
-                value={name}
-                onChange={(event) =>
-                  setName(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Max Mustermann"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                E-Mail
-              </label>
-
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  const nextEmail =
-                    event.target.value;
-
-                  setEmail(
-                    nextEmail
-                  );
-
-                  if (!editingUserId && !username) {
-                    setUsername(
-                      buildUsernameFromEmail(
-                        nextEmail
-                      )
-                    );
-                  }
-                }}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="max@firma.local"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Benutzername
-              </label>
-
-              <input
-                value={username}
-                onChange={(event) =>
-                  setUsername(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="max.mustermann"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                {editingUserId
-                  ? "Neues Passwort setzen"
-                  : "Vordefiniertes Passwort"}
-              </label>
-
-              <input
-                type="password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder={
-                  editingUserId
-                    ? "Leer lassen = unverändert"
-                    : "Startpasswort"
-                }
-              />
-            </div>
-
-            <label className="md:col-span-2 flex items-center justify-between gap-5 bg-zinc-50 rounded-2xl p-5">
-              <span>
-                <span className="block font-medium">
-                  Passwort bei nächster Anmeldung ändern
-                </span>
-
-                <span className="block text-sm text-zinc-500 mt-1">
-                  AD-ähnlich: Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
-                </span>
-              </span>
-
-              <input
-                type="checkbox"
-                checked={passwordMustChange}
-                onChange={(event) =>
-                  setPasswordMustChange(
-                    event.target.checked
-                  )
-                }
-                className="h-5 w-5"
-              />
-            </label>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Rolle
-              </label>
-
-              <select
-                value={role}
-                onChange={(event) =>
-                  setRole(
-                    event.target.value as UserRole
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="employee">
-                  Mitarbeiter
-                </option>
-
-                <option value="department_lead">
-                  Abteilungsleiter
-                </option>
-
-                <option value="admin">
-                  Administrator
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Status
-              </label>
-
-              <select
-                value={status}
-                onChange={(event) =>
-                  setStatus(
-                    event.target.value as AdminUserStatus
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="active">
-                  Aktiv
-                </option>
-
-                <option value="invited">
-                  Eingeladen
-                </option>
-
-                <option value="inactive">
-                  Inaktiv
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-
-              <select
-                value={companyId}
-                onChange={(event) => {
-                  const nextCompanyId =
-                    event.target.value;
-
-                  setCompanyId(
-                    nextCompanyId
-                  );
-
-                  const firstDepartment =
-                    departments.find(
-                      (department) =>
-                        department.companyId === nextCompanyId
-                    );
-
-                  setDepartmentId(
-                    firstDepartment?.id ||
-                      ""
-                  );
-                }}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Keine Firma
-                </option>
-
-                {companies.map(
-                  (company) => (
-                    <option
-                      key={company.id}
-                      value={company.id}
-                    >
-                      {company.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Abteilung
-              </label>
-
-              <select
-                value={departmentId}
-                onChange={(event) =>
-                  setDepartmentId(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Keine Abteilung
-                </option>
-
-                {departmentOptions.map(
-                  (department) => (
-                    <option
-                      key={department.id}
-                      value={department.id}
-                    >
-                      {department.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-            >
-              {saving
-                ? "Speichert..."
-                : editingUserId
-                  ? "Änderungen speichern"
-                  : "Benutzer erstellen"}
-            </button>
-
-            <button
-              type="button"
-              onClick={resetForm}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Abbrechen
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
               Suche & Filter
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Suche nach Benutzername, E-Mail, Rolle, Status oder Organisation.
+              Suche nach Name, Benutzername, E-Mail, Rolle, Status oder Organisation.
             </p>
           </div>
 
@@ -1223,7 +1630,7 @@ export default function AdminUsersPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-5">
           <input
             value={search}
             onChange={(event) =>
@@ -1323,7 +1730,7 @@ export default function AdminUsersPage() {
                 event.target.value
               )
             }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
               Alle Abteilungen
@@ -1345,9 +1752,9 @@ export default function AdminUsersPage() {
         <p className="text-sm text-zinc-500 mt-5">
           {filteredUsers.length} von {users.length} Benutzern gefunden.
         </p>
-      </div>
+      </section>
 
-      <div className="space-y-4">
+      <section className="space-y-4">
         {filteredUsers.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <h2 className="text-xl font-semibold">
@@ -1366,7 +1773,7 @@ export default function AdminUsersPage() {
               key={user.id}
               className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
             >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-xs px-3 py-1 rounded-full ${getRoleClass(user.role)}`}>
@@ -1397,7 +1804,7 @@ export default function AdminUsersPage() {
                       </span>
                     )}
 
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                       {getCompanyName(
                         user.companyId
                       )}
@@ -1414,37 +1821,43 @@ export default function AdminUsersPage() {
                     {user.name}
                   </h2>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-zinc-500 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-zinc-500 mt-4">
                     <p>
                       E-Mail:{" "}
-                      {user.email}
+                      <span className="text-zinc-700 break-all">
+                        {user.email}
+                      </span>
                     </p>
 
                     <p>
                       Benutzername:{" "}
-                      <span className="font-medium text-zinc-700">
+                      <span className="text-zinc-700">
                         {user.username ||
                           "-"}
                       </span>
                     </p>
-                  </div>
 
-                  <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
-                    <span>
+                    <p>
                       Erstellt:{" "}
-                      {user.createdAt}
-                    </span>
+                      <span className="text-zinc-700">
+                        {user.createdAt}
+                      </span>
+                    </p>
 
-                    <span>
+                    <p>
                       Aktualisiert:{" "}
-                      {user.updatedAt}
-                    </span>
+                      <span className="text-zinc-700">
+                        {user.updatedAt}
+                      </span>
+                    </p>
 
-                    <span>
+                    <p>
                       Letzter Login:{" "}
-                      {user.lastLoginAt ||
-                        "Noch nie"}
-                    </span>
+                      <span className="text-zinc-700">
+                        {user.lastLoginAt ||
+                          "Noch nie"}
+                      </span>
+                    </p>
                   </div>
                 </div>
 
@@ -1479,7 +1892,7 @@ export default function AdminUsersPage() {
             </div>
           )
         )}
-      </div>
+      </section>
     </div>
   );
 }

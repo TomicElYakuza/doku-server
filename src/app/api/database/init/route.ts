@@ -310,6 +310,139 @@ export async function POST() {
       );
     `);
 
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        user_id UUID PRIMARY KEY REFERENCES admin_users(id) ON DELETE CASCADE,
+        theme TEXT NOT NULL DEFAULT 'modern',
+        accent_color TEXT NOT NULL DEFAULT 'zinc',
+        compact_mode BOOLEAN NOT NULL DEFAULT FALSE,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS app_accent_color TEXT NOT NULL DEFAULT 'zinc';
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS sidebar_position TEXT NOT NULL DEFAULT 'left';
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS compact_mode BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS show_demo_hints BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS enable_ticket_comments BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS enable_ticket_templates BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS enable_activity_log BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS default_user_role TEXT NOT NULL DEFAULT 'employee';
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    `);
+
+    await query(`
+      ALTER TABLE news_posts
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS user_display TEXT NOT NULL DEFAULT 'System';
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL;
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS company TEXT NOT NULL DEFAULT 'Intern';
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'Allgemein';
+    `);
+
+    await query(`
+      ALTER TABLE activities
+      ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
+    `);
+
+    await query(`
+      INSERT INTO app_settings (
+        id,
+        app_name,
+        company_name,
+        app_version,
+        theme,
+        dark_mode,
+        accent_color,
+        app_accent_color,
+        sidebar_position,
+        compact_mode,
+        show_version,
+        show_demo_hints,
+        enable_ticket_comments,
+        enable_ticket_templates,
+        enable_activity_log,
+        default_user_role,
+        updated_at
+      )
+      VALUES (
+        'default',
+        'Intranet',
+        'Intern',
+        '0.1.0',
+        'modern',
+        FALSE,
+        'zinc',
+        'zinc',
+        'left',
+        FALSE,
+        TRUE,
+        TRUE,
+        TRUE,
+        TRUE,
+        TRUE,
+        'employee',
+        NOW()
+      )
+      ON CONFLICT (id)
+      DO NOTHING;
+    `);
+
     return NextResponse.json({
       ok:
         true,

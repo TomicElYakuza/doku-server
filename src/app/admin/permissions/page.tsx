@@ -26,6 +26,10 @@ import {
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 
+import PageHero from "../../../components/PageHero";
+
+import StatCard from "../../../components/StatCard";
+
 import type {
   Permission,
   PermissionScopeType,
@@ -51,46 +55,31 @@ const tabs: Array<{
   key: TabKey;
   label: string;
   description: string;
+  icon: string;
 }> = [
   {
-    key:
-      "catalog",
-
-    label:
-      "Berechtigungskatalog",
-
-    description:
-      "Alle verfügbaren Berechtigungen mit Beschreibung.",
+    key: "catalog",
+    label: "Berechtigungskatalog",
+    description: "Alle verfügbaren Berechtigungen mit Beschreibung.",
+    icon: "📚",
   },
   {
-    key:
-      "companies",
-
-    label:
-      "Firmenrechte",
-
-    description:
-      "Rechte global pro Firma vergeben.",
+    key: "companies",
+    label: "Firmenrechte",
+    description: "Rechte global pro Firma vergeben.",
+    icon: "🏢",
   },
   {
-    key:
-      "departments",
-
-    label:
-      "Abteilungsrechte",
-
-    description:
-      "Rechte gezielt pro Abteilung vergeben.",
+    key: "departments",
+    label: "Abteilungsrechte",
+    description: "Rechte gezielt pro Abteilung vergeben.",
+    icon: "🧩",
   },
   {
-    key:
-      "users",
-
-    label:
-      "Benutzerrechte",
-
-    description:
-      "Zusätzliche Einzelrechte pro Benutzer vergeben.",
+    key: "users",
+    label: "Benutzerrechte",
+    description: "Zusätzliche Einzelrechte pro Benutzer vergeben.",
+    icon: "👤",
   },
 ];
 
@@ -100,44 +89,24 @@ const scopeOptions: Array<{
   description: string;
 }> = [
   {
-    value:
-      "global",
-
-    label:
-      "Global",
-
-    description:
-      "Gilt unabhängig von Firma oder Abteilung.",
+    value: "global",
+    label: "Global",
+    description: "Gilt unabhängig von Firma oder Abteilung.",
   },
   {
-    value:
-      "company",
-
-    label:
-      "Firma",
-
-    description:
-      "Gilt nur innerhalb einer Firma.",
+    value: "company",
+    label: "Firma",
+    description: "Gilt nur innerhalb einer Firma.",
   },
   {
-    value:
-      "department",
-
-    label:
-      "Abteilung",
-
-    description:
-      "Gilt nur innerhalb einer Abteilung.",
+    value: "department",
+    label: "Abteilung",
+    description: "Gilt nur innerhalb einer Abteilung.",
   },
   {
-    value:
-      "own",
-
-    label:
-      "Eigene Inhalte",
-
-    description:
-      "Gilt nur für eigene Inhalte oder eigene Tickets.",
+    value: "own",
+    label: "Eigene Inhalte",
+    description: "Gilt nur für eigene Inhalte oder eigene Tickets.",
   },
 ];
 
@@ -145,7 +114,10 @@ function groupPermissionsByCategory(
   permissions: Permission[]
 ) {
   return permissions.reduce<Record<string, Permission[]>>(
-    (groups, permission) => {
+    (
+      groups,
+      permission
+    ) => {
       const category =
         permission.category ||
         "Sonstige";
@@ -214,6 +186,30 @@ function getScopeLabel(
     )?.label ||
     scopeType
   );
+}
+
+function getPermissionScopeType(
+  permission: Permission
+): PermissionScopeType {
+  const rawPermission =
+    permission as unknown as Record<string, unknown>;
+
+  const value =
+    rawPermission.scopeType ||
+    rawPermission.scope_type ||
+    rawPermission.scope ||
+    "global";
+
+  if (
+    value === "global" ||
+    value === "company" ||
+    value === "department" ||
+    value === "own"
+  ) {
+    return value;
+  }
+
+  return "global";
 }
 
 export default function AdminPermissionsPage() {
@@ -557,7 +553,9 @@ export default function AdminPermissionsPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         if (!query) {
           return permissions;
@@ -602,7 +600,10 @@ export default function AdminPermissionsPage() {
         Object.keys(
           groupedPermissions
         ).sort(
-          (a, b) =>
+          (
+            a,
+            b
+          ) =>
             a.localeCompare(
               b
             )
@@ -672,6 +673,34 @@ export default function AdminPermissionsPage() {
       ]
     );
 
+  const companyScopedPermissions =
+    useMemo(
+      () =>
+        permissions.filter(
+          (permission) =>
+            getPermissionScopeType(
+              permission
+            ) === "company"
+        ),
+      [
+        permissions,
+      ]
+    );
+
+  const departmentScopedPermissions =
+    useMemo(
+      () =>
+        permissions.filter(
+          (permission) =>
+            getPermissionScopeType(
+              permission
+            ) === "department"
+        ),
+      [
+        permissions,
+      ]
+    );
+
   function userHasPermission(
     permissionKey: string
   ) {
@@ -738,9 +767,7 @@ export default function AdminPermissionsPage() {
             permission.permissionKey === permissionKey
               ? {
                   ...permission,
-
                   scopeType,
-
                   scopeId,
                 }
               : permission
@@ -894,14 +921,26 @@ export default function AdminPermissionsPage() {
     onToggle: (permissionKey: string) => void
   ) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
+        {categories.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Keine Berechtigungen gefunden
+            </h2>
+
+            <p className="text-zinc-500 mt-2">
+              Prüfe den Suchfilter oder den Permission-Katalog.
+            </p>
+          </div>
+        )}
+
         {categories.map(
           (category) => (
-            <div
+            <section
               key={category}
-              className="border border-zinc-200 rounded-3xl p-5"
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
             >
-              <div className="flex items-start justify-between gap-5">
+              <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-semibold">
                     {category}
@@ -924,45 +963,43 @@ export default function AdminPermissionsPage() {
 
                     return (
                       <label
-                        key={permission.id}
-                        className={`border rounded-2xl p-5 cursor-pointer transition ${
+                        key={permission.permissionKey}
+                        className={`flex items-start gap-4 border rounded-3xl p-5 transition ${
                           checked
-                            ? "border-zinc-900 bg-zinc-50"
-                            : "border-zinc-200 hover:bg-zinc-50"
+                            ? "border-zinc-900 bg-zinc-900 text-white"
+                            : "border-zinc-200 bg-white hover:bg-zinc-50"
                         }`}
                       >
-                        <div className="flex items-start gap-4">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              onToggle(
-                                permission.permissionKey
-                              )
-                            }
-                            className="mt-1 h-5 w-5"
-                          />
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            onToggle(
+                              permission.permissionKey
+                            )
+                          }
+                          className="mt-1 h-5 w-5"
+                        />
 
-                          <div>
-                            <p className="font-semibold">
-                              {permission.label}
-                            </p>
+                        <span>
+                          <span className="font-semibold block">
+                            {permission.label}
+                          </span>
 
-                            <p className="text-zinc-500 mt-1">
-                              {permission.description}
-                            </p>
+                          <span className={checked ? "text-zinc-300 text-sm block mt-1" : "text-zinc-500 text-sm block mt-1"}>
+                            {permission.description}
+                          </span>
 
-                            <p className="text-xs text-zinc-400 mt-3">
-                              {permission.permissionKey}
-                            </p>
-                          </div>
-                        </div>
+                          <span className={checked ? "text-zinc-400 text-xs font-mono block mt-3" : "text-zinc-400 text-xs font-mono block mt-3"}>
+                            {permission.permissionKey}
+                          </span>
+                        </span>
                       </label>
                     );
                   }
                 )}
               </div>
-            </div>
+            </section>
           )
         )}
       </div>
@@ -990,55 +1027,42 @@ export default function AdminPermissionsPage() {
         </Link>
       </div>
 
-      <section className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
-          <div>
-            <p className="text-zinc-300">
-              Admin Backend
-            </p>
-
-            <h1 className="text-4xl font-bold mt-2">
-              Berechtigungen
-            </h1>
-
-            <p className="text-zinc-300 mt-3 max-w-3xl">
-              Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.
-              Administratoren haben immer vollständigen Zugriff.
-            </p>
-
-            <div className="flex flex-wrap gap-3 mt-6">
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {permissions.length} Berechtigungen
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {companies.length} Firmen
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {departments.length} Abteilungen
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {users.length} Benutzer
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              void loadData()
-            }
-            className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Aktualisieren
-          </button>
-        </div>
-
-        <div className="absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute right-24 -top-28 h-56 w-56 rounded-full bg-white/5" />
-      </section>
+      <PageHero
+        eyebrow="Admin Backend"
+        title="Berechtigungen"
+        description="Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten. Administratoren haben immer vollständigen Zugriff."
+        badges={[
+          {
+            label:
+              `${permissions.length} Berechtigungen`,
+          },
+          {
+            label:
+              `${companies.length} Firmen`,
+          },
+          {
+            label:
+              `${departments.length} Abteilungen`,
+          },
+          {
+            label:
+              `${users.length} Benutzer`,
+          },
+        ]}
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void loadData()
+              }
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Aktualisieren
+            </button>
+          </>
+        )}
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -1068,44 +1092,99 @@ export default function AdminPermissionsPage() {
         </div>
       )}
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          {tabs.map(
-            (tab) => {
-              const active =
-                activeTab === tab.key;
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Katalog"
+          value={permissions.length}
+          description={`${categories.length} Kategorien`}
+          icon="📚"
+          active={activeTab === "catalog"}
+          onClick={() =>
+            setActiveTab(
+              "catalog"
+            )
+          }
+        />
 
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() =>
-                    setActiveTab(
-                      tab.key
-                    )
-                  }
-                  className={`text-left rounded-2xl p-5 border transition ${
-                    active
-                      ? "bg-zinc-900 text-white border-zinc-900"
-                      : "bg-white border-zinc-200 hover:bg-zinc-50"
-                  }`}
-                >
-                  <p className="font-semibold">
-                    {tab.label}
-                  </p>
+        <StatCard
+          label="Firmenrechte"
+          value={companyPermissionKeys.length}
+          description={selectedCompany?.name || "Keine Firma ausgewählt"}
+          icon="🏢"
+          tone="green"
+          active={activeTab === "companies"}
+          onClick={() =>
+            setActiveTab(
+              "companies"
+            )
+          }
+        />
 
-                  <p className={`text-sm mt-2 ${
-                    active
-                      ? "text-zinc-300"
-                      : "text-zinc-500"
-                  }`}>
-                    {tab.description}
-                  </p>
-                </button>
-              );
-            }
-          )}
-        </div>
+        <StatCard
+          label="Abteilungsrechte"
+          value={departmentPermissionKeys.length}
+          description={selectedDepartment?.name || "Keine Abteilung ausgewählt"}
+          icon="🧩"
+          tone="indigo"
+          active={activeTab === "departments"}
+          onClick={() =>
+            setActiveTab(
+              "departments"
+            )
+          }
+        />
+
+        <StatCard
+          label="Benutzerrechte"
+          value={userPermissions.length}
+          description={selectedUser?.name || "Kein Benutzer ausgewählt"}
+          icon="👤"
+          tone="orange"
+          active={activeTab === "users"}
+          onClick={() =>
+            setActiveTab(
+              "users"
+            )
+          }
+        />
+      </div>
+
+      <section className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        {tabs.map(
+          (tab) => {
+            const active =
+              activeTab === tab.key;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() =>
+                  setActiveTab(
+                    tab.key
+                  )
+                }
+                className={`text-left rounded-3xl p-5 border transition ${
+                  active
+                    ? "bg-zinc-900 text-white border-zinc-900"
+                    : "bg-white border-zinc-200 hover:bg-zinc-50"
+                }`}
+              >
+                <div className="text-3xl">
+                  {tab.icon}
+                </div>
+
+                <h2 className="font-semibold mt-4">
+                  {tab.label}
+                </h2>
+
+                <p className={active ? "text-zinc-300 text-sm mt-2" : "text-zinc-500 text-sm mt-2"}>
+                  {tab.description}
+                </p>
+              </button>
+            );
+          }
+        )}
       </section>
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -1153,13 +1232,13 @@ export default function AdminPermissionsPage() {
 
           {categories.map(
             (category) => (
-              <div
+              <section
                 key={category}
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-5">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="text-2xl font-semibold">
+                    <h3 className="text-xl font-semibold">
                       {category}
                     </h3>
 
@@ -1169,33 +1248,39 @@ export default function AdminPermissionsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
                   {groupedPermissions[category].map(
                     (permission) => (
                       <div
-                        key={permission.id}
-                        className="border border-zinc-200 rounded-2xl p-5"
+                        key={permission.permissionKey}
+                        className="border border-zinc-200 rounded-3xl p-5"
                       >
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                          <div>
-                            <h4 className="font-semibold text-lg">
-                              {permission.label}
-                            </h4>
+                        <h4 className="font-semibold">
+                          {permission.label}
+                        </h4>
 
-                            <p className="text-zinc-500 mt-2">
-                              {permission.description}
-                            </p>
-                          </div>
+                        <p className="text-zinc-500 text-sm mt-2">
+                          {permission.description}
+                        </p>
 
-                          <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full whitespace-nowrap">
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                             {permission.permissionKey}
+                          </span>
+
+                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                            {getScopeLabel(
+                              getPermissionScopeType(
+                                permission
+                              )
+                            )}
                           </span>
                         </div>
                       </div>
                     )
                   )}
                 </div>
-              </div>
+              </section>
             )
           )}
         </section>
@@ -1204,7 +1289,7 @@ export default function AdminPermissionsPage() {
       {activeTab === "companies" && (
         <section className="space-y-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-5">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
                 <h2 className="text-2xl font-semibold">
                   Firmenrechte
@@ -1220,7 +1305,10 @@ export default function AdminPermissionsPage() {
                 onClick={() =>
                   void handleSaveCompanyPermissions()
                 }
-                disabled={saving || !selectedCompanyId}
+                disabled={
+                  saving ||
+                  !selectedCompanyId
+                }
                 className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
               >
                 {saving
@@ -1266,7 +1354,7 @@ export default function AdminPermissionsPage() {
                   Aktuelle Auswahl
                 </p>
 
-                <p className="font-semibold mt-2">
+                <p className="font-semibold mt-1">
                   {selectedCompany?.name ||
                     "Keine Firma ausgewählt"}
                 </p>
@@ -1276,6 +1364,12 @@ export default function AdminPermissionsPage() {
                 </p>
               </div>
             </div>
+
+            {companyScopedPermissions.length > 0 && (
+              <p className="text-sm text-zinc-500 mt-5">
+                {companyScopedPermissions.length} Rechte sind speziell für Firmen-Scope vorgesehen.
+              </p>
+            )}
           </div>
 
           {renderPermissionCheckboxList(
@@ -1295,7 +1389,7 @@ export default function AdminPermissionsPage() {
       {activeTab === "departments" && (
         <section className="space-y-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-5">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
                 <h2 className="text-2xl font-semibold">
                   Abteilungsrechte
@@ -1311,7 +1405,10 @@ export default function AdminPermissionsPage() {
                 onClick={() =>
                   void handleSaveDepartmentPermissions()
                 }
-                disabled={saving || !selectedDepartmentId}
+                disabled={
+                  saving ||
+                  !selectedDepartmentId
+                }
                 className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
               >
                 {saving
@@ -1402,7 +1499,7 @@ export default function AdminPermissionsPage() {
                   Aktuelle Auswahl
                 </p>
 
-                <p className="font-semibold mt-2">
+                <p className="font-semibold mt-1">
                   {selectedDepartment?.name ||
                     "Keine Abteilung ausgewählt"}
                 </p>
@@ -1412,6 +1509,12 @@ export default function AdminPermissionsPage() {
                 </p>
               </div>
             </div>
+
+            {departmentScopedPermissions.length > 0 && (
+              <p className="text-sm text-zinc-500 mt-5">
+                {departmentScopedPermissions.length} Rechte sind speziell für Abteilungs-Scope vorgesehen.
+              </p>
+            )}
           </div>
 
           {renderPermissionCheckboxList(
@@ -1431,7 +1534,7 @@ export default function AdminPermissionsPage() {
       {activeTab === "users" && (
         <section className="space-y-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-5">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
                 <h2 className="text-2xl font-semibold">
                   Benutzerrechte
@@ -1447,7 +1550,10 @@ export default function AdminPermissionsPage() {
                 onClick={() =>
                   void handleSaveUserPermissions()
                 }
-                disabled={saving || !selectedUserId}
+                disabled={
+                  saving ||
+                  !selectedUserId
+                }
                 className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
               >
                 {saving
@@ -1456,7 +1562,7 @@ export default function AdminPermissionsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-5 mt-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
               <div>
                 <label className="block mb-2 font-medium">
                   Benutzer
@@ -1531,30 +1637,30 @@ export default function AdminPermissionsPage() {
                   placeholder="optional: Firma-/Abteilungs-ID"
                 />
               </div>
+            </div>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-500">
-                  Aktuelle Auswahl
-                </p>
+            <div className="bg-zinc-50 rounded-2xl p-5 mt-6">
+              <p className="text-sm text-zinc-500">
+                Aktuelle Auswahl
+              </p>
 
-                <p className="font-semibold mt-2">
-                  {selectedUser?.name ||
-                    "Kein Benutzer ausgewählt"}
-                </p>
+              <p className="font-semibold mt-1">
+                {selectedUser?.name ||
+                  "Kein Benutzer ausgewählt"}
+              </p>
 
-                <p className="text-sm text-zinc-500 mt-2">
-                  {userPermissions.length} Zusatzrechte aktiv
-                </p>
-              </div>
+              <p className="text-sm text-zinc-500 mt-2">
+                {userPermissions.length} Zusatzrechte aktiv
+              </p>
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-6">
             {categories.map(
               (category) => (
-                <div
+                <section
                   key={category}
-                  className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm"
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
                 >
                   <h3 className="text-xl font-semibold">
                     {category}
@@ -1571,20 +1677,19 @@ export default function AdminPermissionsPage() {
                         const activeUserPermission =
                           userPermissions.find(
                             (userPermission) =>
-                              userPermission.permissionKey ===
-                              permission.permissionKey
+                              userPermission.permissionKey === permission.permissionKey
                           );
 
                         return (
                           <div
-                            key={permission.id}
-                            className={`border rounded-2xl p-5 transition ${
+                            key={permission.permissionKey}
+                            className={`border rounded-3xl p-5 transition ${
                               checked
                                 ? "border-zinc-900 bg-zinc-50"
-                                : "border-zinc-200"
+                                : "border-zinc-200 bg-white"
                             }`}
                           >
-                            <label className="flex items-start gap-4 cursor-pointer">
+                            <label className="flex items-start gap-4">
                               <input
                                 type="checkbox"
                                 checked={checked}
@@ -1596,19 +1701,19 @@ export default function AdminPermissionsPage() {
                                 className="mt-1 h-5 w-5"
                               />
 
-                              <div>
-                                <p className="font-semibold">
+                              <span>
+                                <span className="font-semibold block">
                                   {permission.label}
-                                </p>
+                                </span>
 
-                                <p className="text-zinc-500 mt-1">
+                                <span className="text-zinc-500 text-sm block mt-1">
                                   {permission.description}
-                                </p>
+                                </span>
 
-                                <p className="text-xs text-zinc-400 mt-3">
+                                <span className="text-zinc-400 text-xs font-mono block mt-3">
                                   {permission.permissionKey}
-                                </p>
-                              </div>
+                                </span>
+                              </span>
                             </label>
 
                             {checked && activeUserPermission && (
@@ -1652,7 +1757,7 @@ export default function AdminPermissionsPage() {
                             )}
 
                             {checked && activeUserPermission && (
-                              <p className="text-xs text-zinc-400 mt-3">
+                              <p className="text-xs text-zinc-500 mt-3">
                                 Scope: {getScopeLabel(activeUserPermission.scopeType)}
                                 {activeUserPermission.scopeId
                                   ? ` · ${activeUserPermission.scopeId}`
@@ -1664,7 +1769,7 @@ export default function AdminPermissionsPage() {
                       }
                     )}
                   </div>
-                </div>
+                </section>
               )
             )}
           </div>

@@ -41,6 +41,10 @@ import {
   usePermissions,
 } from "../../hooks/usePermissions";
 
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
+
 import type {
   Ticket,
 } from "../../types/ticket";
@@ -476,9 +480,10 @@ export default function DashboardPage() {
     tickets.length === 0
       ? 0
       : Math.round(
-          closedTickets.length /
-            tickets.length *
-            100
+          (
+            closedTickets.length /
+            tickets.length
+          ) * 100
         );
 
   const quickLinks =
@@ -550,7 +555,7 @@ export default function DashboardPage() {
               "/files",
 
             icon:
-              "📎",
+              "📁",
 
             permissionAny: [
               "files.view",
@@ -593,7 +598,7 @@ export default function DashboardPage() {
               "/admin",
 
             icon:
-              "🛡️",
+              "⚙️",
 
             adminOnly:
               true,
@@ -638,73 +643,57 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <section className="relative overflow-hidden bg-zinc-900 text-white rounded-3xl p-8 shadow-sm">
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
-          <div>
-            <p className="text-zinc-300">
-              Willkommen zurück
-            </p>
-
-            <h1 className="text-4xl font-bold mt-2">
-              {currentUser?.name ||
-                "Dashboard"}
-            </h1>
-
-            <p className="text-zinc-300 mt-3 max-w-3xl">
-              Deine Übersicht für {settings.appName || "Intranet"} · {settings.companyName || "Intern"}.
-              Hier siehst du offene Arbeit, wichtige News und den Systemstatus.
-            </p>
-
-            <div className="flex flex-wrap gap-3 mt-6">
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {getRoleLabel(
-                  currentUser?.role
-                )}
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {currentUser?.company ||
-                  "Intern"}
-              </span>
-
-              <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm">
-                {currentUser?.department ||
-                  "Allgemein"}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white/10 border border-white/10 rounded-3xl p-6 min-w-[220px]">
-            <p className="text-zinc-300 text-sm">
-              Datenbank
-            </p>
-
-            <h2 className="text-2xl font-bold mt-2">
-              {health?.ok
-                ? "Online"
-                : "Unbekannt"}
-            </h2>
-
-            <p className="text-zinc-300 text-sm mt-1">
-              {health?.database ||
-                "PostgreSQL"}
-            </p>
-
+      <PageHero
+        eyebrow="Willkommen zurück"
+        title={currentUser?.name || "Dashboard"}
+        description={`Deine Übersicht für ${settings.appName || "Intranet"} · ${settings.companyName || "Intern"}. Hier siehst du offene Arbeit, wichtige News und den Systemstatus.`}
+        badges={[
+          {
+            label:
+              getRoleLabel(
+                currentUser?.role
+              ),
+          },
+          {
+            label:
+              currentUser?.company ||
+              "Intern",
+          },
+          {
+            label:
+              currentUser?.department ||
+              "Allgemein",
+          },
+          {
+            label:
+              health?.ok
+                ? "Datenbank online"
+                : "Datenbank unbekannt",
+          },
+        ]}
+        actions={(
+          <>
             <button
               type="button"
               onClick={() =>
                 void loadDashboard()
               }
-              className="mt-5 bg-white text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
               Aktualisieren
             </button>
-          </div>
-        </div>
 
-        <div className="absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10" />
-        <div className="absolute right-24 -top-28 h-56 w-56 rounded-full bg-white/5" />
-      </section>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+              >
+                Admin Backend
+              </Link>
+            )}
+          </>
+        )}
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -727,121 +716,90 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Link
-          href="/tickets"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Offene Tickets
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {openTickets.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            Nicht geschlossene Tickets
-          </p>
+        <Link href="/tickets">
+          <StatCard
+            label="Offene Tickets"
+            value={openTickets.length}
+            description="Nicht geschlossene Tickets"
+            icon="📬"
+            tone="blue"
+          />
         </Link>
 
-        <Link
-          href="/tickets?priority=urgent"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-red-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Hoch / Dringend
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {urgentTickets.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            Tickets mit erhöhter Priorität
-          </p>
+        <Link href="/tickets?priority=urgent">
+          <StatCard
+            label="Hoch / Dringend"
+            value={urgentTickets.length}
+            description="Tickets mit erhöhter Priorität"
+            icon="🚨"
+            tone="red"
+          />
         </Link>
 
-        <Link
-          href="/news"
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            News
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {newsPosts.length}
-          </h2>
-
-          <p className="text-sm text-zinc-500 mt-3">
-            {pinnedNews.length} fixiert
-          </p>
+        <Link href="/news">
+          <StatCard
+            label="News"
+            value={newsPosts.length}
+            description={`${pinnedNews.length} fixiert`}
+            icon="📰"
+            tone="green"
+          />
         </Link>
 
         {isAdmin ? (
-          <Link
-            href="/admin/users"
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Benutzer
-            </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {activeUsers.length}
-            </h2>
-
-            <p className="text-sm text-zinc-500 mt-3">
-              {users.length} insgesamt
-            </p>
+          <Link href="/admin/users">
+            <StatCard
+              label="Benutzer"
+              value={activeUsers.length}
+              description={`${users.length} insgesamt`}
+              icon="👥"
+              tone="indigo"
+            />
           </Link>
         ) : (
-          <Link
-            href="/wiki"
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Wissen
-            </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {companies.length + departments.length}
-            </h2>
-
-            <p className="text-sm text-zinc-500 mt-3">
-              Organisationsbereiche
-            </p>
+          <Link href="/wiki">
+            <StatCard
+              label="Wissen"
+              value={companies.length + departments.length}
+              description="Organisationsbereiche"
+              icon="📚"
+              tone="indigo"
+            />
           </Link>
         )}
       </div>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_420px] gap-8">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold">
-            Schnellzugriff
-          </h2>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <section className="xl:col-span-2 bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-semibold">
+                Schnellzugriff
+              </h2>
 
-          <p className="text-zinc-500 mt-1">
-            Häufige Bereiche direkt öffnen.
-          </p>
+              <p className="text-zinc-500 mt-1">
+                Häufige Bereiche direkt öffnen.
+              </p>
+            </div>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
             {visibleQuickLinks.map(
               (item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  className="border border-zinc-200 rounded-3xl p-6 hover:bg-zinc-50 transition"
                 >
-                  <div className="text-2xl">
+                  <div className="text-3xl">
                     {item.icon}
                   </div>
 
-                  <h3 className="font-semibold mt-4">
+                  <h3 className="text-xl font-semibold mt-4">
                     {item.title}
                   </h3>
 
-                  <p className="text-sm text-zinc-500 mt-1">
+                  <p className="text-zinc-500 mt-2">
                     {item.description}
                   </p>
                 </Link>
@@ -850,7 +808,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h2 className="text-2xl font-semibold">
             Ticket-Fortschritt
           </h2>
@@ -860,51 +818,68 @@ export default function DashboardPage() {
           </p>
 
           <div className="mt-8">
-            <div className="h-4 bg-zinc-100 rounded-full overflow-hidden">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-5xl font-bold tracking-tight">
+                  {ticketCompletionPercent}%
+                </p>
+
+                <p className="text-zinc-500 mt-2">
+                  abgeschlossen
+                </p>
+              </div>
+
+              <div className="text-right text-sm text-zinc-500">
+                <p>
+                  Geschlossen
+                </p>
+
+                <p className="font-semibold text-zinc-900">
+                  {closedTickets.length}
+                </p>
+
+                <p className="mt-2">
+                  Gesamt
+                </p>
+
+                <p className="font-semibold text-zinc-900">
+                  {tickets.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="h-3 bg-zinc-100 rounded-full overflow-hidden mt-6">
               <div
-                className="h-full bg-zinc-900 rounded-full"
+                className="h-full bg-zinc-900 rounded-full transition-all"
                 style={{
                   width:
                     `${ticketCompletionPercent}%`,
                 }}
               />
             </div>
+          </div>
 
-            <p className="text-4xl font-bold mt-6">
-              {ticketCompletionPercent}%
+          <div className="mt-8 rounded-2xl bg-zinc-50 p-5">
+            <p className="text-sm text-zinc-500">
+              Datenbank
             </p>
 
-            <p className="text-zinc-500 mt-1">
-              abgeschlossen
+            <p className="font-semibold mt-1">
+              {health?.ok
+                ? "Online"
+                : "Unbekannt"}
             </p>
 
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="bg-zinc-50 rounded-2xl p-4">
-                <p className="text-sm text-zinc-500">
-                  Geschlossen
-                </p>
-
-                <p className="text-2xl font-bold mt-1">
-                  {closedTickets.length}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-4">
-                <p className="text-sm text-zinc-500">
-                  Gesamt
-                </p>
-
-                <p className="text-2xl font-bold mt-1">
-                  {tickets.length}
-                </p>
-              </div>
-            </div>
+            <p className="text-sm text-zinc-500 mt-1">
+              {health?.database ||
+                "PostgreSQL"}
+            </p>
           </div>
         </section>
       </div>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <div className="flex items-start justify-between gap-5">
             <div>
               <h2 className="text-2xl font-semibold">
@@ -918,58 +893,60 @@ export default function DashboardPage() {
 
             <Link
               href="/tickets"
-              className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+              className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
             >
               Alle Tickets
             </Link>
           </div>
 
-          <div className="space-y-3 mt-6">
+          <div className="space-y-4 mt-6">
             {myTickets.length === 0 && (
               <p className="text-zinc-500">
                 Aktuell keine direkt zugeordneten Tickets.
               </p>
             )}
 
-            {myTickets.slice(
-              0,
-              5
-            ).map(
-              (ticket) => (
-                <Link
-                  key={ticket.id}
-                  href={`/tickets/${ticket.id}`}
-                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
-                      {getTicketStatusLabel(
-                        ticket.status
-                      )}
-                    </span>
-
-                    <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
-                      {getTicketPriorityLabel(
-                        ticket.priority
-                      )}
-                    </span>
-                  </div>
-
-                  <h3 className="font-semibold mt-3">
-                    #{ticket.id} · {ticket.title}
-                  </h3>
-
-                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
-                    {ticket.description ||
-                      "Keine Beschreibung vorhanden."}
-                  </p>
-                </Link>
+            {myTickets
+              .slice(
+                0,
+                5
               )
-            )}
+              .map(
+                (ticket) => (
+                  <Link
+                    key={ticket.id}
+                    href={`/tickets/${ticket.id}`}
+                    className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
+                        {getTicketStatusLabel(
+                          ticket.status
+                        )}
+                      </span>
+
+                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
+                        {getTicketPriorityLabel(
+                          ticket.priority
+                        )}
+                      </span>
+                    </div>
+
+                    <h3 className="font-semibold mt-3">
+                      #{ticket.id} · {ticket.title}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
+                      {ticket.description ||
+                        "Keine Beschreibung vorhanden."}
+                    </p>
+                  </Link>
+                )
+              )}
           </div>
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <div className="flex items-start justify-between gap-5">
             <div>
               <h2 className="text-2xl font-semibold">
@@ -983,13 +960,13 @@ export default function DashboardPage() {
 
             <Link
               href="/news"
-              className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+              className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
             >
               Alle News
             </Link>
           </div>
 
-          <div className="space-y-3 mt-6">
+          <div className="space-y-4 mt-6">
             {latestNews.length === 0 && (
               <p className="text-zinc-500">
                 Noch keine News vorhanden.
@@ -1001,7 +978,7 @@ export default function DashboardPage() {
                 <Link
                   key={post.id}
                   href={`/news/${post.id}`}
-                  className="block border border-zinc-200 rounded-2xl p-4 hover:bg-zinc-50 transition"
+                  className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
                 >
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
@@ -1015,7 +992,7 @@ export default function DashboardPage() {
                     </span>
 
                     {post.pinned && (
-                      <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
+                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
                         Fixiert
                       </span>
                     )}
@@ -1036,7 +1013,7 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <div className="flex items-start justify-between gap-5">
           <div>
             <h2 className="text-2xl font-semibold">
@@ -1050,7 +1027,7 @@ export default function DashboardPage() {
 
           <Link
             href="/tickets"
-            className="text-sm bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+            className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
           >
             Tickets öffnen
           </Link>
@@ -1088,10 +1065,10 @@ export default function DashboardPage() {
                   #{ticket.id} · {ticket.title}
                 </h3>
 
-                <p className="text-sm text-zinc-500 mt-1">
+                <p className="text-sm text-zinc-500 mt-2">
                   {ticket.company ||
-                    "Intern"}
-                  {" · "}
+                    "Intern"}{" "}
+                  ·{" "}
                   {ticket.department ||
                     "Allgemein"}
                 </p>

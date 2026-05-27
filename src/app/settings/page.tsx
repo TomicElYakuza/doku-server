@@ -3,6 +3,8 @@
 import Link from "next/link";
 
 import {
+  FormEvent,
+  useEffect,
   useState,
 } from "react";
 
@@ -15,8 +17,16 @@ import {
 } from "../../lib/appSettingsRepository";
 
 import {
+  userSettingsRepository,
+} from "../../lib/userSettingsRepository";
+
+import {
   useAppSettings,
 } from "../../hooks/useAppSettings";
+
+import {
+  useUserSettings,
+} from "../../hooks/useUserSettings";
 
 import type {
   AppAccentColor,
@@ -44,6 +54,16 @@ const themeOptions: ThemeOption[] = [
 
     description:
       "Standard-Oberfläche mit dunkler Sidebar.",
+  },
+  {
+    value:
+      "light",
+
+    label:
+      "Hell",
+
+    description:
+      "Helle Oberfläche.",
   },
   {
     value:
@@ -84,6 +104,13 @@ const accentOptions: AccentOption[] = [
   },
   {
     value:
+      "green",
+
+    label:
+      "Grün",
+  },
+  {
+    value:
       "indigo",
 
     label:
@@ -105,6 +132,20 @@ const accentOptions: AccentOption[] = [
   },
   {
     value:
+      "orange",
+
+    label:
+      "Orange",
+  },
+  {
+    value:
+      "purple",
+
+    label:
+      "Lila",
+  },
+  {
+    value:
       "red",
 
     label:
@@ -114,33 +155,136 @@ const accentOptions: AccentOption[] = [
 
 export default function SettingsPage() {
   const {
-    settings,
-    loading,
+    settings:
+      appSettings,
+    loading:
+      appSettingsLoading,
   } =
     useAppSettings();
 
+  const {
+    settings:
+      userSettings,
+    loading:
+      userSettingsLoading,
+    error:
+      userSettingsError,
+    updateSettings,
+  } =
+    useUserSettings();
+
   const [theme, setTheme] =
     useState<AppTheme>(
-      settings.theme ||
-        "modern"
+      userSettings.theme
     );
 
   const [accentColor, setAccentColor] =
     useState<AppAccentColor>(
-      settings.accentColor ||
-        settings.appAccentColor ||
-        "zinc"
+      userSettings.accentColor
     );
 
   const [compactMode, setCompactMode] =
     useState(
-      Boolean(
-        settings.compactMode
-      )
+      userSettings.compactMode
     );
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
 
   const user =
     getCachedCurrentUser();
+
+  useEffect(() => {
+    setTheme(
+      userSettings.theme
+    );
+
+    setAccentColor(
+      userSettings.accentColor
+    );
+
+    setCompactMode(
+      userSettings.compactMode
+    );
+  }, [
+    userSettings,
+  ]);
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    try {
+      setSaving(
+        true
+      );
+
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
+      await updateSettings({
+        theme,
+        accentColor,
+        compactMode,
+      });
+
+      setMessage(
+        "Persönliche Einstellungen wurden gespeichert."
+      );
+    } catch (saveError) {
+      console.error(
+        saveError
+      );
+
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Persönliche Einstellungen konnten nicht gespeichert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
+  }
+
+  function resetForm() {
+    setTheme(
+      userSettings.theme
+    );
+
+    setAccentColor(
+      userSettings.accentColor
+    );
+
+    setCompactMode(
+      userSettings.compactMode
+    );
+
+    setMessage(
+      ""
+    );
+
+    setError(
+      ""
+    );
+  }
+
+  const loading =
+    appSettingsLoading ||
+    userSettingsLoading;
 
   return (
     <div className="space-y-8">
@@ -158,6 +302,23 @@ export default function SettingsPage() {
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <p className="text-zinc-500">
             Einstellungen werden geladen...
+          </p>
+        </div>
+      )}
+
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
+          </p>
+        </div>
+      )}
+
+      {(error || userSettingsError) && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-red-700 font-medium">
+            {error ||
+              userSettingsError}
           </p>
         </div>
       )}
@@ -229,28 +390,25 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6">
+      <form
+        onSubmit={(event) =>
+          void handleSubmit(
+            event
+          )
+        }
+        className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+      >
         <div>
           <h2 className="text-2xl font-semibold">
             Darstellung
           </h2>
 
           <p className="text-zinc-500 mt-1">
-            Persönliche Darstellung ist vorbereitet. Die Werte werden im nächsten Schritt pro Benutzer gespeichert.
+            Diese Einstellungen werden dauerhaft für deinen Benutzer gespeichert.
           </p>
         </div>
 
-        <div className="bg-amber-50 border border-amber-100 rounded-3xl p-5">
-          <p className="text-amber-800 font-medium">
-            Hinweis
-          </p>
-
-          <p className="text-amber-700 mt-1">
-            Aktuell sind dies Vorschau-Einstellungen. Damit normale Benutzer ihr Design dauerhaft speichern können, ergänzen wir als nächstes User-Designsettings in der Datenbank.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {themeOptions.map(
             (option) => {
               const active =
@@ -340,7 +498,43 @@ export default function SettingsPage() {
             className="h-5 w-5"
           />
         </label>
-      </section>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+          >
+            {saving
+              ? "Speichert..."
+              : "Persönliche Einstellungen speichern"}
+          </button>
+
+          <button
+            type="button"
+            onClick={resetForm}
+            disabled={saving}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+          >
+            Änderungen verwerfen
+          </button>
+        </div>
+
+        <p className="text-sm text-zinc-400">
+          Aktuell gespeichert:{" "}
+          {userSettingsRepository.getThemeLabel(
+            userSettings.theme
+          )}
+          {" · "}
+          {userSettingsRepository.getAccentColorLabel(
+            userSettings.accentColor
+          )}
+          {" · "}
+          {userSettings.compactMode
+            ? "Kompakt"
+            : "Standard"}
+        </p>
+      </form>
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <h2 className="text-2xl font-semibold">
@@ -358,7 +552,7 @@ export default function SettingsPage() {
             </p>
 
             <p className="font-semibold mt-1">
-              {settings.appName ||
+              {appSettings.appName ||
                 "Intranet"}
             </p>
           </div>
@@ -369,7 +563,7 @@ export default function SettingsPage() {
             </p>
 
             <p className="font-semibold mt-1">
-              {settings.companyName ||
+              {appSettings.companyName ||
                 "Intern"}
             </p>
           </div>
@@ -380,9 +574,9 @@ export default function SettingsPage() {
             </p>
 
             <p className="font-semibold mt-1">
-              {settings.showVersion
-                ? settings.appVersion ||
-                  settings.version ||
+              {appSettings.showVersion
+                ? appSettings.appVersion ||
+                  appSettings.version ||
                   "0.1.0"
                 : "Ausgeblendet"}
             </p>
@@ -390,14 +584,14 @@ export default function SettingsPage() {
         </div>
 
         <p className="text-sm text-zinc-400 mt-6">
-          Standarddesign:{" "}
+          Globaler Standard:{" "}
           {appSettingsRepository.getThemeLabel(
-            settings.theme
+            appSettings.theme
           )}
           {" · "}
           Akzent:{" "}
           {appSettingsRepository.getAccentColorLabel(
-            settings.accentColor
+            appSettings.accentColor
           )}
         </p>
       </section>

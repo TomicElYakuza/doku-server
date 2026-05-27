@@ -2,27 +2,21 @@ Ticket:
 -	Drop Down bei allem
 -	Baumverzeichnis mit genaueren Kategorien zum Filtern z.B. Intranet > Wiki > 404 Error
 
-Grundlegendes zum Intranet:
--	Berechtigungen
-	-	Auch Vergabe von Sidebar Features
-
 Admin Dashboard:
 -	UI Anpassungen, damit man nicht mehr im Quellcode oder DB was ändern muss
 
-Wichtig:
+Admin Backend DB Konfiguration
+
+Eventuell tags vordefinierbar und auch in das admin backend rein sprich liste machen und nur dann über drop down menü anklicken bei Erstellung eines tickets/wiki und automatisch Tabelle Ansicht nicht karten Ansicht
+
+ID bei Ticket dazu ganz links wieder und erstellt von dazu
+
+
+------------------------------------------------
+Für später:
 -	AD Integration mit E-Mail und Telefon
 -	Externer Firmenzugang
 -	Cookies
-
-
-Einstellungen und Tickets und Aktivitäten, zurück zum Dashboard button weg
-
-bei erstellen immer fenster aufplopen:
--	Firmen, Abteilungen, Ticket Vorlage, wiki seite, ticket erstellen; BENUTZER erstellen
-
-Altes Layout zurück
-
-Admin Backend DB Konfiguration
-
-
+-	Berechtigungen
+	-	Auch Vergabe von Sidebar Features
 

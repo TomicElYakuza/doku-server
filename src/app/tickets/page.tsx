@@ -35,6 +35,12 @@ import {
   usePermissions,
 } from "../../hooks/usePermissions";
 
+import AppModal from "../../components/AppModal";
+
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
+
 import type {
   Ticket,
   TicketPriority,
@@ -80,6 +86,18 @@ function getPriorityClass(
   return ticketRepository.getPriorityClass(
     priority
   );
+}
+
+function splitTags(
+  value: string
+) {
+  return value
+    .split(",")
+    .map(
+      (tag) =>
+        tag.trim()
+    )
+    .filter(Boolean);
 }
 
 export default function TicketsPage() {
@@ -176,7 +194,7 @@ export default function TicketsPage() {
   const [hideClosed, setHideClosed] =
     useState(true);
 
-  const [showForm, setShowForm] =
+  const [modalOpen, setModalOpen] =
     useState(false);
 
   const [editingTicketId, setEditingTicketId] =
@@ -219,6 +237,9 @@ export default function TicketsPage() {
     useState(false);
 
   const [error, setError] =
+    useState("");
+
+  const [message, setMessage] =
     useState("");
 
   useEffect(() => {
@@ -383,20 +404,6 @@ export default function TicketsPage() {
     }
   }
 
-  function splitTags(
-    value: string
-  ) {
-    return value
-      .split(
-        ","
-      )
-      .map(
-        (tag) =>
-          tag.trim()
-      )
-      .filter(Boolean);
-  }
-
   function getCompanyName(
     id?: string
   ) {
@@ -432,7 +439,10 @@ export default function TicketsPage() {
   function userCanSeeTicket(
     ticket: Ticket
   ) {
-    if (isAdmin || canManageTickets) {
+    if (
+      isAdmin ||
+      canManageTickets
+    ) {
       return true;
     }
 
@@ -505,7 +515,9 @@ export default function TicketsPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return visibleTickets.filter(
           (ticket) => {
@@ -627,27 +639,60 @@ export default function TicketsPage() {
     );
 
   function resetForm() {
-    setEditingTicketId("");
-    setTitle("");
-    setDescription("");
-    setStatus("open");
-    setPriority("medium");
-    setCategory("Allgemein");
+    setEditingTicketId(
+      ""
+    );
+
+    setTitle(
+      ""
+    );
+
+    setDescription(
+      ""
+    );
+
+    setStatus(
+      "open"
+    );
+
+    setPriority(
+      "medium"
+    );
+
+    setCategory(
+      "Allgemein"
+    );
+
     setCompanyId(
       user?.companyId ||
         ""
     );
+
     setDepartmentId(
       user?.departmentId ||
         ""
     );
-    setAssignedTo("");
+
+    setAssignedTo(
+      ""
+    );
+
     setCreatedBy(
       user?.name ||
         "System"
     );
-    setTags("");
-    setShowForm(false);
+
+    setTags(
+      ""
+    );
+  }
+
+  function closeModal() {
+    setModalOpen(
+      false
+    );
+
+    resetForm();
   }
 
   function openCreateForm() {
@@ -661,7 +706,10 @@ export default function TicketsPage() {
 
     resetForm();
 
-    if (isAdmin || canManageTickets) {
+    if (
+      isAdmin ||
+      canManageTickets
+    ) {
       const firstCompany =
         companies[0];
 
@@ -682,7 +730,7 @@ export default function TicketsPage() {
       );
     }
 
-    setShowForm(
+    setModalOpen(
       true
     );
   }
@@ -754,17 +802,28 @@ export default function TicketsPage() {
         : ""
     );
 
-    setShowForm(
+    setModalOpen(
       true
     );
+  }
 
-    window.scrollTo({
-      top:
-        0,
+  function handleCompanyChange(
+    nextCompanyId: string
+  ) {
+    setCompanyId(
+      nextCompanyId
+    );
 
-      behavior:
-        "smooth",
-    });
+    const firstDepartment =
+      departments.find(
+        (department) =>
+          department.companyId === nextCompanyId
+      );
+
+    setDepartmentId(
+      firstDepartment?.id ||
+        ""
+    );
   }
 
   async function handleSubmit(
@@ -848,6 +907,14 @@ export default function TicketsPage() {
         true
       );
 
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       if (editingTicketId) {
         const updatedTicket =
           await ticketRepository.update(
@@ -898,9 +965,13 @@ export default function TicketsPage() {
           );
         }
 
-        resetForm();
+        closeModal();
 
         await loadData();
+
+        setMessage(
+          "Ticket wurde gespeichert."
+        );
 
         return;
       }
@@ -949,15 +1020,19 @@ export default function TicketsPage() {
         createdTicket
       );
 
-      resetForm();
+      closeModal();
 
       await loadData();
+
+      setMessage(
+        "Ticket wurde erstellt."
+      );
     } catch (saveError) {
       console.error(
         saveError
       );
 
-      alert(
+      setError(
         saveError instanceof Error
           ? saveError.message
           : "Ticket konnte nicht gespeichert werden."
@@ -990,6 +1065,14 @@ export default function TicketsPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       const updatedTicket =
         await ticketRepository.update(
           ticket.id,
@@ -1006,12 +1089,16 @@ export default function TicketsPage() {
       }
 
       await loadData();
+
+      setMessage(
+        "Ticket wurde geschlossen."
+      );
     } catch (closeError) {
       console.error(
         closeError
       );
 
-      alert(
+      setError(
         closeError instanceof Error
           ? closeError.message
           : "Ticket konnte nicht geschlossen werden."
@@ -1040,6 +1127,14 @@ export default function TicketsPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       saveTicketDeletedActivity(
         ticket
       );
@@ -1049,12 +1144,16 @@ export default function TicketsPage() {
       );
 
       await loadData();
+
+      setMessage(
+        "Ticket wurde gelöscht."
+      );
     } catch (deleteError) {
       console.error(
         deleteError
       );
 
-      alert(
+      setError(
         deleteError instanceof Error
           ? deleteError.message
           : "Ticket konnte nicht gelöscht werden."
@@ -1063,11 +1162,26 @@ export default function TicketsPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setStatusFilter("");
-    setPriorityFilter("");
-    setCompanyFilter("");
-    setDepartmentFilter("");
+    setSearch(
+      ""
+    );
+
+    setStatusFilter(
+      ""
+    );
+
+    setPriorityFilter(
+      ""
+    );
+
+    setCompanyFilter(
+      ""
+    );
+
+    setDepartmentFilter(
+      ""
+    );
+
     setHideClosed(
       true
     );
@@ -1077,7 +1191,7 @@ export default function TicketsPage() {
     ticket: Ticket
   ) {
     return (
-      <div className="flex flex-wrap gap-3 shrink-0">
+      <div className="flex flex-wrap gap-3">
         <Link
           href={`/tickets/${ticket.id}`}
           className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
@@ -1132,156 +1246,53 @@ export default function TicketsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Tickets
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Supportfälle und Aufgaben aus PostgreSQL verwalten.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          {ticketTemplatesEnabled && canManageTickets && (
-            <Link
-              href="/tickets/templates"
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Vorlagen
-            </Link>
-          )}
-
-          {canCreateTicket && (
+      <AppModal
+        open={modalOpen}
+        title={
+          editingTicketId
+            ? "Ticket bearbeiten"
+            : "Ticket erstellen"
+        }
+        description="Ticket wird direkt in PostgreSQL gespeichert."
+        maxWidth="5xl"
+        onClose={closeModal}
+        footer={(
+          <div className="flex flex-wrap justify-end gap-3">
             <button
               type="button"
-              onClick={openCreateForm}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+              onClick={closeModal}
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
             >
-              Ticket erstellen
+              Abbrechen
             </button>
-          )}
-        </div>
-      </div>
 
-      {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Tickets werden geladen...
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Tickets gesamt
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {visibleTickets.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setStatusFilter(
-              "open"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Offen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {openTickets.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setStatusFilter(
-              "in_progress"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-yellow-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            In Bearbeitung
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {inProgressTickets.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setPriorityFilter(
-              "urgent"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Hoch/Dringend
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {highOrUrgentTickets.length}
-          </h2>
-
-          <p className="text-sm text-zinc-400 mt-2">
-            {closedTickets.length} geschlossen
-          </p>
-        </button>
-      </div>
-
-      {showForm && (
+            <button
+              type="submit"
+              form="ticket-form"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : editingTicketId
+                  ? "Änderungen speichern"
+                  : "Ticket erstellen"}
+            </button>
+          </div>
+        )}
+      >
         <form
+          id="ticket-form"
           onSubmit={(event) =>
             void handleSubmit(
               event
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+          className="space-y-6"
         >
-          <div>
-            <h2 className="text-2xl font-semibold">
-              {editingTicketId
-                ? "Ticket bearbeiten"
-                : "Ticket erstellen"}
-            </h2>
-
-            <p className="text-zinc-500 mt-1">
-              Ticket wird direkt in PostgreSQL gespeichert.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Titel
               </label>
@@ -1298,7 +1309,7 @@ export default function TicketsPage() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
@@ -1426,25 +1437,11 @@ export default function TicketsPage() {
 
               <select
                 value={companyId}
-                onChange={(event) => {
-                  const nextCompanyId =
-                    event.target.value;
-
-                  setCompanyId(
-                    nextCompanyId
-                  );
-
-                  const firstDepartment =
-                    departments.find(
-                      (department) =>
-                        department.companyId === nextCompanyId
-                    );
-
-                  setDepartmentId(
-                    firstDepartment?.id ||
-                      ""
-                  );
-                }}
+                onChange={(event) =>
+                  handleCompanyChange(
+                    event.target.value
+                  )
+                }
                 disabled={!isAdmin && !canManageTickets}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
@@ -1531,30 +1528,134 @@ export default function TicketsPage() {
               />
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-            >
-              {saving
-                ? "Speichert..."
-                : editingTicketId
-                  ? "Änderungen speichern"
-                  : "Ticket erstellen"}
-            </button>
-
-            <button
-              type="button"
-              onClick={resetForm}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Abbrechen
-            </button>
-          </div>
         </form>
+      </AppModal>
+
+      <PageHero
+        eyebrow="Support"
+        title="Tickets"
+        description="Supportfälle und Aufgaben aus PostgreSQL verwalten."
+        badges={[
+          {
+            label:
+              `${visibleTickets.length} Tickets`,
+          },
+          {
+            label:
+              `${openTickets.length} offen`,
+          },
+          {
+            label:
+              `${closedTickets.length} geschlossen`,
+          },
+        ]}
+        actions={(
+          <>
+            {ticketTemplatesEnabled && canManageTickets && (
+              <Link
+                href="/tickets/templates"
+                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+              >
+                Vorlagen
+              </Link>
+            )}
+
+            {canCreateTicket && (
+              <button
+                type="button"
+                onClick={openCreateForm}
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Ticket erstellen
+              </button>
+            )}
+          </>
+        )}
+      />
+
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Tickets werden geladen...
+          </p>
+        </div>
       )}
+
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard
+          label="Tickets gesamt"
+          value={visibleTickets.length}
+          description="Alle sichtbaren Tickets"
+          icon="🎫"
+          active={
+            !statusFilter &&
+            !priorityFilter
+          }
+          onClick={resetFilters}
+        />
+
+        <StatCard
+          label="Offen"
+          value={openTickets.length}
+          description="Noch nicht bearbeitet"
+          icon="📬"
+          tone="blue"
+          active={statusFilter === "open"}
+          onClick={() =>
+            setStatusFilter(
+              "open"
+            )
+          }
+        />
+
+        <StatCard
+          label="In Bearbeitung"
+          value={inProgressTickets.length}
+          description="Aktuell in Arbeit"
+          icon="⏳"
+          tone="orange"
+          active={statusFilter === "in_progress"}
+          onClick={() =>
+            setStatusFilter(
+              "in_progress"
+            )
+          }
+        />
+
+        <StatCard
+          label="Hoch/Dringend"
+          value={highOrUrgentTickets.length}
+          description={`${closedTickets.length} geschlossen`}
+          icon="🚨"
+          tone="red"
+          active={priorityFilter === "urgent"}
+          onClick={() =>
+            setPriorityFilter(
+              "urgent"
+            )
+          }
+        />
+      </div>
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
@@ -1933,9 +2034,7 @@ export default function TicketsPage() {
                         {getCompanyName(
                           ticket.companyId
                         )}
-
                         <br />
-
                         {getDepartmentName(
                           ticket.departmentId
                         )}

@@ -14,16 +14,23 @@ import {
 } from "../../../lib/newsRepository";
 
 import {
+  canManageSystem,
+  canViewAdmin,
+} from "../../../lib/permissions";
+
+import {
   saveNewsCreatedActivity,
   saveNewsDeletedActivity,
   saveNewsUpdatedActivity,
 } from "../../../lib/newsActivityHelpers";
 
-import {
-  usePermissions,
-} from "../../../hooks/usePermissions";
-
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
+
+import AppModal from "../../../components/AppModal";
+
+import PageHero from "../../../components/PageHero";
+
+import StatCard from "../../../components/StatCard";
 
 import type {
   NewsCategory,
@@ -60,46 +67,51 @@ function getCategoryClass(
   return "bg-zinc-100 text-zinc-700";
 }
 
+function getCategoryDescription(
+  category: string
+) {
+  if (category === "System") {
+    return "Systemmeldungen, Wartungen und technische Hinweise.";
+  }
+
+  if (category === "Tickets") {
+    return "Informationen rund um Support, Prozesse und Tickets.";
+  }
+
+  if (category === "Wiki") {
+    return "Hinweise zu Dokumentation und Wissensartikeln.";
+  }
+
+  if (category === "Organisation") {
+    return "Informationen zu Firmen, Abteilungen und internen Abläufen.";
+  }
+
+  return "Allgemeine interne Meldungen.";
+}
+
+function formatTextPreview(
+  value: string,
+  maxLength = 180
+) {
+  const text =
+    value
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(
+    0,
+    maxLength
+  )}...`;
+}
+
 export default function AdminNewsPage() {
-  const {
-    user,
-    loading:
-      permissionsLoading,
-    isAdmin,
-    hasAnyPermission,
-  } =
-    usePermissions();
-
-  const canManageNews =
-    isAdmin ||
-    hasAnyPermission([
-      "news.manage",
-    ]);
-
-  const canCreateNews =
-    canManageNews ||
-    hasAnyPermission([
-      "news.create",
-    ]);
-
-  const canEditNews =
-    canManageNews ||
-    hasAnyPermission([
-      "news.edit",
-    ]);
-
-  const canDeleteNews =
-    canManageNews ||
-    hasAnyPermission([
-      "news.delete",
-    ]);
-
-  const canUseAdminNews =
-    canManageNews ||
-    canCreateNews ||
-    canEditNews ||
-    canDeleteNews;
-
   const [mounted, setMounted] =
     useState(false);
 
@@ -115,7 +127,7 @@ export default function AdminNewsPage() {
   const [pinnedFilter, setPinnedFilter] =
     useState("");
 
-  const [showForm, setShowForm] =
+  const [modalOpen, setModalOpen] =
     useState(false);
 
   const [editingPostId, setEditingPostId] =
@@ -146,6 +158,9 @@ export default function AdminNewsPage() {
     useState(false);
 
   const [error, setError] =
+    useState("");
+
+  const [message, setMessage] =
     useState("");
 
   useEffect(() => {
@@ -210,21 +225,45 @@ export default function AdminNewsPage() {
   }
 
   function resetForm() {
-    setEditingPostId("");
-    setTitle("");
-    setDescription("");
-    setContent("");
-    setCategory("Allgemein");
-    setAuthor(
-      user?.name ||
-        "System"
+    setEditingPostId(
+      ""
     );
-    setPinned(false);
-    setShowForm(false);
+
+    setTitle(
+      ""
+    );
+
+    setDescription(
+      ""
+    );
+
+    setContent(
+      ""
+    );
+
+    setCategory(
+      "Allgemein"
+    );
+
+    setAuthor(
+      "System"
+    );
+
+    setPinned(
+      false
+    );
+  }
+
+  function closeModal() {
+    setModalOpen(
+      false
+    );
+
+    resetForm();
   }
 
   function openCreateForm() {
-    if (!canCreateNews) {
+    if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, News zu erstellen."
       );
@@ -234,7 +273,7 @@ export default function AdminNewsPage() {
 
     resetForm();
 
-    setShowForm(
+    setModalOpen(
       true
     );
   }
@@ -242,7 +281,7 @@ export default function AdminNewsPage() {
   function startEditPost(
     post: NewsPost
   ) {
-    if (!canEditNews) {
+    if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, News zu bearbeiten."
       );
@@ -267,13 +306,12 @@ export default function AdminNewsPage() {
     );
 
     setCategory(
-      (post.category ||
-        "Allgemein") as NewsCategory
+      post.category ||
+        "Allgemein"
     );
 
     setAuthor(
       post.author ||
-        user?.name ||
         "System"
     );
 
@@ -283,17 +321,9 @@ export default function AdminNewsPage() {
       )
     );
 
-    setShowForm(
+    setModalOpen(
       true
     );
-
-    window.scrollTo({
-      top:
-        0,
-
-      behavior:
-        "smooth",
-    });
   }
 
   const categories =
@@ -307,7 +337,7 @@ export default function AdminNewsPage() {
                 String(
                   post.category ||
                     "Allgemein"
-                ) as NewsCategory
+                )
             ),
           ])
         ),
@@ -320,13 +350,16 @@ export default function AdminNewsPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return posts.filter(
           (post) => {
             const matchesSearch =
               !query ||
               [
+                post.id,
                 post.title,
                 post.description,
                 post.content,
@@ -372,34 +405,50 @@ export default function AdminNewsPage() {
       ]
     );
 
-  const pinnedCount =
-    posts.filter(
-      (post) =>
-        post.pinned
-    ).length;
+  const pinnedPosts =
+    useMemo(
+      () =>
+        posts.filter(
+          (post) =>
+            post.pinned
+        ),
+      [
+        posts,
+      ]
+    );
+
+  const systemPosts =
+    useMemo(
+      () =>
+        posts.filter(
+          (post) =>
+            post.category === "System"
+        ),
+      [
+        posts,
+      ]
+    );
+
+  const ticketPosts =
+    useMemo(
+      () =>
+        posts.filter(
+          (post) =>
+            post.category === "Tickets"
+        ),
+      [
+        posts,
+      ]
+    );
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    if (
-      editingPostId &&
-      !canEditNews
-    ) {
+    if (!canManageSystem()) {
       alert(
-        "Du hast keine Berechtigung, News zu bearbeiten."
-      );
-
-      return;
-    }
-
-    if (
-      !editingPostId &&
-      !canCreateNews
-    ) {
-      alert(
-        "Du hast keine Berechtigung, News zu erstellen."
+        "Du hast keine Berechtigung, News zu verwalten."
       );
 
       return;
@@ -416,6 +465,14 @@ export default function AdminNewsPage() {
     try {
       setSaving(
         true
+      );
+
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
       );
 
       if (editingPostId) {
@@ -438,7 +495,6 @@ export default function AdminNewsPage() {
 
               author:
                 author.trim() ||
-                user?.name ||
                 "System",
 
               pinned,
@@ -451,9 +507,13 @@ export default function AdminNewsPage() {
           );
         }
 
-        resetForm();
+        closeModal();
 
         await loadPosts();
+
+        setMessage(
+          "News wurde gespeichert."
+        );
 
         return;
       }
@@ -475,7 +535,6 @@ export default function AdminNewsPage() {
 
           author:
             author.trim() ||
-            user?.name ||
             "System",
 
           pinned,
@@ -485,15 +544,19 @@ export default function AdminNewsPage() {
         createdPost
       );
 
-      resetForm();
+      closeModal();
 
       await loadPosts();
+
+      setMessage(
+        "News wurde erstellt."
+      );
     } catch (saveError) {
       console.error(
         saveError
       );
 
-      alert(
+      setError(
         saveError instanceof Error
           ? saveError.message
           : "News konnte nicht gespeichert werden."
@@ -508,7 +571,7 @@ export default function AdminNewsPage() {
   async function handleDeletePost(
     post: NewsPost
   ) {
-    if (!canDeleteNews) {
+    if (!canManageSystem()) {
       alert(
         "Du hast keine Berechtigung, News zu löschen."
       );
@@ -526,6 +589,14 @@ export default function AdminNewsPage() {
     }
 
     try {
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
       saveNewsDeletedActivity(
         post
       );
@@ -535,12 +606,16 @@ export default function AdminNewsPage() {
       );
 
       await loadPosts();
+
+      setMessage(
+        "News wurde gelöscht."
+      );
     } catch (deleteError) {
       console.error(
         deleteError
       );
 
-      alert(
+      setError(
         deleteError instanceof Error
           ? deleteError.message
           : "News konnte nicht gelöscht werden."
@@ -549,32 +624,24 @@ export default function AdminNewsPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setCategoryFilter("");
-    setPinnedFilter("");
+    setSearch(
+      ""
+    );
+
+    setCategoryFilter(
+      ""
+    );
+
+    setPinnedFilter(
+      ""
+    );
   }
 
   if (!mounted) {
     return null;
   }
 
-  if (permissionsLoading) {
-    return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <p className="text-zinc-500">
-          Berechtigungen werden geladen...
-        </p>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <AccessDeniedCard />
-    );
-  }
-
-  if (!canUseAdminNews) {
+  if (!canViewAdmin()) {
     return (
       <AccessDeniedCard />
     );
@@ -582,131 +649,52 @@ export default function AdminNewsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zum Admin-Dashboard
-        </Link>
-      </div>
+      <AppModal
+        open={modalOpen}
+        title={
+          editingPostId
+            ? "News bearbeiten"
+            : "News erstellen"
+        }
+        description="News werden direkt in PostgreSQL gespeichert."
+        maxWidth="5xl"
+        onClose={closeModal}
+        footer={(
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="bg-white border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
 
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            News-Verwaltung
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Neuigkeiten erstellen, bearbeiten, fixieren und löschen.
-          </p>
-        </div>
-
-        {canCreateNews && (
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-          >
-            News erstellen
-          </button>
+            <button
+              type="submit"
+              form="admin-news-form"
+              disabled={saving}
+              className="bg-zinc-900 text-white px-6 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : editingPostId
+                  ? "Änderungen speichern"
+                  : "News erstellen"}
+            </button>
+          </div>
         )}
-      </div>
-
-      {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            News werden geladen...
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            News gesamt
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {posts.length}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setPinnedFilter(
-              "pinned"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Fixiert
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {pinnedCount}
-          </h2>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setPinnedFilter(
-              "normal"
-            )
-          }
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-        >
-          <p className="text-sm text-zinc-500">
-            Normal
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {posts.length - pinnedCount}
-          </h2>
-        </button>
-      </div>
-
-      {showForm && (
+      >
         <form
+          id="admin-news-form"
           onSubmit={(event) =>
             void handleSubmit(
               event
             )
           }
-          className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+          className="space-y-6"
         >
-          <div>
-            <h2 className="text-2xl font-semibold">
-              {editingPostId
-                ? "News bearbeiten"
-                : "News erstellen"}
-            </h2>
-
-            <p className="text-zinc-500 mt-1">
-              Beitrag wird direkt in PostgreSQL gespeichert.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
               <label className="block mb-2 font-medium">
                 Titel
@@ -749,6 +737,14 @@ export default function AdminNewsPage() {
                   )
                 )}
               </select>
+
+              <p className="text-sm text-zinc-500 mt-2">
+                {getCategoryDescription(
+                  String(
+                    category
+                  )
+                )}
+              </p>
             </div>
 
             <div>
@@ -768,7 +764,17 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            <label className="flex items-center gap-3 bg-zinc-50 rounded-2xl p-5">
+            <label className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-5">
+              <span>
+                <span className="font-medium block">
+                  News fixieren
+                </span>
+
+                <span className="text-sm text-zinc-500">
+                  Fixierte Beiträge werden priorisiert angezeigt.
+                </span>
+              </span>
+
               <input
                 type="checkbox"
                 checked={pinned}
@@ -777,14 +783,11 @@ export default function AdminNewsPage() {
                     event.target.checked
                   )
                 }
+                className="h-5 w-5"
               />
-
-              <span className="font-medium">
-                News fixieren
-              </span>
             </label>
 
-            <div className="md:col-span-2">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Kurzbeschreibung
               </label>
@@ -802,7 +805,7 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Inhalt
               </label>
@@ -820,33 +823,147 @@ export default function AdminNewsPage() {
               />
             </div>
           </div>
+        </form>
+      </AppModal>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-6 py-4 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50"
-            >
-              {saving
-                ? "Speichert..."
-                : editingPostId
-                  ? "Änderungen speichern"
-                  : "News erstellen"}
-            </button>
+      <div>
+        <Link
+          href="/admin"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zum Admin-Dashboard
+        </Link>
+      </div>
 
+      <PageHero
+        eyebrow="Admin Backend"
+        title="News-Verwaltung"
+        description="Interne Meldungen erstellen, bearbeiten, fixieren und löschen. Fixierte News werden priorisiert angezeigt."
+        badges={[
+          {
+            label:
+              `${posts.length} Beiträge`,
+          },
+          {
+            label:
+              `${pinnedPosts.length} fixiert`,
+          },
+          {
+            label:
+              `${categories.length} Kategorien`,
+          },
+        ]}
+        actions={(
+          <>
             <button
               type="button"
-              onClick={resetForm}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition"
+              onClick={() =>
+                void loadPosts()
+              }
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
             >
-              Abbrechen
+              Aktualisieren
             </button>
-          </div>
-        </form>
+
+            {canManageSystem() && (
+              <button
+                type="button"
+                onClick={openCreateForm}
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                News erstellen
+              </button>
+            )}
+          </>
+        )}
+      />
+
+      {loading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            News werden geladen...
+          </p>
+        </div>
       )}
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="News gesamt"
+          value={posts.length}
+          description="Alle Beiträge"
+          icon="📰"
+          active={
+            !categoryFilter &&
+            !pinnedFilter
+          }
+          onClick={resetFilters}
+        />
+
+        <StatCard
+          label="Fixiert"
+          value={pinnedPosts.length}
+          description="Priorisierte Beiträge"
+          icon="📌"
+          tone="indigo"
+          active={pinnedFilter === "pinned"}
+          onClick={() =>
+            setPinnedFilter(
+              "pinned"
+            )
+          }
+        />
+
+        <StatCard
+          label="System"
+          value={systemPosts.length}
+          description="Technische Meldungen"
+          icon="🛠️"
+          tone="blue"
+          active={categoryFilter === "System"}
+          onClick={() =>
+            setCategoryFilter(
+              "System"
+            )
+          }
+        />
+
+        <StatCard
+          label="Tickets"
+          value={ticketPosts.length}
+          description="Ticket-bezogene News"
+          icon="🎫"
+          tone="orange"
+          active={categoryFilter === "Tickets"}
+          onClick={() =>
+            setCategoryFilter(
+              "Tickets"
+            )
+          }
+        />
+      </div>
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
               Suche & Filter
@@ -866,7 +983,7 @@ export default function AdminNewsPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
           <input
             value={search}
             onChange={(event) =>
@@ -929,9 +1046,9 @@ export default function AdminNewsPage() {
         <p className="text-sm text-zinc-500 mt-5">
           {filteredPosts.length} von {posts.length} News gefunden.
         </p>
-      </div>
+      </section>
 
-      <div className="space-y-4">
+      <section className="space-y-4">
         {filteredPosts.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <h2 className="text-xl font-semibold">
@@ -950,7 +1067,7 @@ export default function AdminNewsPage() {
               key={post.id}
               className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
             >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
@@ -974,10 +1091,18 @@ export default function AdminNewsPage() {
                     {post.title}
                   </h2>
 
-                  <p className="text-zinc-500 mt-2 line-clamp-2">
+                  <p className="text-zinc-500 mt-2">
                     {post.description ||
                       "Keine Beschreibung vorhanden."}
                   </p>
+
+                  {post.content && (
+                    <p className="text-sm text-zinc-500 mt-4">
+                      {formatTextPreview(
+                        post.content
+                      )}
+                    </p>
+                  )}
 
                   <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                     <span>
@@ -993,15 +1118,15 @@ export default function AdminNewsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 shrink-0">
-                  <Link
-                    href={`/news/${post.id}`}
-                    className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                  >
-                    Öffnen
-                  </Link>
+                {canManageSystem() && (
+                  <div className="flex flex-wrap gap-3 shrink-0">
+                    <Link
+                      href={`/news/${post.id}`}
+                      className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                    >
+                      Öffnen
+                    </Link>
 
-                  {canEditNews && (
                     <button
                       type="button"
                       onClick={() =>
@@ -1013,9 +1138,7 @@ export default function AdminNewsPage() {
                     >
                       Bearbeiten
                     </button>
-                  )}
 
-                  {canDeleteNews && (
                     <button
                       type="button"
                       onClick={() =>
@@ -1027,13 +1150,13 @@ export default function AdminNewsPage() {
                     >
                       Löschen
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           )
         )}
-      </div>
+      </section>
     </div>
   );
 }
