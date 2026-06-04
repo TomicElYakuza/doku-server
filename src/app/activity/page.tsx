@@ -24,6 +24,10 @@ import FeatureGate from "../../components/FeatureGate";
 
 import AccessDeniedCard from "../../components/AccessDeniedCard";
 
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
+
 import type {
   Activity,
 } from "../../types/activity";
@@ -40,12 +44,15 @@ function getActivityIcon(
     return "＋";
   }
 
-  if (type === "edited") {
+  if (
+    type === "edited" ||
+    type === "updated"
+  ) {
     return "✎";
   }
 
   if (type === "deleted") {
-    return "🗑";
+    return "🗑️";
   }
 
   if (type === "restored") {
@@ -332,11 +339,25 @@ export default function ActivityPage() {
   }
 
   function resetFilters() {
-    setSearch("");
-    setTypeFilter("");
-    setEntityFilter("");
-    setCompanyFilter("");
-    setDepartmentFilter("");
+    setSearch(
+      ""
+    );
+
+    setTypeFilter(
+      ""
+    );
+
+    setEntityFilter(
+      ""
+    );
+
+    setCompanyFilter(
+      ""
+    );
+
+    setDepartmentFilter(
+      ""
+    );
   }
 
   function getCompanyName(
@@ -425,7 +446,9 @@ export default function ActivityPage() {
     useMemo(
       () => {
         const query =
-          search.trim().toLowerCase();
+          search
+            .trim()
+            .toLowerCase();
 
         return activities.filter(
           (activity) => {
@@ -519,7 +542,8 @@ export default function ActivityPage() {
   const editedCount =
     activities.filter(
       (activity) =>
-        activity.type === "edited"
+        activity.type === "edited" ||
+        activity.type === "updated"
     ).length;
 
   const deletedCount =
@@ -540,47 +564,62 @@ export default function ActivityPage() {
 
   if (!canViewActivity()) {
     return (
-      <AccessDeniedCard />
+      <FeatureGate feature="activityLog">
+        <AccessDeniedCard />
+      </FeatureGate>
     );
   }
 
   return (
     <FeatureGate
       feature="activityLog"
-      fallback={
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            Aktivitätsprotokoll deaktiviert
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Dieses Modul ist aktuell in den Einstellungen deaktiviert.
-          </p>
-        </div>
-      }
-    >
-      <div className="space-y-8">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-          <div>
-            <h1 className="text-4xl font-bold">
-              Aktivität
+      fallback={(
+        <div className="space-y-8">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h1 className="text-3xl font-bold">
+              Aktivitätsprotokoll deaktiviert
             </h1>
 
             <p className="text-zinc-500 mt-2">
-              Protokollierte Aktionen aus PostgreSQL.
+              Dieses Modul ist aktuell in den Einstellungen deaktiviert.
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              void loadData()
-            }
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Aktualisieren
-          </button>
         </div>
+      )}
+    >
+      <div className="space-y-8">
+        <PageHero
+          eyebrow="System"
+          title="Aktivität"
+          description="Protokollierte Aktionen aus PostgreSQL. Änderungen, Logins und Systemereignisse zentral nachvollziehen."
+          badges={[
+            {
+              label:
+                `${activities.length} Einträge`,
+            },
+            {
+              label:
+                `${activityTypes.length} Typen`,
+            },
+            {
+              label:
+                `${entityTypes.length} Bereiche`,
+            },
+          ]}
+          actions={(
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  void loadData()
+                }
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Aktualisieren
+              </button>
+            </>
+          )}
+        />
 
         {loading && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -603,95 +642,83 @@ export default function ActivityPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
-          <button
-            type="button"
+          <StatCard
+            label="Gesamt"
+            value={activities.length}
+            description="Alle Einträge"
+            icon="🧾"
+            active={
+              !typeFilter &&
+              !entityFilter &&
+              !companyFilter &&
+              !departmentFilter &&
+              !search
+            }
             onClick={resetFilters}
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Gesamt
-            </p>
+          />
 
-            <h2 className="text-4xl font-bold mt-3">
-              {activities.length}
-            </h2>
-          </button>
-
-          <button
-            type="button"
+          <StatCard
+            label="Erstellt"
+            value={createdCount}
+            description="Neue Datensätze"
+            icon="＋"
+            tone="green"
+            active={typeFilter === "created"}
             onClick={() =>
               setTypeFilter(
                 "created"
               )
             }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Erstellt
-            </p>
+          />
 
-            <h2 className="text-4xl font-bold mt-3">
-              {createdCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
+          <StatCard
+            label="Bearbeitet"
+            value={editedCount}
+            description="Geänderte Datensätze"
+            icon="✎"
+            tone="blue"
+            active={
+              typeFilter === "edited" ||
+              typeFilter === "updated"
+            }
             onClick={() =>
               setTypeFilter(
                 "edited"
               )
             }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Bearbeitet
-            </p>
+          />
 
-            <h2 className="text-4xl font-bold mt-3">
-              {editedCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
+          <StatCard
+            label="Gelöscht"
+            value={deletedCount}
+            description="Entfernte Datensätze"
+            icon="🗑️"
+            tone="red"
+            active={typeFilter === "deleted"}
             onClick={() =>
               setTypeFilter(
                 "deleted"
               )
             }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Gelöscht
-            </p>
+          />
 
-            <h2 className="text-4xl font-bold mt-3">
-              {deletedCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
+          <StatCard
+            label="Logins"
+            value={loginCount}
+            description="Anmeldeereignisse"
+            icon="→"
+            tone="indigo"
+            active={typeFilter === "login"}
             onClick={() =>
               setTypeFilter(
                 "login"
               )
             }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Logins
-            </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {loginCount}
-            </h2>
-          </button>
+          />
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-6">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
               <h2 className="text-xl font-semibold">
                 Suche & Filter
@@ -705,15 +732,14 @@ export default function ActivityPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
               Zurücksetzen
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
+          <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 mt-5">
             <input
-              type="text"
               value={search}
               onChange={(event) =>
                 setSearch(
@@ -836,21 +862,21 @@ export default function ActivityPage() {
           <p className="text-sm text-zinc-500 mt-5">
             {filteredActivities.length} von {activities.length} Aktivitäten gefunden.
           </p>
-        </div>
+        </section>
 
-        <div className="space-y-4">
-          {!loading && filteredActivities.length === 0 && (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-              <h2 className="text-xl font-semibold">
-                Keine Aktivitäten gefunden
-              </h2>
+        {!loading && filteredActivities.length === 0 && (
+          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+            <h2 className="text-xl font-semibold">
+              Keine Aktivitäten gefunden
+            </h2>
 
-              <p className="text-zinc-500 mt-2">
-                Es gibt keine passenden Einträge.
-              </p>
-            </div>
-          )}
+            <p className="text-zinc-500 mt-2">
+              Es gibt keine passenden Einträge.
+            </p>
+          </div>
+        )}
 
+        <section className="space-y-4">
           {filteredActivities.map(
             (activity) => {
               const href =
@@ -860,16 +886,12 @@ export default function ActivityPage() {
 
               const content = (
                 <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition">
-                  <div className="flex items-start gap-5">
-                    <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                      {getActivityIcon(
-                        activity.type
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
+                  <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(
+                          activity.type
+                        )}`}>
                           {activityRepository.getTypeLabel(
                             activity.type
                           )}
@@ -882,19 +904,24 @@ export default function ActivityPage() {
                         </span>
 
                         {activity.company && (
-                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
                             {activity.company}
                           </span>
                         )}
 
                         {activity.department && (
-                          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
+                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
                             {activity.department}
                           </span>
                         )}
                       </div>
 
-                      <h2 className="text-xl font-semibold mt-4">
+                      <h2 className="text-2xl font-bold mt-4">
+                        <span className="mr-2">
+                          {getActivityIcon(
+                            activity.type
+                          )}
+                        </span>
                         {activity.title}
                       </h2>
 
@@ -903,7 +930,7 @@ export default function ActivityPage() {
                           "Keine Beschreibung vorhanden."}
                       </p>
 
-                      <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
+                      <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                         <span>
                           Benutzer:{" "}
                           {activity.user ||
@@ -924,6 +951,12 @@ export default function ActivityPage() {
                         )}
                       </div>
                     </div>
+
+                    {href && (
+                      <span className="shrink-0 bg-zinc-100 text-zinc-700 px-4 py-2 rounded-xl text-sm">
+                        Öffnen
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -933,6 +966,7 @@ export default function ActivityPage() {
                   <Link
                     key={activity.id}
                     href={href}
+                    className="block"
                   >
                     {content}
                   </Link>
@@ -946,7 +980,7 @@ export default function ActivityPage() {
               );
             }
           )}
-        </div>
+        </section>
       </div>
     </FeatureGate>
   );

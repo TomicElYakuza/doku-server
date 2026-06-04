@@ -16,10 +16,12 @@ import {
 } from "../../../lib/newsRepository";
 
 import {
-  usePermissions,
-} from "../../../hooks/usePermissions";
+  canEdit,
+} from "../../../lib/permissions";
 
 import NewsFileList from "../../../components/news/NewsFileList";
+
+import PageHero from "../../../components/PageHero";
 
 import type {
   NewsPost,
@@ -51,29 +53,6 @@ export default function NewsDetailPage() {
   const params =
     useParams();
 
-  const {
-    loading:
-      permissionsLoading,
-    isAdmin,
-    hasAnyPermission,
-  } =
-    usePermissions();
-
-  const canManageNews =
-    isAdmin ||
-    hasAnyPermission([
-      "news.manage",
-      "news.create",
-      "news.edit",
-      "news.delete",
-    ]);
-
-  const canViewNews =
-    canManageNews ||
-    hasAnyPermission([
-      "news.view",
-    ]);
-
   const id =
     String(
       params.id ||
@@ -81,7 +60,9 @@ export default function NewsDetailPage() {
     );
 
   const [post, setPost] =
-    useState<NewsPost | null>(null);
+    useState<NewsPost | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(true);
@@ -166,35 +147,11 @@ export default function NewsDetailPage() {
     }
   }
 
-  if (
-    loading ||
-    permissionsLoading
-  ) {
+  if (loading) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <p className="text-zinc-500">
           News wird geladen...
-        </p>
-      </div>
-    );
-  }
-
-  if (!canViewNews) {
-    return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <Link
-          href="/news"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Neuigkeiten
-        </Link>
-
-        <h1 className="text-3xl font-bold mt-8">
-          Keine Berechtigung
-        </h1>
-
-        <p className="text-zinc-500 mt-2">
-          Du hast keine Berechtigung, diese News zu öffnen.
         </p>
       </div>
     );
@@ -205,22 +162,26 @@ export default function NewsDetailPage() {
     !post
   ) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <Link
-          href="/news"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          ← Zurück zu Neuigkeiten
-        </Link>
+      <div className="space-y-8">
+        <div>
+          <Link
+            href="/news"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zu Neuigkeiten
+          </Link>
+        </div>
 
-        <h1 className="text-3xl font-bold mt-8">
-          News nicht gefunden
-        </h1>
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            News nicht gefunden
+          </h1>
 
-        <p className="text-zinc-500 mt-2">
-          {error ||
-            "Dieser Beitrag existiert nicht."}
-        </p>
+          <p className="text-zinc-500 mt-2">
+            {error ||
+              "Dieser Beitrag existiert nicht."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -236,48 +197,66 @@ export default function NewsDetailPage() {
         </Link>
       </div>
 
-      <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap gap-2">
-              <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
-                String(
-                  post.category ||
-                    "Allgemein"
-                )
-              )}`}>
-                {post.category ||
-                  "Allgemein"}
-              </span>
+      <PageHero
+        eyebrow="News"
+        title={post.title}
+        description={
+          post.description ||
+          "Keine Beschreibung vorhanden."
+        }
+        badges={[
+          {
+            label:
+              post.category ||
+              "Allgemein",
+          },
+          {
+            label:
+              post.pinned
+                ? "Fixiert"
+                : "Normal",
+          },
+          {
+            label:
+              post.author
+                ? `Autor: ${post.author}`
+                : "Autor: Unbekannt",
+          },
+        ]}
+        actions={(
+          <>
+            {canEdit() && (
+              <Link
+                href="/admin/news"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                News verwalten
+              </Link>
+            )}
+          </>
+        )}
+      />
 
-              {post.pinned && (
-                <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
-                  Fixiert
-                </span>
-              )}
-            </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+            String(
+              post.category ||
+                "Allgemein"
+            )
+          )}`}>
+            {post.category ||
+              "Allgemein"}
+          </span>
 
-            <h1 className="text-4xl font-bold mt-5">
-              {post.title}
-            </h1>
-
-            <p className="text-zinc-500 mt-3">
-              {post.description ||
-                "Keine Beschreibung vorhanden."}
-            </p>
-          </div>
-
-          {canManageNews && (
-            <Link
-              href="/admin/news"
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition shrink-0"
-            >
-              News verwalten
-            </Link>
+          {post.pinned && (
+            <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+              Fixiert
+            </span>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-6 text-sm text-zinc-400 mt-6">
+        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-6">
           <span>
             Autor:{" "}
             {post.author ||
@@ -290,19 +269,19 @@ export default function NewsDetailPage() {
           </span>
         </div>
 
-        <div className="prose prose-zinc max-w-none mt-10 whitespace-pre-wrap leading-relaxed">
-          {post.content ||
-            post.description ||
-            "Kein Inhalt vorhanden."}
-        </div>
-      </article>
+        <article className="prose prose-zinc max-w-none mt-8">
+          <div className="whitespace-pre-wrap text-zinc-800 leading-8">
+            {post.content ||
+              post.description ||
+              "Kein Inhalt vorhanden."}
+          </div>
+        </article>
+      </section>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <NewsFileList
-          newsId={post.id}
-          editable={canManageNews}
-        />
-      </div>
+      <NewsFileList
+        newsId={post.id}
+        editable={canEdit()}
+      />
     </div>
   );
 }

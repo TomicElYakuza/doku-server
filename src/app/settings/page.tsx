@@ -28,6 +28,10 @@ import {
   useUserSettings,
 } from "../../hooks/useUserSettings";
 
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
+
 import type {
   AppAccentColor,
   AppTheme,
@@ -152,6 +156,22 @@ const accentOptions: AccentOption[] = [
       "Rot",
   },
 ];
+
+function getThemeLabel(
+  theme: AppTheme
+) {
+  return userSettingsRepository.getThemeLabel(
+    theme
+  );
+}
+
+function getAccentLabel(
+  accentColor: AppAccentColor
+) {
+  return userSettingsRepository.getAccentColorLabel(
+    accentColor
+  );
+}
 
 export default function SettingsPage() {
   const {
@@ -288,15 +308,58 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold">
-          Einstellungen
-        </h1>
+      <PageHero
+        eyebrow="Einstellungen"
+        title="Persönliche Einstellungen"
+        description="Konto, Darstellung und persönliche Oberfläche konfigurieren. Diese Einstellungen gelten nur für deinen Benutzer."
+        badges={[
+          {
+            label:
+              user?.name ||
+              "Benutzer",
+          },
+          {
+            label:
+              user?.company ||
+              "Intern",
+          },
+          {
+            label:
+              user?.department ||
+              "Allgemein",
+          },
+          {
+            label:
+              getThemeLabel(
+                theme
+              ),
+          },
+        ]}
+        actions={(
+          <>
+            <Link
+              href="/change-password"
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+            >
+              Passwort ändern
+            </Link>
 
-        <p className="text-zinc-500 mt-2">
-          Persönliche Einstellungen, Konto und Darstellung.
-        </p>
-      </div>
+            <button
+              type="submit"
+              form="personal-settings-form"
+              disabled={
+                saving ||
+                loading
+              }
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+            >
+              {saving
+                ? "Speichert..."
+                : "Speichern"}
+            </button>
+          </>
+        )}
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -322,6 +385,56 @@ export default function SettingsPage() {
           </p>
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Benutzer"
+          value={user?.name || "Unbekannt"}
+          description={user?.email || "Keine E-Mail"}
+          icon="👤"
+          tone="blue"
+        />
+
+        <StatCard
+          label="Design"
+          value={getThemeLabel(
+            theme
+          )}
+          description={`Akzent: ${getAccentLabel(
+            accentColor
+          )}`}
+          icon="🎨"
+          tone="indigo"
+        />
+
+        <StatCard
+          label="Darstellung"
+          value={
+            compactMode
+              ? "Kompakt"
+              : "Standard"
+          }
+          description="Persönlicher Layout-Modus"
+          icon="📐"
+        />
+
+        <StatCard
+          label="App"
+          value={appSettings.appName || "Intranet"}
+          description={
+            appSettings.showVersion
+              ? `Version ${
+                  appSettings.appVersion ||
+                  appSettings.version ||
+                  "0.1.0"
+                }`
+              : appSettings.companyName ||
+                "Intern"
+          }
+          icon="🧭"
+          tone="green"
+        />
+      </div>
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
@@ -391,12 +504,13 @@ export default function SettingsPage() {
       </section>
 
       <form
+        id="personal-settings-form"
         onSubmit={(event) =>
           void handleSubmit(
             event
           )
         }
-        className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-6"
+        className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm space-y-8"
       >
         <div>
           <h2 className="text-2xl font-semibold">
@@ -408,38 +522,44 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {themeOptions.map(
-            (option) => {
-              const active =
-                theme === option.value;
+        <div>
+          <h3 className="font-semibold mb-4">
+            Theme
+          </h3>
 
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    setTheme(
-                      option.value
-                    )
-                  }
-                  className={`text-left border rounded-3xl p-6 transition ${
-                    active
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-200 bg-white hover:bg-zinc-50"
-                  }`}
-                >
-                  <h3 className="text-xl font-semibold">
-                    {option.label}
-                  </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {themeOptions.map(
+              (option) => {
+                const active =
+                  theme === option.value;
 
-                  <p className={active ? "text-zinc-200 mt-2" : "text-zinc-500 mt-2"}>
-                    {option.description}
-                  </p>
-                </button>
-              );
-            }
-          )}
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      setTheme(
+                        option.value
+                      )
+                    }
+                    className={`text-left border rounded-3xl p-6 transition ${
+                      active
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-200 bg-white hover:bg-zinc-50"
+                    }`}
+                  >
+                    <h3 className="text-xl font-semibold">
+                      {option.label}
+                    </h3>
+
+                    <p className={active ? "text-zinc-200 mt-2" : "text-zinc-500 mt-2"}>
+                      {option.description}
+                    </p>
+                  </button>
+                );
+              }
+            )}
+          </div>
         </div>
 
         <div>
@@ -447,7 +567,7 @@ export default function SettingsPage() {
             Akzentfarbe
           </h3>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
             {accentOptions.map(
               (option) => {
                 const active =
@@ -462,7 +582,7 @@ export default function SettingsPage() {
                         option.value
                       )
                     }
-                    className={`px-4 py-2 rounded-xl transition ${
+                    className={`px-4 py-3 rounded-2xl transition ${
                       active
                         ? "bg-zinc-900 text-white"
                         : "bg-zinc-100 hover:bg-zinc-200"
@@ -499,7 +619,16 @@ export default function SettingsPage() {
           />
         </label>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 justify-end">
+          <button
+            type="button"
+            onClick={resetForm}
+            disabled={saving}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+          >
+            Änderungen verwerfen
+          </button>
+
           <button
             type="submit"
             disabled={saving}
@@ -508,15 +637,6 @@ export default function SettingsPage() {
             {saving
               ? "Speichert..."
               : "Persönliche Einstellungen speichern"}
-          </button>
-
-          <button
-            type="button"
-            onClick={resetForm}
-            disabled={saving}
-            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
-          >
-            Änderungen verwerfen
           </button>
         </div>
 

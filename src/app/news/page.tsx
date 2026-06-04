@@ -17,8 +17,12 @@ import {
 } from "../../lib/newsRepository";
 
 import {
-  usePermissions,
-} from "../../hooks/usePermissions";
+  canManageSystem,
+} from "../../lib/permissions";
+
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
 
 import type {
   NewsPost,
@@ -46,24 +50,31 @@ function getCategoryClass(
   return "bg-zinc-100 text-zinc-700";
 }
 
+function formatTextPreview(
+  value: string,
+  maxLength = 180
+) {
+  const text =
+    value
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(
+    0,
+    maxLength
+  )}...`;
+}
+
 export default function NewsLandingPage() {
   const searchParams =
     useSearchParams();
-
-  const {
-    isAdmin,
-    hasAnyPermission,
-  } =
-    usePermissions();
-
-  const canManageNews =
-    isAdmin ||
-    hasAnyPermission([
-      "news.manage",
-      "news.create",
-      "news.edit",
-      "news.delete",
-    ]);
 
   const [posts, setPosts] =
     useState<NewsPost[]>([]);
@@ -217,15 +228,10 @@ export default function NewsLandingPage() {
               (post) =>
                 String(
                   post.category ||
-                  "Allgemein"
+                    "Allgemein"
                 )
             )
           )
-        ).sort(
-          (a, b) =>
-            a.localeCompare(
-              b
-            )
         ),
       [
         posts,
@@ -245,7 +251,7 @@ export default function NewsLandingPage() {
             const category =
               String(
                 post.category ||
-                "Allgemein"
+                  "Allgemein"
               );
 
             const matchesCategory =
@@ -284,27 +290,53 @@ export default function NewsLandingPage() {
     );
 
   const pinnedPosts =
-    filteredPosts.filter(
-      (post) =>
-        post.pinned
+    useMemo(
+      () =>
+        filteredPosts.filter(
+          (post) =>
+            post.pinned
+        ),
+      [
+        filteredPosts,
+      ]
     );
 
   const normalPosts =
-    filteredPosts.filter(
-      (post) =>
-        !post.pinned
+    useMemo(
+      () =>
+        filteredPosts.filter(
+          (post) =>
+            !post.pinned
+        ),
+      [
+        filteredPosts,
+      ]
     );
 
   const unreadCount =
-    posts.filter(
-      (post) =>
-        !openedIds.includes(
-          post.id
-        )
-    ).length;
+    useMemo(
+      () =>
+        posts.filter(
+          (post) =>
+            !openedIds.includes(
+              post.id
+            )
+        ).length,
+      [
+        posts,
+        openedIds,
+      ]
+    );
 
-  function renderNewsCard(
-    post: NewsPost
+  function resetFilters() {
+    setSearch(
+      ""
+    );
+  }
+
+  function renderPostCard(
+    post: NewsPost,
+    variant: "pinned" | "normal"
   ) {
     const unread =
       !openedIds.includes(
@@ -314,52 +346,68 @@ export default function NewsLandingPage() {
     return (
       <Link
         key={post.id}
-        href={`/news/${encodeURIComponent(
-          post.id
-        )}`}
+        href={`/news/${post.id}`}
         className="block bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition"
       >
-        <div className="flex flex-wrap gap-2">
-          <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
-            String(
-              post.category ||
-              "Allgemein"
-            )
-          )}`}>
-            {post.category ||
-              "Allgemein"}
-          </span>
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap gap-2">
+              <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                String(
+                  post.category ||
+                    "Allgemein"
+                )
+              )}`}>
+                {post.category ||
+                  "Allgemein"}
+              </span>
 
-          {post.pinned && (
-            <span className="text-xs bg-yellow-50 text-yellow-700 px-3 py-1 rounded-full">
-              Fixiert
-            </span>
-          )}
+              {variant === "pinned" && (
+                <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                  Fixiert
+                </span>
+              )}
 
-          {unread && (
-            <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full">
-              Neu
-            </span>
-          )}
-        </div>
+              {unread && (
+                <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full">
+                  Neu
+                </span>
+              )}
+            </div>
 
-        <h3 className="text-2xl font-bold mt-4">
-          {post.title}
-        </h3>
+            <h2 className="text-2xl font-bold mt-4">
+              {post.title}
+            </h2>
 
-        <p className="text-zinc-500 mt-2 line-clamp-2">
-          {post.description ||
-            "Keine Beschreibung vorhanden."}
-        </p>
+            <p className="text-zinc-500 mt-2">
+              {post.description ||
+                "Keine Beschreibung vorhanden."}
+            </p>
 
-        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
-          <span>
-            {post.author ||
-              "Unbekannt"}
-          </span>
+            {post.content && (
+              <p className="text-sm text-zinc-500 mt-4">
+                {formatTextPreview(
+                  post.content
+                )}
+              </p>
+            )}
 
-          <span>
-            {post.createdAt}
+            <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
+              <span>
+                Autor:{" "}
+                {post.author ||
+                  "Unbekannt"}
+              </span>
+
+              <span>
+                Erstellt:{" "}
+                {post.createdAt}
+              </span>
+            </div>
+          </div>
+
+          <span className="shrink-0 bg-zinc-100 text-zinc-700 px-4 py-2 rounded-xl text-sm">
+            Öffnen
           </span>
         </div>
       </Link>
@@ -368,98 +416,109 @@ export default function NewsLandingPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Neuigkeiten
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Aktuelle Informationen, Änderungen und interne Mitteilungen.
-          </p>
-
-          {categoryFilter && (
-            <p className="text-sm text-zinc-400 mt-2">
-              Kategorie:{" "}
-              <span className="font-medium text-zinc-600">
-                {categoryFilter}
-              </span>
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={() =>
-                void handleMarkAllOpened()
-              }
-              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Alle als gelesen markieren
-            </button>
-          )}
-
-          {canManageNews && (
-            <Link
-              href="/admin/news"
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
-            >
-              News verwalten
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Beiträge
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {posts.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Ungelesen
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {unreadCount}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Fixiert
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {
-              posts.filter(
+      <PageHero
+        eyebrow="Neuigkeiten"
+        title="News"
+        description="Aktuelle Informationen, Änderungen und interne Mitteilungen."
+        badges={[
+          {
+            label:
+              `${posts.length} Beiträge`,
+          },
+          {
+            label:
+              `${unreadCount} ungelesen`,
+          },
+          {
+            label:
+              `${posts.filter(
                 (post) =>
                   post.pinned
-              ).length
-            }
-          </h2>
-        </div>
+              ).length} fixiert`,
+          },
+          {
+            label:
+              `${categories.length} Kategorien`,
+          },
+        ]}
+        actions={(
+          <>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  void handleMarkAllOpened()
+                }
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              >
+                Alle als gelesen markieren
+              </button>
+            )}
 
+            {canManageSystem() && (
+              <Link
+                href="/admin/news"
+                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+              >
+                News verwalten
+              </Link>
+            )}
+          </>
+        )}
+      />
+
+      {categoryFilter && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Kategorien
+          <p className="text-zinc-500">
+            Aktiver Kategorie-Filter:{" "}
+            <span className="font-semibold text-zinc-900">
+              {categoryFilter}
+            </span>
           </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {categories.length}
-          </h2>
         </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Beiträge"
+          value={posts.length}
+          description="Alle News"
+          icon="📰"
+          active={!categoryFilter && !search}
+          onClick={resetFilters}
+        />
+
+        <StatCard
+          label="Ungelesen"
+          value={unreadCount}
+          description="Noch nicht geöffnet"
+          icon="📬"
+          tone="green"
+        />
+
+        <StatCard
+          label="Fixiert"
+          value={
+            posts.filter(
+              (post) =>
+                post.pinned
+            ).length
+          }
+          description="Priorisierte Beiträge"
+          icon="📌"
+          tone="indigo"
+        />
+
+        <StatCard
+          label="Kategorien"
+          value={categories.length}
+          description="News-Bereiche"
+          icon="🏷️"
+          tone="blue"
+        />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
@@ -467,18 +526,14 @@ export default function NewsLandingPage() {
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Suche nach Titel, Beschreibung, Inhalt, Kategorie oder Autor.
+              Suche nach Titel, Beschreibung, Inhalt, Autor oder Kategorie.
             </p>
           </div>
 
           {(search || categoryFilter) && (
             <button
               type="button"
-              onClick={() =>
-                setSearch(
-                  ""
-                )
-              }
+              onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
               Suche zurücksetzen
@@ -486,29 +541,67 @@ export default function NewsLandingPage() {
           )}
         </div>
 
-        <input
-          value={search}
-          onChange={(event) =>
-            setSearch(
-              event.target.value
-            )
-          }
-          className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-          placeholder="News durchsuchen..."
-        />
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mt-5">
+          <input
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            placeholder="News durchsuchen..."
+          />
 
-        <div className="flex flex-wrap gap-2">
           <Link
             href="/news"
-            className={`px-4 py-2 rounded-xl transition ${
+            className={`inline-flex items-center justify-center rounded-2xl px-5 py-4 transition ${
               !categoryFilter
                 ? "bg-zinc-900 text-white"
                 : "bg-zinc-100 hover:bg-zinc-200"
             }`}
           >
-            Alle
+            Alle Kategorien
           </Link>
 
+          <select
+            value={categoryFilter}
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              if (!value) {
+                window.location.href =
+                  "/news";
+
+                return;
+              }
+
+              window.location.href =
+                `/news?category=${encodeURIComponent(
+                  value
+                )}`;
+            }}
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Kategorie wählen
+            </option>
+
+            {categories.map(
+              (category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-5">
           {categories.map(
             (category) => (
               <Link
@@ -516,10 +609,10 @@ export default function NewsLandingPage() {
                 href={`/news?category=${encodeURIComponent(
                   category
                 )}`}
-                className={`px-4 py-2 rounded-xl transition ${
+                className={`text-xs px-3 py-1 rounded-full transition ${
                   categoryFilter === category
                     ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 hover:bg-zinc-200"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
                 }`}
               >
                 {category}
@@ -528,7 +621,7 @@ export default function NewsLandingPage() {
           )}
         </div>
 
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500 mt-5">
           {filteredPosts.length} von {posts.length} News gefunden.
         </p>
       </section>
@@ -567,29 +660,45 @@ export default function NewsLandingPage() {
 
       {pinnedPosts.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">
-            Fixiert
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold">
+              Fixiert
+            </h2>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            {pinnedPosts.map(
-              renderNewsCard
-            )}
+            <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+              {pinnedPosts.length}
+            </span>
           </div>
+
+          {pinnedPosts.map(
+            (post) =>
+              renderPostCard(
+                post,
+                "pinned"
+              )
+          )}
         </section>
       )}
 
       {normalPosts.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">
-            Alle Neuigkeiten
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-semibold">
+              Alle Neuigkeiten
+            </h2>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-            {normalPosts.map(
-              renderNewsCard
-            )}
+            <span className="bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full text-sm">
+              {normalPosts.length}
+            </span>
           </div>
+
+          {normalPosts.map(
+            (post) =>
+              renderPostCard(
+                post,
+                "normal"
+              )
+          )}
         </section>
       )}
     </div>

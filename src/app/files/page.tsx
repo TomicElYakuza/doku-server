@@ -22,8 +22,13 @@ import {
 } from "../../lib/activityRepository";
 
 import {
-  usePermissions,
-} from "../../hooks/usePermissions";
+  canDelete,
+  canEdit,
+} from "../../lib/permissions";
+
+import PageHero from "../../components/PageHero";
+
+import StatCard from "../../components/StatCard";
 
 import type {
   StoredFile,
@@ -47,17 +52,27 @@ function formatFileSize(
   }
 
   if (size < 1024 * 1024) {
-    return `${Math.round(size / 1024)} KB`;
+    return `${Math.round(
+      size / 1024
+    )} KB`;
   }
 
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  return `${(
+    size /
+    1024 /
+    1024
+  ).toFixed(1)} MB`;
 }
 
 function getKeyLabel(
   key: string,
   wikiPages: WikiPage[]
 ) {
-  if (key.startsWith("wiki-")) {
+  if (
+    key.startsWith(
+      "wiki-"
+    )
+  ) {
     const slug =
       key.replace(
         "wiki-",
@@ -70,18 +85,28 @@ function getKeyLabel(
           item.slug === slug
       );
 
-    return page?.title ||
-      `Wiki: ${slug}`;
+    return (
+      page?.title ||
+      `Wiki: ${slug}`
+    );
   }
 
-  if (key.startsWith("ticket-")) {
+  if (
+    key.startsWith(
+      "ticket-"
+    )
+  ) {
     return `Ticket #${key.replace(
       "ticket-",
       ""
     )}`;
   }
 
-  if (key.startsWith("news-")) {
+  if (
+    key.startsWith(
+      "news-"
+    )
+  ) {
     return `News #${key.replace(
       "news-",
       ""
@@ -94,7 +119,11 @@ function getKeyLabel(
 function getKeyHref(
   key: string
 ) {
-  if (key.startsWith("wiki-")) {
+  if (
+    key.startsWith(
+      "wiki-"
+    )
+  ) {
     return `/wiki/${encodeURIComponent(
       key.replace(
         "wiki-",
@@ -103,7 +132,11 @@ function getKeyHref(
     )}`;
   }
 
-  if (key.startsWith("ticket-")) {
+  if (
+    key.startsWith(
+      "ticket-"
+    )
+  ) {
     return `/tickets/${encodeURIComponent(
       key.replace(
         "ticket-",
@@ -112,64 +145,17 @@ function getKeyHref(
     )}`;
   }
 
-  if (key.startsWith("news-")) {
+  if (
+    key.startsWith(
+      "news-"
+    )
+  ) {
     return `/news/${encodeURIComponent(
       key.replace(
         "news-",
         ""
       )
     )}`;
-  }
-
-  return "";
-}
-
-function getFileCompany(
-  entry: FileEntry,
-  wikiPages: WikiPage[]
-) {
-  if (entry.key.startsWith("wiki-")) {
-    const slug =
-      entry.key.replace(
-        "wiki-",
-        ""
-      );
-
-    const page =
-      wikiPages.find(
-        (item) =>
-          item.slug === slug
-      );
-
-    return page?.company ||
-      "";
-  }
-
-  return "";
-}
-
-function getFileDepartment(
-  entry: FileEntry,
-  wikiPages: WikiPage[]
-) {
-  if (entry.key.startsWith("wiki-")) {
-    const slug =
-      entry.key.replace(
-        "wiki-",
-        ""
-      );
-
-    const page =
-      wikiPages.find(
-        (item) =>
-          item.slug === slug
-      );
-
-    return (
-      page?.department ||
-      page?.category ||
-      ""
-    );
   }
 
   return "";
@@ -186,22 +172,24 @@ function readFileAsDataUrl(
       const reader =
         new FileReader();
 
-      reader.onload = () => {
-        resolve(
-          String(
-            reader.result ||
-              ""
-          )
-        );
-      };
+      reader.onload =
+        () => {
+          resolve(
+            String(
+              reader.result ||
+                ""
+            )
+          );
+        };
 
-      reader.onerror = () => {
-        reject(
-          new Error(
-            "Datei konnte nicht gelesen werden."
-          )
-        );
-      };
+      reader.onerror =
+        () => {
+          reject(
+            new Error(
+              "Datei konnte nicht gelesen werden."
+            )
+          );
+        };
 
       reader.readAsDataURL(
         file
@@ -211,37 +199,6 @@ function readFileAsDataUrl(
 }
 
 export default function FilesPage() {
-  const {
-    user,
-    isAdmin,
-    hasAnyPermission,
-  } =
-    usePermissions();
-
-  const canManageFiles =
-    isAdmin ||
-    hasAnyPermission([
-      "files.manage",
-    ]);
-
-  const canViewFiles =
-    canManageFiles ||
-    hasAnyPermission([
-      "files.view",
-    ]);
-
-  const canUploadFiles =
-    canManageFiles ||
-    hasAnyPermission([
-      "files.upload",
-    ]);
-
-  const canDeleteFiles =
-    canManageFiles ||
-    hasAnyPermission([
-      "files.delete",
-    ]);
-
   const [fileMap, setFileMap] =
     useState<Record<string, StoredFile[]>>({});
 
@@ -342,12 +299,9 @@ export default function FilesPage() {
           wikiRepository.list(),
         ]);
 
-      const safeFileMap =
-        nextFileMap ||
-        {};
-
       setFileMap(
-        safeFileMap
+        nextFileMap ||
+          {}
       );
 
       setWikiPages(
@@ -360,7 +314,8 @@ export default function FilesPage() {
 
       const keys =
         Object.keys(
-          safeFileMap
+          nextFileMap ||
+            {}
         );
 
       if (
@@ -388,49 +343,6 @@ export default function FilesPage() {
     }
   }
 
-  function userCanSeeEntry(
-    entry: FileEntry
-  ) {
-    if (isAdmin || canManageFiles) {
-      return true;
-    }
-
-    if (
-      !user ||
-      !canViewFiles
-    ) {
-      return false;
-    }
-
-    const fileCompany =
-      getFileCompany(
-        entry,
-        wikiPages
-      );
-
-    const fileDepartment =
-      getFileDepartment(
-        entry,
-        wikiPages
-      );
-
-    if (
-      fileDepartment &&
-      user.department
-    ) {
-      return fileDepartment === user.department;
-    }
-
-    if (
-      fileCompany &&
-      user.company
-    ) {
-      return fileCompany === user.company;
-    }
-
-    return true;
-  }
-
   const keys =
     useMemo(
       () =>
@@ -448,7 +360,10 @@ export default function FilesPage() {
         Object.entries(
           fileMap
         ).flatMap(
-          ([key, files]) =>
+          ([
+            key,
+            files,
+          ]) =>
             files.map(
               (
                 file,
@@ -465,38 +380,6 @@ export default function FilesPage() {
       ]
     );
 
-  const visibleEntries =
-    useMemo(
-      () =>
-        entries.filter(
-          userCanSeeEntry
-        ),
-      [
-        entries,
-        user,
-        isAdmin,
-        canManageFiles,
-        canViewFiles,
-        wikiPages,
-      ]
-    );
-
-  const visibleKeys =
-    useMemo(
-      () =>
-        Array.from(
-          new Set(
-            visibleEntries.map(
-              (entry) =>
-                entry.key
-            )
-          )
-        ).sort(),
-      [
-        visibleEntries,
-      ]
-    );
-
   const filteredEntries =
     useMemo(
       () => {
@@ -505,7 +388,7 @@ export default function FilesPage() {
             .trim()
             .toLowerCase();
 
-        return visibleEntries.filter(
+        return entries.filter(
           (entry) => {
             const label =
               getKeyLabel(
@@ -543,7 +426,7 @@ export default function FilesPage() {
         );
       },
       [
-        visibleEntries,
+        entries,
         search,
         keyFilter,
         wikiPages,
@@ -551,10 +434,10 @@ export default function FilesPage() {
     );
 
   const totalFiles =
-    visibleEntries.length;
+    entries.length;
 
   const totalSize =
-    visibleEntries.reduce(
+    entries.reduce(
       (
         sum,
         entry
@@ -567,10 +450,32 @@ export default function FilesPage() {
       0
     );
 
+  const imageFiles =
+    entries.filter(
+      (entry) =>
+        String(
+          entry.file.type ||
+            ""
+        ).startsWith(
+          "image/"
+        )
+    );
+
+  const documentFiles =
+    entries.filter(
+      (entry) =>
+        !String(
+          entry.file.type ||
+            ""
+        ).startsWith(
+          "image/"
+        )
+    );
+
   async function handleFileChange(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    if (!canUploadFiles) {
+    if (!canEdit()) {
       alert(
         "Du hast keine Berechtigung, Dateien hochzuladen."
       );
@@ -630,7 +535,6 @@ export default function FilesPage() {
               new Date().toLocaleString(),
 
             uploadedBy:
-              user?.name ||
               "System",
           }
         );
@@ -652,31 +556,24 @@ export default function FilesPage() {
             targetKey,
 
           userName:
-            user?.name ||
             "System",
 
           userEmail:
-            user?.email ||
             "",
 
           user:
-            user?.name ||
             "System",
 
           companyId:
-            user?.companyId ||
             "",
 
           departmentId:
-            user?.departmentId ||
             "",
 
           company:
-            user?.company ||
             "Intern",
 
           department:
-            user?.department ||
             "Allgemein",
 
           metadata: {
@@ -720,7 +617,7 @@ export default function FilesPage() {
   async function handleDeleteFile(
     entry: FileEntry
   ) {
-    if (!canDeleteFiles) {
+    if (!canDelete()) {
       alert(
         "Du hast keine Berechtigung, Dateien zu löschen."
       );
@@ -760,31 +657,24 @@ export default function FilesPage() {
           entry.key,
 
         userName:
-          user?.name ||
           "System",
 
         userEmail:
-          user?.email ||
           "",
 
         user:
-          user?.name ||
           "System",
 
         companyId:
-          user?.companyId ||
           "",
 
         departmentId:
-          user?.departmentId ||
           "",
 
         company:
-          user?.company ||
           "Intern",
 
         department:
-          user?.department ||
           "Allgemein",
 
         metadata: {
@@ -813,7 +703,7 @@ export default function FilesPage() {
   async function handleDeleteKey(
     key: string
   ) {
-    if (!canDeleteFiles) {
+    if (!canDelete()) {
       alert(
         "Du hast keine Berechtigung, Dateigruppen zu löschen."
       );
@@ -852,31 +742,24 @@ export default function FilesPage() {
           key,
 
         userName:
-          user?.name ||
           "System",
 
         userEmail:
-          user?.email ||
           "",
 
         user:
-          user?.name ||
           "System",
 
         companyId:
-          user?.companyId ||
           "",
 
         departmentId:
-          user?.departmentId ||
           "",
 
         company:
-          user?.company ||
           "Intern",
 
         department:
-          user?.department ||
           "Allgemein",
 
         metadata: {
@@ -912,43 +795,42 @@ export default function FilesPage() {
     );
   }
 
-  if (!canViewFiles) {
-    return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <h1 className="text-3xl font-bold">
-          Keine Berechtigung
-        </h1>
-
-        <p className="text-zinc-500 mt-2">
-          Du hast keine Berechtigung, Dateien zu sehen.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-bold">
-            Dateien
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            Zentral gespeicherte Anhänge und Uploads aus PostgreSQL.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            void loadData()
-          }
-          className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-        >
-          Aktualisieren
-        </button>
-      </div>
+      <PageHero
+        eyebrow="Verwaltung"
+        title="Dateien"
+        description="Zentral gespeicherte Anhänge und Uploads aus PostgreSQL verwalten."
+        badges={[
+          {
+            label:
+              `${totalFiles} Dateien`,
+          },
+          {
+            label:
+              `${keys.length} Gruppen`,
+          },
+          {
+            label:
+              formatFileSize(
+                totalSize
+              ),
+          },
+        ]}
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void loadData()
+              }
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              Aktualisieren
+            </button>
+          </>
+        )}
+      />
 
       {loading && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -970,49 +852,54 @@ export default function FilesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Dateien gesamt
-          </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Dateien gesamt"
+          value={totalFiles}
+          description="Alle Uploads"
+          icon="📁"
+          active={!search && !keyFilter}
+          onClick={resetFilters}
+        />
 
-          <h2 className="text-4xl font-bold mt-3">
-            {totalFiles}
-          </h2>
-        </div>
+        <StatCard
+          label="Dateigruppen"
+          value={keys.length}
+          description="Wiki, Ticket, News oder eigene Gruppen"
+          icon="🗂️"
+          tone="indigo"
+        />
 
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Dateigruppen
-          </p>
+        <StatCard
+          label="Gesamtgröße"
+          value={formatFileSize(
+            totalSize
+          )}
+          description="Speicherverbrauch"
+          icon="💾"
+          tone="green"
+        />
 
-          <h2 className="text-4xl font-bold mt-3">
-            {visibleKeys.length}
-          </h2>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-sm text-zinc-500">
-            Gesamtgröße
-          </p>
-
-          <h2 className="text-4xl font-bold mt-3">
-            {formatFileSize(
-              totalSize
-            )}
-          </h2>
-        </div>
+        <StatCard
+          label="Bilder"
+          value={imageFiles.length}
+          description={`${documentFiles.length} sonstige Dateien`}
+          icon="🖼️"
+          tone="blue"
+        />
       </div>
 
-      {canUploadFiles && (
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold">
-            Datei hochladen
-          </h2>
+      {canEdit() && (
+        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Datei hochladen
+            </h2>
 
-          <p className="text-zinc-500 mt-1">
-            Dateien werden in PostgreSQL gespeichert.
-          </p>
+            <p className="text-zinc-500 mt-1">
+              Dateien werden einer Gruppe zugeordnet und in PostgreSQL gespeichert.
+            </p>
+          </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
             <div>
@@ -1062,7 +949,7 @@ export default function FilesPage() {
                   )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z.B. wiki-startseite"
+                placeholder="z. B. wiki-startseite"
               />
             </div>
 
@@ -1080,20 +967,20 @@ export default function FilesPage() {
                   )
                 }
                 disabled={uploading}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 disabled:opacity-50"
               />
             </div>
           </div>
 
           {uploading && (
-            <p className="text-zinc-500 mt-4">
+            <p className="text-sm text-zinc-500 mt-5">
               Upload läuft...
             </p>
           )}
         </section>
       )}
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
             <h2 className="text-xl font-semibold">
@@ -1114,7 +1001,7 @@ export default function FilesPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
           <input
             value={search}
             onChange={(event) =>
@@ -1122,7 +1009,7 @@ export default function FilesPage() {
                 event.target.value
               )
             }
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
             placeholder="Dateien suchen..."
           />
 
@@ -1139,7 +1026,7 @@ export default function FilesPage() {
               Alle Gruppen
             </option>
 
-            {visibleKeys.map(
+            {keys.map(
               (key) => (
                 <option
                   key={key}
@@ -1155,7 +1042,7 @@ export default function FilesPage() {
           </select>
         </div>
 
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500 mt-5">
           {filteredEntries.length} von {totalFiles} Dateien gefunden.
         </p>
       </section>
@@ -1172,7 +1059,7 @@ export default function FilesPage() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <section className="space-y-4">
         {filteredEntries.map(
           (entry) => {
             const href =
@@ -1182,11 +1069,11 @@ export default function FilesPage() {
 
             return (
               <div
-                key={`${entry.key}-${entry.index}`}
+                key={`${entry.key}-${entry.index}-${entry.file.name}`}
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
               >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div>
+                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                         {getKeyLabel(
@@ -1195,17 +1082,17 @@ export default function FilesPage() {
                         )}
                       </span>
 
-                      <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
                         {entry.file.type ||
                           "application/octet-stream"}
                       </span>
                     </div>
 
-                    <h2 className="text-2xl font-bold mt-4">
+                    <h2 className="text-2xl font-bold mt-4 break-all">
                       {entry.file.name}
                     </h2>
 
-                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
+                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                       <span>
                         Größe:{" "}
                         {formatFileSize(
@@ -1246,7 +1133,7 @@ export default function FilesPage() {
                       </a>
                     )}
 
-                    {canDeleteFiles && (
+                    {canDelete() && (
                       <button
                         type="button"
                         onClick={() =>
@@ -1265,10 +1152,10 @@ export default function FilesPage() {
             );
           }
         )}
-      </div>
+      </section>
 
-      {keyFilter && canDeleteFiles && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+      {keyFilter && canDelete() && (
+        <section className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-red-700">
             Dateigruppe löschen
           </h2>
@@ -1288,7 +1175,7 @@ export default function FilesPage() {
           >
             Ganze Gruppe löschen
           </button>
-        </div>
+        </section>
       )}
     </div>
   );

@@ -9,153 +9,191 @@ import {
 } from "react";
 
 import {
-  activityRepository,
-} from "@/lib/activityRepository";
+  useParams,
+  useRouter,
+} from "next/navigation";
+
+import {
+  ticketRepository,
+} from "../../../lib/ticketRepository";
 
 import {
   companyRepository,
-} from "@/lib/companyRepository";
+} from "../../../lib/companyRepository";
 
 import {
-  canViewActivity,
-} from "@/lib/permissions";
+  saveTicketDeletedActivity,
+  saveTicketUpdatedActivity,
+} from "../../../lib/ticketActivityHelpers";
 
-import FeatureGate from "@/components/FeatureGate";
+import {
+  usePermissions,
+} from "../../../hooks/usePermissions";
 
-import AccessDeniedCard from "@/components/AccessDeniedCard";
+import PageHero from "../../../components/PageHero";
+
+import StatCard from "../../../components/StatCard";
+
+import TicketComments from "../../../components/tickets/TicketComments";
+
+import TicketFileList from "../../../components/tickets/TicketFileList";
 
 import type {
-  Activity,
-} from "@/types/activity";
+  Ticket,
+  TicketPriority,
+  TicketStatus,
+} from "../../../types/ticket";
 
 import type {
   Company,
   Department,
-} from "@/types/company";
+} from "../../../types/company";
 
-function getActivityIcon(
-  type: string
+function getStatusLabel(
+  status: TicketStatus | string
 ) {
-  if (type === "created") {
-    return "＋";
-  }
-
-  if (type === "edited") {
-    return "✎";
-  }
-
-  if (type === "deleted") {
-    return "🗑";
-  }
-
-  if (type === "restored") {
-    return "↺";
-  }
-
-  if (type === "login") {
-    return "→";
-  }
-
-  if (type === "logout") {
-    return "←";
-  }
-
-  return "•";
+  return ticketRepository.getStatusLabel(
+    status
+  );
 }
 
-function getEntityLabel(
-  entityType: string
+function getStatusClass(
+  status: TicketStatus | string
 ) {
-  if (entityType === "ticket") {
-    return "Ticket";
-  }
-
-  if (entityType === "wiki") {
-    return "Wiki";
-  }
-
-  if (entityType === "news") {
-    return "News";
-  }
-
-  if (entityType === "company") {
-    return "Firma";
-  }
-
-  if (entityType === "department") {
-    return "Abteilung";
-  }
-
-  if (entityType === "adminUser") {
-    return "Benutzer";
-  }
-
-  if (entityType === "settings") {
-    return "Einstellungen";
-  }
-
-  if (entityType === "file") {
-    return "Datei";
-  }
-
-  return entityType ||
-    "Allgemein";
+  return ticketRepository.getStatusClass(
+    status
+  );
 }
 
-function getEntityHref(
-  activity: Activity
+function getPriorityLabel(
+  priority: TicketPriority | string
 ) {
-  if (
-    activity.entityType === "ticket" &&
-    activity.entityId
-  ) {
-    return `/tickets/${activity.entityId}`;
-  }
-
-  if (
-    activity.entityType === "wiki" &&
-    activity.entityId
-  ) {
-    return `/wiki/${encodeURIComponent(
-      activity.entityId
-    )}`;
-  }
-
-  if (
-    activity.entityType === "news" &&
-    activity.entityId
-  ) {
-    return `/news/${activity.entityId}`;
-  }
-
-  if (
-    activity.entityType === "company" ||
-    activity.entityType === "department"
-  ) {
-    return "/admin/companies";
-  }
-
-  if (activity.entityType === "adminUser") {
-    return "/admin/users";
-  }
-
-  if (activity.entityType === "settings") {
-    return "/settings";
-  }
-
-  if (activity.entityType === "file") {
-    return "/files";
-  }
-
-  return "";
+  return ticketRepository.getPriorityLabel(
+    priority
+  );
 }
 
-export default function ActivityPage() {
-  const [mounted, setMounted] =
-    useState(false);
+function getPriorityClass(
+  priority: TicketPriority | string
+) {
+  return ticketRepository.getPriorityClass(
+    priority
+  );
+}
 
-  const [activities, setActivities] =
-    useState<Activity[]>([]);
+function formatTags(
+  tags?: string[]
+) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags.filter(Boolean);
+}
+
+function getTicketAgeLabel(
+  createdAt?: string
+) {
+  if (!createdAt) {
+    return "Unbekannt";
+  }
+
+  const createdDate =
+    new Date(
+      createdAt
+    );
+
+  if (
+    Number.isNaN(
+      createdDate.getTime()
+    )
+  ) {
+    return createdAt;
+  }
+
+  const diffMs =
+    Date.now() -
+    createdDate.getTime();
+
+  const diffDays =
+    Math.max(
+      0,
+      Math.floor(
+        diffMs /
+        (
+          1000 *
+          60 *
+          60 *
+          24
+        )
+      )
+    );
+
+  if (diffDays === 0) {
+    return "Heute";
+  }
+
+  if (diffDays === 1) {
+    return "1 Tag";
+  }
+
+  return `${diffDays} Tage`;
+}
+
+export default function TicketDetailPage() {
+  const params =
+    useParams();
+
+  const router =
+    useRouter();
+
+  const {
+    user,
+    isAdmin,
+    hasAnyPermission,
+  } =
+    usePermissions();
+
+  const id =
+    String(
+      params.id ||
+        ""
+    );
+
+  const canManageTickets =
+    isAdmin ||
+    hasAnyPermission([
+      "tickets.manage",
+    ]);
+
+  const canViewTickets =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.view",
+    ]);
+
+  const canEditTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.edit",
+    ]);
+
+  const canDeleteTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.delete",
+    ]);
+
+  const canCloseTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.close",
+    ]);
+
+  const [ticket, setTicket] =
+    useState<Ticket | null>(
+      null
+    );
 
   const [companies, setCompanies] =
     useState<Company[]>([]);
@@ -163,35 +201,22 @@ export default function ActivityPage() {
   const [departments, setDepartments] =
     useState<Department[]>([]);
 
-  const [search, setSearch] =
-    useState("");
-
-  const [typeFilter, setTypeFilter] =
-    useState("");
-
-  const [entityFilter, setEntityFilter] =
-    useState("");
-
-  const [companyFilter, setCompanyFilter] =
-    useState("");
-
-  const [departmentFilter, setDepartmentFilter] =
-    useState("");
-
   const [loading, setLoading] =
     useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
 
   const [error, setError] =
     useState("");
 
-  useEffect(() => {
-    setMounted(
-      true
-    );
+  const [message, setMessage] =
+    useState("");
 
+  useEffect(() => {
     void loadData();
 
-    function handleActivitiesUpdated() {
+    function handleTicketsUpdated() {
       void loadData();
     }
 
@@ -204,8 +229,8 @@ export default function ActivityPage() {
     }
 
     window.addEventListener(
-      "activitiesUpdated",
-      handleActivitiesUpdated
+      "ticketsUpdated",
+      handleTicketsUpdated
     );
 
     window.addEventListener(
@@ -220,8 +245,8 @@ export default function ActivityPage() {
 
     return () => {
       window.removeEventListener(
-        "activitiesUpdated",
-        handleActivitiesUpdated
+        "ticketsUpdated",
+        handleTicketsUpdated
       );
 
       window.removeEventListener(
@@ -234,7 +259,9 @@ export default function ActivityPage() {
         handleDepartmentsUpdated
       );
     };
-  }, []);
+  }, [
+    id,
+  ]);
 
   async function loadOrganization() {
     try {
@@ -271,6 +298,10 @@ export default function ActivityPage() {
   }
 
   async function loadData() {
+    if (!id) {
+      return;
+    }
+
     try {
       setLoading(
         true
@@ -281,22 +312,31 @@ export default function ActivityPage() {
       );
 
       const [
-        nextActivities,
+        nextTickets,
         nextCompanies,
         nextDepartments,
       ] =
         await Promise.all([
-          activityRepository.list(),
+          ticketRepository.list(),
           companyRepository.listCompanies(),
           companyRepository.listDepartments(),
         ]);
 
-      setActivities(
+      const foundTicket =
         Array.isArray(
-          nextActivities
+          nextTickets
         )
-          ? nextActivities
-          : []
+          ? nextTickets.find(
+              (item) =>
+                String(
+                  item.id
+                ) === id
+            ) ||
+            null
+          : null;
+
+      setTicket(
+        foundTicket
       );
 
       setCompanies(
@@ -314,6 +354,12 @@ export default function ActivityPage() {
           ? nextDepartments
           : []
       );
+
+      if (!foundTicket) {
+        setError(
+          "Ticket wurde nicht gefunden."
+        );
+      }
     } catch (loadError) {
       console.error(
         loadError
@@ -322,7 +368,7 @@ export default function ActivityPage() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Aktivitäten konnten nicht geladen werden."
+          : "Ticket konnte nicht geladen werden."
       );
     } finally {
       setLoading(
@@ -331,19 +377,12 @@ export default function ActivityPage() {
     }
   }
 
-  function resetFilters() {
-    setSearch("");
-    setTypeFilter("");
-    setEntityFilter("");
-    setCompanyFilter("");
-    setDepartmentFilter("");
-  }
-
   function getCompanyName(
     companyId?: string
   ) {
     if (!companyId) {
-      return "";
+      return ticket?.company ||
+        "Intern";
     }
 
     return (
@@ -351,7 +390,8 @@ export default function ActivityPage() {
         (company) =>
           company.id === companyId
       )?.name ||
-      ""
+      ticket?.company ||
+      "Intern"
     );
   }
 
@@ -359,7 +399,8 @@ export default function ActivityPage() {
     departmentId?: string
   ) {
     if (!departmentId) {
-      return "";
+      return ticket?.department ||
+        "Allgemein";
     }
 
     return (
@@ -367,587 +408,588 @@ export default function ActivityPage() {
         (department) =>
           department.id === departmentId
       )?.name ||
-      ""
+      ticket?.department ||
+      "Allgemein"
     );
   }
 
-  const filteredDepartments =
-    useMemo(
-      () => {
-        if (!companyFilter) {
-          return departments;
-        }
+  function userCanSeeTicket(
+    currentTicket: Ticket
+  ) {
+    if (
+      isAdmin ||
+      canManageTickets
+    ) {
+      return true;
+    }
 
-        return departments.filter(
-          (department) =>
-            department.companyId === companyFilter
-        );
-      },
-      [
-        departments,
-        companyFilter,
-      ]
-    );
+    if (
+      !user ||
+      !canViewTickets
+    ) {
+      return false;
+    }
 
-  const activityTypes =
-    useMemo(
-      () =>
-        Array.from(
-          new Set(
-            activities.map(
-              (activity) =>
-                activity.type
-            )
-          )
-        ).filter(Boolean),
-      [
-        activities,
-      ]
-    );
+    if (user.departmentId) {
+      return currentTicket.departmentId === user.departmentId;
+    }
 
-  const entityTypes =
+    if (user.companyId) {
+      return currentTicket.companyId === user.companyId;
+    }
+
+    return true;
+  }
+
+  const tags =
     useMemo(
       () =>
-        Array.from(
-          new Set(
-            activities.map(
-              (activity) =>
-                activity.entityType
-            )
-          )
-        ).filter(Boolean),
+        formatTags(
+          ticket?.tags
+        ),
       [
-        activities,
+        ticket,
       ]
     );
 
-  const filteredActivities =
-    useMemo(
-      () => {
-        const query =
-          search.trim().toLowerCase();
+  async function updateTicketStatus(
+    nextStatus: TicketStatus
+  ) {
+    if (!ticket) {
+      return;
+    }
 
-        return activities.filter(
-          (activity) => {
-            const companyName =
-              getCompanyName(
-                activity.companyId
-              ) ||
-              activity.company ||
-              "";
+    if (
+      nextStatus === "closed" &&
+      !canCloseTicket
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu schließen."
+      );
 
-            const departmentName =
-              getDepartmentName(
-                activity.departmentId
-              ) ||
-              activity.department ||
-              "";
+      return;
+    }
 
-            const matchesSearch =
-              !query ||
-              [
-                activity.id,
-                activity.type,
-                activity.title,
-                activity.description,
-                activity.entityType,
-                activity.entityId,
-                activity.userName,
-                activity.userEmail,
-                activity.user,
-                activity.company,
-                activity.department,
-                companyName,
-                departmentName,
-                activity.createdAt,
-                JSON.stringify(
-                  activity.metadata ||
-                    {}
-                ),
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-                .includes(
-                  query
-                );
+    if (
+      nextStatus !== "closed" &&
+      !canEditTicket
+    ) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu bearbeiten."
+      );
 
-            const matchesType =
-              !typeFilter ||
-              activity.type === typeFilter;
+      return;
+    }
 
-            const matchesEntity =
-              !entityFilter ||
-              activity.entityType === entityFilter;
+    try {
+      setSaving(
+        true
+      );
 
-            const matchesCompany =
-              !companyFilter ||
-              activity.companyId === companyFilter;
+      setMessage(
+        ""
+      );
 
-            const matchesDepartment =
-              !departmentFilter ||
-              activity.departmentId === departmentFilter;
+      setError(
+        ""
+      );
 
-            return (
-              matchesSearch &&
-              matchesType &&
-              matchesEntity &&
-              matchesCompany &&
-              matchesDepartment
-            );
+      const updatedTicket =
+        await ticketRepository.update(
+          ticket.id,
+          {
+            status:
+              nextStatus,
           }
         );
-      },
-      [
-        activities,
-        search,
-        typeFilter,
-        entityFilter,
-        companyFilter,
-        departmentFilter,
-        companies,
-        departments,
-      ]
-    );
 
-  const createdCount =
-    activities.filter(
-      (activity) =>
-        activity.type === "created"
-    ).length;
+      if (updatedTicket) {
+        saveTicketUpdatedActivity(
+          updatedTicket
+        );
 
-  const editedCount =
-    activities.filter(
-      (activity) =>
-        activity.type === "edited"
-    ).length;
+        setTicket(
+          updatedTicket
+        );
+      }
 
-  const deletedCount =
-    activities.filter(
-      (activity) =>
-        activity.type === "deleted"
-    ).length;
+      setMessage(
+        nextStatus === "closed"
+          ? "Ticket wurde geschlossen."
+          : "Ticketstatus wurde aktualisiert."
+      );
 
-  const loginCount =
-    activities.filter(
-      (activity) =>
-        activity.type === "login"
-    ).length;
+      await loadData();
+    } catch (saveError) {
+      console.error(
+        saveError
+      );
 
-  if (!mounted) {
-    return null;
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Ticket konnte nicht aktualisiert werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
   }
 
-  if (!canViewActivity()) {
+  async function handleDeleteTicket() {
+    if (!ticket) {
+      return;
+    }
+
+    if (!canDeleteTicket) {
+      alert(
+        "Du hast keine Berechtigung, Tickets zu löschen."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      confirm(
+        `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSaving(
+        true
+      );
+
+      setMessage(
+        ""
+      );
+
+      setError(
+        ""
+      );
+
+      saveTicketDeletedActivity(
+        ticket
+      );
+
+      await ticketRepository.delete(
+        ticket.id
+      );
+
+      router.push(
+        "/tickets"
+      );
+    } catch (deleteError) {
+      console.error(
+        deleteError
+      );
+
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Ticket konnte nicht gelöscht werden."
+      );
+    } finally {
+      setSaving(
+        false
+      );
+    }
+  }
+
+  if (loading) {
     return (
-      <AccessDeniedCard />
+      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <p className="text-zinc-500">
+          Ticket wird geladen...
+        </p>
+      </div>
     );
   }
 
-  return (
-    <FeatureGate
-      feature="activityLog"
-      fallback={
+  if (
+    error ||
+    !ticket
+  ) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          >
+            ← Zurück zu Tickets
+          </Link>
+        </div>
+
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <h1 className="text-3xl font-bold">
-            Aktivitätsprotokoll deaktiviert
+            Ticket nicht gefunden
           </h1>
 
           <p className="text-zinc-500 mt-2">
-            Dieses Modul ist aktuell in den Einstellungen deaktiviert.
+            {error ||
+              "Dieses Ticket existiert nicht."}
           </p>
         </div>
-      }
-    >
+      </div>
+    );
+  }
+
+  if (
+    !userCanSeeTicket(
+      ticket
+    )
+  ) {
+    return (
       <div className="space-y-8">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-          <div>
-            <h1 className="text-4xl font-bold">
-              Aktivität
-            </h1>
-
-            <p className="text-zinc-500 mt-2">
-              Protokollierte Aktionen aus PostgreSQL.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              void loadData()
-            }
-            className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        <div>
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
           >
-            Aktualisieren
-          </button>
+            ← Zurück zu Tickets
+          </Link>
         </div>
 
-        {loading && (
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <p className="text-zinc-500">
-              Aktivitäten werden geladen...
-            </p>
-          </div>
-        )}
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-3xl font-bold">
+            Keine Berechtigung
+          </h1>
 
-        {error && (
-          <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-red-700">
-              Fehler
+          <p className="text-zinc-500 mt-2">
+            Du hast keine Berechtigung, dieses Ticket zu öffnen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const companyName =
+    getCompanyName(
+      ticket.companyId
+    );
+
+  const departmentName =
+    getDepartmentName(
+      ticket.departmentId
+    );
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <Link
+          href="/tickets"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+        >
+          ← Zurück zu Tickets
+        </Link>
+      </div>
+
+      <PageHero
+        eyebrow="Ticket"
+        title={`#${ticket.id} · ${ticket.title}`}
+        description={
+          ticket.description ||
+          "Keine Beschreibung vorhanden."
+        }
+        badges={[
+          {
+            label:
+              getStatusLabel(
+                ticket.status
+              ),
+          },
+          {
+            label:
+              getPriorityLabel(
+                ticket.priority
+              ),
+          },
+          {
+            label:
+              companyName,
+          },
+          {
+            label:
+              departmentName,
+          },
+        ]}
+        actions={(
+          <>
+            {canEditTicket && (
+              <Link
+                href="/tickets"
+                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+              >
+                In Übersicht bearbeiten
+              </Link>
+            )}
+
+            {ticket.status !== "closed" && canCloseTicket && (
+              <button
+                type="button"
+                onClick={() =>
+                  void updateTicketStatus(
+                    "closed"
+                  )
+                }
+                disabled={saving}
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+              >
+                Schließen
+              </button>
+            )}
+
+            {ticket.status === "closed" && canEditTicket && (
+              <button
+                type="button"
+                onClick={() =>
+                  void updateTicketStatus(
+                    "open"
+                  )
+                }
+                disabled={saving}
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+              >
+                Wieder öffnen
+              </button>
+            )}
+
+            {canDeleteTicket && (
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDeleteTicket()
+                }
+                disabled={saving}
+                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition disabled:opacity-50"
+              >
+                Löschen
+              </button>
+            )}
+          </>
+        )}
+      />
+
+      {message && (
+        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-medium">
+            {message}
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+
+          <p className="text-red-600 mt-2">
+            {error}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <StatCard
+          label="Status"
+          value={getStatusLabel(
+            ticket.status
+          )}
+          description="Aktueller Bearbeitungsstand"
+          icon="📌"
+          tone={
+            ticket.status === "closed"
+              ? "green"
+              : ticket.status === "in_progress"
+                ? "orange"
+                : "blue"
+          }
+        />
+
+        <StatCard
+          label="Priorität"
+          value={getPriorityLabel(
+            ticket.priority
+          )}
+          description="Einstufung des Tickets"
+          icon="🚨"
+          tone={
+            ticket.priority === "urgent" ||
+            ticket.priority === "high"
+              ? "red"
+              : "indigo"
+          }
+        />
+
+        <StatCard
+          label="Alter"
+          value={getTicketAgeLabel(
+            ticket.createdAt
+          )}
+          description={`Erstellt: ${ticket.createdAt || "Unbekannt"}`}
+          icon="⏱️"
+        />
+
+        <StatCard
+          label="Zugewiesen"
+          value={
+            ticket.assignedTo ||
+            "Niemand"
+          }
+          description="Bearbeiter oder Team"
+          icon="👤"
+          tone="green"
+        />
+      </div>
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              Ticketdetails
             </h2>
 
-            <p className="text-red-600 mt-2">
-              {error}
+            <p className="text-zinc-500 mt-1">
+              Stammdaten und Beschreibung des Tickets.
             </p>
           </div>
-        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-zinc-50 transition"
-          >
+          <div className="flex flex-wrap gap-2">
+            <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(
+              ticket.status
+            )}`}>
+              {getStatusLabel(
+                ticket.status
+              )}
+            </span>
+
+            <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(
+              ticket.priority
+            )}`}>
+              {getPriorityLabel(
+                ticket.priority
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-8">
+          <div className="bg-zinc-50 rounded-2xl p-5">
             <p className="text-sm text-zinc-500">
-              Gesamt
+              Firma
             </p>
 
-            <h2 className="text-4xl font-bold mt-3">
-              {activities.length}
-            </h2>
-          </button>
+            <p className="font-semibold mt-1">
+              {companyName}
+            </p>
+          </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setTypeFilter(
-                "created"
-              )
-            }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-green-50 transition"
-          >
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Abteilung
+            </p>
+
+            <p className="font-semibold mt-1">
+              {departmentName}
+            </p>
+          </div>
+
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Kategorie
+            </p>
+
+            <p className="font-semibold mt-1">
+              {ticket.category ||
+                "Allgemein"}
+            </p>
+          </div>
+
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Erstellt von
+            </p>
+
+            <p className="font-semibold mt-1">
+              {ticket.createdBy ||
+                "System"}
+            </p>
+          </div>
+
+          <div className="bg-zinc-50 rounded-2xl p-5">
             <p className="text-sm text-zinc-500">
               Erstellt
             </p>
 
-            <h2 className="text-4xl font-bold mt-3">
-              {createdCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setTypeFilter(
-                "edited"
-              )
-            }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-blue-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Bearbeitet
+            <p className="font-semibold mt-1">
+              {ticket.createdAt ||
+                "Unbekannt"}
             </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {editedCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setTypeFilter(
-                "deleted"
-              )
-            }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-red-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Gelöscht
-            </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {deletedCount}
-            </h2>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              setTypeFilter(
-                "login"
-              )
-            }
-            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm text-left hover:bg-indigo-50 transition"
-          >
-            <p className="text-sm text-zinc-500">
-              Logins
-            </p>
-
-            <h2 className="text-4xl font-bold mt-3">
-              {loginCount}
-            </h2>
-          </button>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <h2 className="text-xl font-semibold">
-                Suche & Filter
-              </h2>
-
-              <p className="text-zinc-500 mt-1">
-                Filtere Aktivitäten nach Typ, Bereich, Firma oder Abteilung.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="text-sm bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-            >
-              Zurücksetzen
-            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-5">
-            <input
-              type="text"
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              placeholder="Aktivitäten suchen..."
-              className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-            />
+          <div className="bg-zinc-50 rounded-2xl p-5">
+            <p className="text-sm text-zinc-500">
+              Aktualisiert
+            </p>
 
-            <select
-              value={typeFilter}
-              onChange={(event) =>
-                setTypeFilter(
-                  event.target.value
-                )
-              }
-              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Alle Typen
-              </option>
-
-              {activityTypes.map(
-                (type) => (
-                  <option
-                    key={type}
-                    value={type}
-                  >
-                    {activityRepository.getTypeLabel(
-                      type
-                    )}
-                  </option>
-                )
-              )}
-            </select>
-
-            <select
-              value={entityFilter}
-              onChange={(event) =>
-                setEntityFilter(
-                  event.target.value
-                )
-              }
-              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Alle Bereiche
-              </option>
-
-              {entityTypes.map(
-                (entityType) => (
-                  <option
-                    key={entityType}
-                    value={entityType}
-                  >
-                    {getEntityLabel(
-                      entityType
-                    )}
-                  </option>
-                )
-              )}
-            </select>
-
-            <select
-              value={companyFilter}
-              onChange={(event) => {
-                setCompanyFilter(
-                  event.target.value
-                );
-
-                setDepartmentFilter(
-                  ""
-                );
-              }}
-              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Alle Firmen
-              </option>
-
-              {companies.map(
-                (company) => (
-                  <option
-                    key={company.id}
-                    value={company.id}
-                  >
-                    {company.name}
-                  </option>
-                )
-              )}
-            </select>
-
-            <select
-              value={departmentFilter}
-              onChange={(event) =>
-                setDepartmentFilter(
-                  event.target.value
-                )
-              }
-              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-            >
-              <option value="">
-                Alle Abteilungen
-              </option>
-
-              {filteredDepartments.map(
-                (department) => (
-                  <option
-                    key={department.id}
-                    value={department.id}
-                  >
-                    {department.name}
-                  </option>
-                )
-              )}
-            </select>
+            <p className="font-semibold mt-1">
+              {ticket.updatedAt ||
+                "Unbekannt"}
+            </p>
           </div>
-
-          <p className="text-sm text-zinc-500 mt-5">
-            {filteredActivities.length} von {activities.length} Aktivitäten gefunden.
-          </p>
         </div>
 
-        <div className="space-y-4">
-          {!loading && filteredActivities.length === 0 && (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-              <h2 className="text-xl font-semibold">
-                Keine Aktivitäten gefunden
-              </h2>
+        <div className="mt-8">
+          <h3 className="font-semibold">
+            Beschreibung
+          </h3>
 
-              <p className="text-zinc-500 mt-2">
-                Es gibt keine passenden Einträge.
-              </p>
-            </div>
-          )}
+          <div className="mt-3 whitespace-pre-wrap text-zinc-800 leading-8">
+            {ticket.description ||
+              "Keine Beschreibung vorhanden."}
+          </div>
+        </div>
 
-          {filteredActivities.map(
-            (activity) => {
-              const href =
-                getEntityHref(
-                  activity
-                );
+        {tags.length > 0 && (
+          <div className="mt-8">
+            <h3 className="font-semibold">
+              Tags
+            </h3>
 
-              const content = (
-                <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:bg-zinc-50 transition">
-                  <div className="flex items-start gap-5">
-                    <div className="h-12 w-12 rounded-2xl bg-zinc-100 flex items-center justify-center text-xl shrink-0">
-                      {getActivityIcon(
-                        activity.type
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-xs px-3 py-1 rounded-full ${activityRepository.getTypeClass(activity.type)}`}>
-                          {activityRepository.getTypeLabel(
-                            activity.type
-                          )}
-                        </span>
-
-                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                          {getEntityLabel(
-                            activity.entityType
-                          )}
-                        </span>
-
-                        {activity.company && (
-                          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                            {activity.company}
-                          </span>
-                        )}
-
-                        {activity.department && (
-                          <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                            {activity.department}
-                          </span>
-                        )}
-                      </div>
-
-                      <h2 className="text-xl font-semibold mt-4">
-                        {activity.title}
-                      </h2>
-
-                      <p className="text-zinc-500 mt-2">
-                        {activity.description ||
-                          "Keine Beschreibung vorhanden."}
-                      </p>
-
-                      <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-4">
-                        <span>
-                          Benutzer:{" "}
-                          {activity.user ||
-                            activity.userName ||
-                            "System"}
-                        </span>
-
-                        <span>
-                          Zeitpunkt:{" "}
-                          {activity.createdAt}
-                        </span>
-
-                        {activity.entityId && (
-                          <span>
-                            ID:{" "}
-                            {activity.entityId}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-
-              if (href) {
-                return (
-                  <Link
-                    key={activity.id}
-                    href={href}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {tags.map(
+                (tag) => (
+                  <span
+                    key={tag}
+                    className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full"
                   >
-                    {content}
-                  </Link>
-                );
-              }
+                    #{tag}
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
-              return (
-                <div key={activity.id}>
-                  {content}
-                </div>
-              );
-            }
-          )}
-        </div>
-      </div>
-    </FeatureGate>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <TicketFileList
+          ticketId={ticket.id}
+          editable={canEditTicket}
+        />
+      </section>
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+        <TicketComments
+          ticketId={ticket.id}
+        />
+      </section>
+    </div>
   );
 }
