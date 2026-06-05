@@ -34,6 +34,9 @@ import {
   appSettingsRepository,
 } from "../../lib/appSettingsRepository";
 import {
+  adminModuleRepository,
+} from "../../lib/adminModuleRepository";
+import {
   useFeatureFlags,
 } from "../../hooks/useFeatureFlags";
 import AccessDeniedCard from "../../components/AccessDeniedCard";
@@ -64,19 +67,26 @@ import type {
 import type {
   AppSettings,
 } from "../../types/settings";
+import type {
+  AdminModuleConfig,
+} from "../../types/adminModule";
 
-type AdminModule = {
+type DashboardModule = {
+  key: string;
   title: string;
   description: string;
   href: string;
   icon: string;
   badge: string;
   accent: string;
+  enabled: boolean;
+  statusLabel: string;
+  sortOrder: number;
 };
 
 type AdminHealth = {
   ok: boolean;
-  status: "healthy" | "error" | string;
+  status: string;
   database: {
     connected: boolean;
     time: string | null;
@@ -127,10 +137,19 @@ function getHealthStatusClass(health: AdminHealth | null) {
   return "bg-red-50 text-red-700 border border-red-100";
 }
 
+function getListViewLabel(view: string) {
+  if (view === "cards") {
+    return "Karten";
+  }
+
+  return "Tabelle";
+}
+
 export default function AdminPage() {
   const {
     activityLogEnabled,
     ticketTemplatesEnabled,
+    ticketCommentsEnabled,
   } = useFeatureFlags();
 
   const [mounted, setMounted] = useState(false);
@@ -142,6 +161,7 @@ export default function AdminPage() {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [configuredModules, setConfiguredModules] = useState<AdminModuleConfig[]>([]);
   const [settings, setSettings] = useState<AppSettings>(
     appSettingsRepository.getDefault(),
   );
@@ -154,6 +174,22 @@ export default function AdminPage() {
   useEffect(() => {
     setMounted(true);
     void loadData();
+
+    function handleAdminModulesUpdated() {
+      void loadData();
+    }
+
+    window.addEventListener(
+      "adminModulesUpdated",
+      handleAdminModulesUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "adminModulesUpdated",
+        handleAdminModulesUpdated,
+      );
+    };
   }, []);
 
   async function loadHealth() {
@@ -210,6 +246,7 @@ export default function AdminPage() {
         nextWikiPages,
         nextActivities,
         nextSettings,
+        nextModules,
       ] = await Promise.all([
         adminUserRepository.list(),
         companyRepository.listCompanies(),
@@ -220,6 +257,7 @@ export default function AdminPage() {
         wikiRepository.list(),
         activityRepository.list(),
         appSettingsRepository.get(),
+        adminModuleRepository.list(),
         loadHealth(),
       ]);
 
@@ -232,6 +270,7 @@ export default function AdminPage() {
       setWikiPages(Array.isArray(nextWikiPages) ? nextWikiPages : []);
       setActivities(Array.isArray(nextActivities) ? nextActivities : []);
       setSettings(nextSettings);
+      setConfiguredModules(Array.isArray(nextModules) ? nextModules : []);
     } catch (loadError) {
       console.error(loadError);
       setError(
@@ -298,101 +337,142 @@ export default function AdminPage() {
     ],
   );
 
-  const modules = useMemo(() => {
-    const nextModules: AdminModule[] = [
-      {
-        title: "Benutzerverwaltung",
-        description: "Benutzer, Rollen, Login-Daten, Status und Organisationszuordnung verwalten.",
-        href: "/admin/users",
-        icon: "👥",
-        badge: `${users.length} Benutzer`,
-        accent: "bg-blue-50 text-blue-700",
-      },
-      {
-        title: "Berechtigungen",
-        description: "Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.",
-        href: "/admin/permissions",
-        icon: "🔐",
-        badge: "Rechte",
-        accent: "bg-red-50 text-red-700",
-      },
-      {
-        title: "Firmen & Abteilungen",
-        description: "Firmenstruktur und Abteilungen zentral konfigurieren.",
-        href: "/admin/companies",
-        icon: "🏢",
-        badge: `${companies.length}/${departments.length}`,
-        accent: "bg-emerald-50 text-emerald-700",
-      },
-      {
-        title: "Kategorien & Tags",
-        description: "Ticket- und Wiki-Kategorien als Baum sowie globale Tags im Admin Backend verwalten.",
-        href: "/admin/taxonomy",
-        icon: "🏷️",
-        badge: `${health?.counts.taxonomyItems ?? "—"} Einträge`,
-        accent: "bg-indigo-50 text-indigo-700",
-      },
-      {
-  title: "Datenbankstatus",
-  description: "PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prüfen.",
-  href: "/admin/database",
-  icon: "🗄️",
-  badge: health?.ok ? "Online" : "Prüfen",
-  accent: health?.ok ? "bg-green-50 text-green-700" : "bg-orange-50 text-orange-700",
-},
-      {
-        title: "News-Verwaltung",
-        description: "Neuigkeiten erstellen, bearbeiten, fixieren und löschen.",
-        href: "/admin/news",
-        icon: "📰",
-        badge: `${news.length} Beiträge`,
-        accent: "bg-orange-50 text-orange-700",
-      },
-    ];
-
-    if (ticketTemplatesEnabled) {
-      nextModules.push({
-        title: "Ticket-Vorlagen",
-        description: "Wiederverwendbare Vorlagen für Supportprozesse verwalten.",
-        href: "/tickets/templates",
-        icon: "📋",
-        badge: `${templates.length} Vorlagen`,
-        accent: "bg-purple-50 text-purple-700",
-      });
+  function getModuleBadge(module: AdminModuleConfig) {
+    if (module.key === "users") {
+      return `${users.length} Benutzer`;
     }
 
-    nextModules.push({
-      title: "Systemeinstellungen",
-      description: "App-Name, globale Oberfläche, Features und Standardrollen konfigurieren.",
-      href: "/admin/settings",
-      icon: "⚙️",
-      badge: "System",
-      accent: "bg-zinc-100 text-zinc-700",
-    });
-
-    if (activityLogEnabled) {
-      nextModules.push({
-        title: "Aktivitätsprotokoll",
-        description: "Systemaktivitäten und Benutzeraktionen nachvollziehen.",
-        href: "/activity",
-        icon: "🕓",
-        badge: `${activities.length} Einträge`,
-        accent: "bg-sky-50 text-sky-700",
-      });
+    if (module.key === "companies") {
+      return `${companies.length}/${departments.length}`;
     }
 
-    return nextModules;
-  }, [
-    users.length,
-    companies.length,
-    departments.length,
-    news.length,
-    templates.length,
-    activities.length,
-    ticketTemplatesEnabled,
-    activityLogEnabled,
-    health,
-  ]);
+    if (module.key === "taxonomy") {
+      return `${health?.counts.taxonomyItems ?? "—"} Einträge`;
+    }
+
+    if (module.key === "database") {
+      return health?.ok ? "Online" : "Prüfen";
+    }
+
+    if (module.key === "news") {
+      return `${news.length} Beiträge`;
+    }
+
+    if (module.key === "ticket-templates") {
+      return `${templates.length} Vorlagen`;
+    }
+
+    if (module.key === "activity") {
+      return `${activities.length} Einträge`;
+    }
+
+    return module.badgeLabel || "Modul";
+  }
+
+  function getModuleEnabled(module: AdminModuleConfig) {
+    if (!module.isEnabled) {
+      return false;
+    }
+
+    if (module.key === "ticket-templates") {
+      return ticketTemplatesEnabled;
+    }
+
+    if (module.key === "activity") {
+      return activityLogEnabled;
+    }
+
+    return true;
+  }
+
+  function getModuleAccent(
+    module: AdminModuleConfig,
+    enabled: boolean,
+  ) {
+    if (!enabled) {
+      return "bg-zinc-100 text-zinc-500";
+    }
+
+    if (module.key === "users") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (module.key === "permissions") {
+      return "bg-red-50 text-red-700";
+    }
+
+    if (module.key === "companies") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (module.key === "taxonomy") {
+      return "bg-indigo-50 text-indigo-700";
+    }
+
+    if (module.key === "database") {
+      return health?.ok ? "bg-green-50 text-green-700" : "bg-orange-50 text-orange-700";
+    }
+
+    if (module.key === "news") {
+      return "bg-orange-50 text-orange-700";
+    }
+
+    if (module.key === "ticket-templates") {
+      return "bg-purple-50 text-purple-700";
+    }
+
+    if (module.key === "activity") {
+      return "bg-sky-50 text-sky-700";
+    }
+
+    if (module.key === "settings") {
+      return "bg-zinc-100 text-zinc-700";
+    }
+
+    if (module.key === "modules") {
+      return "bg-violet-50 text-violet-700";
+    }
+
+    return "bg-zinc-100 text-zinc-700";
+  }
+
+  const modules = useMemo<DashboardModule[]>(
+    () =>
+      configuredModules
+        .filter((module) => module.isVisible)
+        .map((module) => {
+          const enabled = getModuleEnabled(module);
+
+          return {
+            key: module.key,
+            title: module.title,
+            description: module.description,
+            href: module.href,
+            icon: module.icon || "🧩",
+            badge: getModuleBadge(module),
+            accent: getModuleAccent(module, enabled),
+            enabled,
+            statusLabel: enabled ? "Aktiv" : "Deaktiviert",
+            sortOrder: module.sortOrder,
+          };
+        })
+        .sort((first, second) => first.sortOrder - second.sortOrder),
+    [
+      configuredModules,
+      users.length,
+      companies.length,
+      departments.length,
+      news.length,
+      templates.length,
+      activities.length,
+      ticketTemplatesEnabled,
+      activityLogEnabled,
+      health,
+    ],
+  );
+
+  const enabledModuleCount = modules.filter((module) => module.enabled).length;
+  const disabledModuleCount = modules.length - enabledModuleCount;
 
   if (!mounted) {
     return null;
@@ -412,13 +492,13 @@ export default function AdminPage() {
       <PageHero
         eyebrow="Admin Backend"
         title="Admin Dashboard"
-        description="Zentrale Verwaltung für Benutzer, Rechte, Organisation, Taxonomie, Inhalte und Systemstatus."
+        description="Zentrale Verwaltung für Benutzer, Rechte, Organisation, Taxonomie, Inhalte, Standards und Systemstatus."
         badges={[
           {
             label: `${users.length} Benutzer`,
           },
           {
-            label: `${companies.length} Firmen`,
+            label: `${enabledModuleCount} Module aktiv`,
           },
           {
             label: getHealthStatusLabel(health),
@@ -470,10 +550,10 @@ export default function AdminPage() {
           tone="orange"
         />
         <StatCard
-          label="Wiki-Seiten"
-          value={wikiPages.length}
-          description="Dokumentation aus PostgreSQL"
-          icon="📚"
+          label="Module"
+          value={enabledModuleCount}
+          description={`${disabledModuleCount} deaktiviert`}
+          icon="🧩"
           tone="indigo"
         />
         <StatCard
@@ -498,30 +578,48 @@ export default function AdminPage() {
                   Admin-Module
                 </h2>
                 <p className="text-zinc-500 mt-1">
-                  Die wichtigsten Verwaltungsbereiche bleiben im Admin Backend und nicht einzeln in der Sidebar.
+                  Zentrale Verwaltungsbereiche aus der Datenbank-Konfiguration.
                 </p>
               </div>
 
-              <span className="bg-zinc-100 text-zinc-700 px-4 py-2 rounded-xl text-sm">
-                {modules.length} Module
-              </span>
+              <Link
+                href="/admin/modules"
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+              >
+                Module verwalten
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
               {modules.map((module) => (
                 <Link
-                  key={module.href}
+                  key={module.key}
                   href={module.href}
-                  className="group border border-zinc-200 rounded-3xl p-5 hover:border-zinc-400 hover:shadow-sm transition"
+                  className={`group border rounded-3xl p-5 transition ${
+                    module.enabled
+                      ? "border-zinc-200 hover:border-zinc-400 hover:shadow-sm"
+                      : "border-zinc-200 bg-zinc-50 opacity-75 hover:opacity-100"
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="text-3xl">
                       {module.icon}
                     </div>
 
-                    <span className={`text-xs px-3 py-1 rounded-full ${module.accent}`}>
-                      {module.badge}
-                    </span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <span className={`text-xs px-3 py-1 rounded-full ${module.accent}`}>
+                        {module.badge}
+                      </span>
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${
+                          module.enabled
+                            ? "bg-green-50 text-green-700 border border-green-100"
+                            : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                        }`}
+                      >
+                        {module.statusLabel}
+                      </span>
+                    </div>
                   </div>
 
                   <h3 className="text-lg font-semibold mt-5 group-hover:underline">
@@ -532,6 +630,72 @@ export default function AdminPage() {
                   </p>
                 </Link>
               ))}
+
+              {modules.length === 0 && (
+                <div className="border border-zinc-200 rounded-3xl p-6 text-zinc-500">
+                  Keine sichtbaren Admin-Module vorhanden.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">
+                  Standardwerte
+                </h2>
+                <p className="text-zinc-500 mt-1">
+                  Aktuelle Defaults aus den Systemeinstellungen.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/settings"
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+              >
+                Bearbeiten
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-5">
+                <p className="text-sm text-zinc-400">
+                  Standardrolle
+                </p>
+                <p className="font-semibold mt-1">
+                  {appSettingsRepository.getDefaultUserRoleLabel(settings.defaultUserRole)}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-5">
+                <p className="text-sm text-zinc-400">
+                  Ticket-Ansicht
+                </p>
+                <p className="font-semibold mt-1">
+                  {getListViewLabel(settings.defaultTicketView)}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-5">
+                <p className="text-sm text-zinc-400">
+                  Wiki-Ansicht
+                </p>
+                <p className="font-semibold mt-1">
+                  {getListViewLabel(settings.defaultWikiView)}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-5">
+                <p className="text-sm text-zinc-400">
+                  Geschlossene Tickets
+                </p>
+                <p className="font-semibold mt-1">
+                  {settings.hideClosedTicketsByDefault
+                    ? "Standardmäßig ausblenden"
+                    : "Standardmäßig anzeigen"}
+                </p>
+              </div>
             </div>
           </section>
 
@@ -693,10 +857,74 @@ export default function AdminPage() {
 
           <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold">
+              Feature-Schalter
+            </h2>
+
+            <div className="space-y-3 mt-5">
+              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
+                <span className="text-zinc-600">
+                  Ticket-Kommentare
+                </span>
+                <span className={`text-xs px-3 py-1 rounded-full ${
+                  ticketCommentsEnabled
+                    ? "bg-green-50 text-green-700 border border-green-100"
+                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                }`}
+                >
+                  {ticketCommentsEnabled ? "Aktiv" : "Aus"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
+                <span className="text-zinc-600">
+                  Ticket-Vorlagen
+                </span>
+                <span className={`text-xs px-3 py-1 rounded-full ${
+                  ticketTemplatesEnabled
+                    ? "bg-green-50 text-green-700 border border-green-100"
+                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                }`}
+                >
+                  {ticketTemplatesEnabled ? "Aktiv" : "Aus"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
+                <span className="text-zinc-600">
+                  Aktivitätsprotokoll
+                </span>
+                <span className={`text-xs px-3 py-1 rounded-full ${
+                  activityLogEnabled
+                    ? "bg-green-50 text-green-700 border border-green-100"
+                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                }`}
+                >
+                  {activityLogEnabled ? "Aktiv" : "Aus"}
+                </span>
+              </div>
+            </div>
+
+            <Link
+              href="/admin/settings"
+              className="block text-center bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition mt-5"
+            >
+              Schalter bearbeiten
+            </Link>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">
               Schnellzugriff
             </h2>
 
             <div className="space-y-3 mt-5">
+              <Link
+                href="/admin/modules"
+                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
+              >
+                Admin-Module verwalten
+              </Link>
+
               <Link
                 href="/admin/taxonomy"
                 className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
@@ -712,10 +940,10 @@ export default function AdminPage() {
               </Link>
 
               <Link
-                href="/admin/permissions"
+                href="/admin/database"
                 className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
               >
-                Rechte verwalten
+                Datenbankstatus öffnen
               </Link>
 
               <Link
