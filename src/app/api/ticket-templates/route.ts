@@ -1,22 +1,13 @@
 import {
   NextResponse,
 } from "next/server";
-
 import {
   query,
   queryOne,
 } from "../../../lib/database/db";
-
 import {
   mapTicketTemplateRow,
 } from "../../../lib/database/mappers/ticketMapper";
-
-import {
-  getCurrentServerUser,
-  isPermissionError,
-  requireAnyServerPermission,
-} from "../../../lib/serverPermissions";
-
 import type {
   TicketTemplateRow,
 } from "../../../lib/database/mappers/ticketMapper";
@@ -35,139 +26,123 @@ type CreateTicketTemplateBody = {
   tags?: string[];
 };
 
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return 403;
-  }
+const allowedStatusValues = [
+  "open",
+  "in_progress",
+  "waiting",
+  "done",
+  "closed",
+];
 
-  return 500;
+const allowedPriorityValues = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+function normalizeText(value?: string) {
+  return String(value || "").trim();
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return "Keine Berechtigung.";
-  }
+function normalizeNullableId(value?: string) {
+  const normalized = normalizeText(value);
 
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return normalized || null;
 }
 
-export async function GET(
-  request: Request
-) {
+function normalizeStatus(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "open";
+  }
+
+  if (!allowedStatusValues.includes(normalized)) {
+    return "open";
+  }
+
+  return normalized;
+}
+
+function normalizePriority(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "medium";
+  }
+
+  if (!allowedPriorityValues.includes(normalized)) {
+    return "medium";
+  }
+
+  return normalized;
+}
+
+function normalizeTags(tags?: string[]) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag).trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+export async function GET(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "tickets.templates.view",
-      "tickets.templates.manage",
-      "tickets.templates.create",
-      "tickets.templates.edit",
-      "tickets.templates.delete",
-      "tickets.manage",
-    ]);
+    const url = new URL(request.url);
 
-    const currentUser =
-      await getCurrentServerUser();
+    const status = url.searchParams.get("status");
+    const priority = url.searchParams.get("priority");
+    const category = url.searchParams.get("category");
+    const tag = url.searchParams.get("tag");
+    const companyId = url.searchParams.get("companyId");
+    const departmentId = url.searchParams.get("departmentId");
 
-    if (!currentUser) {
-      return NextResponse.json(
-        {
-          message:
-            "Nicht angemeldet.",
-        },
-        {
-          status:
-            401,
-        }
-      );
-    }
-
-    const url =
-      new URL(
-        request.url
-      );
-
-    const status =
-      url.searchParams.get(
-        "status"
-      );
-
-    const priority =
-      url.searchParams.get(
-        "priority"
-      );
-
-    const params: unknown[] =
-      [];
-
-    const whereParts: string[] =
-      [];
+    const params: unknown[] = [];
+    const whereParts: string[] = [];
 
     if (status) {
-      params.push(
-        status
-      );
-
-      whereParts.push(
-        `status = $${params.length}`
-      );
+      params.push(status);
+      whereParts.push(`status = $${params.length}`);
     }
 
     if (priority) {
-      params.push(
-        priority
-      );
-
-      whereParts.push(
-        `priority = $${params.length}`
-      );
+      params.push(priority);
+      whereParts.push(`priority = $${params.length}`);
     }
 
-    if (currentUser.role !== "admin") {
-      if (currentUser.departmentId) {
-        params.push(
-          currentUser.departmentId
-        );
-
-        whereParts.push(
-          `department_id = $${params.length}`
-        );
-      } else if (currentUser.companyId) {
-        params.push(
-          currentUser.companyId
-        );
-
-        whereParts.push(
-          `company_id = $${params.length}`
-        );
-      } else {
-        whereParts.push(
-          "1 = 0"
-        );
-      }
+    if (category) {
+      params.push(category);
+      whereParts.push(`category = $${params.length}`);
     }
 
-    const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+    if (tag) {
+      params.push(tag);
+      whereParts.push(`$${params.length} = ANY(tags)`);
+    }
 
-    const rows =
-      await query<TicketTemplateRow>(
-        `
+    if (companyId) {
+      params.push(companyId);
+      whereParts.push(`company_id = $${params.length}`);
+    }
+
+    if (departmentId) {
+      params.push(departmentId);
+      whereParts.push(`department_id = $${params.length}`);
+    }
+
+    const whereSql = whereParts.length > 0
+      ? `WHERE ${whereParts.join(" AND ")}`
+      : "";
+
+    const rows = await query<TicketTemplateRow>(
+      `
         SELECT
           id,
           title,
@@ -186,124 +161,68 @@ export async function GET(
         FROM ticket_templates
         ${whereSql}
         ORDER BY updated_at DESC
-        `,
-        params
-      );
+      `,
+      params,
+    );
 
     return NextResponse.json(
-      rows.map(
-        mapTicketTemplateRow
-      )
+      rows.map(mapTicketTemplateRow),
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Ticket-Vorlagen konnten nicht geladen werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "Ticket-Vorlagen konnten nicht geladen werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "tickets.templates.create",
-      "tickets.templates.manage",
-      "tickets.manage",
-    ]);
+    const body = await request.json() as CreateTicketTemplateBody;
 
-    const currentUser =
-      await getCurrentServerUser();
-
-    if (!currentUser) {
-      return NextResponse.json(
-        {
-          message:
-            "Nicht angemeldet.",
-        },
-        {
-          status:
-            401,
-        }
-      );
-    }
-
-    const body =
-      await request.json() as CreateTicketTemplateBody;
-
-    const title =
-      body.title?.trim();
+    const title = normalizeText(body.title);
+    const category = normalizeText(body.category);
+    const description = normalizeText(body.description);
+    const status = normalizeStatus(body.status);
+    const priority = normalizePriority(body.priority);
+    const companyId = normalizeNullableId(body.companyId);
+    const departmentId = normalizeNullableId(body.departmentId);
+    const company = normalizeText(body.company) || "Intern";
+    const department = normalizeText(body.department) || "Allgemein";
+    const assignedTo = normalizeText(body.assignedTo);
+    const tags = normalizeTags(body.tags);
 
     if (!title) {
       return NextResponse.json(
         {
-          message:
-            "Titel ist erforderlich.",
+          message: "Titel ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    const canChooseScope =
-      currentUser.role === "admin";
+    if (!category) {
+      return NextResponse.json(
+        {
+          message: "Kategorie ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
-    const companyId =
-      canChooseScope
-        ? body.companyId ||
-          null
-        : currentUser.companyId ||
-          null;
-
-    const departmentId =
-      canChooseScope
-        ? body.departmentId ||
-          null
-        : currentUser.departmentId ||
-          null;
-
-    const company =
-      canChooseScope
-        ? body.company ||
-          currentUser.company ||
-          "Intern"
-        : currentUser.company ||
-          "Intern";
-
-    const department =
-      canChooseScope
-        ? body.department ||
-          currentUser.department ||
-          "Allgemein"
-        : currentUser.department ||
-          "Allgemein";
-
-    const row =
-      await queryOne<TicketTemplateRow>(
-        `
+    const row = await queryOne<TicketTemplateRow>(
+      `
         INSERT INTO ticket_templates (
           title,
           description,
@@ -345,77 +264,50 @@ export async function POST(
           tags,
           created_at,
           updated_at
-        `,
-        [
-          title,
-          body.description?.trim() ||
-            "",
-          body.status ||
-            "open",
-          body.priority ||
-            "medium",
-          body.category ||
-            "Allgemein",
-          companyId,
-          departmentId,
-          company,
-          department,
-          body.assignedTo ||
-            "",
-          Array.isArray(
-            body.tags
-          )
-            ? body.tags
-            : [],
-        ]
-      );
+      `,
+      [
+        title,
+        description,
+        status,
+        priority,
+        category,
+        companyId,
+        departmentId,
+        company,
+        department,
+        assignedTo,
+        tags,
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Ticket-Vorlage konnte nicht erstellt werden.",
+          message: "Ticket-Vorlage konnte nicht erstellt werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
     return NextResponse.json(
-      mapTicketTemplateRow(
-        row
-      ),
+      mapTicketTemplateRow(row),
       {
-        status:
-          201,
-      }
+        status: 201,
+      },
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Ticket-Vorlage konnte nicht erstellt werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "Ticket-Vorlage konnte nicht erstellt werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }

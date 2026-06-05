@@ -1,15 +1,15 @@
 import {
   NextResponse,
 } from "next/server";
-
 import {
   queryOne,
 } from "../../../../lib/database/db";
-
 import {
-  isPermissionError,
-  requireAnyServerPermission,
-} from "../../../../lib/serverPermissions";
+  mapNewsRow,
+} from "../../../../lib/database/mappers/newsMapper";
+import type {
+  NewsRow,
+} from "../../../../lib/database/mappers/newsMapper";
 
 type RouteContext = {
   params: Promise<{
@@ -17,19 +17,7 @@ type RouteContext = {
   }>;
 };
 
-type NewsRow = {
-  id: string;
-  title: string;
-  description: string;
-  content: string;
-  category: string;
-  author: string;
-  pinned: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-type UpdateNewsBody = {
+type UpdateNewsPostBody = {
   title?: string;
   description?: string;
   content?: string;
@@ -38,91 +26,21 @@ type UpdateNewsBody = {
   pinned?: boolean;
 };
 
-function mapNewsRow(
-  row: NewsRow
-) {
-  return {
-    id:
-      row.id,
-
-    title:
-      row.title,
-
-    description:
-      row.description,
-
-    content:
-      row.content,
-
-    category:
-      row.category,
-
-    author:
-      row.author,
-
-    pinned:
-      row.pinned,
-
-    createdAt:
-      row.created_at,
-
-    updatedAt:
-      row.updated_at,
-  };
-}
-
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error
-    ? error.message
-    : fallback;
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
 }
 
 export async function GET(
   _request: Request,
-  context: RouteContext
+  context: RouteContext,
 ) {
   try {
-    await requireAnyServerPermission([
-      "news.view",
-      "news.manage",
-      "news.create",
-      "news.edit",
-      "news.delete",
-    ]);
-
     const {
       id,
-    } =
-      await context.params;
+    } = await context.params;
 
-    const row =
-      await queryOne<NewsRow>(
-        `
+    const row = await queryOne<NewsRow>(
+      `
         SELECT
           id,
           title,
@@ -135,77 +53,55 @@ export async function GET(
           updated_at
         FROM news_posts
         WHERE id = $1
-        LIMIT 1
-        `,
-        [
-          id,
-        ]
-      );
+      `,
+      [
+        decodeURIComponent(id),
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "News nicht gefunden.",
+          message: "News nicht gefunden.",
         },
         {
-          status:
-            404,
-        }
+          status: 404,
+        },
       );
     }
 
     return NextResponse.json(
-      mapNewsRow(
-        row
-      )
+      mapNewsRow(row),
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "News konnte nicht geladen werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "News konnte nicht geladen werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }
 
 export async function PATCH(
   request: Request,
-  context: RouteContext
+  context: RouteContext,
 ) {
   try {
-    await requireAnyServerPermission([
-      "news.edit",
-      "news.manage",
-    ]);
-
     const {
       id,
-    } =
-      await context.params;
+    } = await context.params;
 
-    const existingRow =
-      await queryOne<NewsRow>(
-        `
+    const decodedId = decodeURIComponent(id);
+    const body = await request.json() as UpdateNewsPostBody;
+
+    const current = await queryOne<NewsRow>(
+      `
         SELECT
           id,
           title,
@@ -218,32 +114,55 @@ export async function PATCH(
           updated_at
         FROM news_posts
         WHERE id = $1
-        LIMIT 1
-        `,
-        [
-          id,
-        ]
-      );
+      `,
+      [
+        decodedId,
+      ],
+    );
 
-    if (!existingRow) {
+    if (!current) {
       return NextResponse.json(
         {
-          message:
-            "News nicht gefunden.",
+          message: "News nicht gefunden.",
         },
         {
-          status:
-            404,
-        }
+          status: 404,
+        },
       );
     }
 
-    const body =
-      await request.json() as UpdateNewsBody;
+    const nextTitle = body.title !== undefined
+      ? normalizeText(body.title)
+      : current.title;
 
-    const row =
-      await queryOne<NewsRow>(
-        `
+    const nextCategory = body.category !== undefined
+      ? normalizeText(body.category)
+      : current.category;
+
+    if (!nextTitle) {
+      return NextResponse.json(
+        {
+          message: "Titel ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!nextCategory) {
+      return NextResponse.json(
+        {
+          message: "Kategorie ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const row = await queryOne<NewsRow>(
+      `
         UPDATE news_posts
         SET
           title = $1,
@@ -264,145 +183,89 @@ export async function PATCH(
           pinned,
           created_at,
           updated_at
-        `,
-        [
-          body.title?.trim() ||
-            existingRow.title,
-          body.description !== undefined
-            ? body.description.trim()
-            : existingRow.description,
-          body.content !== undefined
-            ? body.content.trim()
-            : existingRow.content,
-          body.category?.trim() ||
-            existingRow.category ||
-            "Allgemein",
-          body.author?.trim() ||
-            existingRow.author ||
-            "System",
-          typeof body.pinned === "boolean"
-            ? body.pinned
-            : existingRow.pinned,
-          id,
-        ]
-      );
+      `,
+      [
+        nextTitle,
+        body.description !== undefined
+          ? normalizeText(body.description)
+          : current.description || "",
+        body.content !== undefined
+          ? String(body.content || "")
+          : current.content || "",
+        nextCategory,
+        body.author !== undefined
+          ? normalizeText(body.author) || "System"
+          : current.author || "System",
+        typeof body.pinned === "boolean"
+          ? body.pinned
+          : current.pinned,
+        decodedId,
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "News konnte nicht gespeichert werden.",
+          message: "News konnte nicht aktualisiert werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
     return NextResponse.json(
-      mapNewsRow(
-        row
-      )
+      mapNewsRow(row),
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "News konnte nicht gespeichert werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "News konnte nicht aktualisiert werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }
 
 export async function DELETE(
   _request: Request,
-  context: RouteContext
+  context: RouteContext,
 ) {
   try {
-    await requireAnyServerPermission([
-      "news.delete",
-      "news.manage",
-    ]);
-
     const {
       id,
-    } =
-      await context.params;
+    } = await context.params;
 
-    const row =
-      await queryOne<{
-        id: string;
-      }>(
-        `
+    await queryOne(
+      `
         DELETE FROM news_posts
         WHERE id = $1
         RETURNING id
-        `,
-        [
-          id,
-        ]
-      );
-
-    if (!row) {
-      return NextResponse.json(
-        {
-          message:
-            "News nicht gefunden.",
-        },
-        {
-          status:
-            404,
-        }
-      );
-    }
+      `,
+      [
+        decodeURIComponent(id),
+      ],
+    );
 
     return NextResponse.json({
-      ok:
-        true,
+      ok: true,
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "News konnte nicht gelöscht werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "News konnte nicht gelöscht werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }

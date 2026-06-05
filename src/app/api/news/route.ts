@@ -1,31 +1,19 @@
 import {
   NextResponse,
 } from "next/server";
-
 import {
   query,
   queryOne,
 } from "../../../lib/database/db";
-
 import {
-  getCurrentServerUser,
-  isPermissionError,
-  requireAnyServerPermission,
-} from "../../../lib/serverPermissions";
+  mapNewsRow,
+} from "../../../lib/database/mappers/newsMapper";
+import type {
+  NewsRow,
+} from "../../../lib/database/mappers/newsMapper";
 
-type NewsRow = {
-  id: string;
-  title: string;
-  description: string;
-  content: string;
-  category: string;
-  author: string;
-  pinned: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-type CreateNewsBody = {
+type CreateNewsPostBody = {
+  id?: string;
   title?: string;
   description?: string;
   content?: string;
@@ -34,89 +22,50 @@ type CreateNewsBody = {
   pinned?: boolean;
 };
 
-function mapNewsRow(
-  row: NewsRow
-) {
-  return {
-    id:
-      row.id,
-
-    title:
-      row.title,
-
-    description:
-      row.description,
-
-    content:
-      row.content,
-
-    category:
-      row.category,
-
-    author:
-      row.author,
-
-    pinned:
-      row.pinned,
-
-    createdAt:
-      row.created_at,
-
-    updatedAt:
-      row.updated_at,
-  };
+function normalizeText(value?: string) {
+  return String(value || "").trim();
 }
 
-function createNewsId() {
-  return `news-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+function createNewsId(title: string) {
+  const slug = title
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `${slug || "news"}-${Date.now()}`;
 }
 
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error
-    ? error.message
-    : fallback;
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "news.view",
-      "news.manage",
-      "news.create",
-      "news.edit",
-      "news.delete",
-    ]);
+    const url = new URL(request.url);
 
-    const rows =
-      await query<NewsRow>(
-        `
+    const category = url.searchParams.get("category");
+    const pinned = url.searchParams.get("pinned");
+
+    const params: unknown[] = [];
+    const whereParts: string[] = [];
+
+    if (category) {
+      params.push(category);
+      whereParts.push(`category = $${params.length}`);
+    }
+
+    if (pinned === "true" || pinned === "false") {
+      params.push(pinned === "true");
+      whereParts.push(`pinned = $${params.length}`);
+    }
+
+    const whereSql = whereParts.length > 0
+      ? `WHERE ${whereParts.join(" AND ")}`
+      : "";
+
+    const rows = await query<NewsRow>(
+      `
         SELECT
           id,
           title,
@@ -128,90 +77,67 @@ export async function GET() {
           created_at,
           updated_at
         FROM news_posts
+        ${whereSql}
         ORDER BY pinned DESC, created_at DESC
-        `
-      );
+      `,
+      params,
+    );
 
     return NextResponse.json(
-      rows.map(
-        mapNewsRow
-      )
+      rows.map(mapNewsRow),
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "News konnten nicht geladen werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "News konnten nicht geladen werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "news.create",
-      "news.manage",
-    ]);
+    const body = await request.json() as CreateNewsPostBody;
 
-    const currentUser =
-      await getCurrentServerUser();
-
-    if (!currentUser) {
-      return NextResponse.json(
-        {
-          message:
-            "Nicht angemeldet.",
-        },
-        {
-          status:
-            401,
-        }
-      );
-    }
-
-    const body =
-      await request.json() as CreateNewsBody;
-
-    const title =
-      body.title?.trim();
+    const title = normalizeText(body.title);
+    const category = normalizeText(body.category);
+    const description = normalizeText(body.description);
+    const content = String(body.content || "");
+    const author = normalizeText(body.author) || "System";
+    const pinned = Boolean(body.pinned);
 
     if (!title) {
       return NextResponse.json(
         {
-          message:
-            "Titel ist erforderlich.",
+          message: "Titel ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    const row =
-      await queryOne<NewsRow>(
-        `
+    if (!category) {
+      return NextResponse.json(
+        {
+          message: "Kategorie ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const id = body.id?.trim() || createNewsId(title);
+
+    const row = await queryOne<NewsRow>(
+      `
         INSERT INTO news_posts (
           id,
           title,
@@ -240,71 +166,46 @@ export async function POST(
           pinned,
           created_at,
           updated_at
-        `,
-        [
-          createNewsId(),
-          title,
-          body.description?.trim() ||
-            "",
-          body.content?.trim() ||
-            "",
-          body.category?.trim() ||
-            "Allgemein",
-          body.author?.trim() ||
-            currentUser.name ||
-            "System",
-          Boolean(
-            body.pinned
-          ),
-        ]
-      );
+      `,
+      [
+        id,
+        title,
+        description,
+        content,
+        category,
+        author,
+        pinned,
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "News konnte nicht erstellt werden.",
+          message: "News konnte nicht erstellt werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
     return NextResponse.json(
-      mapNewsRow(
-        row
-      ),
+      mapNewsRow(row),
       {
-        status:
-          201,
-      }
+        status: 201,
+      },
     );
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "News konnte nicht erstellt werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "News konnte nicht erstellt werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: 500,
+      },
     );
   }
 }

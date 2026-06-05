@@ -1,7 +1,6 @@
 import {
   requestJson,
 } from "./apiClient";
-
 import type {
   NewsCategory,
   NewsCreateInput,
@@ -9,8 +8,13 @@ import type {
   NewsUpdateInput,
 } from "../types/news";
 
+type NewsFilters = {
+  category?: string;
+  pinned?: boolean;
+};
+
 export type NewsRepository = {
-  list: () => Promise<NewsPost[]>;
+  list: (filters?: NewsFilters) => Promise<NewsPost[]>;
   search: (query: string) => Promise<NewsPost[]>;
   findById: (id: string) => Promise<NewsPost | null>;
   create: (post: NewsCreateInput) => Promise<NewsPost>;
@@ -20,16 +24,14 @@ export type NewsRepository = {
   ) => Promise<NewsPost | null>;
   delete: (id: string) => Promise<void>;
   saveAll: (posts: NewsPost[]) => Promise<void>;
-
   listByCategory: (category: NewsCategory | string) => Promise<NewsPost[]>;
-  listCategories: () => Promise<Array<NewsCategory | string>>;
+  listCategories: () => Promise<string[]>;
+  getCategories: () => Promise<string[]>;
   listPinned: () => Promise<NewsPost[]>;
   listLatest: (limit?: number) => Promise<NewsPost[]>;
-
   countAll: () => Promise<number>;
   countByCategory: (category: NewsCategory | string) => Promise<number>;
   countPinned: () => Promise<number>;
-
   getOpenedIds: (userEmail?: string) => Promise<string[]>;
   markOpened: (id: string, userEmail?: string) => Promise<void>;
   markAllOpened: (userEmail?: string) => Promise<void>;
@@ -42,9 +44,7 @@ function dispatchNewsUpdated() {
   }
 
   window.dispatchEvent(
-    new Event(
-      "newsUpdated"
-    )
+    new Event("newsUpdated"),
   );
 }
 
@@ -54,15 +54,45 @@ function dispatchNewsOpenedUpdated() {
   }
 
   window.dispatchEvent(
-    new Event(
-      "newsOpenedUpdated"
-    )
+    new Event("newsOpenedUpdated"),
   );
 }
 
-function normalizeQuery(
-  query: string
+function buildQuery(filters?: NewsFilters) {
+  const searchParams = new URLSearchParams();
+
+  if (filters?.category?.trim()) {
+    searchParams.set("category", filters.category.trim());
+  }
+
+  if (typeof filters?.pinned === "boolean") {
+    searchParams.set("pinned", String(filters.pinned));
+  }
+
+  const query = searchParams.toString();
+
+  return query ? `?${query}` : "";
+}
+
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
+function normalizePayload(
+  payload: NewsCreateInput | NewsUpdateInput,
 ) {
+  return {
+    id: "id" in payload ? normalizeText(payload.id) || undefined : undefined,
+    title: normalizeText(payload.title),
+    description: normalizeText(payload.description),
+    content: String(payload.content || ""),
+    category: normalizeText(payload.category),
+    author: normalizeText(payload.author) || "System",
+    pinned: Boolean(payload.pinned),
+  };
+}
+
+function normalizeQuery(query: string) {
   return query
     .trim()
     .toLowerCase();
@@ -70,12 +100,9 @@ function normalizeQuery(
 
 function postMatchesQuery(
   post: NewsPost,
-  query: string
+  query: string,
 ) {
-  const normalizedQuery =
-    normalizeQuery(
-      query
-    );
+  const normalizedQuery = normalizeQuery(query);
 
   if (!normalizedQuery) {
     return true;
@@ -94,14 +121,10 @@ function postMatchesQuery(
     .join(" ")
     .toLowerCase();
 
-  return haystack.includes(
-    normalizedQuery
-  );
+  return haystack.includes(normalizedQuery);
 }
 
-function getUserEmail(
-  value?: string
-) {
+function getUserEmail(value?: string) {
   return (
     value?.trim().toLowerCase() ||
     "anonymous"
@@ -109,61 +132,57 @@ function getUserEmail(
 }
 
 export const postgresNewsRepository: NewsRepository = {
-  async list() {
+  async list(filters?: NewsFilters) {
+    const query = buildQuery(filters);
+
     return requestJson<NewsPost[]>(
-      "/api/news"
+      `/api/news${query}`,
     );
   },
 
-  async search(
-    query: string
-  ) {
-    const posts =
-      await postgresNewsRepository.list();
+  async search(query: string) {
+    const posts = await postgresNewsRepository.list();
 
     return posts.filter(
-      (post) =>
-        postMatchesQuery(
-          post,
-          query
-        )
+      (post) => postMatchesQuery(
+        post,
+        query,
+      ),
     );
   },
 
-  async findById(
-    id: string
-  ) {
+  async findById(id: string) {
     if (!id) {
       return null;
     }
 
     try {
       return await requestJson<NewsPost>(
-        `/api/news/${encodeURIComponent(
-          id
-        )}`
+        `/api/news/${encodeURIComponent(id)}`,
       );
     } catch {
       return null;
     }
   },
 
-  async create(
-    post: NewsCreateInput
-  ) {
-    const createdPost =
-      await requestJson<NewsPost>(
-        "/api/news",
-        {
-          method:
-            "POST",
+  async create(post: NewsCreateInput) {
+    const payload = normalizePayload(post);
 
-          body:
-            JSON.stringify(
-              post
-            ),
-        }
-      );
+    if (!payload.title) {
+      throw new Error("Titel ist erforderlich.");
+    }
+
+    if (!payload.category) {
+      throw new Error("Kategorie ist erforderlich.");
+    }
+
+    const createdPost = await requestJson<NewsPost>(
+      "/api/news",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
 
     dispatchNewsUpdated();
 
@@ -172,35 +191,138 @@ export const postgresNewsRepository: NewsRepository = {
 
   async update(
     id: string,
-    updates: NewsUpdateInput
+    updates: NewsUpdateInput,
   ) {
     if (!id) {
       return null;
     }
 
-    const updatedPost =
-      await requestJson<NewsPost>(
-        `/api/news/${encodeURIComponent(
-          id
-        )}`,
-        {
-          method:
-            "PATCH",
+    const payload = normalizePayload(updates);
 
-          body:
-            JSON.stringify(
-              updates
-            ),
-        }
-      );
+    if (
+      updates.title !== undefined &&
+      !payload.title
+    ) {
+      throw new Error("Titel ist erforderlich.");
+    }
+
+    if (
+      updates.category !== undefined &&
+      !payload.category
+    ) {
+      throw new Error("Kategorie ist erforderlich.");
+    }
+
+    const updatedPost = await requestJson<NewsPost>(
+      `/api/news/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
 
     dispatchNewsUpdated();
 
     return updatedPost;
   },
 
-  async delete(
-    id: string
+  async delete(id: string) {
+    if (!id) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
+      `/api/news/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    dispatchNewsUpdated();
+  },
+
+  async saveAll(posts: NewsPost[]) {
+    await Promise.all(
+      posts.map(async (post) => {
+        if (post.id) {
+          await postgresNewsRepository.update(
+            post.id,
+            post,
+          );
+
+          return;
+        }
+
+        await postgresNewsRepository.create(post);
+      }),
+    );
+
+    dispatchNewsUpdated();
+  },
+
+  async listByCategory(category: NewsCategory | string) {
+    return postgresNewsRepository.list({
+      category: String(category),
+    });
+  },
+
+  async listCategories() {
+    const posts = await postgresNewsRepository.list();
+
+    return Array.from(
+      new Set(
+        posts
+          .map((post) => post.category || "Allgemein")
+          .filter(Boolean),
+      ),
+    ).sort((first, second) => first.localeCompare(second));
+  },
+
+  async getCategories() {
+    return postgresNewsRepository.listCategories();
+  },
+
+  async listPinned() {
+    return postgresNewsRepository.list({
+      pinned: true,
+    });
+  },
+
+  async listLatest(limit = 5) {
+    const posts = await postgresNewsRepository.list();
+
+    return posts.slice(0, limit);
+  },
+
+  async countAll() {
+    const posts = await postgresNewsRepository.list();
+
+    return posts.length;
+  },
+
+  async countByCategory(category: NewsCategory | string) {
+    const posts = await postgresNewsRepository.listByCategory(category);
+
+    return posts.length;
+  },
+
+  async countPinned() {
+    const posts = await postgresNewsRepository.listPinned();
+
+    return posts.length;
+  },
+
+  async getOpenedIds(userEmail?: string) {
+    return requestJson<string[]>(
+      `/api/news/opened?userEmail=${encodeURIComponent(getUserEmail(userEmail))}`,
+    );
+  },
+
+  async markOpened(
+    id: string,
+    userEmail?: string,
   ) {
     if (!id) {
       return;
@@ -209,201 +331,49 @@ export const postgresNewsRepository: NewsRepository = {
     await requestJson<{
       ok: boolean;
     }>(
-      `/api/news/${encodeURIComponent(
-        id
-      )}`,
-      {
-        method:
-          "DELETE",
-      }
-    );
-
-    dispatchNewsUpdated();
-  },
-
-  async saveAll(
-    posts: NewsPost[]
-  ) {
-    await Promise.all(
-      posts.map(
-        async (post) => {
-          if (post.id) {
-            await postgresNewsRepository.update(
-              post.id,
-              post
-            );
-
-            return;
-          }
-
-          await postgresNewsRepository.create(
-            post
-          );
-        }
-      )
-    );
-
-    dispatchNewsUpdated();
-  },
-
-  async listByCategory(
-    category: NewsCategory | string
-  ) {
-    return requestJson<NewsPost[]>(
-      `/api/news?category=${encodeURIComponent(
-        String(
-          category
-        )
-      )}`
-    );
-  },
-
-  async listCategories() {
-    const posts =
-      await postgresNewsRepository.list();
-
-    return Array.from(
-      new Set(
-        posts
-          .map(
-            (post) =>
-              post.category
-          )
-          .filter(Boolean)
-      )
-    );
-  },
-
-  async listPinned() {
-    return requestJson<NewsPost[]>(
-      "/api/news?pinned=true"
-    );
-  },
-
-  async listLatest(
-    limit = 5
-  ) {
-    const posts =
-      await postgresNewsRepository.list();
-
-    return posts.slice(
-      0,
-      limit
-    );
-  },
-
-  async countAll() {
-    const posts =
-      await postgresNewsRepository.list();
-
-    return posts.length;
-  },
-
-  async countByCategory(
-    category: NewsCategory | string
-  ) {
-    const posts =
-      await postgresNewsRepository.listByCategory(
-        category
-      );
-
-    return posts.length;
-  },
-
-  async countPinned() {
-    const posts =
-      await postgresNewsRepository.listPinned();
-
-    return posts.length;
-  },
-
-  async getOpenedIds(
-    userEmail?: string
-  ) {
-    return requestJson<string[]>(
-      `/api/news/opened?userEmail=${encodeURIComponent(
-        getUserEmail(
-          userEmail
-        )
-      )}`
-    );
-  },
-
-  async markOpened(
-    id: string,
-    userEmail?: string
-  ) {
-    await requestJson<{
-      ok: boolean;
-    }>(
       "/api/news/opened",
       {
-        method:
-          "POST",
-
-        body:
-          JSON.stringify({
-            id,
-            userEmail:
-              getUserEmail(
-                userEmail
-              ),
-          }),
-      }
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          userEmail: getUserEmail(userEmail),
+        }),
+      },
     );
 
     dispatchNewsOpenedUpdated();
   },
 
-  async markAllOpened(
-    userEmail?: string
-  ) {
+  async markAllOpened(userEmail?: string) {
     await requestJson<{
       ok: boolean;
     }>(
       "/api/news/opened",
       {
-        method:
-          "POST",
-
-        body:
-          JSON.stringify({
-            all:
-              true,
-
-            userEmail:
-              getUserEmail(
-                userEmail
-              ),
-          }),
-      }
+        method: "POST",
+        body: JSON.stringify({
+          all: true,
+          userEmail: getUserEmail(userEmail),
+        }),
+      },
     );
 
     dispatchNewsOpenedUpdated();
   },
 
-  async countUnread(
-    userEmail?: string
-  ) {
+  async countUnread(userEmail?: string) {
     const [
       posts,
       openedIds,
-    ] =
-      await Promise.all([
-        postgresNewsRepository.list(),
-        postgresNewsRepository.getOpenedIds(
-          userEmail
-        ),
-      ]);
+    ] = await Promise.all([
+      postgresNewsRepository.list(),
+      postgresNewsRepository.getOpenedIds(userEmail),
+    ]);
 
     return posts.filter(
-      (post) =>
-        !openedIds.includes(
-          post.id
-        )
+      (post) => !openedIds.includes(post.id),
     ).length;
   },
 };
 
-export const newsRepository =
-  postgresNewsRepository;
+export const newsRepository = postgresNewsRepository;
