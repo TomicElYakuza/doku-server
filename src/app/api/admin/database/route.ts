@@ -134,13 +134,24 @@ export async function GET() {
       "admin_users",
       "companies",
       "departments",
+      "permissions",
+      "company_permissions",
+      "department_permissions",
+      "user_permissions",
       "tickets",
       "ticket_templates",
       "wiki_pages",
       "news_posts",
+      "news_opened",
+      "files",
+      "comments",
+      "activities",
       "activity_logs",
       "app_settings",
+      "user_settings",
       "taxonomy_items",
+      "admin_modules",
+      "role_permission_templates",
     ];
 
     const expectedStatus = expectedTables.map((tableName) => ({
@@ -168,6 +179,49 @@ export async function GET() {
       exists: taxonomyColumns.includes(columnName),
     }));
 
+    const adminModuleColumns = columns
+      .filter((column) => column.table_name === "admin_modules")
+      .map((column) => column.column_name);
+
+    const adminModuleChecks = [
+      "module_key",
+      "title",
+      "description",
+      "href",
+      "icon",
+      "category",
+      "badge_label",
+      "sort_order",
+      "is_enabled",
+      "is_visible",
+      "is_core",
+      "created_at",
+      "updated_at",
+    ].map((columnName) => ({
+      columnName,
+      exists: adminModuleColumns.includes(columnName),
+    }));
+
+    const roleTemplateColumns = columns
+      .filter((column) => column.table_name === "role_permission_templates")
+      .map((column) => column.column_name);
+
+    const roleTemplateChecks = [
+      "template_key",
+      "name",
+      "description",
+      "role_key",
+      "permission_keys",
+      "is_default",
+      "is_active",
+      "sort_order",
+      "created_at",
+      "updated_at",
+    ].map((columnName) => ({
+      columnName,
+      exists: roleTemplateColumns.includes(columnName),
+    }));
+
     return NextResponse.json({
       ok: true,
       status: "healthy",
@@ -187,6 +241,8 @@ export async function GET() {
       checks: {
         expectedTables: expectedStatus,
         taxonomyColumns: taxonomyChecks,
+        adminModuleColumns: adminModuleChecks,
+        rolePermissionTemplateColumns: roleTemplateChecks,
       },
       responseTimeMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
@@ -214,6 +270,8 @@ export async function GET() {
         checks: {
           expectedTables: [],
           taxonomyColumns: [],
+          adminModuleColumns: [],
+          rolePermissionTemplateColumns: [],
         },
         responseTimeMs: Date.now() - startedAt,
         checkedAt: new Date().toISOString(),

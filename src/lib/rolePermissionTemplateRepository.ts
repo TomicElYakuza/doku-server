@@ -7,6 +7,14 @@ import type {
   RolePermissionTemplateUpdateInput,
 } from "../types/rolePermissionTemplate";
 
+type ApplyRolePermissionTemplateResult = {
+  userId: string;
+  templateKey: string;
+  roleKey: string;
+  appliedPermissions: string[];
+  replaceExisting: boolean;
+};
+
 export type RolePermissionTemplateRepository = {
   list: () => Promise<RolePermissionTemplate[]>;
   listActive: () => Promise<RolePermissionTemplate[]>;
@@ -17,6 +25,11 @@ export type RolePermissionTemplateRepository = {
     input: RolePermissionTemplateUpdateInput
   ) => Promise<RolePermissionTemplate>;
   delete: (key: string) => Promise<void>;
+  applyToUser: (
+    userId: string,
+    templateKey: string,
+    replaceExisting?: boolean
+  ) => Promise<ApplyRolePermissionTemplateResult>;
 };
 
 function dispatchRolePermissionTemplatesUpdated() {
@@ -26,6 +39,26 @@ function dispatchRolePermissionTemplatesUpdated() {
 
   window.dispatchEvent(
     new Event("rolePermissionTemplatesUpdated"),
+  );
+}
+
+function dispatchAdminUsersUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event("adminUsersUpdated"),
+  );
+}
+
+function dispatchPermissionsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event("permissionsUpdated"),
   );
 }
 
@@ -157,6 +190,36 @@ export const postgresRolePermissionTemplateRepository: RolePermissionTemplateRep
     );
 
     dispatchRolePermissionTemplatesUpdated();
+  },
+
+  async applyToUser(
+    userId: string,
+    templateKey: string,
+    replaceExisting = true,
+  ) {
+    if (!userId) {
+      throw new Error("Benutzer-ID ist erforderlich.");
+    }
+
+    if (!templateKey) {
+      throw new Error("Template-Key ist erforderlich.");
+    }
+
+    const result = await requestJson<ApplyRolePermissionTemplateResult>(
+      `/api/admin-users/${encodeURIComponent(userId)}/role-template`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          templateKey,
+          replaceExisting,
+        }),
+      },
+    );
+
+    dispatchAdminUsersUpdated();
+    dispatchPermissionsUpdated();
+
+    return result;
   },
 };
 

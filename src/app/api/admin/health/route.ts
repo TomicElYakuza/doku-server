@@ -2,7 +2,6 @@ import {
   NextResponse,
 } from "next/server";
 import {
-  query,
   queryOne,
 } from "../../../../lib/database/db";
 
@@ -78,17 +77,23 @@ export async function GET() {
       companies,
       departments,
       tickets,
+      ticketTemplates,
       wikiPages,
       newsPosts,
       taxonomyItems,
+      adminModules,
+      rolePermissionTemplates,
     ] = await Promise.all([
       getUsersCount(),
       getCount("companies"),
       getCount("departments"),
       getCount("tickets"),
+      getCount("ticket_templates"),
       getCount("wiki_pages"),
       getCount("news_posts"),
       getCount("taxonomy_items"),
+      getCount("admin_modules"),
+      getCount("role_permission_templates"),
     ]);
 
     return NextResponse.json({
@@ -103,9 +108,12 @@ export async function GET() {
         companies,
         departments,
         tickets,
+        ticketTemplates,
         wikiPages,
         newsPosts,
         taxonomyItems,
+        adminModules,
+        rolePermissionTemplates,
       },
       responseTimeMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
@@ -126,9 +134,12 @@ export async function GET() {
           companies: 0,
           departments: 0,
           tickets: 0,
+          ticketTemplates: 0,
           wikiPages: 0,
           newsPosts: 0,
           taxonomyItems: 0,
+          adminModules: 0,
+          rolePermissionTemplates: 0,
         },
         responseTimeMs: Date.now() - startedAt,
         checkedAt: new Date().toISOString(),

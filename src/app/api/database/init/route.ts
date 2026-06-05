@@ -101,26 +101,6 @@ export async function POST() {
     `);
 
     await query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        username TEXT UNIQUE,
-        password_hash TEXT,
-        password_must_change BOOLEAN NOT NULL DEFAULT TRUE,
-        role TEXT NOT NULL DEFAULT 'employee',
-        status TEXT NOT NULL DEFAULT 'active',
-        company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-        department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
-        company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
-        last_login_at TIMESTAMP,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-    `);
-
-    await query(`
       CREATE TABLE IF NOT EXISTS permissions (
         id TEXT PRIMARY KEY,
         permission_key TEXT NOT NULL UNIQUE,
@@ -191,7 +171,7 @@ export async function POST() {
         description TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT 'open',
         priority TEXT NOT NULL DEFAULT 'medium',
-        category TEXT NOT NULL DEFAULT 'Allgemein',
+        category TEXT NOT NULL,
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
@@ -227,7 +207,7 @@ export async function POST() {
         title TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         content TEXT NOT NULL DEFAULT '',
-        category TEXT NOT NULL DEFAULT 'Allgemein',
+        category TEXT NOT NULL,
         author TEXT NOT NULL DEFAULT 'System',
         pinned BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -360,6 +340,44 @@ export async function POST() {
     `);
 
     await query(`
+      CREATE TABLE IF NOT EXISTS admin_modules (
+        module_key TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        href TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT '🧩',
+        category TEXT NOT NULL DEFAULT 'admin',
+        badge_label TEXT NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+        is_core BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS role_permission_templates (
+        template_key TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        role_key TEXT NOT NULL DEFAULT 'employee',
+        permission_keys TEXT[] NOT NULL DEFAULT '{}',
+        is_default BOOLEAN NOT NULL DEFAULT FALSE,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await query(`
+      ALTER TABLE app_settings
+      DROP COLUMN IF EXISTS show_demo_hints;
+    `);
+
+    await query(`
       ALTER TABLE app_settings
       ADD COLUMN IF NOT EXISTS app_accent_color TEXT NOT NULL DEFAULT 'zinc';
     `);
@@ -450,7 +468,17 @@ export async function POST() {
     `);
 
     await query(`
+      ALTER TABLE ticket_templates
+      ALTER COLUMN category DROP DEFAULT;
+    `);
+
+    await query(`
       ALTER TABLE wiki_pages
+      ALTER COLUMN category DROP DEFAULT;
+    `);
+
+    await query(`
+      ALTER TABLE news_posts
       ALTER COLUMN category DROP DEFAULT;
     `);
 
@@ -487,6 +515,96 @@ export async function POST() {
     await query(`
       ALTER TABLE activities
       ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS user_display TEXT NOT NULL DEFAULT 'System';
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL;
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS company TEXT NOT NULL DEFAULT 'Intern';
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'Allgemein';
+    `);
+
+    await query(`
+      ALTER TABLE activity_logs
+      ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS badge_label TEXT NOT NULL DEFAULT '';
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS is_core BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
+    `);
+
+    await query(`
+      ALTER TABLE admin_modules
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+    `);
+
+    await query(`
+      ALTER TABLE role_permission_templates
+      ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
+
+    await query(`
+      ALTER TABLE role_permission_templates
+      ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    `);
+
+    await query(`
+      ALTER TABLE role_permission_templates
+      ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+    `);
+
+    await query(`
+      ALTER TABLE role_permission_templates
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
+    `);
+
+    await query(`
+      ALTER TABLE role_permission_templates
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
     `);
 
     await query(`
@@ -537,6 +655,247 @@ export async function POST() {
         NOW()
       )
       ON CONFLICT (id) DO NOTHING;
+    `);
+
+    await query(`
+      INSERT INTO admin_modules (
+        module_key,
+        title,
+        description,
+        href,
+        icon,
+        category,
+        badge_label,
+        sort_order,
+        is_enabled,
+        is_visible,
+        is_core
+      )
+      VALUES
+        (
+          'users',
+          'Benutzerverwaltung',
+          'Benutzer, Rollen, Login-Daten, Status und Organisationszuordnung verwalten.',
+          '/admin/users',
+          '👥',
+          'admin',
+          'Benutzer',
+          10,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'permissions',
+          'Berechtigungen',
+          'Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.',
+          '/admin/permissions',
+          '🔐',
+          'admin',
+          'Rechte',
+          20,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'role-templates',
+          'Rollen-Vorlagen',
+          'Standardrechte für Rollen vorbereiten und verwalten.',
+          '/admin/role-templates',
+          '🧬',
+          'admin',
+          'Rollen',
+          25,
+          TRUE,
+          TRUE,
+          FALSE
+        ),
+        (
+          'companies',
+          'Firmen & Abteilungen',
+          'Firmenstruktur und Abteilungen zentral konfigurieren.',
+          '/admin/companies',
+          '🏢',
+          'admin',
+          'Organisation',
+          30,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'taxonomy',
+          'Kategorien & Tags',
+          'Ticket- und Wiki-Kategorien als Baum sowie globale Tags verwalten.',
+          '/admin/taxonomy',
+          '🏷️',
+          'admin',
+          'Taxonomie',
+          40,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'modules',
+          'Admin-Module',
+          'Admin-Module zentral verwalten, aktivieren, ausblenden und sortieren.',
+          '/admin/modules',
+          '🧩',
+          'system',
+          'Module',
+          45,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'database',
+          'Datenbankstatus',
+          'PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prüfen.',
+          '/admin/database',
+          '🗄️',
+          'system',
+          'Status',
+          50,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'news',
+          'News-Verwaltung',
+          'Neuigkeiten erstellen, bearbeiten, fixieren und löschen.',
+          '/admin/news',
+          '📰',
+          'content',
+          'News',
+          60,
+          TRUE,
+          TRUE,
+          FALSE
+        ),
+        (
+          'ticket-templates',
+          'Ticket-Vorlagen',
+          'Wiederverwendbare Vorlagen für Supportprozesse verwalten.',
+          '/tickets/templates',
+          '📋',
+          'tickets',
+          'Vorlagen',
+          70,
+          TRUE,
+          TRUE,
+          FALSE
+        ),
+        (
+          'settings',
+          'Systemeinstellungen',
+          'App-Name, globale Oberfläche, Features und Standardrollen konfigurieren.',
+          '/admin/settings',
+          '⚙️',
+          'system',
+          'System',
+          80,
+          TRUE,
+          TRUE,
+          TRUE
+        ),
+        (
+          'activity',
+          'Aktivitätsprotokoll',
+          'Systemaktivitäten und Benutzeraktionen nachvollziehen.',
+          '/activity',
+          '🕓',
+          'system',
+          'Aktivität',
+          90,
+          TRUE,
+          TRUE,
+          FALSE
+        )
+      ON CONFLICT (module_key) DO NOTHING;
+    `);
+
+    await query(`
+      INSERT INTO role_permission_templates (
+        template_key,
+        name,
+        description,
+        role_key,
+        permission_keys,
+        is_default,
+        is_active,
+        sort_order
+      )
+      VALUES
+        (
+          'employee-default',
+          'Mitarbeiter Standard',
+          'Standardrechte für normale Mitarbeiter.',
+          'employee',
+          ARRAY[
+            'dashboard.view',
+            'news.view',
+            'wiki.view',
+            'tickets.view',
+            'tickets.create',
+            'files.view'
+          ],
+          TRUE,
+          TRUE,
+          10
+        ),
+        (
+          'department-lead-default',
+          'Abteilungsleiter Standard',
+          'Standardrechte für Abteilungsleiter.',
+          'department_lead',
+          ARRAY[
+            'dashboard.view',
+            'news.view',
+            'wiki.view',
+            'wiki.manage',
+            'tickets.view',
+            'tickets.create',
+            'tickets.manage',
+            'files.view',
+            'files.manage'
+          ],
+          TRUE,
+          TRUE,
+          20
+        ),
+        (
+          'admin-default',
+          'Administrator Standard',
+          'Vollzugriff für Administratoren.',
+          'admin',
+          ARRAY[
+            'dashboard.view',
+            'news.view',
+            'news.manage',
+            'wiki.view',
+            'wiki.manage',
+            'tickets.view',
+            'tickets.create',
+            'tickets.manage',
+            'tickets.templates.view',
+            'tickets.templates.manage',
+            'files.view',
+            'files.manage',
+            'settings.manage',
+            'organization.manage',
+            'users.manage',
+            'users.manage_permissions',
+            'admin.view'
+          ],
+          TRUE,
+          TRUE,
+          30
+        )
+      ON CONFLICT (template_key) DO NOTHING;
     `);
 
     return NextResponse.json({
