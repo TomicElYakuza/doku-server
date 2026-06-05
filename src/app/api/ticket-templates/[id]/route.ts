@@ -7,6 +7,11 @@ import {
 import {
   mapTicketTemplateRow,
 } from "../../../../lib/database/mappers/ticketMapper";
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
 import type {
   TicketTemplateRow,
 } from "../../../../lib/database/mappers/ticketMapper";
@@ -31,63 +36,10 @@ type UpdateTicketTemplateBody = {
   tags?: string[];
 };
 
-const allowedStatusValues = [
-  "open",
-  "in_progress",
-  "waiting",
-  "done",
-  "closed",
-];
-
-const allowedPriorityValues = [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-];
+type ServerUser = Awaited<ReturnType<typeof getCurrentServerUser>>;
 
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
-}
-
-function normalizeNullableId(value?: string | null) {
-  const normalized = normalizeText(value);
-
-  return normalized || null;
-}
-
-function normalizeStatus(
-  value: string | undefined,
-  fallback: string,
-) {
-  const normalized = normalizeText(value);
-
-  if (!normalized) {
-    return fallback;
-  }
-
-  if (!allowedStatusValues.includes(normalized)) {
-    return fallback;
-  }
-
-  return normalized;
-}
-
-function normalizePriority(
-  value: string | undefined,
-  fallback: string,
-) {
-  const normalized = normalizeText(value);
-
-  if (!normalized) {
-    return fallback;
-  }
-
-  if (!allowedPriorityValues.includes(normalized)) {
-    return fallback;
-  }
-
-  return normalized;
 }
 
 function normalizeTags(tags?: string[]) {
@@ -104,11 +56,81 @@ function normalizeTags(tags?: string[]) {
   );
 }
 
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+function userCanAccessTemplate(
+  currentUser: ServerUser,
+  template: TicketTemplateRow,
+) {
+  if (!currentUser) {
+    return false;
+  }
+
+  if (currentUser.role === "admin") {
+    return true;
+  }
+
+  if (
+    currentUser.departmentId &&
+    template.department_id === currentUser.departmentId
+  ) {
+    return true;
+  }
+
+  if (
+    currentUser.companyId &&
+    template.company_id === currentUser.companyId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: RouteContext,
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.view",
+      "tickets.templates.manage",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+      "tickets.manage",
+    ]);
+
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const {
       id,
     } = await context.params;
@@ -149,6 +171,17 @@ export async function GET(
       );
     }
 
+    if (!userCanAccessTemplate(currentUser, row)) {
+      return NextResponse.json(
+        {
+          message: "Keine Berechtigung.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
     return NextResponse.json(
       mapTicketTemplateRow(row),
     );
@@ -157,11 +190,14 @@ export async function GET(
 
     return NextResponse.json(
       {
-        message: "Ticket-Vorlage konnte nicht geladen werden.",
+        message: getErrorMessage(
+          error,
+          "Ticket-Vorlage konnte nicht geladen werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
@@ -172,11 +208,28 @@ export async function PATCH(
   context: RouteContext,
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.edit",
+      "tickets.templates.manage",
+      "tickets.manage",
+    ]);
+
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const {
       id,
     } = await context.params;
-
-    const body = await request.json() as UpdateTicketTemplateBody;
 
     const current = await queryOne<TicketTemplateRow>(
       `
@@ -214,6 +267,20 @@ export async function PATCH(
       );
     }
 
+    if (!userCanAccessTemplate(currentUser, current)) {
+      return NextResponse.json(
+        {
+          message: "Keine Berechtigung.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    const body = await request.json() as UpdateTicketTemplateBody;
+    const canChooseScope = currentUser.role === "admin";
+
     const nextTitle = body.title !== undefined
       ? normalizeText(body.title)
       : current.title;
@@ -236,7 +303,7 @@ export async function PATCH(
     if (!nextCategory) {
       return NextResponse.json(
         {
-          message: "Kategorie ist erforderlich.",
+          message: "Ticket-Kategorie ist erforderlich.",
         },
         {
           status: 400,
@@ -282,27 +349,29 @@ export async function PATCH(
         body.description !== undefined
           ? normalizeText(body.description)
           : current.description || "",
-        normalizeStatus(
-          body.status,
-          current.status,
-        ),
-        normalizePriority(
-          body.priority,
-          current.priority,
-        ),
+        body.status || current.status,
+        body.priority || current.priority,
         nextCategory,
-        body.companyId !== undefined
-          ? normalizeNullableId(body.companyId)
+        canChooseScope
+          ? body.companyId !== undefined
+            ? normalizeText(body.companyId) || null
+            : current.company_id
           : current.company_id,
-        body.departmentId !== undefined
-          ? normalizeNullableId(body.departmentId)
+        canChooseScope
+          ? body.departmentId !== undefined
+            ? normalizeText(body.departmentId) || null
+            : current.department_id
           : current.department_id,
-        body.company !== undefined
-          ? normalizeText(body.company) || "Intern"
-          : current.company || "Intern",
-        body.department !== undefined
-          ? normalizeText(body.department) || "Allgemein"
-          : current.department || "Allgemein",
+        canChooseScope
+          ? body.company !== undefined
+            ? normalizeText(body.company) || "Intern"
+            : current.company || "Intern"
+          : current.company || currentUser.company || "Intern",
+        canChooseScope
+          ? body.department !== undefined
+            ? normalizeText(body.department) || "Allgemein"
+            : current.department || "Allgemein"
+          : current.department || currentUser.department || "Allgemein",
         body.assignedTo !== undefined
           ? normalizeText(body.assignedTo)
           : current.assigned_to || "",
@@ -332,11 +401,14 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: "Ticket-Vorlage konnte nicht aktualisiert werden.",
+        message: getErrorMessage(
+          error,
+          "Ticket-Vorlage konnte nicht aktualisiert werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
@@ -347,9 +419,75 @@ export async function DELETE(
   context: RouteContext,
 ) {
   try {
+    await requireAnyServerPermission([
+      "tickets.templates.delete",
+      "tickets.templates.manage",
+      "tickets.manage",
+    ]);
+
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const {
       id,
     } = await context.params;
+
+    const current = await queryOne<TicketTemplateRow>(
+      `
+        SELECT
+          id,
+          title,
+          description,
+          status,
+          priority,
+          category,
+          company_id,
+          department_id,
+          company,
+          department,
+          assigned_to,
+          tags,
+          created_at,
+          updated_at
+        FROM ticket_templates
+        WHERE id = $1
+      `,
+      [
+        id,
+      ],
+    );
+
+    if (!current) {
+      return NextResponse.json(
+        {
+          message: "Ticket-Vorlage nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
+
+    if (!userCanAccessTemplate(currentUser, current)) {
+      return NextResponse.json(
+        {
+          message: "Keine Berechtigung.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
 
     await queryOne(
       `
@@ -370,11 +508,14 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        message: "Ticket-Vorlage konnte nicht gelöscht werden.",
+        message: getErrorMessage(
+          error,
+          "Ticket-Vorlage konnte nicht gelöscht werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }

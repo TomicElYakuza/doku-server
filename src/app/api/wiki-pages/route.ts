@@ -11,6 +11,11 @@ import {
 import {
   mapWikiPageRow,
 } from "../../../lib/database/mappers/wikiMapper";
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
 import type {
   WikiPageRow,
 } from "../../../lib/database/mappers/wikiMapper";
@@ -28,7 +33,7 @@ type CreateWikiPageBody = {
   content?: string;
 };
 
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
@@ -46,8 +51,48 @@ function normalizeTags(tags?: string[]) {
   );
 }
 
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function GET(request: Request) {
   try {
+    await requireAnyServerPermission([
+      "wiki.view",
+      "wiki.manage",
+      "wiki.create",
+      "wiki.edit",
+      "wiki.delete",
+    ]);
+
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const url = new URL(request.url);
 
     const company = url.searchParams.get("company");
@@ -78,6 +123,18 @@ export async function GET(request: Request) {
       whereParts.push(`$${params.length} = ANY(tags)`);
     }
 
+    if (currentUser.role !== "admin") {
+      if (currentUser.department) {
+        params.push(currentUser.department);
+        whereParts.push(`department = $${params.length}`);
+      } else if (currentUser.company) {
+        params.push(currentUser.company);
+        whereParts.push(`company = $${params.length}`);
+      } else {
+        whereParts.push("1 = 0");
+      }
+    }
+
     const whereSql = whereParts.length > 0
       ? `WHERE ${whereParts.join(" AND ")}`
       : "";
@@ -105,17 +162,22 @@ export async function GET(request: Request) {
       params,
     );
 
-    return NextResponse.json(rows.map(mapWikiPageRow));
+    return NextResponse.json(
+      rows.map(mapWikiPageRow),
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: "Wiki-Seiten konnten nicht geladen werden.",
+        message: getErrorMessage(
+          error,
+          "Wiki-Seiten konnten nicht geladen werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
@@ -123,17 +185,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireAnyServerPermission([
+      "wiki.create",
+      "wiki.manage",
+    ]);
+
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const body = await request.json() as CreateWikiPageBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
-    const company = normalizeText(body.company) || "Intern";
-    const department = normalizeText(body.department) || "Allgemein";
-    const author = normalizeText(body.author) || "Unbekannt";
-    const description = normalizeText(body.description);
-    const excerpt = normalizeText(body.excerpt) || description;
-    const content = String(body.content || "");
-    const tags = normalizeTags(body.tags);
 
     if (!title) {
       return NextResponse.json(
@@ -149,7 +222,7 @@ export async function POST(request: Request) {
     if (!category) {
       return NextResponse.json(
         {
-          message: "Kategorie ist erforderlich.",
+          message: "Wiki-Kategorie ist erforderlich.",
         },
         {
           status: 400,
@@ -160,6 +233,27 @@ export async function POST(request: Request) {
     const slug = body.slug?.trim()
       ? createSlug(body.slug)
       : createSlug(title);
+
+    if (!slug) {
+      return NextResponse.json(
+        {
+          message: "Slug ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const canChooseScope = currentUser.role === "admin";
+
+    const company = canChooseScope
+      ? normalizeText(body.company) || "Intern"
+      : currentUser.company || "Intern";
+
+    const department = canChooseScope
+      ? normalizeText(body.department) || "Allgemein"
+      : currentUser.department || "Allgemein";
 
     const row = await queryOne<WikiPageRow>(
       `
@@ -205,14 +299,14 @@ export async function POST(request: Request) {
       [
         slug,
         title,
-        description,
-        excerpt,
+        normalizeText(body.description),
+        normalizeText(body.excerpt) || normalizeText(body.description),
         company,
         category,
         department,
-        author,
-        tags,
-        content,
+        normalizeText(body.author) || currentUser.name || "System",
+        normalizeTags(body.tags),
+        String(body.content || ""),
       ],
     );
 
@@ -238,11 +332,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Wiki-Seite konnte nicht erstellt werden.",
+        message: getErrorMessage(
+          error,
+          "Wiki-Seite konnte nicht erstellt werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }

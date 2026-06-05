@@ -123,7 +123,10 @@ function formatTags(tags?: string[]) {
   return tags.filter(Boolean);
 }
 
-function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
+function getTaxonomyLabel(
+  item: TaxonomyItem,
+  allItems: TaxonomyItem[],
+) {
   if (item.path) {
     return item.path;
   }
@@ -132,7 +135,10 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
   let current: TaxonomyItem | undefined = item;
   const visited = new Set<string>();
 
-  while (current && !visited.has(current.id)) {
+  while (
+    current &&
+    !visited.has(current.id)
+  ) {
     visited.add(current.id);
     names.unshift(current.name);
 
@@ -140,7 +146,9 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
       break;
     }
 
-    current = allItems.find((candidate) => candidate.id === current?.parentId);
+    current = allItems.find(
+      (candidate) => candidate.id === current?.parentId,
+    );
   }
 
   return names.join(" > ") || item.name;
@@ -280,8 +288,14 @@ export default function TicketDetailPage() {
     const nextTicketCategories: TaxonomyItem[] = [];
     const nextTags: TaxonomyItem[] = [];
 
-    for (const [index, result] of requests.entries()) {
-      if (result.status !== "fulfilled" || !result.value.ok) {
+    for (const [
+      index,
+      result,
+    ] of requests.entries()) {
+      if (
+        result.status !== "fulfilled" ||
+        !result.value.ok
+      ) {
         continue;
       }
 
@@ -359,6 +373,7 @@ export default function TicketDetailPage() {
       }
     } catch (loadError) {
       console.error(loadError);
+
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -398,7 +413,10 @@ export default function TicketDetailPage() {
       return true;
     }
 
-    if (!user || !canViewTickets) {
+    if (
+      !user ||
+      !canViewTickets
+    ) {
       return false;
     }
 
@@ -565,7 +583,10 @@ export default function TicketDetailPage() {
         tags: selectedTags,
       };
 
-      const updatedTicket = await ticketRepository.update(ticket.id, payload);
+      const updatedTicket = await ticketRepository.update(
+        ticket.id,
+        payload,
+      );
 
       if (updatedTicket) {
         saveTicketUpdatedActivity(updatedTicket);
@@ -574,9 +595,11 @@ export default function TicketDetailPage() {
 
       closeModal();
       await loadData();
+
       setMessage("Ticket wurde gespeichert.");
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -592,12 +615,18 @@ export default function TicketDetailPage() {
       return;
     }
 
-    if (nextStatus === "closed" && !canCloseTicket) {
+    if (
+      nextStatus === "closed" &&
+      !canCloseTicket
+    ) {
       alert("Du hast keine Berechtigung, Tickets zu schließen.");
       return;
     }
 
-    if (nextStatus !== "closed" && !canEditTicket) {
+    if (
+      nextStatus !== "closed" &&
+      !canEditTicket
+    ) {
       alert("Du hast keine Berechtigung, Tickets zu bearbeiten.");
       return;
     }
@@ -607,9 +636,12 @@ export default function TicketDetailPage() {
       setMessage("");
       setError("");
 
-      const updatedTicket = await ticketRepository.update(ticket.id, {
-        status: nextStatus,
-      });
+      const updatedTicket = await ticketRepository.update(
+        ticket.id,
+        {
+          status: nextStatus,
+        },
+      );
 
       if (updatedTicket) {
         saveTicketUpdatedActivity(updatedTicket);
@@ -625,6 +657,7 @@ export default function TicketDetailPage() {
       await loadData();
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -659,11 +692,13 @@ export default function TicketDetailPage() {
       setError("");
 
       saveTicketDeletedActivity(ticket);
+
       await ticketRepository.delete(ticket.id);
 
       router.push("/tickets");
     } catch (deleteError) {
       console.error(deleteError);
+
       setError(
         deleteError instanceof Error
           ? deleteError.message
@@ -676,21 +711,22 @@ export default function TicketDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Ticket wird geladen...
-          </p>
-        </div>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <p className="text-zinc-500">
+          Ticket wird geladen...
+        </p>
       </div>
     );
   }
 
-  if (error || !ticket) {
+  if (
+    error ||
+    !ticket
+  ) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHero
-          eyebrow="Ticket"
+          eyebrow="Tickets"
           title="Ticket nicht gefunden"
           description={error || "Dieses Ticket existiert nicht."}
           actions={
@@ -708,9 +744,9 @@ export default function TicketDetailPage() {
 
   if (!userCanSeeTicket(ticket)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHero
-          eyebrow="Ticket"
+          eyebrow="Tickets"
           title="Keine Berechtigung"
           description="Du hast keine Berechtigung, dieses Ticket zu öffnen."
           actions={
@@ -728,13 +764,13 @@ export default function TicketDetailPage() {
 
   const companyName = getCompanyName(ticket.companyId);
   const departmentName = getDepartmentName(ticket.departmentId);
-  const ticketCategory = ticket.category || "Allgemein";
+  const ticketCategory = ticket.category || "Keine Kategorie";
 
   return (
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title={`Ticket #${ticket.id} bearbeiten`}
+        title="Ticket bearbeiten"
         description="Kategorie und Tags kommen aus dem Admin Backend."
         maxWidth="5xl"
         onClose={closeModal}
@@ -747,9 +783,10 @@ export default function TicketDetailPage() {
             >
               Abbrechen
             </button>
+
             <button
               type="submit"
-              form="ticket-edit-form"
+              form="ticket-detail-form"
               disabled={saving}
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
             >
@@ -759,23 +796,46 @@ export default function TicketDetailPage() {
         }
       >
         <form
-          id="ticket-edit-form"
+          id="ticket-detail-form"
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-6"
         >
-          <div>
-            <label className="block mb-2 font-medium">
-              Titel
-            </label>
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              placeholder="Ticket-Titel"
-            />
-          </div>
-
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div>
+              <label className="block mb-2 font-medium">
+                Titel
+              </label>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="Ticket-Titel"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Kategorie
+              </label>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="">
+                  Kategorie auswählen
+                </option>
+                {categoryOptions.map((option) => (
+                  <option
+                    key={option.id}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block mb-2 font-medium">
                 Status
@@ -818,29 +878,6 @@ export default function TicketDetailPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                Kategorie
-              </label>
-              <select
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Kategorie auswählen
-                </option>
-                {categoryOptions.map((option) => (
-                  <option
-                    key={option.id}
-                    value={option.value}
-                  >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
                 Zugewiesen an
               </label>
               <input
@@ -848,6 +885,18 @@ export default function TicketDetailPage() {
                 onChange={(event) => setAssignedTo(event.target.value)}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
                 placeholder="Name oder Team"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Erstellt von
+              </label>
+              <input
+                value={createdBy}
+                onChange={(event) => setCreatedBy(event.target.value)}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                placeholder="System"
               />
             </div>
 
@@ -899,63 +948,51 @@ export default function TicketDetailPage() {
               </select>
             </div>
 
-            <div>
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
-                Erstellt von
+                Beschreibung
               </label>
-              <input
-                value={createdBy}
-                onChange={(event) => setCreatedBy(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="System"
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={8}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
+                placeholder="Beschreibung des Tickets..."
               />
             </div>
-          </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
-              Beschreibung
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={8}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
-              placeholder="Beschreibung des Tickets..."
-            />
-          </div>
+            <div className="xl:col-span-2">
+              <label className="block mb-3 font-medium">
+                Tags
+              </label>
 
-          <div>
-            <label className="block mb-3 font-medium">
-              Tags
-            </label>
+              {tagOptions.length === 0 ? (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
+                  Noch keine globalen Ticket-Tags im Admin Backend vorhanden.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {tagOptions.map((option) => {
+                    const active = selectedTags.includes(option.value);
 
-            {tagOptions.length === 0 ? (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                Noch keine globalen Ticket-Tags im Admin Backend vorhanden.
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {tagOptions.map((option) => {
-                  const active = selectedTags.includes(option.value);
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => toggleTag(option.value)}
-                      className={`px-4 py-2 rounded-xl border transition ${
-                        active
-                          ? "bg-zinc-900 text-white border-zinc-900"
-                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
-                      }`}
-                    >
-                      #{option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleTag(option.value)}
+                        className={`px-4 py-2 rounded-xl border transition ${
+                          active
+                            ? "bg-zinc-900 text-white border-zinc-900"
+                            : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                        }`}
+                      >
+                        #{option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </form>
       </AppModal>
@@ -1054,7 +1091,7 @@ export default function TicketDetailPage() {
           label="Status"
           value={getStatusLabel(ticket.status)}
           description="Aktueller Bearbeitungsstatus"
-          icon="📌"
+          icon="🎫"
           tone="blue"
         />
         <StatCard
@@ -1075,7 +1112,7 @@ export default function TicketDetailPage() {
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="🏷️"
+          icon="#️⃣"
           tone="indigo"
         />
       </div>
@@ -1094,14 +1131,10 @@ export default function TicketDetailPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <span
-                  className={`text-sm px-3 py-2 rounded-xl ${getStatusClass(ticket.status)}`}
-                >
+                <span className={`text-sm px-3 py-2 rounded-xl ${getStatusClass(ticket.status)}`}>
                   {getStatusLabel(ticket.status)}
                 </span>
-                <span
-                  className={`text-sm px-3 py-2 rounded-xl ${getPriorityClass(ticket.priority)}`}
-                >
+                <span className={`text-sm px-3 py-2 rounded-xl ${getPriorityClass(ticket.priority)}`}>
                   {getPriorityLabel(ticket.priority)}
                 </span>
               </div>

@@ -1,19 +1,75 @@
+import {
+  requestJson,
+} from "./apiClient";
 import type {
+  WikiCreateInput,
   WikiPage,
+  WikiUpdateInput,
 } from "../types/wiki";
 
-type WikiPagePayload = {
-  slug?: string;
-  title: string;
-  description?: string;
-  excerpt?: string;
+type WikiFilters = {
   company?: string;
-  category: string;
   department?: string;
-  author?: string;
-  tags?: string[];
-  content?: string;
+  category?: string;
+  tag?: string;
 };
+
+export type WikiRepository = {
+  list: (filters?: WikiFilters) => Promise<WikiPage[]>;
+  search: (query: string) => Promise<WikiPage[]>;
+  findBySlug: (slug: string) => Promise<WikiPage | null>;
+  create: (page: WikiCreateInput) => Promise<WikiPage>;
+  update: (
+    slug: string,
+    updates: WikiUpdateInput
+  ) => Promise<WikiPage | null>;
+  delete: (slug: string) => Promise<void>;
+  saveAll: (pages: WikiPage[]) => Promise<void>;
+  clear: () => Promise<void>;
+  reset: () => Promise<void>;
+  resetInitialization: () => Promise<void>;
+  listByCategory: (category: string) => Promise<WikiPage[]>;
+  listByCompany: (company: string) => Promise<WikiPage[]>;
+  listByDepartment: (department: string) => Promise<WikiPage[]>;
+  listByTag: (tag: string) => Promise<WikiPage[]>;
+  listCategories: () => Promise<string[]>;
+  listTags: () => Promise<string[]>;
+  countAll: () => Promise<number>;
+};
+
+function dispatchWikiPagesUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new Event("wikiPagesUpdated"),
+  );
+}
+
+function buildQuery(filters?: WikiFilters) {
+  const searchParams = new URLSearchParams();
+
+  if (filters?.company?.trim()) {
+    searchParams.set("company", filters.company.trim());
+  }
+
+  if (filters?.department?.trim()) {
+    searchParams.set("department", filters.department.trim());
+  }
+
+  if (filters?.category?.trim()) {
+    searchParams.set("category", filters.category.trim());
+  }
+
+  if (filters?.tag?.trim()) {
+    searchParams.set("tag", filters.tag.trim());
+  }
+
+  const query = searchParams.toString();
+
+  return query ? `?${query}` : "";
+}
 
 function normalizeTags(tags?: string[]) {
   if (!Array.isArray(tags)) {
@@ -29,178 +85,291 @@ function normalizeTags(tags?: string[]) {
   );
 }
 
-async function parseJsonResponse<T>(
-  response: Response,
-  fallbackMessage: string,
-): Promise<T> {
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message ||
-      data?.error ||
-      fallbackMessage,
-    );
-  }
-
-  return data as T;
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
 }
 
-function buildQuery(params: Record<string, string | undefined>) {
-  const searchParams = new URLSearchParams();
-
-  for (const [
-    key,
-    value,
-  ] of Object.entries(params)) {
-    if (value && value.trim()) {
-      searchParams.set(key, value.trim());
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `?${query}` : "";
-}
-
-function normalizePayload(payload: WikiPagePayload) {
+function normalizeCreatePayload(page: WikiCreateInput) {
   return {
-    slug: payload.slug?.trim() || undefined,
-    title: payload.title.trim(),
-    description: payload.description?.trim() || "",
-    excerpt: payload.excerpt?.trim() || payload.description?.trim() || "",
-    company: payload.company?.trim() || "Intern",
-    category: payload.category.trim(),
-    department: payload.department?.trim() || "Allgemein",
-    author: payload.author?.trim() || "System",
-    tags: normalizeTags(payload.tags),
-    content: payload.content || "",
+    slug: normalizeText(page.slug),
+    title: normalizeText(page.title),
+    description: normalizeText(page.description),
+    excerpt: normalizeText(page.excerpt || page.description),
+    company: normalizeText(page.company) || "Intern",
+    category: normalizeText(page.category),
+    department: normalizeText(page.department) || "Allgemein",
+    author: normalizeText(page.author) || "System",
+    tags: normalizeTags(page.tags),
+    content: String(page.content || ""),
   };
 }
 
-export const wikiRepository = {
-  async list(filters?: {
-    company?: string;
-    department?: string;
-    category?: string;
-    tag?: string;
-  }) {
-    const query = buildQuery({
-      company: filters?.company,
-      department: filters?.department,
-      category: filters?.category,
-      tag: filters?.tag,
-    });
+function normalizeUpdatePayload(updates: WikiUpdateInput) {
+  return {
+    slug: updates.slug !== undefined
+      ? normalizeText(updates.slug)
+      : undefined,
+    title: updates.title !== undefined
+      ? normalizeText(updates.title)
+      : undefined,
+    description: updates.description !== undefined
+      ? normalizeText(updates.description)
+      : undefined,
+    excerpt: updates.excerpt !== undefined
+      ? normalizeText(updates.excerpt)
+      : undefined,
+    company: updates.company !== undefined
+      ? normalizeText(updates.company) || "Intern"
+      : undefined,
+    category: updates.category !== undefined
+      ? normalizeText(updates.category)
+      : undefined,
+    department: updates.department !== undefined
+      ? normalizeText(updates.department) || "Allgemein"
+      : undefined,
+    author: updates.author !== undefined
+      ? normalizeText(updates.author) || "System"
+      : undefined,
+    tags: updates.tags !== undefined
+      ? normalizeTags(updates.tags)
+      : undefined,
+    content: updates.content !== undefined
+      ? String(updates.content || "")
+      : undefined,
+  };
+}
 
-    const response = await fetch(`/api/wiki-pages${query}`, {
-      cache: "no-store",
-    });
+function pageMatchesQuery(
+  page: WikiPage,
+  query: string,
+) {
+  const normalizedQuery = query
+    .trim()
+    .toLowerCase();
 
-    return parseJsonResponse<WikiPage[]>(
-      response,
-      "Wiki-Seiten konnten nicht geladen werden.",
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const haystack = [
+    page.slug,
+    page.title,
+    page.content,
+    page.excerpt,
+    page.description,
+    page.category,
+    page.company,
+    page.department,
+    page.tags?.join(" "),
+    page.createdAt,
+    page.updatedAt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(normalizedQuery);
+}
+
+export const postgresWikiRepository: WikiRepository = {
+  async list(filters?: WikiFilters) {
+    const query = buildQuery(filters);
+
+    return requestJson<WikiPage[]>(
+      `/api/wiki-pages${query}`,
+    );
+  },
+
+  async search(query: string) {
+    const pages = await postgresWikiRepository.list();
+
+    return pages.filter(
+      (page) => pageMatchesQuery(
+        page,
+        query,
+      ),
     );
   },
 
   async findBySlug(slug: string) {
-    const response = await fetch(
-      `/api/wiki-pages/${encodeURIComponent(slug)}`,
-      {
-        cache: "no-store",
-      },
-    );
-
-    if (response.status === 404) {
+    if (!slug) {
       return null;
     }
 
-    return parseJsonResponse<WikiPage>(
-      response,
-      "Wiki-Seite konnte nicht geladen werden.",
-    );
+    try {
+      return await requestJson<WikiPage>(
+        `/api/wiki-pages/${encodeURIComponent(slug)}`,
+      );
+    } catch {
+      return null;
+    }
   },
 
-  async create(payload: WikiPagePayload) {
-    const normalizedPayload = normalizePayload(payload);
+  async create(page: WikiCreateInput) {
+    const payload = normalizeCreatePayload(page);
 
-    if (!normalizedPayload.title) {
+    if (!payload.title) {
       throw new Error("Titel ist erforderlich.");
     }
 
-    if (!normalizedPayload.category) {
-      throw new Error("Kategorie ist erforderlich.");
+    if (!payload.category) {
+      throw new Error("Wiki-Kategorie ist erforderlich.");
     }
 
-    const response = await fetch("/api/wiki-pages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const createdPage = await requestJson<WikiPage>(
+      "/api/wiki-pages",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(normalizedPayload),
-    });
-
-    const createdPage = await parseJsonResponse<WikiPage>(
-      response,
-      "Wiki-Seite konnte nicht erstellt werden.",
     );
 
-    window.dispatchEvent(new Event("wikiPagesUpdated"));
+    dispatchWikiPagesUpdated();
 
     return createdPage;
   },
 
   async update(
     slug: string,
-    payload: WikiPagePayload,
+    updates: WikiUpdateInput,
   ) {
-    const normalizedPayload = normalizePayload(payload);
+    if (!slug) {
+      return null;
+    }
 
-    if (!normalizedPayload.title) {
+    const payload = normalizeUpdatePayload(updates);
+
+    if (
+      updates.title !== undefined &&
+      !payload.title
+    ) {
       throw new Error("Titel ist erforderlich.");
     }
 
-    if (!normalizedPayload.category) {
-      throw new Error("Kategorie ist erforderlich.");
+    if (
+      updates.category !== undefined &&
+      !payload.category
+    ) {
+      throw new Error("Wiki-Kategorie ist erforderlich.");
     }
 
-    const response = await fetch(
+    const updatedPage = await requestJson<WikiPage>(
       `/api/wiki-pages/${encodeURIComponent(slug)}`,
       {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(normalizedPayload),
+        body: JSON.stringify(payload),
       },
     );
 
-    const updatedPage = await parseJsonResponse<WikiPage>(
-      response,
-      "Wiki-Seite konnte nicht aktualisiert werden.",
-    );
-
-    window.dispatchEvent(new Event("wikiPagesUpdated"));
+    dispatchWikiPagesUpdated();
 
     return updatedPage;
   },
 
   async delete(slug: string) {
-    const response = await fetch(
+    if (!slug) {
+      return;
+    }
+
+    await requestJson<{
+      ok: boolean;
+    }>(
       `/api/wiki-pages/${encodeURIComponent(slug)}`,
       {
         method: "DELETE",
       },
     );
 
-    await parseJsonResponse<{
-      ok: boolean;
-    }>(
-      response,
-      "Wiki-Seite konnte nicht gelöscht werden.",
+    dispatchWikiPagesUpdated();
+  },
+
+  async saveAll(pages: WikiPage[]) {
+    await Promise.all(
+      pages.map(async (page) => {
+        if (page.slug) {
+          await postgresWikiRepository.update(
+            page.slug,
+            page,
+          );
+
+          return;
+        }
+
+        await postgresWikiRepository.create(page);
+      }),
     );
 
-    window.dispatchEvent(new Event("wikiPagesUpdated"));
+    dispatchWikiPagesUpdated();
+  },
 
-    return true;
+  async clear() {
+    throw new Error(
+      "clear ist für PostgreSQL-Wiki nicht direkt verfügbar.",
+    );
+  },
+
+  async reset() {
+    throw new Error(
+      "reset ist für PostgreSQL-Wiki nicht direkt verfügbar.",
+    );
+  },
+
+  async resetInitialization() {
+    return;
+  },
+
+  async listByCategory(category: string) {
+    return postgresWikiRepository.list({
+      category,
+    });
+  },
+
+  async listByCompany(company: string) {
+    return postgresWikiRepository.list({
+      company,
+    });
+  },
+
+  async listByDepartment(department: string) {
+    return postgresWikiRepository.list({
+      department,
+    });
+  },
+
+  async listByTag(tag: string) {
+    return postgresWikiRepository.list({
+      tag,
+    });
+  },
+
+  async listCategories() {
+    const pages = await postgresWikiRepository.list();
+
+    return Array.from(
+      new Set(
+        pages
+          .map((page) => page.category)
+          .map((category) => String(category || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort((first, second) => first.localeCompare(second));
+  },
+
+  async listTags() {
+    const pages = await postgresWikiRepository.list();
+
+    return Array.from(
+      new Set(
+        pages.flatMap((page) => normalizeTags(page.tags)),
+      ),
+    ).sort((first, second) => first.localeCompare(second));
+  },
+
+  async countAll() {
+    const pages = await postgresWikiRepository.list();
+
+    return pages.length;
   },
 };
+
+export const wikiRepository = postgresWikiRepository;

@@ -3,7 +3,6 @@ import type {
   TicketPriority,
   TicketStatus,
 } from "../../../types/ticket";
-
 import type {
   TicketTemplate,
   TicketTemplatePriority,
@@ -45,134 +44,63 @@ export type TicketTemplateRow = {
   updated_at: string;
 };
 
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function normalizeTags(tags: string[] | null) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag).trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 export function mapTicketRow(
-  row: TicketRow
+  row: TicketRow,
 ): Ticket {
   return {
-    id:
-      String(
-        row.id
-      ),
-
-    title:
-      row.title,
-
-    description:
-      row.description ||
-      "",
-
-    status:
-      row.status as TicketStatus,
-
-    priority:
-      row.priority as TicketPriority,
-
-    category:
-      row.category ||
-      "Allgemein",
-
-    companyId:
-      row.company_id ||
-      "",
-
-    departmentId:
-      row.department_id ||
-      "",
-
-    company:
-      row.company ||
-      "Intern",
-
-    department:
-      row.department ||
-      "Allgemein",
-
-    assignedTo:
-      row.assigned_to ||
-      "",
-
-    createdBy:
-      row.created_by ||
-      "",
-
-    tags:
-      Array.isArray(
-        row.tags
-      )
-        ? row.tags
-        : [],
-
-    createdAt:
-      new Date(
-        row.created_at
-      ).toLocaleString(),
-
-    updatedAt:
-      new Date(
-        row.updated_at
-      ).toLocaleString(),
+    id: String(row.id),
+    title: row.title,
+    description: row.description || "",
+    status: row.status as TicketStatus,
+    priority: row.priority as TicketPriority,
+    category: row.category || "",
+    companyId: row.company_id || "",
+    departmentId: row.department_id || "",
+    company: row.company || "Intern",
+    department: row.department || "Allgemein",
+    assignedTo: row.assigned_to || "",
+    createdBy: row.created_by || "",
+    tags: normalizeTags(row.tags),
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
   };
 }
 
 export function mapTicketTemplateRow(
-  row: TicketTemplateRow
+  row: TicketTemplateRow,
 ): TicketTemplate {
   return {
-    id:
-      row.id,
-
-    title:
-      row.title,
-
-    description:
-      row.description ||
-      "",
-
-    status:
-      row.status as TicketTemplateStatus,
-
-    priority:
-      row.priority as TicketTemplatePriority,
-
-    category:
-      row.category ||
-      "Allgemein",
-
-    companyId:
-      row.company_id ||
-      "",
-
-    departmentId:
-      row.department_id ||
-      "",
-
-    company:
-      row.company ||
-      "Intern",
-
-    department:
-      row.department ||
-      "Allgemein",
-
-    assignedTo:
-      row.assigned_to ||
-      "",
-
-    tags:
-      Array.isArray(
-        row.tags
-      )
-        ? row.tags
-        : [],
-
-    createdAt:
-      new Date(
-        row.created_at
-      ).toLocaleString(),
-
-    updatedAt:
-      new Date(
-        row.updated_at
-      ).toLocaleString(),
+    id: row.id,
+    title: row.title,
+    description: row.description || "",
+    status: row.status as TicketTemplateStatus,
+    priority: row.priority as TicketTemplatePriority,
+    category: row.category || "",
+    companyId: row.company_id || "",
+    departmentId: row.department_id || "",
+    company: row.company || "Intern",
+    department: row.department || "Allgemein",
+    assignedTo: row.assigned_to || "",
+    tags: normalizeTags(row.tags),
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
   };
 }

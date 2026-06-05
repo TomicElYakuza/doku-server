@@ -60,13 +60,18 @@ function getPageContent(page: WikiPage) {
 
 function getPageTags(page: WikiPage) {
   if (Array.isArray(page.tags)) {
-    return page.tags.map((tag) => String(tag)).filter(Boolean);
+    return page.tags
+      .map((tag) => String(tag))
+      .filter(Boolean);
   }
 
   return [];
 }
 
-function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
+function getTaxonomyLabel(
+  item: TaxonomyItem,
+  allItems: TaxonomyItem[],
+) {
   if (item.path) {
     return item.path;
   }
@@ -75,7 +80,10 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
   let current: TaxonomyItem | undefined = item;
   const visited = new Set<string>();
 
-  while (current && !visited.has(current.id)) {
+  while (
+    current &&
+    !visited.has(current.id)
+  ) {
     visited.add(current.id);
     names.unshift(current.name);
 
@@ -83,7 +91,9 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
       break;
     }
 
-    current = allItems.find((candidate) => candidate.id === current?.parentId);
+    current = allItems.find(
+      (candidate) => candidate.id === current?.parentId,
+    );
   }
 
   return names.join(" > ") || item.name;
@@ -199,8 +209,14 @@ export default function WikiDetailPage() {
     const nextWikiCategories: TaxonomyItem[] = [];
     const nextTags: TaxonomyItem[] = [];
 
-    for (const [index, result] of requests.entries()) {
-      if (result.status !== "fulfilled" || !result.value.ok) {
+    for (const [
+      index,
+      result,
+    ] of requests.entries()) {
+      if (
+        result.status !== "fulfilled" ||
+        !result.value.ok
+      ) {
         continue;
       }
 
@@ -278,6 +294,7 @@ export default function WikiDetailPage() {
       }
     } catch (loadError) {
       console.error(loadError);
+
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -293,7 +310,10 @@ export default function WikiDetailPage() {
       return true;
     }
 
-    if (!user || !canViewWiki) {
+    if (
+      !user ||
+      !canViewWiki
+    ) {
       return false;
     }
 
@@ -489,7 +509,10 @@ export default function WikiDetailPage() {
         tags: selectedTags,
       };
 
-      const updatedPage = await wikiRepository.update(editingSlug, payload);
+      const updatedPage = await wikiRepository.update(
+        editingSlug,
+        payload,
+      );
 
       if (updatedPage) {
         void activityRepository.create({
@@ -520,9 +543,11 @@ export default function WikiDetailPage() {
       }
 
       await loadPage();
+
       setMessage("Wiki-Seite wurde gespeichert.");
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -576,6 +601,7 @@ export default function WikiDetailPage() {
       router.push("/wiki");
     } catch (deleteError) {
       console.error(deleteError);
+
       alert(
         deleteError instanceof Error
           ? deleteError.message
@@ -584,21 +610,25 @@ export default function WikiDetailPage() {
     }
   }
 
-  if (loading || permissionsLoading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Wiki-Seite wird geladen...
-          </p>
-        </div>
+      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <p className="text-zinc-500">
+          Wiki-Seite wird geladen...
+        </p>
       </div>
     );
   }
 
-  if (error || !page) {
+  if (
+    error ||
+    !page
+  ) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHero
           eyebrow="Wiki"
           title="Seite nicht gefunden"
@@ -618,7 +648,7 @@ export default function WikiDetailPage() {
 
   if (!userCanSeePage(page)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHero
           eyebrow="Wiki"
           title="Keine Berechtigung"
@@ -640,8 +670,7 @@ export default function WikiDetailPage() {
   const pageCompany = page.company || "Intern";
   const pageDepartment = page.department || "Allgemein";
   const pageCategory = page.category || "Keine Kategorie";
-  const pageDescription =
-    page.description || page.excerpt || "Keine Beschreibung vorhanden.";
+  const pageDescription = page.description || page.excerpt || "Keine Beschreibung vorhanden.";
 
   return (
     <div className="space-y-8">
@@ -660,9 +689,10 @@ export default function WikiDetailPage() {
             >
               Abbrechen
             </button>
+
             <button
               type="submit"
-              form="wiki-page-edit-form"
+              form="wiki-detail-form"
               disabled={saving}
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
             >
@@ -672,7 +702,7 @@ export default function WikiDetailPage() {
         }
       >
         <form
-          id="wiki-page-edit-form"
+          id="wiki-detail-form"
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-6"
         >
@@ -753,15 +783,15 @@ export default function WikiDetailPage() {
                   Intern
                 </option>
                 {companyOptions
-  .filter((option) => option !== "Intern")
-  .map((option) => (
-    <option
-      key={option}
-      value={option}
-    >
-      {option}
-    </option>
-  ))}
+                  .filter((option) => option !== "Intern")
+                  .map((option) => (
+                    <option
+                      key={option}
+                      value={option}
+                    >
+                      {option}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -779,76 +809,76 @@ export default function WikiDetailPage() {
                   Allgemein
                 </option>
                 {departmentOptions
-  .filter((option) => option !== "Allgemein")
-  .map((option) => (
-    <option
-      key={option}
-      value={option}
-    >
-      {option}
-    </option>
-  ))}
+                  .filter((option) => option !== "Allgemein")
+                  .map((option) => (
+                    <option
+                      key={option}
+                      value={option}
+                    >
+                      {option}
+                    </option>
+                  ))}
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
-              Kurzbeschreibung
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={3}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-              placeholder="Kurze Beschreibung der Wiki-Seite..."
-            />
-          </div>
+            <div className="xl:col-span-2">
+              <label className="block mb-2 font-medium">
+                Kurzbeschreibung
+              </label>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+                placeholder="Kurze Beschreibung der Wiki-Seite..."
+              />
+            </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
-              Inhalt
-            </label>
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              rows={10}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
-              placeholder="Wiki-Inhalt..."
-            />
-          </div>
+            <div className="xl:col-span-2">
+              <label className="block mb-2 font-medium">
+                Inhalt
+              </label>
+              <textarea
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                rows={10}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
+                placeholder="Wiki-Inhalt..."
+              />
+            </div>
 
-          <div>
-            <label className="block mb-3 font-medium">
-              Tags
-            </label>
+            <div className="xl:col-span-2">
+              <label className="block mb-3 font-medium">
+                Tags
+              </label>
 
-            {tagOptions.length === 0 ? (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                Noch keine globalen Wiki-Tags im Admin Backend vorhanden.
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {tagOptions.map((option) => {
-                  const active = selectedTags.includes(option.value);
+              {tagOptions.length === 0 ? (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
+                  Noch keine globalen Wiki-Tags im Admin Backend vorhanden.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {tagOptions.map((option) => {
+                    const active = selectedTags.includes(option.value);
 
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => toggleTag(option.value)}
-                      className={`px-4 py-2 rounded-xl border transition ${
-                        active
-                          ? "bg-zinc-900 text-white border-zinc-900"
-                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
-                      }`}
-                    >
-                      #{option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleTag(option.value)}
+                        className={`px-4 py-2 rounded-xl border transition ${
+                          active
+                            ? "bg-zinc-900 text-white border-zinc-900"
+                            : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                        }`}
+                      >
+                        #{option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </form>
       </AppModal>
@@ -913,14 +943,14 @@ export default function WikiDetailPage() {
           label="Kategorie"
           value={pageCategory}
           description="Aus dem Admin Backend"
-          icon="🗂️"
+          icon="🏷️"
           tone="indigo"
         />
         <StatCard
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="🏷️"
+          icon="#️⃣"
           tone="purple"
         />
         <StatCard

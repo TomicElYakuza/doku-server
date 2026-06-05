@@ -9,17 +9,8 @@ import type {
   TicketTemplateUpdateInput,
 } from "../types/ticketTemplate";
 
-type TicketTemplateFilters = {
-  status?: string;
-  priority?: string;
-  category?: string;
-  tag?: string;
-  companyId?: string;
-  departmentId?: string;
-};
-
 export type TicketTemplateRepository = {
-  list: (filters?: TicketTemplateFilters) => Promise<TicketTemplate[]>;
+  list: () => Promise<TicketTemplate[]>;
   search: (query: string) => Promise<TicketTemplate[]>;
   findById: (id: string) => Promise<TicketTemplate | null>;
   create: (template: TicketTemplateCreateInput) => Promise<TicketTemplate>;
@@ -50,21 +41,8 @@ function dispatchTicketTemplatesUpdated() {
   );
 }
 
-function buildQuery(params: TicketTemplateFilters = {}) {
-  const searchParams = new URLSearchParams();
-
-  for (const [
-    key,
-    value,
-  ] of Object.entries(params)) {
-    if (value && String(value).trim()) {
-      searchParams.set(key, String(value).trim());
-    }
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `?${query}` : "";
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
 }
 
 function normalizeTags(tags?: string[]) {
@@ -83,33 +61,51 @@ function normalizeTags(tags?: string[]) {
 
 function normalizeCreatePayload(template: TicketTemplateCreateInput) {
   return {
-    title: template.title?.trim(),
-    description: template.description?.trim() || "",
+    title: normalizeText(template.title),
+    description: normalizeText(template.description),
     status: template.status || "open",
     priority: template.priority || "medium",
-    category: template.category?.trim(),
-    companyId: template.companyId?.trim() || "",
-    departmentId: template.departmentId?.trim() || "",
-    company: template.company?.trim() || "Intern",
-    department: template.department?.trim() || "Allgemein",
-    assignedTo: template.assignedTo?.trim() || "",
+    category: normalizeText(template.category),
+    companyId: normalizeText(template.companyId),
+    departmentId: normalizeText(template.departmentId),
+    company: normalizeText(template.company) || "Intern",
+    department: normalizeText(template.department) || "Allgemein",
+    assignedTo: normalizeText(template.assignedTo),
     tags: normalizeTags(template.tags),
   };
 }
 
 function normalizeUpdatePayload(updates: TicketTemplateUpdateInput) {
   return {
-    title: updates.title?.trim(),
-    description: updates.description?.trim() || "",
+    title: updates.title !== undefined
+      ? normalizeText(updates.title)
+      : undefined,
+    description: updates.description !== undefined
+      ? normalizeText(updates.description)
+      : undefined,
     status: updates.status,
     priority: updates.priority,
-    category: updates.category?.trim(),
-    companyId: updates.companyId?.trim() || "",
-    departmentId: updates.departmentId?.trim() || "",
-    company: updates.company?.trim() || "Intern",
-    department: updates.department?.trim() || "Allgemein",
-    assignedTo: updates.assignedTo?.trim() || "",
-    tags: normalizeTags(updates.tags),
+    category: updates.category !== undefined
+      ? normalizeText(updates.category)
+      : undefined,
+    companyId: updates.companyId !== undefined
+      ? normalizeText(updates.companyId)
+      : undefined,
+    departmentId: updates.departmentId !== undefined
+      ? normalizeText(updates.departmentId)
+      : undefined,
+    company: updates.company !== undefined
+      ? normalizeText(updates.company) || "Intern"
+      : undefined,
+    department: updates.department !== undefined
+      ? normalizeText(updates.department) || "Allgemein"
+      : undefined,
+    assignedTo: updates.assignedTo !== undefined
+      ? normalizeText(updates.assignedTo)
+      : undefined,
+    tags: updates.tags !== undefined
+      ? normalizeTags(updates.tags)
+      : undefined,
   };
 }
 
@@ -149,11 +145,9 @@ function templateMatchesQuery(
 }
 
 export const postgresTicketTemplateRepository: TicketTemplateRepository = {
-  async list(filters?: TicketTemplateFilters) {
-    const query = buildQuery(filters);
-
+  async list() {
     return requestJson<TicketTemplate[]>(
-      `/api/ticket-templates${query}`,
+      "/api/ticket-templates",
     );
   },
 
@@ -190,7 +184,7 @@ export const postgresTicketTemplateRepository: TicketTemplateRepository = {
     }
 
     if (!payload.category) {
-      throw new Error("Kategorie ist erforderlich.");
+      throw new Error("Ticket-Kategorie ist erforderlich.");
     }
 
     const createdTemplate = await requestJson<TicketTemplate>(
@@ -227,7 +221,7 @@ export const postgresTicketTemplateRepository: TicketTemplateRepository = {
       updates.category !== undefined &&
       !payload.category
     ) {
-      throw new Error("Kategorie ist erforderlich.");
+      throw new Error("Ticket-Kategorie ist erforderlich.");
     }
 
     const updatedTemplate = await requestJson<TicketTemplate>(
@@ -261,15 +255,15 @@ export const postgresTicketTemplateRepository: TicketTemplateRepository = {
   },
 
   async listByStatus(status: TicketTemplateStatus) {
-    return postgresTicketTemplateRepository.list({
-      status,
-    });
+    return requestJson<TicketTemplate[]>(
+      `/api/ticket-templates?status=${encodeURIComponent(status)}`,
+    );
   },
 
   async listByPriority(priority: TicketTemplatePriority) {
-    return postgresTicketTemplateRepository.list({
-      priority,
-    });
+    return requestJson<TicketTemplate[]>(
+      `/api/ticket-templates?priority=${encodeURIComponent(priority)}`,
+    );
   },
 
   async listHighOrUrgent() {
@@ -326,26 +320,26 @@ export const postgresTicketTemplateRepository: TicketTemplateRepository = {
 
   getStatusClass(status: TicketTemplateStatus | string) {
     if (status === "open") {
-      return "bg-blue-50 text-blue-700 border border-blue-100";
+      return "bg-blue-50 text-blue-700";
     }
 
     if (status === "in_progress") {
-      return "bg-yellow-50 text-yellow-700 border border-yellow-100";
+      return "bg-yellow-100 text-yellow-700";
     }
 
     if (status === "waiting") {
-      return "bg-orange-50 text-orange-700 border border-orange-100";
+      return "bg-orange-100 text-orange-700";
     }
 
     if (status === "done") {
-      return "bg-green-50 text-green-700 border border-green-100";
+      return "bg-green-50 text-green-700";
     }
 
     if (status === "closed") {
-      return "bg-zinc-100 text-zinc-700 border border-zinc-200";
+      return "bg-zinc-100 text-zinc-700";
     }
 
-    return "bg-zinc-100 text-zinc-700 border border-zinc-200";
+    return "bg-zinc-100 text-zinc-700";
   },
 
   getPriorityLabel(priority: TicketTemplatePriority | string) {
@@ -370,22 +364,22 @@ export const postgresTicketTemplateRepository: TicketTemplateRepository = {
 
   getPriorityClass(priority: TicketTemplatePriority | string) {
     if (priority === "low") {
-      return "bg-zinc-100 text-zinc-700 border border-zinc-200";
+      return "bg-zinc-100 text-zinc-700";
     }
 
     if (priority === "medium") {
-      return "bg-blue-50 text-blue-700 border border-blue-100";
+      return "bg-blue-50 text-blue-700";
     }
 
     if (priority === "high") {
-      return "bg-orange-50 text-orange-700 border border-orange-100";
+      return "bg-orange-100 text-orange-700";
     }
 
     if (priority === "urgent") {
-      return "bg-red-50 text-red-700 border border-red-100";
+      return "bg-red-50 text-red-700";
     }
 
-    return "bg-zinc-100 text-zinc-700 border border-zinc-200";
+    return "bg-zinc-100 text-zinc-700";
   },
 };
 
