@@ -10,13 +10,18 @@ type StatCardProps = {
   description?: string;
   icon?: ReactNode;
   active?: boolean;
-  tone?: "default" | "green" | "blue" | "red" | "orange" | "purple" | "indigo";
+  tone?:
+    | "default"
+    | "green"
+    | "blue"
+    | "red"
+    | "orange"
+    | "purple"
+    | "indigo";
   onClick?: () => void;
 };
 
-function getHoverClass(
-  tone: StatCardProps["tone"]
-) {
+function getHoverClass(tone: StatCardProps["tone"]) {
   if (tone === "green") {
     return "hover:bg-green-50";
   }
@@ -41,12 +46,10 @@ function getHoverClass(
     return "hover:bg-indigo-50";
   }
 
-  return "hover:bg-zinc-50";
+  return "hover:bg-indigo-50/40";
 }
 
-function getIconClass(
-  tone: StatCardProps["tone"]
-) {
+function getIconClass(tone: StatCardProps["tone"]) {
   if (tone === "green") {
     return "bg-green-50 text-green-700";
   }
@@ -71,7 +74,7 @@ function getIconClass(
     return "bg-indigo-50 text-indigo-700";
   }
 
-  return "bg-zinc-100 text-zinc-700";
+  return "app-accent-soft app-accent-text";
 }
 
 export default function StatCard({
@@ -83,42 +86,45 @@ export default function StatCard({
   tone = "default",
   onClick,
 }: StatCardProps) {
-  const className =
-    `group w-full bg-white border rounded-3xl p-6 shadow-sm text-left transition ${
-      active
-        ? "border-zinc-900 ring-2 ring-zinc-900/10"
-        : "border-zinc-200"
-    } ${getHoverClass(
-      tone
-    )}`;
+  const className = `group relative overflow-hidden w-full bg-white border rounded-3xl p-6 shadow-sm text-left transition ${
+    active
+      ? "app-accent-border ring-4 ring-indigo-500/10"
+      : "border-zinc-200 hover:border-indigo-200"
+  } ${getHoverClass(tone)}`;
 
   const content = (
     <>
-      <div className="flex items-start justify-between gap-4">
+      {active && (
+        <div className="absolute inset-x-0 top-0 h-1 app-accent-bg" />
+      )}
+
+      <div className="relative flex items-start justify-between gap-5">
         <div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm font-medium text-zinc-500">
             {label}
           </p>
 
-          <h2 className="text-4xl font-bold mt-3 tracking-tight">
+          <h2 className="text-3xl font-black tracking-tight mt-2 text-zinc-950">
             {value}
           </h2>
+
+          {description && (
+            <p className="text-sm text-zinc-500 mt-3">
+              {description}
+            </p>
+          )}
         </div>
 
         {icon && (
-          <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 ${getIconClass(
-            tone
-          )}`}>
+          <div
+            className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 ${getIconClass(
+              tone,
+            )}`}
+          >
             {icon}
           </div>
         )}
       </div>
-
-      {description && (
-        <p className="text-sm text-zinc-500 mt-3">
-          {description}
-        </p>
-      )}
     </>
   );
 

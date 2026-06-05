@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import {
   canViewAdmin,
 } from "../../lib/permissions";
@@ -99,11 +100,27 @@ type AdminHealth = {
     wikiPages: number;
     newsPosts: number;
     taxonomyItems: number;
+    adminModules?: number;
+    rolePermissionTemplates?: number;
   };
   responseTimeMs: number;
   checkedAt: string;
   message?: string;
 };
+
+function getSafeHref(value?: string) {
+  const href = String(value || "").trim();
+
+  if (!href) {
+    return "/admin";
+  }
+
+  if (!href.startsWith("/")) {
+    return `/${href}`;
+  }
+
+  return href;
+}
 
 function getActivityLabel(type: string) {
   return activityRepository.getTypeLabel(type);
@@ -137,12 +154,27 @@ function getHealthStatusClass(health: AdminHealth | null) {
   return "bg-red-50 text-red-700 border border-red-100";
 }
 
-function getListViewLabel(view: string) {
+function getListViewLabel(view?: string) {
   if (view === "cards") {
     return "Karten";
   }
 
   return "Tabelle";
+}
+
+function getSettingsValue(settings: AppSettings) {
+  return {
+    appName: settings.appName || "Intranet",
+    companyName: settings.companyName || "Velunis",
+    defaultUserRole:
+      settings.defaultUserRole || "employee",
+    defaultTicketView:
+      settings.defaultTicketView || "table",
+    defaultWikiView:
+      settings.defaultWikiView || "table",
+    hideClosedTicketsByDefault:
+      settings.hideClosedTicketsByDefault ?? true,
+  };
 }
 
 export default function AdminPage() {
@@ -166,7 +198,6 @@ export default function AdminPage() {
     appSettingsRepository.getDefault(),
   );
   const [health, setHealth] = useState<AdminHealth | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [healthLoading, setHealthLoading] = useState(true);
   const [error, setError] = useState("");
@@ -200,7 +231,7 @@ export default function AdminPage() {
         cache: "no-store",
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as AdminHealth;
 
       setHealth(data);
     } catch (loadError) {
@@ -221,10 +252,15 @@ export default function AdminPage() {
           wikiPages: 0,
           newsPosts: 0,
           taxonomyItems: 0,
+          adminModules: 0,
+          rolePermissionTemplates: 0,
         },
         responseTimeMs: 0,
         checkedAt: new Date().toISOString(),
-        message: loadError instanceof Error ? loadError.message : "Health-Check fehlgeschlagen.",
+        message:
+          loadError instanceof Error
+            ? loadError.message
+            : "Health-Check fehlgeschlagen.",
       });
     } finally {
       setHealthLoading(false);
@@ -273,6 +309,7 @@ export default function AdminPage() {
       setConfiguredModules(Array.isArray(nextModules) ? nextModules : []);
     } catch (loadError) {
       console.error(loadError);
+
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -337,6 +374,8 @@ export default function AdminPage() {
     ],
   );
 
+  const settingsValue = getSettingsValue(settings);
+
   function getModuleBadge(module: AdminModuleConfig) {
     if (module.key === "users") {
       return `${users.length} Benutzer`;
@@ -364,6 +403,14 @@ export default function AdminPage() {
 
     if (module.key === "activity") {
       return `${activities.length} Einträge`;
+    }
+
+    if (module.key === "modules") {
+      return `${health?.counts.adminModules ?? configuredModules.length} Module`;
+    }
+
+    if (module.key === "role-templates") {
+      return `${health?.counts.rolePermissionTemplates ?? "—"} Vorlagen`;
     }
 
     return module.badgeLabel || "Modul";
@@ -410,7 +457,9 @@ export default function AdminPage() {
     }
 
     if (module.key === "database") {
-      return health?.ok ? "bg-green-50 text-green-700" : "bg-orange-50 text-orange-700";
+      return health?.ok
+        ? "bg-green-50 text-green-700"
+        : "bg-orange-50 text-orange-700";
     }
 
     if (module.key === "news") {
@@ -433,10 +482,14 @@ export default function AdminPage() {
       return "bg-violet-50 text-violet-700";
     }
 
+    if (module.key === "role-templates") {
+      return "bg-indigo-50 text-indigo-700";
+    }
+
     return "bg-zinc-100 text-zinc-700";
   }
 
-  const modules = useMemo<DashboardModule[]>(
+  const modules: DashboardModule[] = useMemo(
     () =>
       configuredModules
         .filter((module) => module.isVisible)
@@ -447,8 +500,8 @@ export default function AdminPage() {
             key: module.key,
             title: module.title,
             description: module.description,
-            href: module.href,
-            icon: module.icon || "🧩",
+            href: getSafeHref(module.href),
+            icon: module.icon || "",
             badge: getModuleBadge(module),
             accent: getModuleAccent(module, enabled),
             enabled,
@@ -481,7 +534,7 @@ export default function AdminPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Kein Zugriff"
+        title="Adminbereich"
         description="Du hast keine Berechtigung für das Admin Dashboard."
       />
     );
@@ -492,13 +545,13 @@ export default function AdminPage() {
       <PageHero
         eyebrow="Admin Backend"
         title="Admin Dashboard"
-        description="Zentrale Verwaltung für Benutzer, Rechte, Organisation, Taxonomie, Inhalte, Standards und Systemstatus."
+        description="Zentrale Verwaltung für Benutzer, Rechte, Module, Taxonomie, Einstellungen und Systemstatus."
         badges={[
           {
-            label: `${users.length} Benutzer`,
+            label: `${enabledModuleCount} Module aktiv`,
           },
           {
-            label: `${enabledModuleCount} Module aktiv`,
+            label: `${disabledModuleCount} deaktiviert`,
           },
           {
             label: getHealthStatusLabel(health),
@@ -536,457 +589,451 @@ export default function AdminPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
-          label="Aktive Benutzer"
-          value={activeUsers.length}
-          description={`${adminUsers.length} Admins · ${departmentLeadUsers.length} Abteilungsleiter`}
+          label="Benutzer"
+          value={users.length}
+          description={`${activeUsers.length} aktiv`}
           icon="👥"
           tone="blue"
         />
         <StatCard
+          label="Administratoren"
+          value={adminUsers.length}
+          description={`${departmentLeadUsers.length} Abteilungsleiter`}
+          icon="🛡️"
+          tone="indigo"
+        />
+        <StatCard
           label="Offene Tickets"
           value={openTickets.length}
-          description={`${urgentTickets.length} hohe/dringende Tickets`}
+          description={`${urgentTickets.length} hoch / dringend`}
           icon="🎫"
           tone="orange"
         />
         <StatCard
-          label="Module"
-          value={enabledModuleCount}
-          description={`${disabledModuleCount} deaktiviert`}
+          label="Admin-Module"
+          value={modules.length}
+          description={`${enabledModuleCount} aktiv`}
           icon="🧩"
-          tone="indigo"
-        />
-        <StatCard
-          label="Systemstatus"
-          value={getHealthStatusLabel(health)}
-          description={
-            healthLoading
-              ? "Prüfung läuft..."
-              : `${health?.responseTimeMs ?? 0} ms Antwortzeit`
-          }
-          icon="🟢"
-          tone={health?.ok ? "green" : "red"}
+          tone="purple"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
-        <div className="space-y-8">
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Admin-Module
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Zentrale Verwaltungsbereiche aus der Datenbank-Konfiguration.
-                </p>
-              </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold">
+              Admin-Module
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Zentrale Verwaltungsbereiche aus der Datenbank-Konfiguration.
+            </p>
+          </div>
 
-              <Link
-                href="/admin/modules"
-                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-              >
-                Module verwalten
-              </Link>
-            </div>
+          <Link
+            href="/admin/modules"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Module verwalten
+          </Link>
+        </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-              {modules.map((module) => (
-                <Link
-                  key={module.key}
-                  href={module.href}
-                  className={`group border rounded-3xl p-5 transition ${
-                    module.enabled
-                      ? "border-zinc-200 hover:border-zinc-400 hover:shadow-sm"
-                      : "border-zinc-200 bg-zinc-50 opacity-75 hover:opacity-100"
-                  }`}
+        {modules.length === 0 && (
+          <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
+            <h3 className="font-semibold">
+              Keine sichtbaren Admin-Module vorhanden.
+            </h3>
+            <p className="text-zinc-500 mt-2">
+              Lege Module über die Admin-Modulverwaltung an.
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {modules.map((module) => (
+            <Link
+              key={module.key}
+              href={module.href}
+              className={`group border rounded-3xl p-6 transition shadow-sm ${
+                module.enabled
+                  ? "bg-white border-zinc-200 hover:border-indigo-200 hover:shadow-md"
+                  : "bg-zinc-50 border-zinc-200 opacity-70"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <span
+                  className={`h-12 w-12 rounded-2xl flex items-center justify-center text-lg ${module.accent}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="text-3xl">
-                      {module.icon}
-                    </div>
+                  {module.icon || "⚙️"}
+                </span>
 
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${module.accent}`}>
-                        {module.badge}
-                      </span>
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${
-                          module.enabled
-                            ? "bg-green-50 text-green-700 border border-green-100"
-                            : "bg-zinc-100 text-zinc-500 border border-zinc-200"
-                        }`}
-                      >
-                        {module.statusLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  <h3 className="text-lg font-semibold mt-5 group-hover:underline">
-                    {module.title}
-                  </h3>
-                  <p className="text-zinc-500 mt-2 leading-6">
-                    {module.description}
-                  </p>
-                </Link>
-              ))}
-
-              {modules.length === 0 && (
-                <div className="border border-zinc-200 rounded-3xl p-6 text-zinc-500">
-                  Keine sichtbaren Admin-Module vorhanden.
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full">
+                    {module.badge}
+                  </span>
+                  <span
+                    className={`text-xs px-3 py-1 rounded-full ${
+                      module.enabled
+                        ? "bg-green-50 text-green-700"
+                        : "bg-zinc-100 text-zinc-500"
+                    }`}
+                  >
+                    {module.statusLabel}
+                  </span>
                 </div>
-              )}
-            </div>
-          </section>
-
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Standardwerte
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Aktuelle Defaults aus den Systemeinstellungen.
-                </p>
               </div>
 
-              <Link
-                href="/admin/settings"
-                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-              >
-                Bearbeiten
-              </Link>
-            </div>
+              <h3 className="text-xl font-bold mt-5 group-hover:text-indigo-700 transition">
+                {module.title}
+              </h3>
+              <p className="text-zinc-500 mt-2 line-clamp-2">
+                {module.description}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Standardrolle
-                </p>
-                <p className="font-semibold mt-1">
-                  {appSettingsRepository.getDefaultUserRoleLabel(settings.defaultUserRole)}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Ticket-Ansicht
-                </p>
-                <p className="font-semibold mt-1">
-                  {getListViewLabel(settings.defaultTicketView)}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Wiki-Ansicht
-                </p>
-                <p className="font-semibold mt-1">
-                  {getListViewLabel(settings.defaultWikiView)}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Geschlossene Tickets
-                </p>
-                <p className="font-semibold mt-1">
-                  {settings.hideClosedTicketsByDefault
-                    ? "Standardmäßig ausblenden"
-                    : "Standardmäßig anzeigen"}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Systemübersicht
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Statusbereich ohne sensible Daten wie Datenbank-Passwörter.
-                </p>
-              </div>
-
-              <span className={`text-sm px-3 py-2 rounded-xl ${getHealthStatusClass(health)}`}>
-                {getHealthStatusLabel(health)}
-              </span>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm xl:col-span-2">
+          <div className="flex items-start justify-between gap-5 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">
+                Standardwerte
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Aktuelle Defaults aus den Systemeinstellungen.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  App
-                </p>
-                <p className="font-semibold mt-1">
-                  {settings.appName || "Intranet"}
-                </p>
-              </div>
+            <Link
+              href="/admin/settings"
+              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
+            >
+              Bearbeiten
+            </Link>
+          </div>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Firma
-                </p>
-                <p className="font-semibold mt-1">
-                  {settings.companyName || "Intern"}
-                </p>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-zinc-50 rounded-3xl p-5">
+              <p className="text-sm text-zinc-500">
+                Standardrolle
+              </p>
+              <p className="font-bold mt-2">
+                {appSettingsRepository.getDefaultUserRoleLabel(
+                  settingsValue.defaultUserRole,
+                )}
+              </p>
+            </div>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Datenquelle
-                </p>
-                <p className="font-semibold mt-1">
-                  PostgreSQL/API
-                </p>
-              </div>
+            <div className="bg-zinc-50 rounded-3xl p-5">
+              <p className="text-sm text-zinc-500">
+                Ticket-Ansicht
+              </p>
+              <p className="font-bold mt-2">
+                {getListViewLabel(settingsValue.defaultTicketView)}
+              </p>
+            </div>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Datenbank
-                </p>
-                <p className="font-semibold mt-1">
-                  {health?.database.connected ? "Verbunden" : "Nicht verbunden"}
-                </p>
-              </div>
+            <div className="bg-zinc-50 rounded-3xl p-5">
+              <p className="text-sm text-zinc-500">
+                Wiki-Ansicht
+              </p>
+              <p className="font-bold mt-2">
+                {getListViewLabel(settingsValue.defaultWikiView)}
+              </p>
+            </div>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Antwortzeit
-                </p>
-                <p className="font-semibold mt-1">
-                  {health?.responseTimeMs ?? 0} ms
-                </p>
-              </div>
+            <div className="bg-zinc-50 rounded-3xl p-5">
+              <p className="text-sm text-zinc-500">
+                Geschlossene Tickets
+              </p>
+              <p className="font-bold mt-2">
+                {settingsValue.hideClosedTicketsByDefault
+                  ? "Standardmäßig ausblenden"
+                  : "Standardmäßig anzeigen"}
+              </p>
+            </div>
+          </div>
+        </section>
 
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Letzte Prüfung
-                </p>
-                <p className="font-semibold mt-1">
-                  {health?.checkedAt
-                    ? new Date(health.checkedAt).toLocaleString("de-AT")
-                    : "-"}
-                </p>
-              </div>
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-bold">
+                Systemübersicht
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Statusbereich ohne sensible Daten.
+              </p>
+            </div>
+
+            <span
+              className={`text-xs px-3 py-1 rounded-full ${getHealthStatusClass(
+                health,
+              )}`}
+            >
+              {healthLoading
+                ? "Prüft..."
+                : getHealthStatusLabel(health)}
+            </span>
+          </div>
+
+          <div className="space-y-4 mt-6">
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                App
+              </p>
+              <p className="font-bold mt-1">
+                {settingsValue.appName}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                Firma
+              </p>
+              <p className="font-bold mt-1">
+                {settingsValue.companyName}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                Datenquelle
+              </p>
+              <p className="font-bold mt-1">
+                PostgreSQL/API
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                Datenbank
+              </p>
+              <p className="font-bold mt-1">
+                {health?.database.connected
+                  ? "Verbunden"
+                  : "Nicht verbunden"}
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                Antwortzeit
+              </p>
+              <p className="font-bold mt-1">
+                {health?.responseTimeMs ?? 0} ms
+              </p>
+            </div>
+
+            <div className="bg-zinc-50 rounded-2xl p-4">
+              <p className="text-xs text-zinc-500">
+                Letzte Prüfung
+              </p>
+              <p className="font-bold mt-1">
+                {health?.checkedAt
+                  ? new Date(health.checkedAt).toLocaleString("de-AT")
+                  : "-"}
+              </p>
             </div>
 
             {health?.message && (
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-5 mt-5">
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
                 <p className="text-sm text-red-700">
                   {health.message}
                 </p>
               </div>
             )}
-          </section>
-        </div>
+          </div>
+        </section>
+      </div>
 
-        <aside className="space-y-6">
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Datenbestand
-            </h2>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            Datenbestand
+          </h2>
 
-            <div className="space-y-4 mt-5 text-sm">
-              <div className="flex items-center justify-between gap-4">
+          <div className="space-y-3 mt-6">
+            {[
+              [
+                "Benutzer",
+                health?.counts.users ?? users.length,
+              ],
+              [
+                "Firmen",
+                health?.counts.companies ?? companies.length,
+              ],
+              [
+                "Abteilungen",
+                health?.counts.departments ?? departments.length,
+              ],
+              [
+                "Tickets",
+                health?.counts.tickets ?? tickets.length,
+              ],
+              [
+                "Wiki-Seiten",
+                health?.counts.wikiPages ?? wikiPages.length,
+              ],
+              [
+                "News",
+                health?.counts.newsPosts ?? news.length,
+              ],
+              [
+                "Taxonomie",
+                health?.counts.taxonomyItems ?? "—",
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-3 last:border-b-0 last:pb-0"
+              >
                 <span className="text-zinc-500">
-                  Benutzer
+                  {label}
                 </span>
-                <span className="font-semibold">
-                  {health?.counts.users ?? users.length}
+                <span className="font-bold">
+                  {value}
                 </span>
               </div>
+            ))}
+          </div>
+        </section>
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  Firmen
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.companies ?? companies.length}
-                </span>
-              </div>
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            Feature-Schalter
+          </h2>
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  Abteilungen
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.departments ?? departments.length}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  Tickets
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.tickets ?? tickets.length}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  Wiki-Seiten
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.wikiPages ?? wikiPages.length}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  News
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.newsPosts ?? news.length}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-zinc-500">
-                  Taxonomie
-                </span>
-                <span className="font-semibold">
-                  {health?.counts.taxonomyItems ?? "—"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Feature-Schalter
-            </h2>
-
-            <div className="space-y-3 mt-5">
-              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
-                <span className="text-zinc-600">
-                  Ticket-Kommentare
-                </span>
-                <span className={`text-xs px-3 py-1 rounded-full ${
+          <div className="space-y-3 mt-6">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Ticket-Kommentare
+              </span>
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${
                   ticketCommentsEnabled
-                    ? "bg-green-50 text-green-700 border border-green-100"
-                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-zinc-100 text-zinc-500"
                 }`}
-                >
-                  {ticketCommentsEnabled ? "Aktiv" : "Aus"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
-                <span className="text-zinc-600">
-                  Ticket-Vorlagen
-                </span>
-                <span className={`text-xs px-3 py-1 rounded-full ${
-                  ticketTemplatesEnabled
-                    ? "bg-green-50 text-green-700 border border-green-100"
-                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
-                }`}
-                >
-                  {ticketTemplatesEnabled ? "Aktiv" : "Aus"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 bg-zinc-50 rounded-2xl p-4">
-                <span className="text-zinc-600">
-                  Aktivitätsprotokoll
-                </span>
-                <span className={`text-xs px-3 py-1 rounded-full ${
-                  activityLogEnabled
-                    ? "bg-green-50 text-green-700 border border-green-100"
-                    : "bg-zinc-100 text-zinc-500 border border-zinc-200"
-                }`}
-                >
-                  {activityLogEnabled ? "Aktiv" : "Aus"}
-                </span>
-              </div>
+              >
+                {ticketCommentsEnabled ? "Aktiv" : "Aus"}
+              </span>
             </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Ticket-Vorlagen
+              </span>
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${
+                  ticketTemplatesEnabled
+                    ? "bg-green-50 text-green-700"
+                    : "bg-zinc-100 text-zinc-500"
+                }`}
+              >
+                {ticketTemplatesEnabled ? "Aktiv" : "Aus"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Aktivitätsprotokoll
+              </span>
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${
+                  activityLogEnabled
+                    ? "bg-green-50 text-green-700"
+                    : "bg-zinc-100 text-zinc-500"
+                }`}
+              >
+                {activityLogEnabled ? "Aktiv" : "Aus"}
+              </span>
+            </div>
+          </div>
+
+          <Link
+            href="/admin/settings"
+            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+          >
+            Schalter bearbeiten
+          </Link>
+        </section>
+
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            Schnellzugriff
+          </h2>
+
+          <div className="space-y-3 mt-6">
+            <Link
+              href="/admin/modules"
+              className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-medium"
+            >
+              Admin-Module verwalten
+            </Link>
+
+            <Link
+              href="/admin/taxonomy"
+              className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-medium"
+            >
+              Kategorien & Tags verwalten
+            </Link>
+
+            <Link
+              href="/admin/users"
+              className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-medium"
+            >
+              Benutzer verwalten
+            </Link>
+
+            <Link
+              href="/admin/database"
+              className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-medium"
+            >
+              Datenbankstatus öffnen
+            </Link>
 
             <Link
               href="/admin/settings"
-              className="block text-center bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition mt-5"
+              className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-medium"
             >
-              Schalter bearbeiten
+              Systemeinstellungen öffnen
             </Link>
-          </section>
-
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Schnellzugriff
-            </h2>
-
-            <div className="space-y-3 mt-5">
-              <Link
-                href="/admin/modules"
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Admin-Module verwalten
-              </Link>
-
-              <Link
-                href="/admin/taxonomy"
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Kategorien & Tags verwalten
-              </Link>
-
-              <Link
-                href="/admin/users"
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Benutzer verwalten
-              </Link>
-
-              <Link
-                href="/admin/database"
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Datenbankstatus öffnen
-              </Link>
-
-              <Link
-                href="/admin/settings"
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Systemeinstellungen öffnen
-              </Link>
-            </div>
-          </section>
-
-          {pinnedNews.length > 0 && (
-            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">
-                Fixierte News
-              </h2>
-
-              <div className="space-y-3 mt-5">
-                {pinnedNews.slice(0, 4).map((post) => (
-                  <Link
-                    key={post.id}
-                    href={`/news/${post.id}`}
-                    className="block bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition"
-                  >
-                    <p className="font-medium">
-                      {post.title}
-                    </p>
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {post.createdAt}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
-        </aside>
+          </div>
+        </section>
       </div>
+
+      {pinnedNews.length > 0 && (
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            Fixierte News
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+            {pinnedNews.slice(0, 4).map((post) => (
+              <Link
+                key={post.id}
+                href={`/news/${post.id}`}
+                className="bg-zinc-50 hover:bg-zinc-100 rounded-3xl p-5 transition"
+              >
+                <h3 className="font-bold line-clamp-2">
+                  {post.title}
+                </h3>
+                <p className="text-sm text-zinc-500 mt-3">
+                  {post.createdAt}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {activityLogEnabled && (
         <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
             <div>
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-2xl font-bold">
                 Letzte Aktivitäten
               </h2>
               <p className="text-zinc-500 mt-1">
@@ -996,42 +1043,44 @@ export default function AdminPage() {
 
             <Link
               href="/activity"
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
+              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
             >
               Alle öffnen
             </Link>
           </div>
 
-          <div className="space-y-3 mt-6">
-            {latestActivities.length === 0 && (
-              <p className="text-zinc-500">
-                Noch keine Aktivitäten vorhanden.
-              </p>
-            )}
+          {latestActivities.length === 0 && (
+            <p className="text-zinc-500">
+              Noch keine Aktivitäten vorhanden.
+            </p>
+          )}
 
+          <div className="space-y-3">
             {latestActivities.map((activity) => (
               <div
                 key={activity.id}
-                className="border border-zinc-200 rounded-2xl p-4"
+                className="border border-zinc-100 rounded-2xl p-4"
               >
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   <div>
-                    <span className={`text-xs px-3 py-1 rounded-full ${getActivityClass(activity.type)}`}>
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full ${getActivityClass(
+                        activity.type,
+                      )}`}
+                    >
                       {getActivityLabel(activity.type)}
                     </span>
-
-                    <h3 className="font-semibold mt-3">
+                    <h3 className="font-bold mt-3">
                       {activity.title}
                     </h3>
-
                     <p className="text-zinc-500 mt-1">
                       {activity.description}
                     </p>
                   </div>
 
-                  <p className="text-sm text-zinc-400 whitespace-nowrap">
+                  <span className="text-sm text-zinc-400 shrink-0">
                     {activity.createdAt}
-                  </p>
+                  </span>
                 </div>
               </div>
             ))}

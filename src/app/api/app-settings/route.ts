@@ -26,11 +26,6 @@ type AppSettingsRow = {
   enable_ticket_templates: boolean;
   enable_activity_log: boolean;
   default_user_role: string;
-  default_ticket_view: string;
-  default_wiki_view: string;
-  hide_closed_tickets_by_default: boolean;
-  tickets_per_page: number;
-  wiki_per_page: number;
   updated_at: string;
 };
 
@@ -50,11 +45,6 @@ type AppSettingsUpdateBody = {
   enableTicketTemplates?: boolean;
   enableActivityLog?: boolean;
   defaultUserRole?: string;
-  defaultTicketView?: string;
-  defaultWikiView?: string;
-  hideClosedTicketsByDefault?: boolean;
-  ticketsPerPage?: number;
-  wikiPerPage?: number;
 };
 
 const DEFAULT_SETTINGS_ID = "default";
@@ -62,25 +52,21 @@ const DEFAULT_SETTINGS_ID = "default";
 const defaultSettings = {
   id: DEFAULT_SETTINGS_ID,
   appName: "Intranet",
-  companyName: "Intern",
+  companyName: "Velunis",
   appVersion: "0.1.0",
   version: "0.1.0",
   theme: "modern",
   darkMode: false,
-  accentColor: "zinc",
-  appAccentColor: "zinc",
+  accentColor: "velunis",
+  appAccentColor: "velunis",
   sidebarPosition: "left",
   compactMode: false,
   showVersion: true,
+  showDemoHints: false,
   enableTicketComments: true,
   enableTicketTemplates: true,
   enableActivityLog: true,
   defaultUserRole: "employee",
-  defaultTicketView: "table",
-  defaultWikiView: "table",
-  hideClosedTicketsByDefault: true,
-  ticketsPerPage: 25,
-  wikiPerPage: 25,
   updatedAt: "",
 };
 
@@ -98,15 +84,11 @@ function mapSettingsRow(row: AppSettingsRow) {
     sidebarPosition: row.sidebar_position,
     compactMode: row.compact_mode,
     showVersion: row.show_version,
+    showDemoHints: false,
     enableTicketComments: row.enable_ticket_comments,
     enableTicketTemplates: row.enable_ticket_templates,
     enableActivityLog: row.enable_activity_log,
     defaultUserRole: row.default_user_role,
-    defaultTicketView: row.default_ticket_view,
-    defaultWikiView: row.default_wiki_view,
-    hideClosedTicketsByDefault: row.hide_closed_tickets_by_default,
-    ticketsPerPage: row.tickets_per_page,
-    wikiPerPage: row.wiki_per_page,
     updatedAt: row.updated_at,
   };
 }
@@ -129,6 +111,8 @@ function normalizeTheme(value?: string) {
 
 function normalizeAccentColor(value?: string) {
   if (
+    value === "velunis" ||
+    value === "zinc" ||
     value === "blue" ||
     value === "green" ||
     value === "red" ||
@@ -141,7 +125,7 @@ function normalizeAccentColor(value?: string) {
     return value;
   }
 
-  return "zinc";
+  return "velunis";
 }
 
 function normalizeSidebarPosition(value?: string) {
@@ -164,35 +148,6 @@ function normalizeDefaultUserRole(value?: string) {
   return "employee";
 }
 
-function normalizeListView(value?: string) {
-  if (value === "cards") {
-    return "cards";
-  }
-
-  return "table";
-}
-
-function normalizePageSize(
-  value: unknown,
-  fallback: number,
-) {
-  const numberValue = Number(value);
-
-  if (!Number.isFinite(numberValue)) {
-    return fallback;
-  }
-
-  if (numberValue < 5) {
-    return 5;
-  }
-
-  if (numberValue > 100) {
-    return 100;
-  }
-
-  return Math.floor(numberValue);
-}
-
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
     return 403;
@@ -209,7 +164,9 @@ function getErrorMessage(
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error
+    ? error.message
+    : fallback;
 }
 
 async function ensureSettingsRow() {
@@ -230,12 +187,7 @@ async function ensureSettingsRow() {
         enable_ticket_comments,
         enable_ticket_templates,
         enable_activity_log,
-        default_user_role,
-        default_ticket_view,
-        default_wiki_view,
-        hide_closed_tickets_by_default,
-        tickets_per_page,
-        wiki_per_page
+        default_user_role
       )
       VALUES (
         $1,
@@ -252,12 +204,7 @@ async function ensureSettingsRow() {
         $12,
         $13,
         $14,
-        $15,
-        $16,
-        $17,
-        $18,
-        $19,
-        $20
+        $15
       )
       ON CONFLICT (id) DO UPDATE SET
         id = EXCLUDED.id
@@ -277,11 +224,6 @@ async function ensureSettingsRow() {
         enable_ticket_templates,
         enable_activity_log,
         default_user_role,
-        default_ticket_view,
-        default_wiki_view,
-        hide_closed_tickets_by_default,
-        tickets_per_page,
-        wiki_per_page,
         updated_at
     `,
     [
@@ -300,11 +242,6 @@ async function ensureSettingsRow() {
       defaultSettings.enableTicketTemplates,
       defaultSettings.enableActivityLog,
       defaultSettings.defaultUserRole,
-      defaultSettings.defaultTicketView,
-      defaultSettings.defaultWikiView,
-      defaultSettings.hideClosedTicketsByDefault,
-      defaultSettings.ticketsPerPage,
-      defaultSettings.wikiPerPage,
     ],
   );
 
@@ -342,7 +279,10 @@ export async function GET() {
           error,
           "Einstellungen konnten nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -370,13 +310,25 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const body = await request.json() as AppSettingsUpdateBody;
+    const body = (await request.json()) as AppSettingsUpdateBody;
 
     const nextAppVersion =
       body.appVersion ||
       body.version ||
       current.app_version ||
       defaultSettings.appVersion;
+
+    const nextAccentColor =
+      body.accentColor !== undefined
+        ? normalizeAccentColor(body.accentColor)
+        : current.accent_color;
+
+    const nextAppAccentColor =
+      body.appAccentColor !== undefined
+        ? normalizeAccentColor(body.appAccentColor)
+        : body.accentColor !== undefined
+          ? nextAccentColor
+          : current.app_accent_color || nextAccentColor;
 
     const row = await queryOne<AppSettingsRow>(
       `
@@ -396,13 +348,8 @@ export async function PATCH(request: Request) {
           enable_ticket_templates = $12,
           enable_activity_log = $13,
           default_user_role = $14,
-          default_ticket_view = $15,
-          default_wiki_view = $16,
-          hide_closed_tickets_by_default = $17,
-          tickets_per_page = $18,
-          wiki_per_page = $19,
           updated_at = NOW()
-        WHERE id = $20
+        WHERE id = $15
         RETURNING
           id,
           app_name,
@@ -419,39 +366,45 @@ export async function PATCH(request: Request) {
           enable_ticket_templates,
           enable_activity_log,
           default_user_role,
-          default_ticket_view,
-          default_wiki_view,
-          hide_closed_tickets_by_default,
-          tickets_per_page,
-          wiki_per_page,
           updated_at
       `,
       [
-        body.appName !== undefined ? body.appName || defaultSettings.appName : current.app_name,
-        body.companyName !== undefined ? body.companyName || defaultSettings.companyName : current.company_name,
+        body.appName !== undefined
+          ? body.appName || defaultSettings.appName
+          : current.app_name,
+        body.companyName !== undefined
+          ? body.companyName || defaultSettings.companyName
+          : current.company_name,
         nextAppVersion,
-        body.theme !== undefined ? normalizeTheme(body.theme) : current.theme,
-        typeof body.darkMode === "boolean" ? body.darkMode : current.dark_mode,
-        body.accentColor !== undefined ? normalizeAccentColor(body.accentColor) : current.accent_color,
-        body.appAccentColor !== undefined ? normalizeAccentColor(body.appAccentColor) : current.app_accent_color,
-        body.sidebarPosition !== undefined ? normalizeSidebarPosition(body.sidebarPosition) : current.sidebar_position,
-        typeof body.compactMode === "boolean" ? body.compactMode : current.compact_mode,
-        typeof body.showVersion === "boolean" ? body.showVersion : current.show_version,
-        typeof body.enableTicketComments === "boolean" ? body.enableTicketComments : current.enable_ticket_comments,
-        typeof body.enableTicketTemplates === "boolean" ? body.enableTicketTemplates : current.enable_ticket_templates,
-        typeof body.enableActivityLog === "boolean" ? body.enableActivityLog : current.enable_activity_log,
-        body.defaultUserRole !== undefined ? normalizeDefaultUserRole(body.defaultUserRole) : current.default_user_role,
-        body.defaultTicketView !== undefined ? normalizeListView(body.defaultTicketView) : current.default_ticket_view,
-        body.defaultWikiView !== undefined ? normalizeListView(body.defaultWikiView) : current.default_wiki_view,
-        typeof body.hideClosedTicketsByDefault === "boolean"
-          ? body.hideClosedTicketsByDefault
-          : current.hide_closed_tickets_by_default,
-        body.ticketsPerPage !== undefined
-          ? normalizePageSize(body.ticketsPerPage, defaultSettings.ticketsPerPage)
-          : current.tickets_per_page,
-        body.wikiPerPage !== undefined
-          ? normalizePageSize(body.wikiPerPage, defaultSettings.wikiPerPage)
-          : current.wiki_per_page,
+        body.theme !== undefined
+          ? normalizeTheme(body.theme)
+          : current.theme,
+        typeof body.darkMode === "boolean"
+          ? body.darkMode
+          : current.dark_mode,
+        nextAccentColor,
+        nextAppAccentColor,
+        body.sidebarPosition !== undefined
+          ? normalizeSidebarPosition(body.sidebarPosition)
+          : current.sidebar_position,
+        typeof body.compactMode === "boolean"
+          ? body.compactMode
+          : current.compact_mode,
+        typeof body.showVersion === "boolean"
+          ? body.showVersion
+          : current.show_version,
+        typeof body.enableTicketComments === "boolean"
+          ? body.enableTicketComments
+          : current.enable_ticket_comments,
+        typeof body.enableTicketTemplates === "boolean"
+          ? body.enableTicketTemplates
+          : current.enable_ticket_templates,
+        typeof body.enableActivityLog === "boolean"
+          ? body.enableActivityLog
+          : current.enable_activity_log,
+        body.defaultUserRole !== undefined
+          ? normalizeDefaultUserRole(body.defaultUserRole)
+          : current.default_user_role,
         DEFAULT_SETTINGS_ID,
       ],
     );
@@ -477,7 +430,10 @@ export async function PATCH(request: Request) {
           error,
           "Einstellungen konnten nicht gespeichert werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -510,13 +466,8 @@ export async function DELETE() {
           enable_ticket_templates = $12,
           enable_activity_log = $13,
           default_user_role = $14,
-          default_ticket_view = $15,
-          default_wiki_view = $16,
-          hide_closed_tickets_by_default = $17,
-          tickets_per_page = $18,
-          wiki_per_page = $19,
           updated_at = NOW()
-        WHERE id = $20
+        WHERE id = $15
         RETURNING
           id,
           app_name,
@@ -533,11 +484,6 @@ export async function DELETE() {
           enable_ticket_templates,
           enable_activity_log,
           default_user_role,
-          default_ticket_view,
-          default_wiki_view,
-          hide_closed_tickets_by_default,
-          tickets_per_page,
-          wiki_per_page,
           updated_at
       `,
       [
@@ -555,11 +501,6 @@ export async function DELETE() {
         defaultSettings.enableTicketTemplates,
         defaultSettings.enableActivityLog,
         defaultSettings.defaultUserRole,
-        defaultSettings.defaultTicketView,
-        defaultSettings.defaultWikiView,
-        defaultSettings.hideClosedTicketsByDefault,
-        defaultSettings.ticketsPerPage,
-        defaultSettings.wikiPerPage,
         DEFAULT_SETTINGS_ID,
       ],
     );
@@ -568,7 +509,9 @@ export async function DELETE() {
       const created = await ensureSettingsRow();
 
       return NextResponse.json(
-        created ? mapSettingsRow(created) : defaultSettings,
+        created
+          ? mapSettingsRow(created)
+          : defaultSettings,
       );
     }
 
@@ -582,7 +525,10 @@ export async function DELETE() {
           error,
           "Einstellungen konnten nicht zurückgesetzt werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

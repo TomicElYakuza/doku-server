@@ -1,27 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --app-accent: #18181b;
+  --background: #f3f4f8;
+  --foreground: #09090b;
+
+  --velunis-blue: #2563eb;
+  --velunis-indigo: #4f46e5;
+  --velunis-violet: #7c3aed;
+  --velunis-dark: #060711;
+  --velunis-soft: #eef2ff;
+
+  --app-accent: #4f46e5;
+  --app-accent-hover: #4338ca;
+  --app-accent-soft: #eef2ff;
+  --app-accent-border: #c7d2fe;
+  --app-accent-text: #3730a3;
+
+  --app-brand-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 45%, #7c3aed 100%);
+  --app-brand-gradient-soft: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(124, 58, 237, 0.12));
+  --app-brand-shadow: 0 16px 40px rgba(79, 70, 229, 0.24);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html,
+html {
+  background: var(--background);
+  color: var(--foreground);
+}
+
 body {
-  min-height: 100%;
   margin: 0;
-  padding: 0;
-}
-
-body {
-  background: #fafafa;
-  color: #18181b;
-}
-
-a {
-  text-decoration: none;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 30%),
+    var(--background);
+  color: var(--foreground);
 }
 
 button,
@@ -31,141 +47,419 @@ select {
   font: inherit;
 }
 
-body.app-compact main {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
+a {
+  text-decoration: none;
 }
 
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+::selection {
+  background: rgba(79, 70, 229, 0.22);
 }
 
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Dark Mode Basis */
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+
+  --app-accent: #818cf8;
+  --app-accent-hover: #a78bfa;
+  --app-accent-soft: rgba(79, 70, 229, 0.16);
+  --app-accent-border: rgba(129, 140, 248, 0.34);
+  --app-accent-text: #c4b5fd;
+
+  --app-brand-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 45%, #8b5cf6 100%);
+  --app-brand-gradient-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(139, 92, 246, 0.16));
+  --app-brand-shadow: 0 18px 44px rgba(99, 102, 241, 0.28);
 }
 
-.dark body,
-body.app-dark {
-  background: #09090b;
-  color: #f4f4f5;
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 28%),
+    #09090b;
+  color: #fafafa;
 }
 
+/* Grundflächen */
 .dark .bg-zinc-50 {
-  background-color: #09090b !important;
-}
-
-.dark .bg-white {
-  background-color: #18181b !important;
+  background-color: #18181b;
 }
 
 .dark .bg-zinc-100 {
-  background-color: #27272a !important;
+  background-color: #27272a;
+}
+
+.dark .bg-zinc-200 {
+  background-color: #3f3f46;
+}
+
+.dark .bg-white {
+  background-color: #18181b;
 }
 
 .dark .bg-zinc-900 {
-  background-color: #f4f4f5 !important;
-  color: #09090b !important;
+  background-color: #18181b;
 }
 
+.dark .bg-zinc-950 {
+  background-color: #020617;
+}
+
+/* Soft-Farben im Dark Mode lesbar machen */
+.dark .bg-indigo-50 {
+  background-color: rgba(79, 70, 229, 0.18);
+}
+
+.dark .bg-indigo-100 {
+  background-color: rgba(79, 70, 229, 0.24);
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.18);
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(37, 99, 235, 0.24);
+}
+
+.dark .bg-purple-50 {
+  background-color: rgba(124, 58, 237, 0.18);
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(124, 58, 237, 0.24);
+}
+
+.dark .bg-violet-50 {
+  background-color: rgba(124, 58, 237, 0.18);
+}
+
+.dark .bg-violet-100 {
+  background-color: rgba(124, 58, 237, 0.24);
+}
+
+.dark .bg-green-50 {
+  background-color: rgba(22, 163, 74, 0.16);
+}
+
+.dark .bg-green-100 {
+  background-color: rgba(22, 163, 74, 0.24);
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(5, 150, 105, 0.16);
+}
+
+.dark .bg-emerald-100 {
+  background-color: rgba(5, 150, 105, 0.24);
+}
+
+.dark .bg-orange-50 {
+  background-color: rgba(234, 88, 12, 0.16);
+}
+
+.dark .bg-orange-100 {
+  background-color: rgba(234, 88, 12, 0.24);
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(217, 119, 6, 0.16);
+}
+
+.dark .bg-amber-100 {
+  background-color: rgba(217, 119, 6, 0.24);
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(220, 38, 38, 0.16);
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(220, 38, 38, 0.24);
+}
+
+.dark .bg-sky-50 {
+  background-color: rgba(2, 132, 199, 0.16);
+}
+
+.dark .bg-sky-100 {
+  background-color: rgba(2, 132, 199, 0.24);
+}
+
+/* Rahmen */
+.dark .border-zinc-100,
+.dark .border-zinc-200 {
+  border-color: #3f3f46;
+}
+
+.dark .border-zinc-300 {
+  border-color: #52525b;
+}
+
+.dark .border-zinc-800,
+.dark .border-zinc-900 {
+  border-color: #27272a;
+}
+
+.dark .border-indigo-100,
+.dark .border-indigo-200,
+.dark .border-indigo-300 {
+  border-color: rgba(129, 140, 248, 0.42);
+}
+
+.dark .border-blue-100,
+.dark .border-blue-200,
+.dark .border-blue-300 {
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.dark .border-purple-100,
+.dark .border-purple-200,
+.dark .border-purple-300,
+.dark .border-violet-100,
+.dark .border-violet-200,
+.dark .border-violet-300 {
+  border-color: rgba(167, 139, 250, 0.38);
+}
+
+.dark .border-green-100,
+.dark .border-green-200,
+.dark .border-green-300,
+.dark .border-emerald-100,
+.dark .border-emerald-200,
+.dark .border-emerald-300 {
+  border-color: rgba(52, 211, 153, 0.34);
+}
+
+.dark .border-orange-100,
+.dark .border-orange-200,
+.dark .border-orange-300,
+.dark .border-amber-100,
+.dark .border-amber-200,
+.dark .border-amber-300 {
+  border-color: rgba(251, 191, 36, 0.34);
+}
+
+.dark .border-red-100,
+.dark .border-red-200,
+.dark .border-red-300 {
+  border-color: rgba(248, 113, 113, 0.34);
+}
+
+/* Texte */
 .dark .text-zinc-950,
-.dark .text-zinc-900,
+.dark .text-zinc-900 {
+  color: #fafafa;
+}
+
 .dark .text-zinc-800,
 .dark .text-zinc-700 {
-  color: #f4f4f5 !important;
+  color: #e4e4e7;
 }
 
 .dark .text-zinc-600,
 .dark .text-zinc-500 {
-  color: #a1a1aa !important;
+  color: #a1a1aa;
 }
 
-.dark .text-zinc-400 {
-  color: #71717a !important;
+.dark .text-zinc-400,
+.dark .text-zinc-300 {
+  color: #d4d4d8;
 }
 
-.dark .border-zinc-100,
-.dark .border-zinc-200,
-.dark .border-zinc-300 {
-  border-color: #3f3f46 !important;
+/* Farbtexte im Dark Mode kräftig, aber lesbar */
+.dark .text-indigo-700,
+.dark .text-indigo-600 {
+  color: #c7d2fe;
 }
 
-.dark .hover\:bg-zinc-50:hover,
-.dark .hover\:bg-zinc-100:hover,
-.dark .hover\:bg-zinc-200:hover {
-  background-color: #27272a !important;
+.dark .text-blue-700,
+.dark .text-blue-600 {
+  color: #bfdbfe;
 }
 
+.dark .text-purple-700,
+.dark .text-purple-600,
+.dark .text-violet-700,
+.dark .text-violet-600 {
+  color: #ddd6fe;
+}
+
+.dark .text-green-700,
+.dark .text-green-600,
+.dark .text-emerald-700,
+.dark .text-emerald-600 {
+  color: #bbf7d0;
+}
+
+.dark .text-orange-700,
+.dark .text-orange-600,
+.dark .text-amber-700,
+.dark .text-amber-600 {
+  color: #fde68a;
+}
+
+.dark .text-red-700,
+.dark .text-red-600 {
+  color: #fecaca;
+}
+
+.dark .text-sky-700,
+.dark .text-sky-600 {
+  color: #bae6fd;
+}
+
+/* Inputs */
 .dark input,
 .dark textarea,
 .dark select {
-  background-color: #18181b !important;
-  color: #f4f4f5 !important;
-  border-color: #3f3f46 !important;
+  background-color: #18181b;
+  color: #fafafa;
+  border-color: #3f3f46;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #71717a !important;
+  color: #71717a;
 }
 
-.dark .shadow-sm,
-.dark .shadow-lg {
-  box-shadow: none !important;
+.dark option {
+  background-color: #18181b;
+  color: #fafafa;
 }
 
-.dark .prose {
-  color: #e4e4e7 !important;
+/* Hover-Flächen */
+.dark .hover\:bg-zinc-50:hover,
+.dark .hover\:bg-zinc-100:hover {
+  background-color: #27272a;
 }
 
-.dark .prose h1,
-.dark .prose h2,
-.dark .prose h3,
-.dark .prose h4,
-.dark .prose strong {
-  color: #f4f4f5 !important;
+.dark .hover\:bg-zinc-200:hover {
+  background-color: #3f3f46;
 }
 
-.dark a {
-  color: inherit;
+.dark .hover\:bg-indigo-50:hover {
+  background-color: rgba(79, 70, 229, 0.22);
 }
 
-.dark button.bg-zinc-900,
-.dark a.bg-zinc-900 {
-  background-color: var(--app-accent) !important;
-  color: white !important;
+.dark .hover\:bg-blue-50:hover {
+  background-color: rgba(37, 99, 235, 0.22);
 }
 
-.dark .bg-blue-50 {
-  background-color: rgba(37, 99, 235, 0.15) !important;
+.dark .hover\:bg-purple-50:hover {
+  background-color: rgba(124, 58, 237, 0.22);
 }
 
-.dark .bg-green-50 {
-  background-color: rgba(22, 163, 74, 0.15) !important;
+.dark .hover\:bg-green-50:hover {
+  background-color: rgba(22, 163, 74, 0.20);
 }
 
-.dark .bg-red-50 {
-  background-color: rgba(220, 38, 38, 0.15) !important;
+.dark .hover\:bg-orange-50:hover {
+  background-color: rgba(234, 88, 12, 0.20);
 }
 
-.dark .bg-orange-50,
-.dark .bg-orange-100 {
-  background-color: rgba(234, 88, 12, 0.15) !important;
+.dark .hover\:bg-red-50:hover {
+  background-color: rgba(220, 38, 38, 0.20);
 }
 
-.dark .bg-indigo-50 {
-  background-color: rgba(79, 70, 229, 0.15) !important;
+/* Ring-Farben im Dark Mode */
+.dark .ring-indigo-500\/10 {
+  --tw-ring-color: rgba(129, 140, 248, 0.22);
 }
 
-.dark .bg-purple-50 {
-  background-color: rgba(124, 58, 237, 0.15) !important;
+.dark .ring-blue-500\/10 {
+  --tw-ring-color: rgba(96, 165, 250, 0.22);
 }
 
-.dark .bg-emerald-50 {
-  background-color: rgba(16, 185, 129, 0.15) !important;
+.dark .ring-purple-500\/10 {
+  --tw-ring-color: rgba(167, 139, 250, 0.22);
+}
+
+/* Schatten im Dark Mode dezenter */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.32);
+}
+
+/* Velunis Branding */
+.app-brand-gradient {
+  background: var(--app-brand-gradient);
+}
+
+.app-brand-gradient-soft {
+  background: var(--app-brand-gradient-soft);
+}
+
+.app-brand-text {
+  background: var(--app-brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.app-brand-shadow {
+  box-shadow: var(--app-brand-shadow);
+}
+
+.app-accent-bg {
+  background: var(--app-brand-gradient);
+}
+
+.app-accent-bg:hover {
+  opacity: 0.92;
+}
+
+.app-accent-text {
+  color: var(--app-accent-text);
+}
+
+.app-accent-border {
+  border-color: var(--app-accent-border);
+}
+
+.app-accent-soft {
+  background: var(--app-accent-soft);
+}
+
+.app-focus {
+  outline: none;
+}
+
+.app-focus:focus {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.14);
+}
+
+.dark .app-focus:focus {
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.18);
+}
+
+/* Sidebar Scrollbar */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Alte Root-Backlinks aus Page Content ausblenden */
+.app-page-content div.flex.items-center.gap-3.text-sm:has(a[href="/"]) {
+  display: none;
 }

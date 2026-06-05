@@ -6,7 +6,6 @@ import type {
   AppSettings,
   AppSettingsUpdateInput,
   AppTheme,
-  DefaultListView,
   SidebarPosition,
 } from "../types/settings";
 import type {
@@ -24,7 +23,6 @@ export type AppSettingsRepository = {
   getAccentColorLabel: (color: AppAccentColor | string) => string;
   getSidebarPositionLabel: (position: SidebarPosition | string) => string;
   getDefaultUserRoleLabel: (role: UserRole | string) => string;
-  getDefaultListViewLabel: (view: DefaultListView | string) => string;
   getThemeOptions: () => Array<{
     value: AppTheme;
     label: string;
@@ -41,10 +39,6 @@ export type AppSettingsRepository = {
     value: UserRole;
     label: string;
   }>;
-  getDefaultListViewOptions: () => Array<{
-    value: DefaultListView;
-    label: string;
-  }>;
 };
 
 function dispatchSettingsUpdated() {
@@ -52,23 +46,22 @@ function dispatchSettingsUpdated() {
     return;
   }
 
-  window.dispatchEvent(
-    new Event("appSettingsUpdated"),
-  );
+  window.dispatchEvent(new Event("appSettingsUpdated"));
 }
 
 const defaultSettings: AppSettings = {
   appName: "Intranet",
-  companyName: "Intern",
+  companyName: "Velunis",
   appVersion: "0.1.0",
   version: "0.1.0",
   theme: "modern",
   darkMode: false,
-  accentColor: "zinc",
-  appAccentColor: "zinc",
+  accentColor: "velunis",
+  appAccentColor: "velunis",
   sidebarPosition: "left",
   showVersion: true,
   compactMode: false,
+  showDemoHints: false,
   enableTicketTemplates: true,
   enableTicketComments: true,
   enableActivityLog: true,
@@ -109,12 +102,8 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   },
 
   async reset() {
-    const updatedSettings = await requestJson<AppSettings>(
-      "/api/app-settings",
-      {
-        method: "DELETE",
-      },
-    );
+    const updatedSettings =
+      await postgresAppSettingsRepository.save(defaultSettings);
 
     dispatchSettingsUpdated();
 
@@ -142,6 +131,10 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   },
 
   getAccentColorLabel(color: AppAccentColor | string) {
+    if (color === "velunis") {
+      return "Velunis Blau/Lila";
+    }
+
     if (color === "blue") {
       return "Blau";
     }
@@ -197,14 +190,6 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return "Mitarbeiter";
   },
 
-  getDefaultListViewLabel(view: DefaultListView | string) {
-    if (view === "cards") {
-      return "Karten";
-    }
-
-    return "Tabelle";
-  },
-
   getThemeOptions() {
     return [
       {
@@ -229,24 +214,16 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   getAccentColorOptions() {
     return [
       {
+        value: "velunis",
+        label: "Velunis Blau/Lila",
+      },
+      {
         value: "zinc",
         label: "Neutral",
       },
       {
         value: "blue",
         label: "Blau",
-      },
-      {
-        value: "green",
-        label: "Grün",
-      },
-      {
-        value: "red",
-        label: "Rot",
-      },
-      {
-        value: "orange",
-        label: "Orange",
       },
       {
         value: "purple",
@@ -263,6 +240,10 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       {
         value: "amber",
         label: "Amber",
+      },
+      {
+        value: "red",
+        label: "Rot",
       },
     ];
   },
@@ -293,19 +274,6 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       {
         value: "admin",
         label: "Administrator",
-      },
-    ];
-  },
-
-  getDefaultListViewOptions() {
-    return [
-      {
-        value: "table",
-        label: "Tabelle",
-      },
-      {
-        value: "cards",
-        label: "Karten",
       },
     ];
   },

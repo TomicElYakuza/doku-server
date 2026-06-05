@@ -11,6 +11,7 @@ import {
   usePathname,
   useRouter,
 } from "next/navigation";
+
 import {
   getCachedCurrentUser,
   loadCurrentUser,
@@ -24,6 +25,9 @@ import {
 import {
   useUserSettings,
 } from "../hooks/useUserSettings";
+import type {
+  AppTheme,
+} from "../types/settings";
 
 type AppShellProps = {
   children?: ReactNode;
@@ -43,6 +47,11 @@ type NavigationItem = {
   adminOnly?: boolean;
   permissionAny?: string[];
 };
+
+type ShellMode =
+  | "modern"
+  | "light"
+  | "dark";
 
 const navigationItems: NavigationItem[] = [
   {
@@ -136,27 +145,45 @@ function isActivePath(
   href: string,
 ) {
   if (href === "/dashboard") {
-    return pathname === href;
-  }
-
-  if (href === "/admin/settings") {
-    return pathname === "/admin/settings";
+    return pathname === href || pathname === "/";
   }
 
   if (href === "/admin") {
-    return (
-      pathname === "/admin" ||
-      (
-        pathname.startsWith("/admin/") &&
-        !pathname.startsWith("/admin/settings")
-      )
-    );
+    return pathname === "/admin";
   }
 
-  return (
-    pathname === href ||
-    pathname.startsWith(`${href}/`)
-  );
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getSystemDarkMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function getShellMode(
+  theme: AppTheme | string,
+  darkMode: boolean,
+): ShellMode {
+  if (theme === "dark") {
+    return "dark";
+  }
+
+  if (theme === "light") {
+    return "light";
+  }
+
+  if (theme === "system") {
+    return getSystemDarkMode() ? "dark" : "light";
+  }
+
+  if (darkMode) {
+    return "dark";
+  }
+
+  return "modern";
 }
 
 function getRoleLabel(role?: string) {
@@ -169,6 +196,42 @@ function getRoleLabel(role?: string) {
   }
 
   return "Mitarbeiter";
+}
+
+function getInitials(name?: string) {
+  const parts = String(name || "U")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "U";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function normalizeBrandValue(
+  value: string | undefined,
+  fallback: string,
+) {
+  const normalized = String(value || "").trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (
+    normalized.toLowerCase() === "intern" ||
+    normalized.toLowerCase() === "intranet"
+  ) {
+    return fallback;
+  }
+
+  return normalized;
 }
 
 function getPageTitle(pathname: string) {
@@ -188,16 +251,24 @@ function getPageTitle(pathname: string) {
     return "Firmen & Abteilungen";
   }
 
+  if (pathname.startsWith("/admin/news")) {
+    return "News-Verwaltung";
+  }
+
   if (pathname.startsWith("/admin/taxonomy")) {
     return "Kategorien & Tags";
   }
 
-  if (pathname.startsWith("/admin/database")) {
-    return "Datenbankstatus";
+  if (pathname.startsWith("/admin/modules")) {
+    return "Admin-Module";
   }
 
-  if (pathname.startsWith("/admin/news")) {
-    return "News-Verwaltung";
+  if (pathname.startsWith("/admin/role-templates")) {
+    return "Rollen-Vorlagen";
+  }
+
+  if (pathname.startsWith("/admin/database")) {
+    return "Datenbank";
   }
 
   if (pathname.startsWith("/admin")) {
@@ -235,76 +306,144 @@ function getPageTitle(pathname: string) {
   return "Dashboard";
 }
 
+function getSectionLabel(pathname: string) {
+  if (pathname.startsWith("/admin")) {
+    return "Velunis Admin";
+  }
+
+  if (pathname.startsWith("/tickets")) {
+    return "Support Center";
+  }
+
+  if (pathname.startsWith("/wiki")) {
+    return "Wissensdatenbank";
+  }
+
+  if (pathname.startsWith("/files")) {
+    return "Dokumente";
+  }
+
+  if (pathname.startsWith("/news")) {
+    return "Unternehmensnews";
+  }
+
+  if (pathname.startsWith("/settings")) {
+    return "Benutzerbereich";
+  }
+
+  return "Velunis Workspace";
+}
+
 function getThemeClasses(
-  theme: string,
+  mode: ShellMode,
   compactMode: boolean,
 ) {
-  if (theme === "dark") {
+  const spacing = compactMode
+    ? "px-4 py-5 xl:px-6 xl:py-6"
+    : "px-5 py-6 xl:px-8 xl:py-8";
+
+  if (mode === "light") {
     return {
-      shell: "min-h-screen bg-zinc-950 text-zinc-100",
-      sidebar: "bg-black border-zinc-800 text-white",
-      topbar: "bg-black border-zinc-800 text-white",
+      shell:
+        "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(37,99,235,0.08),_transparent_28%),#f6f7fb] text-zinc-950",
+      sidebar:
+        "bg-white/92 border-zinc-200 text-zinc-950 backdrop-blur-xl",
+      sidebarCard:
+        "bg-zinc-50 border-zinc-200 text-zinc-950",
+      sidebarCardHover:
+        "hover:bg-white",
+      topbar:
+        "bg-white/88 border-zinc-200 text-zinc-950 backdrop-blur-xl",
       sidebarMuted: "text-zinc-500",
-      inactiveNav: "text-zinc-300 hover:bg-zinc-800 hover:text-white",
-      main: compactMode ? "p-4 xl:p-6" : "p-5 xl:p-8",
+      inactiveNav:
+        "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+      activeNav:
+        "text-white app-brand-shadow",
+      activeIcon:
+        "bg-white/20 text-white",
+      inactiveIcon:
+        "bg-zinc-100 group-hover:bg-zinc-200",
+      main: spacing,
+      topbarSurface:
+        "bg-zinc-50 border-zinc-200 text-zinc-950",
+      mobileNav:
+        "bg-white/95 border-zinc-200 text-zinc-600 backdrop-blur-xl",
+      logoutButton:
+        "bg-zinc-950 text-white hover:bg-zinc-800",
+      versionText:
+        "text-zinc-500",
+      systemTrack:
+        "bg-zinc-200",
     };
   }
 
-  if (theme === "light") {
+  if (mode === "dark") {
     return {
-      shell: "min-h-screen bg-zinc-50 text-zinc-950",
-      sidebar: "bg-white border-zinc-200 text-zinc-950",
-      topbar: "bg-white border-zinc-200 text-zinc-950",
+      shell:
+        "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(37,99,235,0.14),_transparent_28%),#09090b] text-zinc-100",
+      sidebar:
+        "bg-[#050610]/95 border-white/10 text-white backdrop-blur-xl",
+      sidebarCard:
+        "bg-white/[0.07] border-white/10 text-white",
+      sidebarCardHover:
+        "hover:bg-white/[0.1]",
+      topbar:
+        "bg-[#050610]/92 border-white/10 text-white backdrop-blur-xl",
       sidebarMuted: "text-zinc-500",
-      inactiveNav: "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
-      main: compactMode ? "p-4 xl:p-6" : "p-5 xl:p-8",
+      inactiveNav:
+        "text-zinc-300 hover:bg-white/10 hover:text-white",
+      activeNav:
+        "text-white app-brand-shadow",
+      activeIcon:
+        "bg-white/18 text-white",
+      inactiveIcon:
+        "bg-white/[0.06] group-hover:bg-white/[0.1]",
+      main: spacing,
+      topbarSurface:
+        "bg-white/[0.07] border-white/10 text-white",
+      mobileNav:
+        "bg-[#050610]/95 border-white/10 text-zinc-300 backdrop-blur-xl",
+      logoutButton:
+        "bg-white text-zinc-950 hover:bg-zinc-100",
+      versionText:
+        "text-zinc-500",
+      systemTrack:
+        "bg-white/10",
     };
   }
 
   return {
-    shell: "min-h-screen bg-zinc-100 text-zinc-950",
-    sidebar: "bg-zinc-950 border-zinc-900 text-white",
-    topbar: "bg-zinc-950 border-zinc-900 text-white",
+    shell:
+      "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.12),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(37,99,235,0.12),_transparent_30%),#f3f4f8] text-zinc-950",
+    sidebar:
+      "bg-[#060711] border-white/10 text-white",
+    sidebarCard:
+      "bg-white/[0.06] border-white/10 text-white",
+    sidebarCardHover:
+      "hover:bg-white/[0.09]",
+    topbar:
+      "bg-[#060711]/95 border-white/10 text-white backdrop-blur-xl",
     sidebarMuted: "text-zinc-500",
-    inactiveNav: "text-zinc-300 hover:bg-white/10 hover:text-white",
-    main: compactMode ? "p-4 xl:p-6" : "p-5 xl:p-8",
+    inactiveNav:
+      "text-zinc-300 hover:bg-white/10 hover:text-white",
+    activeNav:
+      "text-white app-brand-shadow",
+    activeIcon:
+      "bg-white/18 text-white",
+    inactiveIcon:
+      "bg-white/[0.06] group-hover:bg-white/[0.1]",
+    main: spacing,
+    topbarSurface:
+      "bg-white/[0.07] border-white/10 text-white",
+    mobileNav:
+      "bg-[#060711]/95 border-white/10 text-zinc-300 backdrop-blur-xl",
+    logoutButton:
+      "bg-white text-zinc-950 hover:bg-zinc-100",
+    versionText:
+      "text-zinc-500",
+    systemTrack:
+      "bg-white/10",
   };
-}
-
-function getAccentClasses(accentColor: string) {
-  if (accentColor === "blue") {
-    return "bg-blue-600 text-white";
-  }
-
-  if (accentColor === "green") {
-    return "bg-green-600 text-white";
-  }
-
-  if (accentColor === "red") {
-    return "bg-red-600 text-white";
-  }
-
-  if (accentColor === "orange") {
-    return "bg-orange-500 text-white";
-  }
-
-  if (accentColor === "purple") {
-    return "bg-purple-600 text-white";
-  }
-
-  if (accentColor === "indigo") {
-    return "bg-indigo-600 text-white";
-  }
-
-  if (accentColor === "emerald") {
-    return "bg-emerald-600 text-white";
-  }
-
-  if (accentColor === "amber") {
-    return "bg-amber-500 text-zinc-950";
-  }
-
-  return "bg-white text-zinc-950";
 }
 
 export default function AppShell({
@@ -313,9 +452,7 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const [user, setUser] = useState(
-    getCachedCurrentUser(),
-  );
+  const [user, setUser] = useState(getCachedCurrentUser());
   const [loading, setLoading] = useState(true);
 
   const {
@@ -340,9 +477,7 @@ export default function AppShell({
     void ensureUser();
 
     function handleCurrentUserUpdated() {
-      setUser(
-        getCachedCurrentUser(),
-      );
+      setUser(getCachedCurrentUser());
     }
 
     window.addEventListener(
@@ -372,11 +507,7 @@ export default function AppShell({
         router.push("/login");
       }
     } catch (error) {
-      console.error(
-        "Benutzer konnte nicht geladen werden:",
-        error,
-      );
-
+      console.error("Benutzer konnte nicht geladen werden:", error);
       setUser(null);
       router.push("/login");
     } finally {
@@ -386,17 +517,11 @@ export default function AppShell({
 
   async function handleLogout() {
     try {
-      await fetch(
-        "/api/auth/logout",
-        {
-          method: "POST",
-        },
-      );
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
     } catch (error) {
-      console.error(
-        "Logout fehlgeschlagen:",
-        error,
-      );
+      console.error("Logout fehlgeschlagen:", error);
     } finally {
       setUser(null);
       router.push("/login");
@@ -417,10 +542,7 @@ export default function AppShell({
           return false;
         }
 
-        if (
-          !item.permissionAny ||
-          item.permissionAny.length === 0
-        ) {
+        if (!item.permissionAny || item.permissionAny.length === 0) {
           return true;
         }
 
@@ -448,17 +570,35 @@ export default function AppShell({
     ],
   );
 
-  const themeClasses = getThemeClasses(
-    userSettings.theme,
-    userSettings.compactMode,
+  const shellMode = getShellMode(
+    appSettings.theme,
+    appSettings.darkMode,
   );
 
-  const activeNavClass = getAccentClasses(
-    userSettings.accentColor,
+  const themeClasses = getThemeClasses(
+    shellMode,
+    userSettings.compactMode || appSettings.compactMode,
   );
 
   const pageTitle = getPageTitle(pathname);
-  const appVersion = appSettings.appVersion || appSettings.version || "0.1.0";
+  const sectionLabel = getSectionLabel(pathname);
+
+  const brandName = normalizeBrandValue(
+    appSettings.companyName,
+    "Velunis",
+  );
+
+  const workspaceName = normalizeBrandValue(
+    appSettings.appName,
+    "Intranet",
+  );
+
+  const appVersion =
+    appSettings.appVersion ||
+    appSettings.version ||
+    "0.1.0";
+
+  const mobileNavigationItems = visibleNavigationItems.slice(0, 5);
 
   if (isPublicPath(pathname)) {
     return (
@@ -473,7 +613,7 @@ export default function AppShell({
       <div className="min-h-screen bg-zinc-100 flex items-center justify-center">
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
           <p className="text-zinc-500">
-            Anwendung wird geladen...
+            Velunis Workspace wird geladen...
           </p>
         </div>
       </div>
@@ -482,9 +622,9 @@ export default function AppShell({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-100 flex items-center justify-center">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm max-w-md">
-          <h1 className="text-2xl font-bold">
+      <div className="min-h-screen bg-zinc-100 flex items-center justify-center p-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm max-w-md w-full">
+          <h1 className="text-2xl font-bold text-zinc-900">
             Nicht angemeldet
           </h1>
           <p className="text-zinc-500 mt-2">
@@ -492,7 +632,7 @@ export default function AppShell({
           </p>
           <Link
             href="/login"
-            className="inline-flex mt-6 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            className="inline-flex mt-6 app-accent-bg text-white px-5 py-3 rounded-2xl transition app-brand-shadow"
           >
             Zum Login
           </Link>
@@ -503,45 +643,78 @@ export default function AppShell({
 
   return (
     <div className={themeClasses.shell}>
-      <aside className={`fixed inset-y-0 left-0 z-40 hidden xl:flex w-72 border-r ${themeClasses.sidebar}`}>
-        <div className="h-screen w-full flex flex-col overflow-hidden">
-          <div className="px-6 py-6 border-b border-white/10">
-            <p className={`text-xs uppercase tracking-[0.2em] ${themeClasses.sidebarMuted}`}>
-              {appSettings.companyName || user.company || "Intern"}
-            </p>
-            <h1 className="text-2xl font-bold mt-2 truncate">
-              {appSettings.appName || "Intranet"}
-            </h1>
+      <aside
+        className={`hidden lg:flex fixed inset-y-0 left-0 w-72 border-r ${themeClasses.sidebar} z-40`}
+      >
+        <div className="w-full h-full flex flex-col overflow-hidden">
+          <div className="px-5 py-5">
+            <Link
+              href="/dashboard"
+              className={`relative block rounded-[1.6rem] border p-4 overflow-hidden transition ${themeClasses.sidebarCard} ${themeClasses.sidebarCardHover}`}
+            >
+              <div className="absolute -top-16 -right-16 h-36 w-36 rounded-full opacity-25 blur-2xl app-accent-bg" />
+              <div className="absolute -bottom-20 -left-16 h-40 w-40 rounded-full opacity-20 blur-2xl app-accent-bg" />
+
+              <div className="relative flex items-center gap-3">
+                <div className="h-12 w-12 rounded-2xl app-accent-bg text-white flex items-center justify-center font-black text-xl app-brand-shadow">
+                  V
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-2xl font-black tracking-tight leading-none">
+                    {brandName}
+                  </p>
+                  <p className={`text-xs mt-1 truncate ${themeClasses.versionText}`}>
+                    {workspaceName} Workspace
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative mt-4 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.8)]" />
+                <span className={`text-xs ${themeClasses.versionText}`}>
+                  System online
+                </span>
+              </div>
+            </Link>
           </div>
 
-          <nav className="flex-1 px-4 py-5 space-y-6 overflow-hidden">
+          <nav className="flex-1 px-4 py-3 space-y-7 overflow-hidden">
             {groupedNavigationItems.map((group) => (
-              <div key={group.category}>
-                <p className={`px-3 text-xs uppercase tracking-[0.18em] ${themeClasses.sidebarMuted}`}>
+              <div
+                key={group.category}
+                className="space-y-2"
+              >
+                <p
+                  className={`px-3 text-[10px] uppercase tracking-[0.26em] font-black ${themeClasses.sidebarMuted}`}
+                >
                   {categoryLabels[group.category]}
                 </p>
 
-                <div className="space-y-1 mt-3">
+                <div className="space-y-1.5">
                   {group.items.map((item) => {
-                    const active = isActivePath(
-                      pathname,
-                      item.href,
-                    );
+                    const active = isActivePath(pathname, item.href);
 
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center gap-3 px-3 py-3 rounded-2xl text-sm font-medium transition ${
+                        className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${
                           active
-                            ? activeNavClass
+                            ? `${themeClasses.activeNav} app-accent-bg`
                             : themeClasses.inactiveNav
                         }`}
                       >
-                        <span className="w-6 text-center">
+                        <span
+                          className={`h-8 w-8 rounded-xl flex items-center justify-center text-sm ${
+                            active
+                              ? themeClasses.activeIcon
+                              : themeClasses.inactiveIcon
+                          }`}
+                        >
                           {item.icon}
                         </span>
-                        <span>
+                        <span className="truncate">
                           {item.label}
                         </span>
                       </Link>
@@ -552,91 +725,129 @@ export default function AppShell({
             ))}
           </nav>
 
-          {appSettings.showVersion && (
-            <div className="px-6 py-5 border-t border-white/10">
-              <div className="rounded-2xl bg-white/5 px-4 py-3">
-                <p className={`text-xs ${themeClasses.sidebarMuted}`}>
-                  Version
-                </p>
-                <p className="font-semibold mt-1">
-                  {appVersion}
-                </p>
+          <div className="px-4 pb-5">
+            <div className={`relative rounded-[1.6rem] border p-4 overflow-hidden ${themeClasses.sidebarCard}`}>
+              <div className="absolute inset-x-0 top-0 h-1 app-accent-bg" />
+              <div className="absolute -right-12 -bottom-12 h-28 w-28 rounded-full opacity-20 blur-2xl app-accent-bg" />
+
+              <div className="relative flex items-center justify-between gap-3">
+                <div>
+                  <p className={`text-[10px] uppercase tracking-[0.22em] font-black ${themeClasses.sidebarMuted}`}>
+                    System
+                  </p>
+                  <p className="text-sm font-bold mt-1">
+                    Velunis Intranet
+                  </p>
+                </div>
+
+                <span className="rounded-full app-accent-bg text-white px-3 py-1 text-xs font-black app-brand-shadow">
+                  v{appVersion}
+                </span>
               </div>
+
+              <div className={`relative mt-4 h-1.5 rounded-full overflow-hidden ${themeClasses.systemTrack}`}>
+                <div className="h-full w-4/5 rounded-full app-accent-bg" />
+              </div>
+
+              <p className={`relative text-xs mt-3 ${themeClasses.versionText}`}>
+                Interner Arbeitsbereich für Tickets, Wissen und Dokumente.
+              </p>
             </div>
-          )}
+          </div>
         </div>
       </aside>
 
-      <div className="xl:pl-72 min-h-screen flex flex-col">
-        <header className={`sticky top-0 z-30 border-b ${themeClasses.topbar}`}>
-          <div className="px-5 xl:px-8 h-20 flex items-center justify-between gap-5">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">
-                {appSettings.appName || "Intranet"}
-              </p>
-              <h2 className="text-xl font-bold truncate">
-                {pageTitle}
-              </h2>
+      <div className="lg:pl-72 min-h-screen flex flex-col">
+        <header
+          className={`sticky top-0 z-30 h-[72px] border-b ${themeClasses.topbar}`}
+        >
+          <div className="h-full px-5 xl:px-8 flex items-center justify-between gap-5">
+            <div className="min-w-0 flex items-center gap-4">
+              <div className="hidden md:flex h-11 w-11 rounded-2xl app-accent-bg items-center justify-center app-brand-shadow">
+                <span className="text-white text-lg">
+                  ✦
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.26em] font-black text-zinc-500">
+                  {sectionLabel}
+                </p>
+                <h1 className="text-xl font-black truncate">
+                  {pageTitle}
+                </h1>
+              </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="hidden sm:block text-right">
-                <p className="text-xs text-white/50">
-                  Angemeldet als
-                </p>
-                <p className="font-semibold">
-                  {user.name}
-                </p>
-                <p className="text-xs text-white/50">
-                  {getRoleLabel(user.role)}
-                </p>
+            <div className="flex items-center gap-3">
+              <div
+                className={`hidden md:flex items-center gap-3 rounded-2xl border px-3 py-2 ${themeClasses.topbarSurface}`}
+              >
+                <div className="h-10 w-10 rounded-2xl app-accent-bg text-white flex items-center justify-center text-sm font-black app-brand-shadow">
+                  {getInitials(user.name)}
+                </div>
+
+                <div className="leading-tight min-w-0">
+                  <p className="text-sm font-black truncate max-w-40">
+                    {user.name}
+                  </p>
+                  <p className="text-xs text-zinc-400 truncate max-w-40">
+                    {getRoleLabel(user.role)} · {brandName}
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => void handleLogout()}
-                className="bg-white text-zinc-950 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
+                className={`group inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl transition text-sm font-black shadow-sm ${themeClasses.logoutButton}`}
               >
-                Ausloggen
+                <span className="hidden sm:inline">
+                  Abmelden
+                </span>
+                <span className="text-base group-hover:translate-x-0.5 transition">
+                  ↗
+                </span>
               </button>
-            </div>
-          </div>
-
-          <div className="xl:hidden px-5 pb-4">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {visibleNavigationItems.map((item) => {
-                const active = isActivePath(
-                  pathname,
-                  item.href,
-                );
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition ${
-                      active
-                        ? activeNavClass
-                        : "bg-white/10 text-white hover:bg-white/20"
-                    }`}
-                  >
-                    <span>
-                      {item.icon}
-                    </span>
-                    <span>
-                      {item.label}
-                    </span>
-                  </Link>
-                );
-              })}
             </div>
           </div>
         </header>
 
-        <main className={`flex-1 ${themeClasses.main}`}>
-          {children}
+        <main className={`flex-1 ${themeClasses.main} pb-24 lg:pb-8`}>
+          <div className="w-full max-w-none">
+            {children}
+          </div>
         </main>
       </div>
+
+      <nav
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t ${themeClasses.mobileNav}`}
+      >
+        <div className="grid grid-cols-5 gap-1 px-2 py-2">
+          {mobileNavigationItems.map((item) => {
+            const active = isActivePath(pathname, item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
+                  active
+                    ? `${themeClasses.activeNav} app-accent-bg`
+                    : themeClasses.inactiveNav
+                }`}
+              >
+                <span className="text-base leading-none">
+                  {item.icon}
+                </span>
+                <span className="truncate max-w-full">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

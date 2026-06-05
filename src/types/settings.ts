@@ -1,7 +1,3 @@
-import type {
-  UserRole,
-} from "./user";
-
 export type AppTheme =
   | "modern"
   | "light"
@@ -9,6 +5,7 @@ export type AppTheme =
   | "system";
 
 export type AppAccentColor =
+  | "velunis"
   | "zinc"
   | "blue"
   | "green"
@@ -23,7 +20,10 @@ export type SidebarPosition =
   | "left"
   | "right";
 
-export type AppDefaultUserRole = UserRole;
+export type AppDefaultUserRole =
+  | "admin"
+  | "department_lead"
+  | "employee";
 
 export type DefaultListView =
   | "table"
@@ -35,22 +35,23 @@ export type AppSettings = {
   companyName: string;
   appVersion: string;
   version: string;
-  theme: AppTheme | string;
+  theme: AppTheme;
   darkMode: boolean;
-  accentColor: AppAccentColor | string;
-  appAccentColor: AppAccentColor | string;
-  compactMode: boolean;
-  sidebarPosition: SidebarPosition | string;
+  accentColor: AppAccentColor;
+  appAccentColor: AppAccentColor;
+  sidebarPosition: SidebarPosition;
   showVersion: boolean;
-  enableTicketComments: boolean;
+  compactMode: boolean;
+  showDemoHints: boolean;
   enableTicketTemplates: boolean;
+  enableTicketComments: boolean;
   enableActivityLog: boolean;
-  defaultUserRole: UserRole;
-  defaultTicketView: DefaultListView;
-  defaultWikiView: DefaultListView;
-  hideClosedTicketsByDefault: boolean;
-  ticketsPerPage: number;
-  wikiPerPage: number;
+  defaultUserRole: AppDefaultUserRole;
+  defaultTicketView?: DefaultListView;
+  defaultWikiView?: DefaultListView;
+  hideClosedTicketsByDefault?: boolean;
+  ticketsPerPage?: number;
+  wikiPerPage?: number;
   updatedAt: string;
 };
 
