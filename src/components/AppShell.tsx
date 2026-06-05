@@ -155,7 +155,7 @@ const navigationItems: NavigationItem[] = [
       "Admin Dashboard",
 
     icon:
-      "🛡️",
+      "⚙️",
 
     category:
       "admin",

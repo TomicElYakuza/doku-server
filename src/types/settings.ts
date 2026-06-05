@@ -1,3 +1,7 @@
+import type {
+  UserRole,
+} from "./user";
+
 export type AppTheme =
   | "modern"
   | "light"
@@ -19,30 +23,36 @@ export type SidebarPosition =
   | "left"
   | "right";
 
-export type AppDefaultUserRole =
-  | "admin"
-  | "department_lead"
-  | "employee";
+export type AppDefaultUserRole = UserRole;
+
+export type DefaultListView =
+  | "table"
+  | "cards";
 
 export type AppSettings = {
+  id?: string;
   appName: string;
   companyName: string;
   appVersion: string;
   version: string;
-  theme: AppTheme;
+  theme: AppTheme | string;
   darkMode: boolean;
-  accentColor: AppAccentColor;
-  appAccentColor: AppAccentColor;
-  sidebarPosition: SidebarPosition;
-  showVersion: boolean;
+  accentColor: AppAccentColor | string;
+  appAccentColor: AppAccentColor | string;
   compactMode: boolean;
+  sidebarPosition: SidebarPosition | string;
+  showVersion: boolean;
   showDemoHints: boolean;
-  enableTicketTemplates: boolean;
   enableTicketComments: boolean;
+  enableTicketTemplates: boolean;
   enableActivityLog: boolean;
-  defaultUserRole: AppDefaultUserRole;
+  defaultUserRole: UserRole;
+  defaultTicketView: DefaultListView;
+  defaultWikiView: DefaultListView;
+  hideClosedTicketsByDefault: boolean;
+  ticketsPerPage: number;
+  wikiPerPage: number;
   updatedAt: string;
 };
 
-export type AppSettingsUpdateInput =
-  Partial<AppSettings>;
+export type AppSettingsUpdateInput = Partial<AppSettings>;

@@ -22,6 +22,10 @@ import {
 } from "../../lib/companyRepository";
 
 import {
+  taxonomyRepository,
+} from "../../lib/taxonomyRepository";
+
+import {
   saveTicketCreatedActivity,
   saveTicketDeletedActivity,
   saveTicketUpdatedActivity,
@@ -51,6 +55,10 @@ import type {
   Company,
   Department,
 } from "../../types/company";
+
+import type {
+  TaxonomyItem,
+} from "../../types/taxonomy";
 
 type ViewMode =
   | "cards"
@@ -88,16 +96,40 @@ function getPriorityClass(
   );
 }
 
-function splitTags(
+function getTaxonomyPathLabel(
+  itemId: string,
+  items: TaxonomyItem[]
+) {
+  return taxonomyRepository.getPathLabel(
+    itemId,
+    items
+  );
+}
+
+function getActiveTaxonomyItems(
+  items: TaxonomyItem[]
+) {
+  return items.filter(
+    (item) =>
+      item.status === "active"
+  );
+}
+
+function toggleArrayValue(
+  values: string[],
   value: string
 ) {
-  return value
-    .split(",")
-    .map(
-      (tag) =>
-        tag.trim()
-    )
-    .filter(Boolean);
+  if (values.includes(value)) {
+    return values.filter(
+      (currentValue) =>
+        currentValue !== value
+    );
+  }
+
+  return [
+    ...values,
+    value,
+  ];
 }
 
 export default function TicketsPage() {
@@ -173,6 +205,9 @@ export default function TicketsPage() {
   const [departments, setDepartments] =
     useState<Department[]>([]);
 
+  const [taxonomyItems, setTaxonomyItems] =
+    useState<TaxonomyItem[]>([]);
+
   const [search, setSearch] =
     useState("");
 
@@ -188,8 +223,14 @@ export default function TicketsPage() {
   const [departmentFilter, setDepartmentFilter] =
     useState("");
 
+  const [categoryFilter, setCategoryFilter] =
+    useState("");
+
+  const [tagFilter, setTagFilter] =
+    useState("");
+
   const [viewMode, setViewMode] =
-    useState<ViewMode>("cards");
+    useState<ViewMode>("table");
 
   const [hideClosed, setHideClosed] =
     useState(true);
@@ -228,7 +269,7 @@ export default function TicketsPage() {
     useState("System");
 
   const [tags, setTags] =
-    useState("");
+    useState<string[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -257,6 +298,10 @@ export default function TicketsPage() {
       void loadOrganization();
     }
 
+    function handleTaxonomyUpdated() {
+      void loadTaxonomy();
+    }
+
     window.addEventListener(
       "ticketsUpdated",
       handleTicketsUpdated
@@ -270,6 +315,11 @@ export default function TicketsPage() {
     window.addEventListener(
       "departmentsUpdated",
       handleDepartmentsUpdated
+    );
+
+    window.addEventListener(
+      "taxonomyUpdated",
+      handleTaxonomyUpdated
     );
 
     return () => {
@@ -286,6 +336,11 @@ export default function TicketsPage() {
       window.removeEventListener(
         "departmentsUpdated",
         handleDepartmentsUpdated
+      );
+
+      window.removeEventListener(
+        "taxonomyUpdated",
+        handleTaxonomyUpdated
       );
     };
   }, []);
@@ -335,9 +390,30 @@ export default function TicketsPage() {
           ? nextDepartments
           : []
       );
+
     } catch (loadError) {
       console.error(
         "Organisation konnte nicht geladen werden:",
+        loadError
+      );
+    }
+  }
+
+  async function loadTaxonomy() {
+    try {
+      const nextTaxonomyItems =
+        await taxonomyRepository.list();
+
+      setTaxonomyItems(
+        Array.isArray(
+          nextTaxonomyItems
+        )
+          ? nextTaxonomyItems
+          : []
+      );
+    } catch (loadError) {
+      console.error(
+        "Kategorien & Tags konnten nicht geladen werden:",
         loadError
       );
     }
@@ -357,11 +433,13 @@ export default function TicketsPage() {
         nextTickets,
         nextCompanies,
         nextDepartments,
+        nextTaxonomyItems,
       ] =
         await Promise.all([
           ticketRepository.list(),
           companyRepository.listCompanies(),
           companyRepository.listDepartments(),
+          taxonomyRepository.list(),
         ]);
 
       setTickets(
@@ -385,6 +463,14 @@ export default function TicketsPage() {
           nextDepartments
         )
           ? nextDepartments
+          : []
+      );
+
+      setTaxonomyItems(
+        Array.isArray(
+          nextTaxonomyItems
+        )
+          ? nextTaxonomyItems
           : []
       );
     } catch (loadError) {
@@ -511,6 +597,82 @@ export default function TicketsPage() {
       ]
     );
 
+  const ticketCategoryOptions =
+    useMemo(
+      () =>
+        getActiveTaxonomyItems(
+          taxonomyItems
+        )
+          .filter(
+            (item) =>
+              item.target === "ticket" &&
+              item.type === "category"
+          )
+          .sort(
+            (a, b) =>
+              a.sortOrder - b.sortOrder ||
+              a.name.localeCompare(
+                b.name
+              )
+          ),
+      [
+        taxonomyItems,
+      ]
+    );
+
+  const tagOptions =
+    useMemo(
+      () =>
+        getActiveTaxonomyItems(
+          taxonomyItems
+        )
+          .filter(
+            (item) =>
+              item.type === "tag" &&
+              (
+                item.target === "global" ||
+                item.target === "ticket"
+              )
+          )
+          .sort(
+            (a, b) =>
+              a.sortOrder - b.sortOrder ||
+              a.name.localeCompare(
+                b.name
+              )
+          ),
+      [
+        taxonomyItems,
+      ]
+    );
+
+  const selectedCategoryLabel =
+    useMemo(
+      () => {
+        const selectedCategory =
+          ticketCategoryOptions.find(
+            (item) =>
+              item.id === category
+          );
+
+        if (!selectedCategory) {
+          return category ||
+            "Allgemein";
+        }
+
+        return getTaxonomyPathLabel(
+          selectedCategory.id,
+          taxonomyItems
+        ) ||
+          selectedCategory.name;
+      },
+      [
+        category,
+        ticketCategoryOptions,
+        taxonomyItems,
+      ]
+    );
+
   const filteredTickets =
     useMemo(
       () => {
@@ -590,12 +752,29 @@ export default function TicketsPage() {
               !departmentFilter ||
               ticket.departmentId === departmentFilter;
 
+            const matchesCategory =
+              !categoryFilter ||
+              ticket.category === categoryFilter;
+
+            const matchesTag =
+              !tagFilter ||
+              (
+                Array.isArray(
+                  ticket.tags
+                ) &&
+                ticket.tags.includes(
+                  tagFilter
+                )
+              );
+
             return (
               matchesSearch &&
               matchesStatus &&
               matchesPriority &&
               matchesCompany &&
-              matchesDepartment
+              matchesDepartment &&
+              matchesCategory &&
+              matchesTag
             );
           }
         );
@@ -607,6 +786,8 @@ export default function TicketsPage() {
         priorityFilter,
         companyFilter,
         departmentFilter,
+        categoryFilter,
+        tagFilter,
         companies,
         departments,
         hideClosed,
@@ -660,7 +841,8 @@ export default function TicketsPage() {
     );
 
     setCategory(
-      "Allgemein"
+      ticketCategoryOptions[0]?.id ||
+        ""
     );
 
     setCompanyId(
@@ -683,7 +865,7 @@ export default function TicketsPage() {
     );
 
     setTags(
-      ""
+      []
     );
   }
 
@@ -766,9 +948,21 @@ export default function TicketsPage() {
       ticket.priority
     );
 
+    const matchingCategory =
+      ticketCategoryOptions.find(
+        (item) =>
+          item.id === ticket.category ||
+          item.name === ticket.category ||
+          getTaxonomyPathLabel(
+            item.id,
+            taxonomyItems
+          ) === ticket.category
+      );
+
     setCategory(
-      ticket.category ||
-        "Allgemein"
+      matchingCategory?.id ||
+        ticket.category ||
+        ""
     );
 
     setCompanyId(
@@ -796,10 +990,8 @@ export default function TicketsPage() {
       Array.isArray(
         ticket.tags
       )
-        ? ticket.tags.join(
-            ", "
-          )
-        : ""
+        ? ticket.tags
+        : []
     );
 
     setModalOpen(
@@ -931,8 +1123,7 @@ export default function TicketsPage() {
               priority,
 
               category:
-                category.trim() ||
-                "Allgemein",
+                selectedCategoryLabel,
 
               companyId,
 
@@ -952,10 +1143,7 @@ export default function TicketsPage() {
                 user?.name ||
                 "System",
 
-              tags:
-                splitTags(
-                  tags
-                ),
+              tags,
             }
           );
 
@@ -989,8 +1177,7 @@ export default function TicketsPage() {
           priority,
 
           category:
-            category.trim() ||
-            "Allgemein",
+            selectedCategoryLabel,
 
           companyId,
 
@@ -1010,10 +1197,7 @@ export default function TicketsPage() {
             user?.name ||
             "System",
 
-          tags:
-            splitTags(
-              tags
-            ),
+          tags,
         });
 
       saveTicketCreatedActivity(
@@ -1179,6 +1363,14 @@ export default function TicketsPage() {
     );
 
     setDepartmentFilter(
+      ""
+    );
+
+    setCategoryFilter(
+      ""
+    );
+
+    setTagFilter(
       ""
     );
 
@@ -1400,16 +1592,33 @@ export default function TicketsPage() {
                 Kategorie
               </label>
 
-              <input
+              <select
                 value={category}
                 onChange={(event) =>
                   setCategory(
                     event.target.value
                   )
                 }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Allgemein"
-              />
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+              >
+                <option value="">
+                  Kategorie auswählen
+                </option>
+
+                {ticketCategoryOptions.map(
+                  (item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                    >
+                      {getTaxonomyPathLabel(
+                        item.id,
+                        taxonomyItems
+                      )}
+                    </option>
+                  )
+                )}
+              </select>
             </div>
 
             <div>
@@ -1511,21 +1720,50 @@ export default function TicketsPage() {
               />
             </div>
 
-            <div>
+            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Tags
               </label>
 
-              <input
-                value={tags}
-                onChange={(event) =>
-                  setTags(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="hardware, onboarding, support"
-              />
+              <div className="flex flex-wrap gap-2 rounded-2xl border border-zinc-200 p-4">
+                {tagOptions.length === 0 && (
+                  <p className="text-sm text-zinc-500">
+                    Noch keine aktiven Tags im Admin Backend angelegt.
+                  </p>
+                )}
+
+                {tagOptions.map(
+                  (item) => {
+                    const active =
+                      tags.includes(
+                        item.name
+                      );
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() =>
+                          setTags(
+                            (currentTags) =>
+                              toggleArrayValue(
+                                currentTags,
+                                item.name
+                              )
+                          )
+                        }
+                        className={`px-4 py-2 rounded-xl text-sm transition ${
+                          active
+                            ? "bg-zinc-900 text-white"
+                            : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
+                        }`}
+                      >
+                        {item.name}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
             </div>
           </div>
         </form>
@@ -1665,7 +1903,7 @@ export default function TicketsPage() {
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              Suche nach Titel, Beschreibung, Organisation, Tags oder Bearbeiter.
+              Suche nach ID, Titel, Beschreibung, Kategorie, Tags, Organisation, Ersteller oder Bearbeiter.
             </p>
           </div>
 
@@ -1731,7 +1969,7 @@ export default function TicketsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4">
           <input
             value={search}
             onChange={(event) =>
@@ -1805,6 +2043,64 @@ export default function TicketsPage() {
             <option value="urgent">
               Dringend
             </option>
+          </select>
+
+          <select
+            value={categoryFilter}
+            onChange={(event) =>
+              setCategoryFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Kategorien
+            </option>
+
+            {ticketCategoryOptions.map(
+              (item) => {
+                const label =
+                  getTaxonomyPathLabel(
+                    item.id,
+                    taxonomyItems
+                  );
+
+                return (
+                  <option
+                    key={item.id}
+                    value={label}
+                  >
+                    {label}
+                  </option>
+                );
+              }
+            )}
+          </select>
+
+          <select
+            value={tagFilter}
+            onChange={(event) =>
+              setTagFilter(
+                event.target.value
+              )
+            }
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+          >
+            <option value="">
+              Alle Tags
+            </option>
+
+            {tagOptions.map(
+              (item) => (
+                <option
+                  key={item.id}
+                  value={item.name}
+                >
+                  {item.name}
+                </option>
+              )
+            )}
           </select>
 
           <select
@@ -1944,6 +2240,12 @@ export default function TicketsPage() {
                         Erstellt:{" "}
                         {ticket.createdAt}
                       </span>
+
+                      <span>
+                        Erstellt von:{" "}
+                        {ticket.createdBy ||
+                          "System"}
+                      </span>
                     </div>
                   </Link>
 
@@ -1964,6 +2266,10 @@ export default function TicketsPage() {
               <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
                   <th className="px-5 py-4 font-semibold">
+                    ID
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
                     Ticket
                   </th>
 
@@ -1976,7 +2282,15 @@ export default function TicketsPage() {
                   </th>
 
                   <th className="px-5 py-4 font-semibold">
+                    Kategorie
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
                     Organisation
+                  </th>
+
+                  <th className="px-5 py-4 font-semibold">
+                    Erstellt von
                   </th>
 
                   <th className="px-5 py-4 font-semibold">
@@ -2000,12 +2314,16 @@ export default function TicketsPage() {
                       key={ticket.id}
                       className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50"
                     >
+                      <td className="px-5 py-4 align-top font-mono text-zinc-500 whitespace-nowrap">
+                        #{ticket.id}
+                      </td>
+
                       <td className="px-5 py-4 align-top min-w-[280px]">
                         <Link
                           href={`/tickets/${ticket.id}`}
                           className="font-semibold hover:underline"
                         >
-                          #{ticket.id} · {ticket.title}
+                          {ticket.title}
                         </Link>
 
                         <p className="text-zinc-500 mt-1 line-clamp-2">
@@ -2030,6 +2348,26 @@ export default function TicketsPage() {
                         </span>
                       </td>
 
+                      <td className="px-5 py-4 align-top text-zinc-500 min-w-48">
+                        {ticket.category ||
+                          "Allgemein"}
+
+                        {Array.isArray(ticket.tags) && ticket.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {ticket.tags.map(
+                              (tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[11px] bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full"
+                                >
+                                  #{tag}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </td>
+
                       <td className="px-5 py-4 align-top text-zinc-500">
                         {getCompanyName(
                           ticket.companyId
@@ -2038,6 +2376,11 @@ export default function TicketsPage() {
                         {getDepartmentName(
                           ticket.departmentId
                         )}
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-zinc-500">
+                        {ticket.createdBy ||
+                          "System"}
                       </td>
 
                       <td className="px-5 py-4 align-top text-zinc-500">

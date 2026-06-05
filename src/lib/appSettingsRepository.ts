@@ -1,15 +1,14 @@
 import {
   requestJson,
 } from "./apiClient";
-
 import type {
   AppAccentColor,
   AppSettings,
   AppSettingsUpdateInput,
   AppTheme,
+  DefaultListView,
   SidebarPosition,
 } from "../types/settings";
-
 import type {
   UserRole,
 } from "../types/user";
@@ -21,29 +20,29 @@ export type AppSettingsRepository = {
   update: (updates: AppSettingsUpdateInput) => Promise<AppSettings>;
   reset: () => Promise<AppSettings>;
   clear: () => Promise<void>;
-
   getThemeLabel: (theme: AppTheme | string) => string;
   getAccentColorLabel: (color: AppAccentColor | string) => string;
   getSidebarPositionLabel: (position: SidebarPosition | string) => string;
   getDefaultUserRoleLabel: (role: UserRole | string) => string;
-
+  getDefaultListViewLabel: (view: DefaultListView | string) => string;
   getThemeOptions: () => Array<{
     value: AppTheme;
     label: string;
   }>;
-
   getAccentColorOptions: () => Array<{
     value: AppAccentColor;
     label: string;
   }>;
-
   getSidebarPositionOptions: () => Array<{
     value: SidebarPosition;
     label: string;
   }>;
-
   getDefaultUserRoleOptions: () => Array<{
     value: UserRole;
+    label: string;
+  }>;
+  getDefaultListViewOptions: () => Array<{
+    value: DefaultListView;
     label: string;
   }>;
 };
@@ -54,111 +53,69 @@ function dispatchSettingsUpdated() {
   }
 
   window.dispatchEvent(
-    new Event(
-      "appSettingsUpdated"
-    )
+    new Event("appSettingsUpdated"),
   );
 }
 
 const defaultSettings: AppSettings = {
-  appName:
-    "Intranet",
-
-  companyName:
-    "Intern",
-
-  appVersion:
-    "0.1.0",
-
-  version:
-    "0.1.0",
-
-  theme:
-    "modern",
-
-  darkMode:
-    false,
-
-  accentColor:
-    "zinc",
-
-  appAccentColor:
-    "zinc",
-
-  sidebarPosition:
-    "left",
-
-  showVersion:
-    true,
-
-  compactMode:
-    false,
-
-  showDemoHints:
-    true,
-
-  enableTicketTemplates:
-    true,
-
-  enableTicketComments:
-    true,
-
-  enableActivityLog:
-    true,
-
-  defaultUserRole:
-    "employee",
-
-  updatedAt:
-    new Date().toLocaleString(),
+  appName: "Intranet",
+  companyName: "Intern",
+  appVersion: "0.1.0",
+  version: "0.1.0",
+  theme: "modern",
+  darkMode: false,
+  accentColor: "zinc",
+  appAccentColor: "zinc",
+  sidebarPosition: "left",
+  showVersion: true,
+  compactMode: false,
+  showDemoHints: true,
+  enableTicketTemplates: true,
+  enableTicketComments: true,
+  enableActivityLog: true,
+  defaultUserRole: "employee",
+  defaultTicketView: "table",
+  defaultWikiView: "table",
+  hideClosedTicketsByDefault: true,
+  ticketsPerPage: 25,
+  wikiPerPage: 25,
+  updatedAt: new Date().toLocaleString(),
 };
 
 export const postgresAppSettingsRepository: AppSettingsRepository = {
   async get() {
-    return requestJson<AppSettings>(
-      "/api/app-settings"
-    );
+    return requestJson<AppSettings>("/api/app-settings");
   },
 
   getDefault() {
     return defaultSettings;
   },
 
-  async save(
-    settings: AppSettingsUpdateInput
-  ) {
-    const updatedSettings =
-      await requestJson<AppSettings>(
-        "/api/app-settings",
-        {
-          method:
-            "PATCH",
-
-          body:
-            JSON.stringify(
-              settings
-            ),
-        }
-      );
+  async save(settings: AppSettingsUpdateInput) {
+    const updatedSettings = await requestJson<AppSettings>(
+      "/api/app-settings",
+      {
+        method: "PATCH",
+        body: JSON.stringify(settings),
+      },
+    );
 
     dispatchSettingsUpdated();
 
     return updatedSettings;
   },
 
-  async update(
-    updates: AppSettingsUpdateInput
-  ) {
-    return postgresAppSettingsRepository.save(
-      updates
-    );
+  async update(updates: AppSettingsUpdateInput) {
+    return postgresAppSettingsRepository.save(updates);
   },
 
   async reset() {
-    const updatedSettings =
-      await postgresAppSettingsRepository.save(
-        defaultSettings
-      );
+    const updatedSettings = await requestJson<AppSettings>(
+      "/api/app-settings",
+      {
+        method: "DELETE",
+      },
+    );
 
     dispatchSettingsUpdated();
 
@@ -169,9 +126,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     await postgresAppSettingsRepository.reset();
   },
 
-  getThemeLabel(
-    theme: AppTheme | string
-  ) {
+  getThemeLabel(theme: AppTheme | string) {
     if (theme === "dark") {
       return "Dunkel";
     }
@@ -187,9 +142,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return "Modern";
   },
 
-  getAccentColorLabel(
-    color: AppAccentColor | string
-  ) {
+  getAccentColorLabel(color: AppAccentColor | string) {
     if (color === "blue") {
       return "Blau";
     }
@@ -225,9 +178,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return "Neutral";
   },
 
-  getSidebarPositionLabel(
-    position: SidebarPosition | string
-  ) {
+  getSidebarPositionLabel(position: SidebarPosition | string) {
     if (position === "right") {
       return "Rechts";
     }
@@ -235,9 +186,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return "Links";
   },
 
-  getDefaultUserRoleLabel(
-    role: UserRole | string
-  ) {
+  getDefaultUserRoleLabel(role: UserRole | string) {
     if (role === "admin") {
       return "Administrator";
     }
@@ -249,28 +198,31 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     return "Mitarbeiter";
   },
 
+  getDefaultListViewLabel(view: DefaultListView | string) {
+    if (view === "cards") {
+      return "Karten";
+    }
+
+    return "Tabelle";
+  },
+
   getThemeOptions() {
     return [
       {
-        value:
-          "modern",
-
-        label:
-          "Modern",
+        value: "modern",
+        label: "Modern",
       },
       {
-        value:
-          "light",
-
-        label:
-          "Hell",
+        value: "light",
+        label: "Hell",
       },
       {
-        value:
-          "dark",
-
-        label:
-          "Dunkel",
+        value: "dark",
+        label: "Dunkel",
+      },
+      {
+        value: "system",
+        label: "System",
       },
     ];
   },
@@ -278,53 +230,40 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   getAccentColorOptions() {
     return [
       {
-        value:
-          "zinc",
-
-        label:
-          "Neutral",
+        value: "zinc",
+        label: "Neutral",
       },
       {
-        value:
-          "blue",
-
-        label:
-          "Blau",
+        value: "blue",
+        label: "Blau",
       },
       {
-        value:
-          "green",
-
-        label:
-          "Grün",
+        value: "green",
+        label: "Grün",
       },
       {
-        value:
-          "red",
-
-        label:
-          "Rot",
+        value: "red",
+        label: "Rot",
       },
       {
-        value:
-          "orange",
-
-        label:
-          "Orange",
+        value: "orange",
+        label: "Orange",
       },
       {
-        value:
-          "purple",
-
-        label:
-          "Lila",
+        value: "purple",
+        label: "Lila",
       },
       {
-        value:
-          "indigo",
-
-        label:
-          "Indigo",
+        value: "indigo",
+        label: "Indigo",
+      },
+      {
+        value: "emerald",
+        label: "Emerald",
+      },
+      {
+        value: "amber",
+        label: "Amber",
       },
     ];
   },
@@ -332,18 +271,12 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   getSidebarPositionOptions() {
     return [
       {
-        value:
-          "left",
-
-        label:
-          "Links",
+        value: "left",
+        label: "Links",
       },
       {
-        value:
-          "right",
-
-        label:
-          "Rechts",
+        value: "right",
+        label: "Rechts",
       },
     ];
   },
@@ -351,29 +284,32 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   getDefaultUserRoleOptions() {
     return [
       {
-        value:
-          "employee",
-
-        label:
-          "Mitarbeiter",
+        value: "employee",
+        label: "Mitarbeiter",
       },
       {
-        value:
-          "department_lead",
-
-        label:
-          "Abteilungsleiter",
+        value: "department_lead",
+        label: "Abteilungsleiter",
       },
       {
-        value:
-          "admin",
+        value: "admin",
+        label: "Administrator",
+      },
+    ];
+  },
 
-        label:
-          "Administrator",
+  getDefaultListViewOptions() {
+    return [
+      {
+        value: "table",
+        label: "Tabelle",
+      },
+      {
+        value: "cards",
+        label: "Karten",
       },
     ];
   },
 };
 
-export const appSettingsRepository =
-  postgresAppSettingsRepository;
+export const appSettingsRepository = postgresAppSettingsRepository;
