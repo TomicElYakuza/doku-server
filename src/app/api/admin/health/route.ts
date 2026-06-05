@@ -14,12 +14,55 @@ type DatabaseTimeRow = {
   now: string;
 };
 
+type TableExistsRow = {
+  exists: boolean;
+};
+
+async function tableExists(tableName: string) {
+  const row = await queryOne<TableExistsRow>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = $1
+      ) AS exists
+    `,
+    [
+      tableName,
+    ],
+  );
+
+  return Boolean(row?.exists);
+}
+
 async function getCount(tableName: string) {
+  const exists = await tableExists(tableName);
+
+  if (!exists) {
+    return 0;
+  }
+
   const row = await queryOne<CountRow>(
     `SELECT COUNT(*)::text AS count FROM ${tableName}`,
   );
 
   return Number(row?.count || 0);
+}
+
+async function getUsersCount() {
+  const adminUsersExists = await tableExists("admin_users");
+  const usersExists = await tableExists("users");
+
+  if (adminUsersExists) {
+    return getCount("admin_users");
+  }
+
+  if (usersExists) {
+    return getCount("users");
+  }
+
+  return 0;
 }
 
 export async function GET() {
@@ -39,7 +82,7 @@ export async function GET() {
       newsPosts,
       taxonomyItems,
     ] = await Promise.all([
-      getCount("users"),
+      getUsersCount(),
       getCount("companies"),
       getCount("departments"),
       getCount("tickets"),

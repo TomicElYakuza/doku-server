@@ -752,14 +752,16 @@ export default function WikiDetailPage() {
                 <option value="Intern">
                   Intern
                 </option>
-                {companyOptions.map((option) => (
-                  <option
-                    key={option}
-                    value={option}
-                  >
-                    {option}
-                  </option>
-                ))}
+                {companyOptions
+  .filter((option) => option !== "Intern")
+  .map((option) => (
+    <option
+      key={option}
+      value={option}
+    >
+      {option}
+    </option>
+  ))}
               </select>
             </div>
 
@@ -776,14 +778,16 @@ export default function WikiDetailPage() {
                 <option value="Allgemein">
                   Allgemein
                 </option>
-                {departmentOptions.map((option) => (
-                  <option
-                    key={option}
-                    value={option}
-                  >
-                    {option}
-                  </option>
-                ))}
+                {departmentOptions
+  .filter((option) => option !== "Allgemein")
+  .map((option) => (
+    <option
+      key={option}
+      value={option}
+    >
+      {option}
+    </option>
+  ))}
               </select>
             </div>
           </div>

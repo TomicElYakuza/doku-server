@@ -126,8 +126,12 @@ export async function GET() {
       `,
     );
 
+    const existingTableNames = new Set(
+      baseTables.map((table) => table.table_name),
+    );
+
     const expectedTables = [
-      "users",
+      "admin_users",
       "companies",
       "departments",
       "tickets",
@@ -138,10 +142,6 @@ export async function GET() {
       "app_settings",
       "taxonomy_items",
     ];
-
-    const existingTableNames = new Set(
-      baseTables.map((table) => table.table_name),
-    );
 
     const expectedStatus = expectedTables.map((tableName) => ({
       tableName,

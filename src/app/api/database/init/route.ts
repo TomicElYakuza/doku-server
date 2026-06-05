@@ -361,11 +361,6 @@ export async function POST() {
 
     await query(`
       ALTER TABLE app_settings
-      DROP COLUMN IF EXISTS show_demo_hints;
-    `);
-
-    await query(`
-      ALTER TABLE app_settings
       ADD COLUMN IF NOT EXISTS app_accent_color TEXT NOT NULL DEFAULT 'zinc';
     `);
 

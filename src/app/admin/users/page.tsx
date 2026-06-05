@@ -23,6 +23,10 @@ import {
 } from "../../../lib/permissions";
 
 import {
+  useAppSettings,
+} from "../../../hooks/useAppSettings";
+
+import {
   saveUserCreatedActivity,
   saveUserDeletedActivity,
   saveUserUpdatedActivity,
@@ -146,7 +150,25 @@ function normalizeUsername(
     .replace(/\s+/g, ".");
 }
 
+function normalizeDefaultUserRole(
+  value?: string
+): UserRole {
+  if (value === "admin") {
+    return "admin";
+  }
+
+  if (value === "department_lead") {
+    return "department_lead";
+  }
+
+  return "employee";
+}
+
 export default function AdminUsersPage() {
+  const {
+    settings: appSettings,
+  } = useAppSettings();
+
   const [mounted, setMounted] =
     useState(false);
 
@@ -649,7 +671,9 @@ export default function AdminUsersPage() {
     );
 
     setRole(
-      "employee"
+      normalizeDefaultUserRole(
+        appSettings.defaultUserRole
+      )
     );
 
     setStatus(
