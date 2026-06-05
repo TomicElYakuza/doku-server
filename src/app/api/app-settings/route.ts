@@ -22,7 +22,6 @@ type AppSettingsRow = {
   sidebar_position: string;
   compact_mode: boolean;
   show_version: boolean;
-  show_demo_hints: boolean;
   enable_ticket_comments: boolean;
   enable_ticket_templates: boolean;
   enable_activity_log: boolean;
@@ -47,7 +46,6 @@ type AppSettingsUpdateBody = {
   sidebarPosition?: string;
   compactMode?: boolean;
   showVersion?: boolean;
-  showDemoHints?: boolean;
   enableTicketComments?: boolean;
   enableTicketTemplates?: boolean;
   enableActivityLog?: boolean;
@@ -74,7 +72,6 @@ const defaultSettings = {
   sidebarPosition: "left",
   compactMode: false,
   showVersion: true,
-  showDemoHints: true,
   enableTicketComments: true,
   enableTicketTemplates: true,
   enableActivityLog: true,
@@ -101,7 +98,6 @@ function mapSettingsRow(row: AppSettingsRow) {
     sidebarPosition: row.sidebar_position,
     compactMode: row.compact_mode,
     showVersion: row.show_version,
-    showDemoHints: row.show_demo_hints,
     enableTicketComments: row.enable_ticket_comments,
     enableTicketTemplates: row.enable_ticket_templates,
     enableActivityLog: row.enable_activity_log,
@@ -231,7 +227,6 @@ async function ensureSettingsRow() {
         sidebar_position,
         compact_mode,
         show_version,
-        show_demo_hints,
         enable_ticket_comments,
         enable_ticket_templates,
         enable_activity_log,
@@ -262,8 +257,7 @@ async function ensureSettingsRow() {
         $17,
         $18,
         $19,
-        $20,
-        $21
+        $20
       )
       ON CONFLICT (id) DO UPDATE SET
         id = EXCLUDED.id
@@ -279,7 +273,6 @@ async function ensureSettingsRow() {
         sidebar_position,
         compact_mode,
         show_version,
-        show_demo_hints,
         enable_ticket_comments,
         enable_ticket_templates,
         enable_activity_log,
@@ -303,7 +296,6 @@ async function ensureSettingsRow() {
       defaultSettings.sidebarPosition,
       defaultSettings.compactMode,
       defaultSettings.showVersion,
-      defaultSettings.showDemoHints,
       defaultSettings.enableTicketComments,
       defaultSettings.enableTicketTemplates,
       defaultSettings.enableActivityLog,
@@ -400,18 +392,17 @@ export async function PATCH(request: Request) {
           sidebar_position = $8,
           compact_mode = $9,
           show_version = $10,
-          show_demo_hints = $11,
-          enable_ticket_comments = $12,
-          enable_ticket_templates = $13,
-          enable_activity_log = $14,
-          default_user_role = $15,
-          default_ticket_view = $16,
-          default_wiki_view = $17,
-          hide_closed_tickets_by_default = $18,
-          tickets_per_page = $19,
-          wiki_per_page = $20,
+          enable_ticket_comments = $11,
+          enable_ticket_templates = $12,
+          enable_activity_log = $13,
+          default_user_role = $14,
+          default_ticket_view = $15,
+          default_wiki_view = $16,
+          hide_closed_tickets_by_default = $17,
+          tickets_per_page = $18,
+          wiki_per_page = $19,
           updated_at = NOW()
-        WHERE id = $21
+        WHERE id = $20
         RETURNING
           id,
           app_name,
@@ -424,7 +415,6 @@ export async function PATCH(request: Request) {
           sidebar_position,
           compact_mode,
           show_version,
-          show_demo_hints,
           enable_ticket_comments,
           enable_ticket_templates,
           enable_activity_log,
@@ -447,7 +437,6 @@ export async function PATCH(request: Request) {
         body.sidebarPosition !== undefined ? normalizeSidebarPosition(body.sidebarPosition) : current.sidebar_position,
         typeof body.compactMode === "boolean" ? body.compactMode : current.compact_mode,
         typeof body.showVersion === "boolean" ? body.showVersion : current.show_version,
-        typeof body.showDemoHints === "boolean" ? body.showDemoHints : current.show_demo_hints,
         typeof body.enableTicketComments === "boolean" ? body.enableTicketComments : current.enable_ticket_comments,
         typeof body.enableTicketTemplates === "boolean" ? body.enableTicketTemplates : current.enable_ticket_templates,
         typeof body.enableActivityLog === "boolean" ? body.enableActivityLog : current.enable_activity_log,
@@ -517,18 +506,17 @@ export async function DELETE() {
           sidebar_position = $8,
           compact_mode = $9,
           show_version = $10,
-          show_demo_hints = $11,
-          enable_ticket_comments = $12,
-          enable_ticket_templates = $13,
-          enable_activity_log = $14,
-          default_user_role = $15,
-          default_ticket_view = $16,
-          default_wiki_view = $17,
-          hide_closed_tickets_by_default = $18,
-          tickets_per_page = $19,
-          wiki_per_page = $20,
+          enable_ticket_comments = $11,
+          enable_ticket_templates = $12,
+          enable_activity_log = $13,
+          default_user_role = $14,
+          default_ticket_view = $15,
+          default_wiki_view = $16,
+          hide_closed_tickets_by_default = $17,
+          tickets_per_page = $18,
+          wiki_per_page = $19,
           updated_at = NOW()
-        WHERE id = $21
+        WHERE id = $20
         RETURNING
           id,
           app_name,
@@ -541,7 +529,6 @@ export async function DELETE() {
           sidebar_position,
           compact_mode,
           show_version,
-          show_demo_hints,
           enable_ticket_comments,
           enable_ticket_templates,
           enable_activity_log,
@@ -564,7 +551,6 @@ export async function DELETE() {
         defaultSettings.sidebarPosition,
         defaultSettings.compactMode,
         defaultSettings.showVersion,
-        defaultSettings.showDemoHints,
         defaultSettings.enableTicketComments,
         defaultSettings.enableTicketTemplates,
         defaultSettings.enableActivityLog,

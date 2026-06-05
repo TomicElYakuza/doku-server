@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-
 import type {
   ReactNode,
 } from "react";
-
 import FeatureGate from "./FeatureGate";
 
 type FeatureKey =
-  | "demoHints"
   | "ticketTemplates"
   | "ticketComments"
   | "activityLog";

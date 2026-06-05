@@ -54,7 +54,6 @@ type EditableSettings = {
   accentColor: AppAccentColor;
   compactMode: boolean;
   showVersion: boolean;
-  showDemoHints: boolean;
   enableTicketComments: boolean;
   enableTicketTemplates: boolean;
   enableActivityLog: boolean;
@@ -241,7 +240,6 @@ function getDefaultEditableSettings(settings: AppSettings): EditableSettings {
     ),
     compactMode: Boolean(settings.compactMode),
     showVersion: Boolean(settings.showVersion),
-    showDemoHints: Boolean(settings.showDemoHints),
     enableTicketComments: Boolean(settings.enableTicketComments),
     enableTicketTemplates: Boolean(settings.enableTicketTemplates),
     enableActivityLog: Boolean(settings.enableActivityLog),
@@ -337,7 +335,6 @@ export default function AdminSettingsPage() {
         appAccentColor: form.accentColor,
         compactMode: form.compactMode,
         showVersion: form.showVersion,
-        showDemoHints: form.showDemoHints,
         enableTicketComments: form.enableTicketComments,
         enableTicketTemplates: form.enableTicketTemplates,
         enableActivityLog: form.enableActivityLog,
@@ -811,7 +808,7 @@ export default function AdminSettingsPage() {
             Globale Module und Funktionsbereiche aktivieren oder deaktivieren.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-5">
               <input
                 type="checkbox"
@@ -859,23 +856,6 @@ export default function AdminSettingsPage() {
                 </span>
                 <span className="block text-sm text-zinc-500 mt-1">
                   Aktivitäten im System protokollieren und anzeigen.
-                </span>
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-5">
-              <input
-                type="checkbox"
-                checked={form.showDemoHints}
-                onChange={(event) => updateField("showDemoHints", event.target.checked)}
-                className="h-5 w-5 mt-1"
-              />
-              <span>
-                <span className="block font-medium">
-                  Demo-Hinweise
-                </span>
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Hilfetexte und Demo-Hinweise anzeigen.
                 </span>
               </span>
             </label>

@@ -25,6 +25,9 @@ import {
 import {
   usePermissions,
 } from "../../hooks/usePermissions";
+import {
+  useAppSettings,
+} from "../../hooks/useAppSettings";
 import type {
   Company,
   Department,
@@ -102,6 +105,10 @@ export default function WikiPageList() {
     hasAnyPermission,
   } = usePermissions();
 
+  const {
+    settings,
+  } = useAppSettings();
+
   const canManageWiki = isAdmin || hasAnyPermission([
     "wiki.manage",
   ]);
@@ -149,6 +156,13 @@ export default function WikiPageList() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+
+  useEffect(() => {
+    setViewMode(settings.defaultWikiView === "cards" ? "cards" : "table");
+  }, [
+    settings.defaultWikiView,
+  ]);
 
   useEffect(() => {
     void loadData();

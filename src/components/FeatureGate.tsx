@@ -3,15 +3,12 @@
 import {
   ReactNode,
 } from "react";
-
 import {
   useFeatureFlags,
 } from "../hooks/useFeatureFlags";
-
 import FeatureDisabledCard from "./FeatureDisabledCard";
 
 type FeatureGateName =
-  | "demoHints"
   | "ticketComments"
   | "ticketTemplates"
   | "activityLog";
@@ -29,27 +26,23 @@ export default function FeatureGate({
 }: FeatureGateProps) {
   const {
     loading,
-    demoHintsEnabled,
     ticketCommentsEnabled,
     ticketTemplatesEnabled,
     activityLogEnabled,
-  } =
-    useFeatureFlags();
+  } = useFeatureFlags();
 
   if (loading) {
     return null;
   }
 
   const enabled =
-    feature === "demoHints"
-      ? demoHintsEnabled
-      : feature === "ticketComments"
-        ? ticketCommentsEnabled
-        : feature === "ticketTemplates"
-          ? ticketTemplatesEnabled
-          : feature === "activityLog"
-            ? activityLogEnabled
-            : true;
+    feature === "ticketComments"
+      ? ticketCommentsEnabled
+      : feature === "ticketTemplates"
+        ? ticketTemplatesEnabled
+        : feature === "activityLog"
+          ? activityLogEnabled
+          : true;
 
   if (!enabled) {
     return (

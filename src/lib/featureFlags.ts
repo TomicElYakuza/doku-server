@@ -1,48 +1,44 @@
 import {
   appSettingsRepository,
 } from "./appSettingsRepository";
-
 import type {
   AppSettings,
 } from "../types/settings";
 
-export async function getFeatureSettings(): Promise<AppSettings> {
-  try {
-    return await appSettingsRepository.get();
-  } catch (error) {
-    console.error(
-      "Feature-Einstellungen konnten nicht geladen werden:",
-      error
-    );
+export type FeatureSettings = {
+  ticketCommentsEnabled: boolean;
+  ticketTemplatesEnabled: boolean;
+  activityLogEnabled: boolean;
+};
 
-    return appSettingsRepository.getDefault();
-  }
+function mapFeatureSettings(settings: AppSettings): FeatureSettings {
+  return {
+    ticketCommentsEnabled: settings.enableTicketComments,
+    ticketTemplatesEnabled: settings.enableTicketTemplates,
+    activityLogEnabled: settings.enableActivityLog,
+  };
 }
 
-export async function areTicketTemplatesEnabled() {
-  const settings =
-    await getFeatureSettings();
+export async function getFeatureSettings(): Promise<FeatureSettings> {
+  const settings = await appSettingsRepository.get();
 
-  return settings.enableTicketTemplates;
+  return mapFeatureSettings(settings);
 }
 
 export async function areTicketCommentsEnabled() {
-  const settings =
-    await getFeatureSettings();
+  const settings = await getFeatureSettings();
 
-  return settings.enableTicketComments;
+  return settings.ticketCommentsEnabled;
+}
+
+export async function areTicketTemplatesEnabled() {
+  const settings = await getFeatureSettings();
+
+  return settings.ticketTemplatesEnabled;
 }
 
 export async function isActivityLogEnabled() {
-  const settings =
-    await getFeatureSettings();
+  const settings = await getFeatureSettings();
 
-  return settings.enableActivityLog;
-}
-
-export async function areDemoHintsEnabled() {
-  const settings =
-    await getFeatureSettings();
-
-  return settings.showDemoHints;
+  return settings.activityLogEnabled;
 }

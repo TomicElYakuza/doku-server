@@ -42,7 +42,6 @@ export type AppSettings = {
   compactMode: boolean;
   sidebarPosition: SidebarPosition | string;
   showVersion: boolean;
-  showDemoHints: boolean;
   enableTicketComments: boolean;
   enableTicketTemplates: boolean;
   enableActivityLog: boolean;

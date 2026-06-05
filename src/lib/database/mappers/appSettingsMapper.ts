@@ -18,7 +18,6 @@ export type AppSettingsRow = {
   sidebar_position: string;
   show_version: boolean;
   compact_mode: boolean;
-  show_demo_hints: boolean;
   enable_ticket_comments: boolean;
   enable_ticket_templates: boolean;
   enable_activity_log: boolean;
@@ -88,7 +87,6 @@ export function mapAppSettingsRow(
     sidebarPosition: row.sidebar_position,
     showVersion: row.show_version,
     compactMode: row.compact_mode,
-    showDemoHints: row.show_demo_hints,
     enableTicketComments: row.enable_ticket_comments,
     enableTicketTemplates: row.enable_ticket_templates,
     enableActivityLog: row.enable_activity_log,

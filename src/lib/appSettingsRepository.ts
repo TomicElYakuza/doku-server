@@ -69,7 +69,6 @@ const defaultSettings: AppSettings = {
   sidebarPosition: "left",
   showVersion: true,
   compactMode: false,
-  showDemoHints: true,
   enableTicketTemplates: true,
   enableTicketComments: true,
   enableActivityLog: true,
