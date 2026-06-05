@@ -1,74 +1,60 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   useEffect,
   useState,
 } from "react";
-
 import {
   useParams,
 } from "next/navigation";
 
-import {
-  newsRepository,
-} from "../../../lib/newsRepository";
-
-import {
-  canEdit,
-} from "../../../lib/permissions";
-
+import { newsRepository } from "../../../lib/newsRepository";
+import { canEdit } from "../../../lib/permissions";
 import NewsFileList from "../../../components/news/NewsFileList";
-
 import PageHero from "../../../components/PageHero";
+import type { NewsPost } from "../../../types/news";
 
-import type {
-  NewsPost,
-} from "../../../types/news";
-
-function getCategoryClass(
-  category: string
-) {
+function getCategoryClass(category: string) {
   if (category === "System") {
-    return "bg-blue-50 text-blue-700";
+    return "bg-blue-50 text-blue-700 border border-blue-100";
   }
 
   if (category === "Tickets") {
-    return "bg-orange-100 text-orange-700";
+    return "bg-orange-50 text-orange-700 border border-orange-100";
   }
 
   if (category === "Wiki") {
-    return "bg-indigo-50 text-indigo-700";
+    return "bg-indigo-50 text-indigo-700 border border-indigo-100";
   }
 
   if (category === "Organisation") {
-    return "bg-emerald-50 text-emerald-700";
+    return "bg-emerald-50 text-emerald-700 border border-emerald-100";
   }
 
-  return "bg-zinc-100 text-zinc-700";
+  return "bg-zinc-100 text-zinc-700 border border-zinc-200";
+}
+
+function getPostCategory(post: NewsPost) {
+  return String(post.category || "");
+}
+
+function getPostAuthor(post: NewsPost) {
+  return post.author || "Unbekannt";
+}
+
+function getPostContent(post: NewsPost) {
+  return post.content || post.description || "Kein Inhalt vorhanden.";
 }
 
 export default function NewsDetailPage() {
-  const params =
-    useParams();
+  const params = useParams();
+  const id = String(params.id || "");
 
-  const id =
-    String(
-      params.id ||
-        ""
-    );
-
-  const [post, setPost] =
-    useState<NewsPost | null>(
-      null
-    );
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [post, setPost] = useState<NewsPost | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [markingOpened, setMarkingOpened] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void loadPost();
@@ -77,16 +63,10 @@ export default function NewsDetailPage() {
       void loadPost();
     }
 
-    window.addEventListener(
-      "newsUpdated",
-      handleNewsUpdated
-    );
+    window.addEventListener("newsUpdated", handleNewsUpdated);
 
     return () => {
-      window.removeEventListener(
-        "newsUpdated",
-        handleNewsUpdated
-      );
+      window.removeEventListener("newsUpdated", handleNewsUpdated);
     };
   }, [
     id,
@@ -94,160 +74,146 @@ export default function NewsDetailPage() {
 
   async function loadPost() {
     if (!id) {
+      setLoading(false);
+      setError("Keine News-ID vorhanden.");
       return;
     }
 
     try {
-      setLoading(
-        true
-      );
+      setLoading(true);
+      setError("");
 
-      setError(
-        ""
-      );
-
-      const nextPost =
-        await newsRepository.findById(
-          id
-        );
+      const nextPost = await newsRepository.findById(id);
 
       if (!nextPost) {
-        setPost(
-          null
-        );
-
-        setError(
-          "News wurde nicht gefunden."
-        );
-
+        setPost(null);
+        setError("News wurde nicht gefunden.");
         return;
       }
 
-      setPost(
-        nextPost
-      );
+      setPost(nextPost);
 
-      await newsRepository.markOpened(
-        nextPost.id
-      );
+      try {
+        setMarkingOpened(true);
+        await newsRepository.markOpened(nextPost.id);
+      } catch (openedError) {
+        console.error(openedError);
+      } finally {
+        setMarkingOpened(false);
+      }
     } catch (loadError) {
-      console.error(
-        loadError
-      );
-
+      console.error(loadError);
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "News konnte nicht geladen werden."
+          : "News konnte nicht geladen werden.",
       );
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
   if (loading) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <p className="text-zinc-500">
-          News wird geladen...
-        </p>
-      </div>
-    );
-  }
-
-  if (
-    error ||
-    !post
-  ) {
-    return (
-      <div className="space-y-8">
-        <div>
-          <Link
-            href="/news"
-            className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            ← Zurück zu Neuigkeiten
-          </Link>
-        </div>
-
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h1 className="text-3xl font-bold">
-            News nicht gefunden
-          </h1>
-
-          <p className="text-zinc-500 mt-2">
-            {error ||
-              "Dieser Beitrag existiert nicht."}
+      <div className="space-y-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            News wird geladen...
           </p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-8">
-      <div>
+  if (error || !post) {
+    return (
+      <div className="space-y-6">
         <Link
           href="/news"
-          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          className="inline-flex text-sm text-zinc-500 hover:text-zinc-900"
         >
           ← Zurück zu Neuigkeiten
         </Link>
+
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-2xl font-bold text-zinc-900">
+            News nicht gefunden
+          </h1>
+          <p className="text-zinc-500 mt-2">
+            {error || "Dieser Beitrag existiert nicht."}
+          </p>
+        </div>
       </div>
+    );
+  }
+
+  const postCategory = getPostCategory(post);
+
+  return (
+    <div className="space-y-8">
+      <Link
+        href="/news"
+        className="inline-flex text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        ← Zurück zu Neuigkeiten
+      </Link>
 
       <PageHero
         eyebrow="News"
         title={post.title}
-        description={
-          post.description ||
-          "Keine Beschreibung vorhanden."
-        }
+        description={post.description || "Keine Kurzbeschreibung vorhanden."}
         badges={[
+          ...(postCategory
+            ? [
+                {
+                  label: postCategory,
+                },
+              ]
+            : []),
+          ...(post.pinned
+            ? [
+                {
+                  label: "Fixiert",
+                },
+              ]
+            : []),
           {
-            label:
-              post.category ||
-              "Allgemein",
+            label: `Autor: ${getPostAuthor(post)}`,
           },
           {
-            label:
-              post.pinned
-                ? "Fixiert"
-                : "Normal",
+            label: `Erstellt: ${post.createdAt}`,
           },
-          {
-            label:
-              post.author
-                ? `Autor: ${post.author}`
-                : "Autor: Unbekannt",
-          },
+          ...(markingOpened
+            ? [
+                {
+                  label: "Wird als gelesen markiert",
+                },
+              ]
+            : []),
         ]}
-        actions={(
-          <>
-            {canEdit() && (
-              <Link
-                href="/admin/news"
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-              >
-                News verwalten
-              </Link>
-            )}
-          </>
-        )}
+        actions={
+          canEdit() && (
+            <Link
+              href="/admin/news"
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+            >
+              News verwalten
+            </Link>
+          )
+        }
       />
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+      <article className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
         <div className="flex flex-wrap gap-2">
-          <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
-            String(
-              post.category ||
-                "Allgemein"
-            )
-          )}`}>
-            {post.category ||
-              "Allgemein"}
-          </span>
+          {postCategory && (
+            <span
+              className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                postCategory,
+              )}`}
+            >
+              {postCategory}
+            </span>
+          )}
 
           {post.pinned && (
             <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
@@ -256,27 +222,19 @@ export default function NewsDetailPage() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-6">
+        <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
           <span>
-            Autor:{" "}
-            {post.author ||
-              "Unbekannt"}
+            Autor: {getPostAuthor(post)}
           </span>
-
           <span>
-            Erstellt:{" "}
-            {post.createdAt}
+            Erstellt: {post.createdAt}
           </span>
         </div>
 
-        <article className="prose prose-zinc max-w-none mt-8">
-          <div className="whitespace-pre-wrap text-zinc-800 leading-8">
-            {post.content ||
-              post.description ||
-              "Kein Inhalt vorhanden."}
-          </div>
-        </article>
-      </section>
+        <div className="prose prose-zinc max-w-none mt-8 whitespace-pre-wrap leading-8 text-zinc-700">
+          {getPostContent(post)}
+        </div>
+      </article>
 
       <NewsFileList
         newsId={post.id}

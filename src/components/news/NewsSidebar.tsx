@@ -1,37 +1,20 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
-import {
-  newsRepository,
-} from "../../lib/newsRepository";
-
-import type {
-  NewsPost,
-} from "../../types/news";
+import { newsRepository } from "../../lib/newsRepository";
+import type { NewsPost } from "../../types/news";
 
 type NewsSidebarProps = {
   className?: string;
 };
 
-function getCategoryLabel(
-  category: string
-) {
-  if (!category) {
-    return "Allgemein";
-  }
-
-  return category;
-}
-
-function getCategoryClass(
-  category: string
-) {
+function getCategoryClass(category: string) {
   if (category === "System") {
     return "bg-blue-50 text-blue-700";
   }
@@ -51,17 +34,16 @@ function getCategoryClass(
   return "bg-zinc-100 text-zinc-700";
 }
 
+function getPostCategory(post: NewsPost) {
+  return String(post.category || "");
+}
+
 export default function NewsSidebar({
   className = "",
 }: NewsSidebarProps) {
-  const [posts, setPosts] =
-    useState<NewsPost[]>([]);
-
-  const [openedIds, setOpenedIds] =
-    useState<string[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
+  const [posts, setPosts] = useState<NewsPost[]>([]);
+  const [openedIds, setOpenedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void loadData();
@@ -74,75 +56,59 @@ export default function NewsSidebar({
       void loadOpenedIds();
     }
 
-    window.addEventListener(
-      "newsUpdated",
-      handleNewsUpdated
-    );
-
+    window.addEventListener("newsUpdated", handleNewsUpdated);
     window.addEventListener(
       "newsOpenedUpdated",
-      handleNewsOpenedUpdated
+      handleNewsOpenedUpdated,
     );
 
     return () => {
-      window.removeEventListener(
-        "newsUpdated",
-        handleNewsUpdated
-      );
-
+      window.removeEventListener("newsUpdated", handleNewsUpdated);
       window.removeEventListener(
         "newsOpenedUpdated",
-        handleNewsOpenedUpdated
+        handleNewsOpenedUpdated,
       );
     };
   }, []);
 
   async function loadData() {
     try {
-      setLoading(
-        true
-      );
+      setLoading(true);
 
       const [
         nextPosts,
         nextOpenedIds,
-      ] =
-        await Promise.all([
-          newsRepository.list(),
-          newsRepository.getOpenedIds(),
-        ]);
+      ] = await Promise.all([
+        newsRepository.list(),
+        newsRepository.getOpenedIds(),
+      ]);
 
-      setPosts(
-        nextPosts
-      );
-
+      setPosts(Array.isArray(nextPosts) ? nextPosts : []);
       setOpenedIds(
-        nextOpenedIds
+        Array.isArray(nextOpenedIds)
+          ? nextOpenedIds
+          : [],
       );
     } catch (error) {
-      console.error(
-        "News konnten nicht geladen werden:",
-        error
-      );
+      console.error("News konnten nicht geladen werden:", error);
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
   async function loadOpenedIds() {
     try {
-      const nextOpenedIds =
-        await newsRepository.getOpenedIds();
+      const nextOpenedIds = await newsRepository.getOpenedIds();
 
       setOpenedIds(
-        nextOpenedIds
+        Array.isArray(nextOpenedIds)
+          ? nextOpenedIds
+          : [],
       );
     } catch (error) {
       console.error(
         "Gelesene News konnten nicht geladen werden:",
-        error
+        error,
       );
     }
   }
@@ -150,85 +116,89 @@ export default function NewsSidebar({
   async function handleMarkAllOpened() {
     try {
       await newsRepository.markAllOpened();
-
       await loadData();
     } catch (error) {
       console.error(
         "News konnten nicht als gelesen markiert werden:",
-        error
+        error,
       );
     }
   }
 
-  const pinnedPosts =
-    posts.filter(
-      (post) =>
-        post.pinned
-    );
+  const pinnedPosts = useMemo(
+    () => posts.filter((post) => post.pinned),
+    [
+      posts,
+    ],
+  );
 
-  const latestPosts =
-    posts.slice(
-      0,
-      5
-    );
+  const latestPosts = useMemo(
+    () => posts.slice(0, 5),
+    [
+      posts,
+    ],
+  );
 
-  const unreadPosts =
-    posts.filter(
-      (post) =>
-        !openedIds.includes(
-          post.id
-        )
-    );
+  const unreadPosts = useMemo(
+    () =>
+      posts.filter(
+        (post) => !openedIds.includes(post.id),
+      ),
+    [
+      posts,
+      openedIds,
+    ],
+  );
 
-  const categories =
-    Array.from(
-      new Set(
-        posts.map(
-          (post) =>
-            String(
-              post.category ||
-                "Allgemein"
-            )
-        )
-      )
-    );
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          posts
+            .map((post) => getPostCategory(post))
+            .filter(Boolean),
+        ),
+      ).sort((first, second) => first.localeCompare(second)),
+    [
+      posts,
+    ],
+  );
 
   return (
     <aside className={`space-y-6 ${className}`}>
-      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-bold">
+            <h2 className="text-lg font-semibold">
               Neuigkeiten
             </h2>
-
             <p className="text-sm text-zinc-500 mt-1">
               Aktuelle Beiträge
             </p>
           </div>
 
-          <span className="h-11 w-11 rounded-2xl bg-zinc-900 text-white flex items-center justify-center">
-            N
-          </span>
+          {unreadPosts.length > 0 && (
+            <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full">
+              Neu
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-5">
-          <div className="rounded-2xl bg-zinc-50 p-4">
+          <div className="bg-zinc-50 rounded-2xl p-4">
             <p className="text-xs text-zinc-500">
               Beiträge
             </p>
-
             <p className="text-2xl font-bold mt-1">
               {posts.length}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-red-50 p-4">
-            <p className="text-xs text-red-600">
+          <div className="bg-zinc-50 rounded-2xl p-4">
+            <p className="text-xs text-zinc-500">
               Ungelesen
             </p>
-
-            <p className="text-2xl font-bold mt-1 text-red-700">
+            <p className="text-2xl font-bold mt-1">
               {unreadPosts.length}
             </p>
           </div>
@@ -237,9 +207,7 @@ export default function NewsSidebar({
         {unreadPosts.length > 0 && (
           <button
             type="button"
-            onClick={() =>
-              void handleMarkAllOpened()
-            }
+            onClick={() => void handleMarkAllOpened()}
             className="w-full mt-5 bg-zinc-900 text-white px-4 py-3 rounded-2xl hover:bg-zinc-700 transition"
           >
             Alle als gelesen markieren
@@ -247,69 +215,62 @@ export default function NewsSidebar({
         )}
 
         {loading && (
-          <p className="text-sm text-zinc-500 mt-5">
+          <p className="text-sm text-zinc-400 mt-5">
             News werden geladen...
           </p>
         )}
-      </div>
+      </section>
 
       {pinnedPosts.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
           <h3 className="font-semibold">
             Fixiert
           </h3>
 
           <div className="space-y-3 mt-4">
-            {pinnedPosts.slice(
-              0,
-              4
-            ).map(
-              (post) => {
-                const unread =
-                  !openedIds.includes(
-                    post.id
-                  );
+            {pinnedPosts.slice(0, 4).map((post) => {
+              const unread = !openedIds.includes(post.id);
+              const postCategory = getPostCategory(post);
 
-                return (
-                  <Link
-                    key={post.id}
-                    href={`/news/${post.id}`}
-                    className={`block rounded-2xl border p-4 transition ${
-                      unread
-                        ? "border-red-100 bg-red-50/40 hover:bg-red-50"
-                        : "border-zinc-100 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={`text-[11px] px-2 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
-                        {getCategoryLabel(
-                          String(
-                            post.category
-                          )
-                        )}
+              return (
+                <Link
+                  key={post.id}
+                  href={`/news/${post.id}`}
+                  className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {postCategory && (
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${getCategoryClass(
+                          postCategory,
+                        )}`}
+                      >
+                        {postCategory}
                       </span>
+                    )}
 
-                      {unread && (
-                        <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      )}
-                    </div>
+                    {unread && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                        Neu
+                      </span>
+                    )}
+                  </div>
 
-                    <p className="font-medium mt-3 line-clamp-2">
-                      {post.title}
-                    </p>
+                  <p className="font-medium mt-3 line-clamp-2">
+                    {post.title}
+                  </p>
 
-                    <p className="text-xs text-zinc-500 mt-2">
-                      {post.createdAt}
-                    </p>
-                  </Link>
-                );
-              }
-            )}
+                  <p className="text-xs text-zinc-400 mt-2">
+                    {post.createdAt}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
-        </div>
+        </section>
       )}
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h3 className="font-semibold">
           Neueste Beiträge
         </h3>
@@ -321,54 +282,48 @@ export default function NewsSidebar({
             </p>
           )}
 
-          {latestPosts.map(
-            (post) => {
-              const unread =
-                !openedIds.includes(
-                  post.id
-                );
+          {latestPosts.map((post) => {
+            const unread = !openedIds.includes(post.id);
+            const postCategory = getPostCategory(post);
 
-              return (
-                <Link
-                  key={post.id}
-                  href={`/news/${post.id}`}
-                  className={`block rounded-2xl border p-4 transition ${
-                    unread
-                      ? "border-red-100 bg-red-50/40 hover:bg-red-50"
-                      : "border-zinc-100 hover:bg-zinc-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={`text-[11px] px-2 py-1 rounded-full ${getCategoryClass(String(post.category))}`}>
-                      {getCategoryLabel(
-                        String(
-                          post.category
-                        )
-                      )}
+            return (
+              <Link
+                key={post.id}
+                href={`/news/${post.id}`}
+                className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
+              >
+                <div className="flex flex-wrap gap-2">
+                  {postCategory && (
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${getCategoryClass(
+                        postCategory,
+                      )}`}
+                    >
+                      {postCategory}
                     </span>
+                  )}
 
-                    {unread && (
-                      <span className="text-xs font-semibold text-red-600">
-                        Neu
-                      </span>
-                    )}
-                  </div>
+                  {unread && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                      Neu
+                    </span>
+                  )}
+                </div>
 
-                  <p className="font-medium mt-3 line-clamp-2">
-                    {post.title}
-                  </p>
+                <p className="font-medium mt-3 line-clamp-2">
+                  {post.title}
+                </p>
 
-                  <p className="text-xs text-zinc-500 mt-2">
-                    {post.createdAt}
-                  </p>
-                </Link>
-              );
-            }
-          )}
+                <p className="text-xs text-zinc-400 mt-2">
+                  {post.createdAt}
+                </p>
+              </Link>
+            );
+          })}
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <h3 className="font-semibold">
           Kategorien
         </h3>
@@ -380,21 +335,19 @@ export default function NewsSidebar({
             </p>
           )}
 
-          {categories.map(
-            (category) => (
-              <Link
-                key={category}
-                href={`/news?category=${encodeURIComponent(
-                  category
-                )}`}
-                className={`text-xs px-3 py-1 rounded-full transition ${getCategoryClass(category)}`}
-              >
-                {category}
-              </Link>
-            )
-          )}
+          {categories.map((category) => (
+            <Link
+              key={category}
+              href={`/news?category=${encodeURIComponent(category)}`}
+              className={`text-sm px-3 py-2 rounded-full ${getCategoryClass(
+                category,
+              )}`}
+            >
+              {category}
+            </Link>
+          ))}
         </div>
-      </div>
+      </section>
     </aside>
   );
 }

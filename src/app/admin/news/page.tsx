@@ -7,38 +7,20 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import AppModal from "../../../components/AppModal";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import {
-  newsRepository,
-} from "../../../lib/newsRepository";
+import { newsRepository } from "../../../lib/newsRepository";
 import {
   saveNewsCreatedActivity,
   saveNewsDeletedActivity,
   saveNewsUpdatedActivity,
 } from "../../../lib/newsActivityHelpers";
-import {
-  usePermissions,
-} from "../../../hooks/usePermissions";
-import type {
-  NewsCategory,
-  NewsPost,
-} from "../../../types/news";
+import { usePermissions } from "../../../hooks/usePermissions";
+import type { NewsPost } from "../../../types/news";
 
-type PinnedFilter =
-  | ""
-  | "pinned"
-  | "normal";
-
-const defaultCategories: NewsCategory[] = [
-  "Allgemein",
-  "System",
-  "Tickets",
-  "Wiki",
-  "Organisation",
-];
+type PinnedFilter = "" | "pinned" | "normal";
 
 function getCategoryClass(category: string) {
   if (category === "System") {
@@ -61,7 +43,7 @@ function getCategoryClass(category: string) {
 }
 
 function getPostCategory(post: NewsPost) {
-  return String(post.category || "Allgemein");
+  return String(post.category || "");
 }
 
 function getPostDescription(post: NewsPost) {
@@ -84,18 +66,30 @@ export default function AdminNewsPage() {
     hasAnyPermission,
   } = usePermissions();
 
-  const canManageNews = isAdmin || hasAnyPermission([
-    "news.manage",
-  ]);
-  const canCreateNews = canManageNews || hasAnyPermission([
-    "news.create",
-  ]);
-  const canEditNews = canManageNews || hasAnyPermission([
-    "news.edit",
-  ]);
-  const canDeleteNews = canManageNews || hasAnyPermission([
-    "news.delete",
-  ]);
+  const canManageNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.manage",
+    ]);
+
+  const canCreateNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.create",
+    ]);
+
+  const canEditNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.edit",
+    ]);
+
+  const canDeleteNews =
+    canManageNews ||
+    hasAnyPermission([
+      "news.delete",
+    ]);
+
   const canUseAdminNews =
     canManageNews ||
     canCreateNews ||
@@ -104,6 +98,7 @@ export default function AdminNewsPage() {
 
   const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<NewsPost[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -111,24 +106,27 @@ export default function AdminNewsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPostId, setEditingPostId] = useState("");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
-  const [category, setCategory] = useState<NewsCategory>("Allgemein");
+  const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("System");
   const [pinned, setPinned] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     setMounted(true);
-    void loadPosts();
+    void loadData();
 
     function handleNewsUpdated() {
-      void loadPosts();
+      void loadData();
     }
 
     window.addEventListener("newsUpdated", handleNewsUpdated);
@@ -138,17 +136,32 @@ export default function AdminNewsPage() {
     };
   }, []);
 
-  async function loadPosts() {
+  async function loadData() {
     try {
       setLoading(true);
+      setCategoriesLoading(true);
       setError("");
 
-      const nextPosts = await newsRepository.list();
+      const [
+        nextPosts,
+        nextCategories,
+      ] = await Promise.all([
+        newsRepository.list(),
+        newsRepository.listCategories(),
+      ]);
+
+      const normalizedCategories = Array.isArray(nextCategories)
+        ? nextCategories.filter(Boolean)
+        : [];
 
       setPosts(Array.isArray(nextPosts) ? nextPosts : []);
+      setCategories(normalizedCategories);
+
+      if (!category && normalizedCategories.length > 0) {
+        setCategory(normalizedCategories[0]);
+      }
     } catch (loadError) {
       console.error(loadError);
-
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -156,18 +169,22 @@ export default function AdminNewsPage() {
       );
     } finally {
       setLoading(false);
+      setCategoriesLoading(false);
     }
   }
 
-  const categories = useMemo(
+  const visibleCategories = useMemo(
     () =>
       Array.from(
         new Set([
-          ...defaultCategories,
-          ...posts.map((post) => String(post.category || "Allgemein")),
+          ...categories,
+          ...posts
+            .map((post) => getPostCategory(post))
+            .filter(Boolean),
         ]),
       ).sort((first, second) => first.localeCompare(second)),
     [
+      categories,
       posts,
     ],
   );
@@ -176,6 +193,8 @@ export default function AdminNewsPage() {
     const query = search.trim().toLowerCase();
 
     return posts.filter((post) => {
+      const postCategory = getPostCategory(post);
+
       const matchesSearch =
         !query ||
         [
@@ -194,18 +213,12 @@ export default function AdminNewsPage() {
 
       const matchesCategory =
         !categoryFilter ||
-        getPostCategory(post) === categoryFilter;
+        postCategory === categoryFilter;
 
       const matchesPinned =
         !pinnedFilter ||
-        (
-          pinnedFilter === "pinned" &&
-          post.pinned
-        ) ||
-        (
-          pinnedFilter === "normal" &&
-          !post.pinned
-        );
+        (pinnedFilter === "pinned" && post.pinned) ||
+        (pinnedFilter === "normal" && !post.pinned);
 
       return (
         matchesSearch &&
@@ -229,12 +242,16 @@ export default function AdminNewsPage() {
 
   const normalCount = posts.length - pinnedCount;
 
+  function getDefaultCategory() {
+    return visibleCategories[0] || "";
+  }
+
   function resetForm() {
     setEditingPostId("");
     setTitle("");
     setDescription("");
     setContent("");
-    setCategory("Allgemein");
+    setCategory(getDefaultCategory());
     setAuthor(user?.name || "System");
     setPinned(false);
   }
@@ -264,7 +281,7 @@ export default function AdminNewsPage() {
     setTitle(post.title);
     setDescription(post.description);
     setContent(post.content);
-    setCategory((post.category || "Allgemein") as NewsCategory);
+    setCategory(getPostCategory(post));
     setAuthor(post.author || user?.name || "System");
     setPinned(Boolean(post.pinned));
     setModalOpen(true);
@@ -295,7 +312,7 @@ export default function AdminNewsPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswählen.");
+      alert("Bitte eine Kategorie aus dem Admin Backend auswählen.");
       return;
     }
 
@@ -308,7 +325,7 @@ export default function AdminNewsPage() {
         title: title.trim(),
         description: description.trim(),
         content: content.trim(),
-        category: category || "Allgemein",
+        category: category.trim(),
         author: author.trim() || user?.name || "System",
         pinned,
       };
@@ -324,21 +341,19 @@ export default function AdminNewsPage() {
         }
 
         closeModal();
-        await loadPosts();
+        await loadData();
         setMessage("News-Beitrag wurde gespeichert.");
         return;
       }
 
       const createdPost = await newsRepository.create(payload);
-
       saveNewsCreatedActivity(createdPost);
 
       closeModal();
-      await loadPosts();
+      await loadData();
       setMessage("News-Beitrag wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
-
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -369,12 +384,11 @@ export default function AdminNewsPage() {
 
       saveNewsDeletedActivity(post);
       await newsRepository.delete(post.id);
-      await loadPosts();
+      await loadData();
 
       setMessage("News-Beitrag wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
-
       setError(
         deleteError instanceof Error
           ? deleteError.message
@@ -401,10 +415,16 @@ export default function AdminNewsPage() {
 
   if (!isAdmin || !canUseAdminNews) {
     return (
-      <AccessDeniedCard
-        title="Kein Zugriff"
-        description="Du hast keine Berechtigung für die News-Verwaltung."
-      />
+      <div className="space-y-6">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
+          <h1 className="text-2xl font-bold text-zinc-900">
+            Zugriff verweigert
+          </h1>
+          <p className="text-zinc-500 mt-2">
+            Du hast keine Berechtigung für die News-Verwaltung.
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -412,12 +432,11 @@ export default function AdminNewsPage() {
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title={editingPostId ? "News bearbeiten" : "News erstellen"}
-        description="Der Beitrag wird direkt über die PostgreSQL/API-Struktur gespeichert."
-        maxWidth="5xl"
         onClose={closeModal}
+        title={editingPostId ? "News bearbeiten" : "News erstellen"}
+        description="News-Kategorien kommen aus dem Admin Backend über die zentrale Taxonomie."
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
@@ -425,12 +444,11 @@ export default function AdminNewsPage() {
             >
               Abbrechen
             </button>
-
             <button
               type="submit"
               form="admin-news-form"
-              disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              disabled={saving || visibleCategories.length === 0}
+              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving
                 ? "Speichert..."
@@ -438,7 +456,7 @@ export default function AdminNewsPage() {
                   ? "Änderungen speichern"
                   : "News erstellen"}
             </button>
-          </div>
+          </>
         }
       >
         <form
@@ -446,6 +464,18 @@ export default function AdminNewsPage() {
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-6"
         >
+          {visibleCategories.length === 0 && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+              <h3 className="font-semibold text-amber-800">
+                Keine News-Kategorien vorhanden
+              </h3>
+              <p className="text-amber-700 text-sm mt-1">
+                Lege zuerst im Admin Backend unter Kategorien & Tags
+                mindestens eine aktive Kategorie für News an.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
               <label className="block mb-2 font-medium">
@@ -465,10 +495,14 @@ export default function AdminNewsPage() {
               </label>
               <select
                 value={category}
-                onChange={(event) => setCategory(event.target.value as NewsCategory)}
+                onChange={(event) => setCategory(event.target.value)}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                disabled={visibleCategories.length === 0}
               >
-                {categories.map((item) => (
+                <option value="">
+                  Kategorie wählen
+                </option>
+                {visibleCategories.map((item) => (
                   <option
                     key={item}
                     value={item}
@@ -491,7 +525,7 @@ export default function AdminNewsPage() {
               />
             </div>
 
-            <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-5">
+            <label className="flex gap-3 items-start bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4">
               <input
                 type="checkbox"
                 checked={pinned}
@@ -540,7 +574,7 @@ export default function AdminNewsPage() {
       <PageHero
         eyebrow="Admin Backend"
         title="News-Verwaltung"
-        description="Neuigkeiten erstellen, bearbeiten, fixieren und löschen."
+        description="Neuigkeiten erstellen, bearbeiten, fixieren und löschen. Kategorien kommen aus dem Admin Backend."
         badges={[
           {
             label: `${posts.length} Beiträge`,
@@ -549,7 +583,7 @@ export default function AdminNewsPage() {
             label: `${pinnedCount} fixiert`,
           },
           {
-            label: `${categories.length} Kategorien`,
+            label: `${visibleCategories.length} Kategorien`,
           },
         ]}
         actions={
@@ -573,6 +607,14 @@ export default function AdminNewsPage() {
         </div>
       )}
 
+      {categoriesLoading && (
+        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <p className="text-zinc-500">
+            Kategorien werden geladen...
+          </p>
+        </div>
+      )}
+
       {message && (
         <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
           <p className="text-green-700 font-medium">
@@ -592,12 +634,24 @@ export default function AdminNewsPage() {
         </div>
       )}
 
+      {visibleCategories.length === 0 && !categoriesLoading && (
+        <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-amber-800">
+            Keine News-Kategorien vorhanden
+          </h2>
+          <p className="text-amber-700 mt-2">
+            Lege im Admin Backend unter Kategorien & Tags aktive
+            News-Kategorien an, bevor neue News erstellt werden.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           label="News gesamt"
           value={posts.length}
           description="Alle Beiträge"
-          icon="📰"
+          icon=""
           active={!categoryFilter && !pinnedFilter}
           onClick={resetFilters}
         />
@@ -605,7 +659,7 @@ export default function AdminNewsPage() {
           label="Fixiert"
           value={pinnedCount}
           description="Oben hervorgehobene Beiträge"
-          icon="📌"
+          icon=""
           tone="orange"
           active={pinnedFilter === "pinned"}
           onClick={() => setPinnedFilter("pinned")}
@@ -614,7 +668,7 @@ export default function AdminNewsPage() {
           label="Normal"
           value={normalCount}
           description="Nicht fixierte Beiträge"
-          icon="📄"
+          icon=""
           tone="blue"
           active={pinnedFilter === "normal"}
           onClick={() => setPinnedFilter("normal")}
@@ -623,7 +677,7 @@ export default function AdminNewsPage() {
           label="Gefiltert"
           value={filteredPosts.length}
           description="Nach Suche und Filtern"
-          icon="🔎"
+          icon=""
           tone="indigo"
         />
       </div>
@@ -664,7 +718,7 @@ export default function AdminNewsPage() {
             <option value="">
               Alle Kategorien
             </option>
-            {categories.map((item) => (
+            {visibleCategories.map((item) => (
               <option
                 key={item}
                 value={item}
@@ -676,7 +730,9 @@ export default function AdminNewsPage() {
 
           <select
             value={pinnedFilter}
-            onChange={(event) => setPinnedFilter(event.target.value as PinnedFilter)}
+            onChange={(event) =>
+              setPinnedFilter(event.target.value as PinnedFilter)
+            }
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
@@ -719,9 +775,15 @@ export default function AdminNewsPage() {
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(postCategory)}`}>
-                      {postCategory}
-                    </span>
+                    {postCategory && (
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                          postCategory,
+                        )}`}
+                      >
+                        {postCategory}
+                      </span>
+                    )}
 
                     {post.pinned && (
                       <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">

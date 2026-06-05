@@ -1,12 +1,10 @@
-import {
-  requestJson,
-} from "./apiClient";
+import { requestJson } from "./apiClient";
 import type {
-  NewsCategory,
   NewsCreateInput,
   NewsPost,
   NewsUpdateInput,
 } from "../types/news";
+import type { TaxonomyItem } from "../types/taxonomy";
 
 type NewsFilters = {
   category?: string;
@@ -20,17 +18,17 @@ export type NewsRepository = {
   create: (post: NewsCreateInput) => Promise<NewsPost>;
   update: (
     id: string,
-    updates: NewsUpdateInput
+    updates: NewsUpdateInput,
   ) => Promise<NewsPost | null>;
   delete: (id: string) => Promise<void>;
   saveAll: (posts: NewsPost[]) => Promise<void>;
-  listByCategory: (category: NewsCategory | string) => Promise<NewsPost[]>;
+  listByCategory: (category: string) => Promise<NewsPost[]>;
   listCategories: () => Promise<string[]>;
   getCategories: () => Promise<string[]>;
   listPinned: () => Promise<NewsPost[]>;
   listLatest: (limit?: number) => Promise<NewsPost[]>;
   countAll: () => Promise<number>;
-  countByCategory: (category: NewsCategory | string) => Promise<number>;
+  countByCategory: (category: string) => Promise<number>;
   countPinned: () => Promise<number>;
   getOpenedIds: (userEmail?: string) => Promise<string[]>;
   markOpened: (id: string, userEmail?: string) => Promise<void>;
@@ -43,9 +41,7 @@ function dispatchNewsUpdated() {
     return;
   }
 
-  window.dispatchEvent(
-    new Event("newsUpdated"),
-  );
+  window.dispatchEvent(new Event("newsUpdated"));
 }
 
 function dispatchNewsOpenedUpdated() {
@@ -53,9 +49,7 @@ function dispatchNewsOpenedUpdated() {
     return;
   }
 
-  window.dispatchEvent(
-    new Event("newsOpenedUpdated"),
-  );
+  window.dispatchEvent(new Event("newsOpenedUpdated"));
 }
 
 function buildQuery(filters?: NewsFilters) {
@@ -82,7 +76,10 @@ function normalizePayload(
   payload: NewsCreateInput | NewsUpdateInput,
 ) {
   return {
-    id: "id" in payload ? normalizeText(payload.id) || undefined : undefined,
+    id:
+      "id" in payload
+        ? normalizeText(payload.id) || undefined
+        : undefined,
     title: normalizeText(payload.title),
     description: normalizeText(payload.description),
     content: String(payload.content || ""),
@@ -93,9 +90,7 @@ function normalizePayload(
 }
 
 function normalizeQuery(query: string) {
-  return query
-    .trim()
-    .toLowerCase();
+  return query.trim().toLowerCase();
 }
 
 function postMatchesQuery(
@@ -125,29 +120,21 @@ function postMatchesQuery(
 }
 
 function getUserEmail(value?: string) {
-  return (
-    value?.trim().toLowerCase() ||
-    "anonymous"
-  );
+  return value?.trim().toLowerCase() || "anonymous";
 }
 
 export const postgresNewsRepository: NewsRepository = {
   async list(filters?: NewsFilters) {
     const query = buildQuery(filters);
 
-    return requestJson<NewsPost[]>(
-      `/api/news${query}`,
-    );
+    return requestJson<NewsPost[]>(`/api/news${query}`);
   },
 
   async search(query: string) {
     const posts = await postgresNewsRepository.list();
 
-    return posts.filter(
-      (post) => postMatchesQuery(
-        post,
-        query,
-      ),
+    return posts.filter((post) =>
+      postMatchesQuery(post, query),
     );
   },
 
@@ -231,9 +218,7 @@ export const postgresNewsRepository: NewsRepository = {
       return;
     }
 
-    await requestJson<{
-      ok: boolean;
-    }>(
+    await requestJson<{ ok: boolean }>(
       `/api/news/${encodeURIComponent(id)}`,
       {
         method: "DELETE",
@@ -247,11 +232,7 @@ export const postgresNewsRepository: NewsRepository = {
     await Promise.all(
       posts.map(async (post) => {
         if (post.id) {
-          await postgresNewsRepository.update(
-            post.id,
-            post,
-          );
-
+          await postgresNewsRepository.update(post.id, post);
           return;
         }
 
@@ -262,22 +243,23 @@ export const postgresNewsRepository: NewsRepository = {
     dispatchNewsUpdated();
   },
 
-  async listByCategory(category: NewsCategory | string) {
+  async listByCategory(category: string) {
     return postgresNewsRepository.list({
       category: String(category),
     });
   },
 
   async listCategories() {
-    const posts = await postgresNewsRepository.list();
+    const items = await requestJson<TaxonomyItem[]>(
+      "/api/taxonomy?target=news&type=category&status=active",
+    );
 
-    return Array.from(
-      new Set(
-        posts
-          .map((post) => post.category || "Allgemein")
-          .filter(Boolean),
-      ),
-    ).sort((first, second) => first.localeCompare(second));
+    return items
+      .map((item) => item.name)
+      .filter(Boolean)
+      .sort((first, second) =>
+        first.localeCompare(second),
+      );
   },
 
   async getCategories() {
@@ -302,8 +284,9 @@ export const postgresNewsRepository: NewsRepository = {
     return posts.length;
   },
 
-  async countByCategory(category: NewsCategory | string) {
-    const posts = await postgresNewsRepository.listByCategory(category);
+  async countByCategory(category: string) {
+    const posts =
+      await postgresNewsRepository.listByCategory(category);
 
     return posts.length;
   },
@@ -316,7 +299,9 @@ export const postgresNewsRepository: NewsRepository = {
 
   async getOpenedIds(userEmail?: string) {
     return requestJson<string[]>(
-      `/api/news/opened?userEmail=${encodeURIComponent(getUserEmail(userEmail))}`,
+      `/api/news/opened?userEmail=${encodeURIComponent(
+        getUserEmail(userEmail),
+      )}`,
     );
   },
 
@@ -328,9 +313,7 @@ export const postgresNewsRepository: NewsRepository = {
       return;
     }
 
-    await requestJson<{
-      ok: boolean;
-    }>(
+    await requestJson<{ ok: boolean }>(
       "/api/news/opened",
       {
         method: "POST",
@@ -345,9 +328,7 @@ export const postgresNewsRepository: NewsRepository = {
   },
 
   async markAllOpened(userEmail?: string) {
-    await requestJson<{
-      ok: boolean;
-    }>(
+    await requestJson<{ ok: boolean }>(
       "/api/news/opened",
       {
         method: "POST",
@@ -362,10 +343,7 @@ export const postgresNewsRepository: NewsRepository = {
   },
 
   async countUnread(userEmail?: string) {
-    const [
-      posts,
-      openedIds,
-    ] = await Promise.all([
+    const [posts, openedIds] = await Promise.all([
       postgresNewsRepository.list(),
       postgresNewsRepository.getOpenedIds(userEmail),
     ]);

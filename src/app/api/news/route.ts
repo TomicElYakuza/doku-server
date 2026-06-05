@@ -1,15 +1,8 @@
-import {
-  NextResponse,
-} from "next/server";
-import {
-  query,
-  queryOne,
-} from "../../../lib/database/db";
+import { NextResponse } from "next/server";
+import { query, queryOne } from "../../../lib/database/db";
 import {
   mapNewsRow,
-} from "../../../lib/database/mappers/newsMapper";
-import type {
-  NewsRow,
+  type NewsRow,
 } from "../../../lib/database/mappers/newsMapper";
 
 type CreateNewsPostBody = {
@@ -60,9 +53,8 @@ export async function GET(request: Request) {
       whereParts.push(`pinned = $${params.length}`);
     }
 
-    const whereSql = whereParts.length > 0
-      ? `WHERE ${whereParts.join(" AND ")}`
-      : "";
+    const whereSql =
+      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
     const rows = await query<NewsRow>(
       `
@@ -83,9 +75,7 @@ export async function GET(request: Request) {
       params,
     );
 
-    return NextResponse.json(
-      rows.map(mapNewsRow),
-    );
+    return NextResponse.json(rows.map(mapNewsRow));
   } catch (error) {
     console.error(error);
 
@@ -94,16 +84,14 @@ export async function GET(request: Request) {
         message: "News konnten nicht geladen werden.",
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as CreateNewsPostBody;
+    const body = (await request.json()) as CreateNewsPostBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
@@ -114,23 +102,15 @@ export async function POST(request: Request) {
 
     if (!title) {
       return NextResponse.json(
-        {
-          message: "Titel ist erforderlich.",
-        },
-        {
-          status: 400,
-        },
+        { message: "Titel ist erforderlich." },
+        { status: 400 },
       );
     }
 
     if (!category) {
       return NextResponse.json(
-        {
-          message: "Kategorie ist erforderlich.",
-        },
-        {
-          status: 400,
-        },
+        { message: "Kategorie ist erforderlich." },
+        { status: 400 },
       );
     }
 
@@ -167,34 +147,17 @@ export async function POST(request: Request) {
           created_at,
           updated_at
       `,
-      [
-        id,
-        title,
-        description,
-        content,
-        category,
-        author,
-        pinned,
-      ],
+      [id, title, description, content, category, author, pinned],
     );
 
     if (!row) {
       return NextResponse.json(
-        {
-          message: "News konnte nicht erstellt werden.",
-        },
-        {
-          status: 500,
-        },
+        { message: "News konnte nicht erstellt werden." },
+        { status: 500 },
       );
     }
 
-    return NextResponse.json(
-      mapNewsRow(row),
-      {
-        status: 201,
-      },
-    );
+    return NextResponse.json(mapNewsRow(row), { status: 201 });
   } catch (error) {
     console.error(error);
 
@@ -203,9 +166,7 @@ export async function POST(request: Request) {
         message: "News konnte nicht erstellt werden.",
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }

@@ -1,10 +1,9 @@
-export type TaxonomyType =
-  | "category"
-  | "tag";
+export type TaxonomyType = "category" | "tag";
 
 export type TaxonomyTarget =
   | "ticket"
   | "wiki"
+  | "news"
   | "global";
 
 export type TaxonomyStatus =
@@ -32,8 +31,5 @@ export type TaxonomyCreateInput = Omit<
 >;
 
 export type TaxonomyUpdateInput = Partial<
-  Omit<
-    TaxonomyItem,
-    "id" | "createdAt" | "updatedAt"
-  >
+  Omit<TaxonomyItem, "id" | "createdAt" | "updatedAt">
 >;

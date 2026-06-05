@@ -1,15 +1,7 @@
-import {
-  NextResponse,
-} from "next/server";
-import {
-  queryOne,
-} from "../../../../lib/database/db";
-import {
-  mapNewsRow,
-} from "../../../../lib/database/mappers/newsMapper";
-import type {
-  NewsRow,
-} from "../../../../lib/database/mappers/newsMapper";
+import { NextResponse } from "next/server";
+import { queryOne } from "../../../../lib/database/db";
+import { mapNewsRow } from "../../../../lib/database/mappers/newsMapper";
+import type { NewsRow } from "../../../../lib/database/mappers/newsMapper";
 
 type RouteContext = {
   params: Promise<{
@@ -35,9 +27,7 @@ export async function GET(
   context: RouteContext,
 ) {
   try {
-    const {
-      id,
-    } = await context.params;
+    const { id } = await context.params;
 
     const row = await queryOne<NewsRow>(
       `
@@ -54,36 +44,29 @@ export async function GET(
         FROM news_posts
         WHERE id = $1
       `,
-      [
-        decodeURIComponent(id),
-      ],
+      [decodeURIComponent(id)],
     );
 
     if (!row) {
       return NextResponse.json(
-        {
-          message: "News nicht gefunden.",
-        },
-        {
-          status: 404,
-        },
+        { message: "News nicht gefunden." },
+        { status: 404 },
       );
     }
 
-    return NextResponse.json(
-      mapNewsRow(row),
-    );
+    return NextResponse.json(mapNewsRow(row));
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
         message: "News konnte nicht geladen werden.",
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
@@ -93,12 +76,9 @@ export async function PATCH(
   context: RouteContext,
 ) {
   try {
-    const {
-      id,
-    } = await context.params;
-
+    const { id } = await context.params;
     const decodedId = decodeURIComponent(id);
-    const body = await request.json() as UpdateNewsPostBody;
+    const body = (await request.json()) as UpdateNewsPostBody;
 
     const current = await queryOne<NewsRow>(
       `
@@ -115,49 +95,37 @@ export async function PATCH(
         FROM news_posts
         WHERE id = $1
       `,
-      [
-        decodedId,
-      ],
+      [decodedId],
     );
 
     if (!current) {
       return NextResponse.json(
-        {
-          message: "News nicht gefunden.",
-        },
-        {
-          status: 404,
-        },
+        { message: "News nicht gefunden." },
+        { status: 404 },
       );
     }
 
-    const nextTitle = body.title !== undefined
-      ? normalizeText(body.title)
-      : current.title;
+    const nextTitle =
+      body.title !== undefined
+        ? normalizeText(body.title)
+        : current.title;
 
-    const nextCategory = body.category !== undefined
-      ? normalizeText(body.category)
-      : current.category;
+    const nextCategory =
+      body.category !== undefined
+        ? normalizeText(body.category)
+        : current.category || "";
 
     if (!nextTitle) {
       return NextResponse.json(
-        {
-          message: "Titel ist erforderlich.",
-        },
-        {
-          status: 400,
-        },
+        { message: "Titel ist erforderlich." },
+        { status: 400 },
       );
     }
 
     if (!nextCategory) {
       return NextResponse.json(
-        {
-          message: "Kategorie ist erforderlich.",
-        },
-        {
-          status: 400,
-        },
+        { message: "Kategorie ist erforderlich." },
+        { status: 400 },
       );
     }
 
@@ -205,29 +173,24 @@ export async function PATCH(
 
     if (!row) {
       return NextResponse.json(
-        {
-          message: "News konnte nicht aktualisiert werden.",
-        },
-        {
-          status: 500,
-        },
+        { message: "News konnte nicht aktualisiert werden." },
+        { status: 500 },
       );
     }
 
-    return NextResponse.json(
-      mapNewsRow(row),
-    );
+    return NextResponse.json(mapNewsRow(row));
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
         message: "News konnte nicht aktualisiert werden.",
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
@@ -237,9 +200,7 @@ export async function DELETE(
   context: RouteContext,
 ) {
   try {
-    const {
-      id,
-    } = await context.params;
+    const { id } = await context.params;
 
     await queryOne(
       `
@@ -247,25 +208,22 @@ export async function DELETE(
         WHERE id = $1
         RETURNING id
       `,
-      [
-        decodeURIComponent(id),
-      ],
+      [decodeURIComponent(id)],
     );
 
-    return NextResponse.json({
-      ok: true,
-    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
         message: "News konnte nicht gelöscht werden.",
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
