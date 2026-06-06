@@ -1,4 +1,4 @@
-import {
+﻿import {
   NextResponse,
 } from "next/server";
 
@@ -304,7 +304,7 @@ export async function GET(
         message:
           getErrorMessage(
             error,
-            "Aktivitäten konnten nicht geladen werden."
+            "AktivitÃ¤ten konnten nicht geladen werden."
           ),
 
         error:
@@ -444,8 +444,7 @@ export async function POST(
             currentUser.company ||
             "Intern",
           body.department ||
-            currentUser.department ||
-            "Allgemein",
+            currentUser.department || "",
           body.metadata ||
             {},
         ]
@@ -455,7 +454,7 @@ export async function POST(
       return NextResponse.json(
         {
           message:
-            "Aktivität konnte nicht erstellt werden.",
+            "AktivitÃ¤t konnte nicht erstellt werden.",
         },
         {
           status:
@@ -483,7 +482,7 @@ export async function POST(
         message:
           getErrorMessage(
             error,
-            "Aktivität konnte nicht erstellt werden."
+            "AktivitÃ¤t konnte nicht erstellt werden."
           ),
 
         error:

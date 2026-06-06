@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -60,7 +60,7 @@ const roleOptions: RoleOption[] = [
   {
     value: "employee",
     label: "Mitarbeiter",
-    description: "Standardrolle. Rechte kommen über Firma, Abteilung oder Einzelrechte.",
+    description: "Standardrolle. Rechte kommen Ã¼ber Firma, Abteilung oder Einzelrechte.",
   },
   {
     value: "department_lead",
@@ -83,7 +83,7 @@ const statusOptions: StatusOption[] = [
   {
     value: "invited",
     label: "Eingeladen",
-    description: "Benutzer ist vorbereitet, aber noch nicht vollständig aktiv.",
+    description: "Benutzer ist vorbereitet, aber noch nicht vollstÃ¤ndig aktiv.",
   },
   {
     value: "inactive",
@@ -315,12 +315,12 @@ export default function AdminUsersPage() {
 
   function getDepartmentName(id?: string) {
     if (!id) {
-      return "Allgemein";
+      return "Keine Abteilung";
     }
 
     return (
       departments.find((department) => department.id === id)?.name ||
-      "Allgemein"
+      "Keine Abteilung"
     );
   }
 
@@ -394,7 +394,7 @@ export default function AdminUsersPage() {
           companyName,
           departmentName,
           user.hasPassword ? "passwort gesetzt" : "kein passwort",
-          user.passwordMustChange ? "passwort ändern" : "",
+          user.passwordMustChange ? "passwort Ã¤ndern" : "",
           user.createdAt,
           user.updatedAt,
           user.lastLoginAt,
@@ -714,12 +714,12 @@ export default function AdminUsersPage() {
 
   async function handleDeleteUser(user: AdminUser) {
     if (!canManageUsers()) {
-      alert("Du hast keine Berechtigung, Benutzer zu löschen.");
+      alert("Du hast keine Berechtigung, Benutzer zu lÃ¶schen.");
       return;
     }
 
     const confirmed = confirm(
-      `Benutzer "${user.name}" wirklich löschen?`,
+      `Benutzer "${user.name}" wirklich lÃ¶schen?`,
     );
 
     if (!confirmed) {
@@ -735,14 +735,14 @@ export default function AdminUsersPage() {
       await adminUserRepository.delete(user.id);
       await loadData();
 
-      setMessage("Benutzer wurde gelöscht.");
+      setMessage("Benutzer wurde gelÃ¶scht.");
     } catch (deleteError) {
       console.error(deleteError);
 
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Benutzer konnte nicht gelöscht werden.",
+          : "Benutzer konnte nicht gelÃ¶scht werden.",
       );
     }
   }
@@ -763,7 +763,7 @@ export default function AdminUsersPage() {
     return (
       <AccessDeniedCard
         title="Kein Zugriff"
-        description="Du hast keine Berechtigung für die Benutzerverwaltung."
+        description="Du hast keine Berechtigung fÃ¼r die Benutzerverwaltung."
       />
     );
   }
@@ -795,7 +795,7 @@ export default function AdminUsersPage() {
               {saving
                 ? "Speichert..."
                 : editingUserId
-                  ? "Änderungen speichern"
+                  ? "Ã„nderungen speichern"
                   : "Benutzer erstellen"}
             </button>
           </div>
@@ -811,7 +811,7 @@ export default function AdminUsersPage() {
               Login & Konto
             </h3>
             <p className="text-zinc-500 mt-1">
-              Grunddaten für Anmeldung und Passwort.
+              Grunddaten fÃ¼r Anmeldung und Passwort.
             </p>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
@@ -870,7 +870,7 @@ export default function AdminUsersPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                  placeholder={editingUserId ? "Leer lassen = unverändert" : "Startpasswort"}
+                  placeholder={editingUserId ? "Leer lassen = unverÃ¤ndert" : "Startpasswort"}
                 />
               </div>
 
@@ -883,7 +883,7 @@ export default function AdminUsersPage() {
                 />
                 <span>
                   <span className="block font-medium">
-                    Passwort bei nächster Anmeldung ändern
+                    Passwort bei nÃ¤chster Anmeldung Ã¤ndern
                   </span>
                   <span className="block text-sm text-zinc-500 mt-1">
                     Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
@@ -898,7 +898,7 @@ export default function AdminUsersPage() {
               Rolle & Status
             </h3>
             <p className="text-zinc-500 mt-1">
-              Die Rolle legt die Grundhierarchie fest. Rollen-Vorlagen setzen zusätzlich globale Benutzerrechte.
+              Die Rolle legt die Grundhierarchie fest. Rollen-Vorlagen setzen zusÃ¤tzlich globale Benutzerrechte.
             </p>
 
             <div className="mt-5">
@@ -911,14 +911,14 @@ export default function AdminUsersPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Keine Vorlage auswählen
+                  Keine Vorlage auswÃ¤hlen
                 </option>
                 {roleTemplates.map((template) => (
                   <option
                     key={template.key}
                     value={template.key}
                   >
-                    {template.name} · {getRoleLabel(String(template.roleKey))}
+                    {template.name} Â· {getRoleLabel(String(template.roleKey))}
                   </option>
                 ))}
               </select>
@@ -1146,7 +1146,7 @@ export default function AdminUsersPage() {
           label="Aktiv"
           value={activeUsers.length}
           description="Aktive Benutzer"
-          icon="✅"
+          icon="âœ…"
           tone="green"
           active={statusFilter === "active"}
           onClick={() => setStatusFilter("active")}
@@ -1155,7 +1155,7 @@ export default function AdminUsersPage() {
           label="Admins"
           value={adminUsers.length}
           description="Administrator-Konten"
-          icon="🛠️"
+          icon="ðŸ› ï¸"
           tone="blue"
           active={roleFilter === "admin"}
           onClick={() => setRoleFilter("admin")}
@@ -1164,19 +1164,19 @@ export default function AdminUsersPage() {
           label="Abteilungsleiter"
           value={departmentLeadUsers.length}
           description="Leitungsrollen"
-          icon="👤"
+          icon="ðŸ‘¤"
           tone="indigo"
           active={roleFilter === "department_lead"}
           onClick={() => setRoleFilter("department_lead")}
         />
         <StatCard
-          label="Passwort ändern"
+          label="Passwort Ã¤ndern"
           value={passwordResetUsers.length}
           description="Benutzer mit Pflichtwechsel"
-          icon="🔑"
+          icon="ðŸ”‘"
           tone="orange"
-          active={search === "passwort ändern"}
-          onClick={() => setSearch("passwort ändern")}
+          active={search === "passwort Ã¤ndern"}
+          onClick={() => setSearch("passwort Ã¤ndern")}
         />
       </div>
 
@@ -1185,7 +1185,7 @@ export default function AdminUsersPage() {
           label="Mitarbeiter"
           value={employeeUsers.length}
           description="Normale Benutzer"
-          icon="👥"
+          icon="ðŸ‘¥"
           active={roleFilter === "employee"}
           onClick={() => setRoleFilter("employee")}
         />
@@ -1193,7 +1193,7 @@ export default function AdminUsersPage() {
           label="Eingeladen"
           value={invitedUsers.length}
           description="Vorbereitete Benutzer"
-          icon="✉️"
+          icon="âœ‰ï¸"
           tone="purple"
           active={statusFilter === "invited"}
           onClick={() => setStatusFilter("invited")}
@@ -1202,7 +1202,7 @@ export default function AdminUsersPage() {
           label="Inaktiv"
           value={inactiveUsers.length}
           description="Gesperrte Benutzer"
-          icon="⛔"
+          icon="â›”"
           tone="red"
           active={statusFilter === "inactive"}
           onClick={() => setStatusFilter("inactive")}
@@ -1225,7 +1225,7 @@ export default function AdminUsersPage() {
             onClick={resetFilters}
             className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
-            Zurücksetzen
+            ZurÃ¼cksetzen
           </button>
         </div>
 
@@ -1359,7 +1359,7 @@ export default function AdminUsersPage() {
 
                 {user.passwordMustChange && (
                   <span className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-3 py-1 rounded-full">
-                    Passwort ändern
+                    Passwort Ã¤ndern
                   </span>
                 )}
 
@@ -1425,7 +1425,7 @@ export default function AdminUsersPage() {
                   onClick={() => void handleDeleteUser(user)}
                   className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                 >
-                  Löschen
+                  LÃ¶schen
                 </button>
               </div>
             )}

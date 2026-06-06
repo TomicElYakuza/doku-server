@@ -1,4 +1,4 @@
-import {
+﻿import {
   NextResponse,
 } from "next/server";
 
@@ -161,7 +161,7 @@ function getDatabaseErrorMessage(
   }
 
   if (databaseError.message?.includes("username")) {
-    return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungültig.";
+    return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungÃ¼ltig.";
   }
 
   return databaseError.message ||
@@ -416,7 +416,7 @@ export async function POST(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dürfen Benutzer erstellen.",
+            "Nur Administratoren dÃ¼rfen Benutzer erstellen.",
         },
         {
           status:
@@ -620,8 +620,7 @@ export async function POST(
             null,
           body.company ||
             "Intern",
-          body.department ||
-            "Allgemein",
+          body.department || "",
         ]
       );
 

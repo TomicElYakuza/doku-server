@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -60,7 +60,7 @@ function createTicketActivity(
 
       department:
         ticket.department ||
-        "Allgemein",
+        "",
 
       metadata: {
         ticketId:
@@ -82,7 +82,7 @@ function createTicketActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-Aktivität konnte nicht gespeichert werden:",
+          "Ticket-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -117,8 +117,8 @@ export function saveTicketDeletedActivity(
   createTicketActivity(
     ticket,
     "deleted",
-    "Ticket gelöscht",
-    `Ticket #${ticket.id} "${ticket.title}" wurde gelöscht.`
+    "Ticket gelÃ¶scht",
+    `Ticket #${ticket.id} "${ticket.title}" wurde gelÃ¶scht.`
   );
 }
 
@@ -139,8 +139,8 @@ export function saveTicketReopenedActivity(
   createTicketActivity(
     ticket,
     "reopened",
-    "Ticket wieder geöffnet",
-    `Ticket #${ticket.id} "${ticket.title}" wurde wieder geöffnet.`
+    "Ticket wieder geÃ¶ffnet",
+    `Ticket #${ticket.id} "${ticket.title}" wurde wieder geÃ¶ffnet.`
   );
 }
 
@@ -152,8 +152,8 @@ export function saveTicketStatusChangedActivity(
   createTicketActivity(
     ticket,
     "edited",
-    "Ticket-Status geändert",
-    `Ticket #${ticket.id} wurde von "${oldStatus}" auf "${newStatus}" geändert.`
+    "Ticket-Status geÃ¤ndert",
+    `Ticket #${ticket.id} wurde von "${oldStatus}" auf "${newStatus}" geÃ¤ndert.`
   );
 }
 
@@ -165,8 +165,8 @@ export function saveTicketPriorityChangedActivity(
   createTicketActivity(
     ticket,
     "edited",
-    "Ticket-Priorität geändert",
-    `Ticket #${ticket.id} wurde von "${oldPriority}" auf "${newPriority}" geändert.`
+    "Ticket-PrioritÃ¤t geÃ¤ndert",
+    `Ticket #${ticket.id} wurde von "${oldPriority}" auf "${newPriority}" geÃ¤ndert.`
   );
 }
 
@@ -181,3 +181,4 @@ export function saveTicketAssignedActivity(
     `Ticket #${ticket.id} wurde "${assignedTo}" zugewiesen.`
   );
 }
+

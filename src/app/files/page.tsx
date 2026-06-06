@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 
@@ -499,7 +499,7 @@ export default function FilesPage() {
 
     if (!targetKey) {
       alert(
-        "Bitte einen Datei-Schlüssel auswählen oder eingeben."
+        "Bitte einen Datei-SchlÃ¼ssel auswÃ¤hlen oder eingeben."
       );
 
       return;
@@ -574,7 +574,7 @@ export default function FilesPage() {
             "Intern",
 
           department:
-            "Allgemein",
+            "Keine Abteilung",
 
           metadata: {
             key:
@@ -619,7 +619,7 @@ export default function FilesPage() {
   ) {
     if (!canDelete()) {
       alert(
-        "Du hast keine Berechtigung, Dateien zu löschen."
+        "Du hast keine Berechtigung, Dateien zu lÃ¶schen."
       );
 
       return;
@@ -627,7 +627,7 @@ export default function FilesPage() {
 
     const confirmed =
       confirm(
-        `Datei "${entry.file.name}" wirklich löschen?`
+        `Datei "${entry.file.name}" wirklich lÃ¶schen?`
       );
 
     if (!confirmed) {
@@ -645,10 +645,10 @@ export default function FilesPage() {
           "deleted",
 
         title:
-          "Datei gelöscht",
+          "Datei gelÃ¶scht",
 
         description:
-          `Datei "${entry.file.name}" wurde aus "${entry.key}" gelöscht.`,
+          `Datei "${entry.file.name}" wurde aus "${entry.key}" gelÃ¶scht.`,
 
         entityType:
           "file",
@@ -675,7 +675,7 @@ export default function FilesPage() {
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           key:
@@ -695,7 +695,7 @@ export default function FilesPage() {
       alert(
         deleteError instanceof Error
           ? deleteError.message
-          : "Datei konnte nicht gelöscht werden."
+          : "Datei konnte nicht gelÃ¶scht werden."
       );
     }
   }
@@ -705,7 +705,7 @@ export default function FilesPage() {
   ) {
     if (!canDelete()) {
       alert(
-        "Du hast keine Berechtigung, Dateigruppen zu löschen."
+        "Du hast keine Berechtigung, Dateigruppen zu lÃ¶schen."
       );
 
       return;
@@ -713,7 +713,7 @@ export default function FilesPage() {
 
     const confirmed =
       confirm(
-        `Alle Dateien unter "${key}" wirklich löschen?`
+        `Alle Dateien unter "${key}" wirklich lÃ¶schen?`
       );
 
     if (!confirmed) {
@@ -730,10 +730,10 @@ export default function FilesPage() {
           "deleted",
 
         title:
-          "Dateigruppe gelöscht",
+          "Dateigruppe gelÃ¶scht",
 
         description:
-          `Alle Dateien unter "${key}" wurden gelöscht.`,
+          `Alle Dateien unter "${key}" wurden gelÃ¶scht.`,
 
         entityType:
           "file",
@@ -760,7 +760,7 @@ export default function FilesPage() {
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           key,
@@ -780,7 +780,7 @@ export default function FilesPage() {
       alert(
         deleteError instanceof Error
           ? deleteError.message
-          : "Dateigruppe konnte nicht gelöscht werden."
+          : "Dateigruppe konnte nicht gelÃ¶scht werden."
       );
     }
   }
@@ -800,7 +800,7 @@ export default function FilesPage() {
       <PageHero
         eyebrow="Verwaltung"
         title="Dateien"
-        description="Zentral gespeicherte Anhänge und Uploads aus PostgreSQL verwalten."
+        description="Zentral gespeicherte AnhÃ¤nge und Uploads aus PostgreSQL verwalten."
         badges={[
           {
             label:
@@ -857,7 +857,7 @@ export default function FilesPage() {
           label="Dateien gesamt"
           value={totalFiles}
           description="Alle Uploads"
-          icon="📁"
+          icon="ðŸ“"
           active={!search && !keyFilter}
           onClick={resetFilters}
         />
@@ -866,17 +866,17 @@ export default function FilesPage() {
           label="Dateigruppen"
           value={keys.length}
           description="Wiki, Ticket, News oder eigene Gruppen"
-          icon="🗂️"
+          icon="ðŸ—‚ï¸"
           tone="indigo"
         />
 
         <StatCard
-          label="Gesamtgröße"
+          label="GesamtgrÃ¶ÃŸe"
           value={formatFileSize(
             totalSize
           )}
           description="Speicherverbrauch"
-          icon="💾"
+          icon="ðŸ’¾"
           tone="green"
         />
 
@@ -884,7 +884,7 @@ export default function FilesPage() {
           label="Bilder"
           value={imageFiles.length}
           description={`${documentFiles.length} sonstige Dateien`}
-          icon="🖼️"
+          icon="ðŸ–¼ï¸"
           tone="blue"
         />
       </div>
@@ -917,7 +917,7 @@ export default function FilesPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Gruppe auswählen
+                  Gruppe auswÃ¤hlen
                 </option>
 
                 {keys.map(
@@ -974,7 +974,7 @@ export default function FilesPage() {
 
           {uploading && (
             <p className="text-sm text-zinc-500 mt-5">
-              Upload läuft...
+              Upload lÃ¤uft...
             </p>
           )}
         </section>
@@ -997,7 +997,7 @@ export default function FilesPage() {
             onClick={resetFilters}
             className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
           >
-            Zurücksetzen
+            ZurÃ¼cksetzen
           </button>
         </div>
 
@@ -1094,7 +1094,7 @@ export default function FilesPage() {
 
                     <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                       <span>
-                        Größe:{" "}
+                        GrÃ¶ÃŸe:{" "}
                         {formatFileSize(
                           entry.file.size
                         )}
@@ -1119,7 +1119,7 @@ export default function FilesPage() {
                         href={href}
                         className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
                       >
-                        Quelle öffnen
+                        Quelle Ã¶ffnen
                       </Link>
                     )}
 
@@ -1143,7 +1143,7 @@ export default function FilesPage() {
                         }
                         className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                       >
-                        Löschen
+                        LÃ¶schen
                       </button>
                     )}
                   </div>
@@ -1157,11 +1157,11 @@ export default function FilesPage() {
       {keyFilter && canDelete() && (
         <section className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-red-700">
-            Dateigruppe löschen
+            Dateigruppe lÃ¶schen
           </h2>
 
           <p className="text-red-600 mt-2">
-            Du filterst gerade nach der Gruppe "{keyFilter}". Du kannst alle Dateien dieser Gruppe löschen.
+            Du filterst gerade nach der Gruppe "{keyFilter}". Du kannst alle Dateien dieser Gruppe lÃ¶schen.
           </p>
 
           <button
@@ -1173,7 +1173,7 @@ export default function FilesPage() {
             }
             className="mt-5 bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
           >
-            Ganze Gruppe löschen
+            Ganze Gruppe lÃ¶schen
           </button>
         </section>
       )}

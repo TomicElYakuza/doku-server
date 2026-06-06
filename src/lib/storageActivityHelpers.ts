@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -44,14 +44,14 @@ function createStorageActivity(
         "Intern",
 
       department:
-        "Allgemein",
+        "",
 
       metadata,
     })
     .catch(
       (error) => {
         console.error(
-          "Storage-Aktivität konnte nicht gespeichert werden:",
+          "Storage-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -69,8 +69,8 @@ export function saveStorageClearedActivity() {
 export function saveStorageResetActivity() {
   createStorageActivity(
     "restored",
-    "Speicher zurückgesetzt",
-    "Der Anwendungsspeicher wurde zurückgesetzt."
+    "Speicher zurÃ¼ckgesetzt",
+    "Der Anwendungsspeicher wurde zurÃ¼ckgesetzt."
   );
 }
 
@@ -80,7 +80,7 @@ export function saveStorageImportedActivity(
   createStorageActivity(
     "created",
     "Daten importiert",
-    `${count} Datensätze wurden importiert.`,
+    `${count} DatensÃ¤tze wurden importiert.`,
     {
       count,
     }
@@ -93,7 +93,7 @@ export function saveStorageExportedActivity(
   createStorageActivity(
     "system",
     "Daten exportiert",
-    `${count} Datensätze wurden exportiert.`,
+    `${count} DatensÃ¤tze wurden exportiert.`,
     {
       count,
     }
@@ -107,3 +107,4 @@ export function saveStorageBackupCreatedActivity() {
     "Ein Backup wurde erstellt."
   );
 }
+

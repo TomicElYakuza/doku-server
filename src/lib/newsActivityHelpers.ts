@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -47,7 +47,7 @@ function createNewsActivity(
         "Intern",
 
       department:
-        "Allgemein",
+        "",
 
       metadata: {
         newsId:
@@ -70,7 +70,7 @@ function createNewsActivity(
     .catch(
       (error) => {
         console.error(
-          "News-Aktivität konnte nicht gespeichert werden:",
+          "News-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -105,8 +105,8 @@ export function saveNewsDeletedActivity(
   createNewsActivity(
     post,
     "deleted",
-    "News gelöscht",
-    `News "${post.title}" wurde gelöscht.`
+    "News gelÃ¶scht",
+    `News "${post.title}" wurde gelÃ¶scht.`
   );
 }
 
@@ -131,3 +131,4 @@ export function saveNewsUnpinnedActivity(
     `News "${post.title}" wurde nicht mehr fixiert.`
   );
 }
+

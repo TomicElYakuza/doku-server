@@ -1,4 +1,4 @@
-import {
+﻿import {
   cookies,
 } from "next/headers";
 
@@ -80,7 +80,7 @@ function mapServerUser(
 
     department:
       row.department ||
-      "Allgemein",
+      "",
   };
 }
 
@@ -352,3 +352,4 @@ export function isPermissionError(
     error.message === "Keine Berechtigung."
   );
 }
+

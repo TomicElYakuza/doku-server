@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 
@@ -188,9 +188,7 @@ export default function WikiSidebar() {
             pages
               .map(
                 (page) =>
-                  page.department ||
-                  page.category ||
-                  "Allgemein"
+                  page.department || "Keine Abteilung"
               )
               .filter(Boolean)
           )
@@ -292,7 +290,7 @@ export default function WikiSidebar() {
 
             <p className="text-sm text-zinc-500 mt-1">
               {loading
-                ? "Lädt..."
+                ? "LÃ¤dt..."
                 : `${pages.length} Seiten`}
             </p>
           </div>
@@ -470,7 +468,7 @@ export default function WikiSidebar() {
           </Link>
 
           <p className="text-xs text-zinc-500 mt-3">
-            Erstellen und Bearbeiten läuft jetzt über die Wiki-Übersicht im Modal.
+            Erstellen und Bearbeiten lÃ¤uft jetzt Ã¼ber die Wiki-Ãœbersicht im Modal.
           </p>
         </section>
       )}

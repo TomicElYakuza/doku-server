@@ -1423,7 +1423,7 @@ export default function WikiPageList() {
                           </button>
                         ) : (
                           <span className="text-sm text-zinc-400">
-                            Keine Kategorie
+                            Nicht gesetzt
                           </span>
                         )}
                       </td>

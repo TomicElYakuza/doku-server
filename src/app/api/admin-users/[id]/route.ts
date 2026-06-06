@@ -1,4 +1,4 @@
-import {
+﻿import {
   NextResponse,
 } from "next/server";
 
@@ -426,7 +426,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dürfen Benutzer bearbeiten.",
+            "Nur Administratoren dÃ¼rfen Benutzer bearbeiten.",
         },
         {
           status:
@@ -586,8 +586,7 @@ export async function PATCH(
               "Intern"
             : existingUser.company,
           body.department !== undefined
-            ? body.department ||
-              "Allgemein"
+            ? body.department || ""
             : existingUser.department,
           id,
         ]
@@ -669,7 +668,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dürfen Benutzer löschen.",
+            "Nur Administratoren dÃ¼rfen Benutzer lÃ¶schen.",
         },
         {
           status:
@@ -687,7 +686,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           message:
-            "Du kannst deinen eigenen Benutzer nicht löschen.",
+            "Du kannst deinen eigenen Benutzer nicht lÃ¶schen.",
         },
         {
           status:
@@ -737,7 +736,7 @@ export async function DELETE(
         message:
           getErrorMessage(
             error,
-            "Benutzer konnte nicht gelöscht werden."
+            "Benutzer konnte nicht gelÃ¶scht werden."
           ),
 
         error:

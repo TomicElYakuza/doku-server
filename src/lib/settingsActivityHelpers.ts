@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -46,7 +46,7 @@ function createSettingsActivity(
         "Intern",
 
       department:
-        "Allgemein",
+        "",
 
       metadata: {
         appName:
@@ -75,7 +75,7 @@ function createSettingsActivity(
     .catch(
       (error) => {
         console.error(
-          "Einstellungen-Aktivität konnte nicht gespeichert werden:",
+          "Einstellungen-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -98,8 +98,8 @@ export function saveSettingsResetActivity(
 ) {
   createSettingsActivity(
     "restored",
-    "Einstellungen zurückgesetzt",
-    "Die Systemeinstellungen wurden auf Standardwerte zurückgesetzt.",
+    "Einstellungen zurÃ¼ckgesetzt",
+    "Die Systemeinstellungen wurden auf Standardwerte zurÃ¼ckgesetzt.",
     settings
   );
 }
@@ -111,3 +111,4 @@ export function saveSettingsChangedActivity(
     settings
   );
 }
+

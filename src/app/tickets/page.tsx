@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -710,7 +710,7 @@ export default function TicketsPage() {
     }
 
     if (status === "closed" && !canCloseTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu schließen.");
+      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
       return;
     }
 
@@ -733,7 +733,7 @@ export default function TicketsPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswählen.");
+      alert("Bitte eine Kategorie auswÃ¤hlen.");
       return;
     }
 
@@ -796,12 +796,12 @@ export default function TicketsPage() {
 
   async function handleCloseTicket(ticket: Ticket) {
     if (!canCloseTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu schließen.");
+      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich schließen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich schlieÃŸen?`,
     );
 
     if (!confirmed) {
@@ -834,12 +834,12 @@ export default function TicketsPage() {
 
   async function handleDeleteTicket(ticket: Ticket) {
     if (!canDeleteTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu löschen.");
+      alert("Du hast keine Berechtigung, Tickets zu lÃ¶schen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich lÃ¶schen?`,
     );
 
     if (!confirmed) {
@@ -853,13 +853,13 @@ export default function TicketsPage() {
       saveTicketDeletedActivity(ticket);
       await ticketRepository.delete(ticket.id);
       await loadData();
-      setMessage("Ticket wurde gelöscht.");
+      setMessage("Ticket wurde gelÃ¶scht.");
     } catch (deleteError) {
       console.error(deleteError);
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Ticket konnte nicht gelöscht werden.",
+          : "Ticket konnte nicht gelÃ¶scht werden.",
       );
     }
   }
@@ -882,7 +882,7 @@ export default function TicketsPage() {
           href={`/tickets/${ticket.id}`}
           className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
         >
-          Öffnen
+          Ã–ffnen
         </Link>
 
         {canEditTicket && (
@@ -901,7 +901,7 @@ export default function TicketsPage() {
             onClick={() => void handleCloseTicket(ticket)}
             className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-500 transition"
           >
-            Schließen
+            SchlieÃŸen
           </button>
         )}
 
@@ -911,7 +911,7 @@ export default function TicketsPage() {
             onClick={() => void handleDeleteTicket(ticket)}
             className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
           >
-            Löschen
+            LÃ¶schen
           </button>
         )}
       </div>
@@ -944,7 +944,7 @@ export default function TicketsPage() {
               {saving
                 ? "Speichert..."
                 : editingTicketId
-                  ? "Änderungen speichern"
+                  ? "Ã„nderungen speichern"
                   : "Ticket erstellen"}
             </button>
           </div>
@@ -1003,7 +1003,7 @@ export default function TicketsPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                Priorität
+                PrioritÃ¤t
               </label>
               <select
                 value={priority}
@@ -1031,7 +1031,7 @@ export default function TicketsPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Kategorie auswählen
+                  Kategorie auswÃ¤hlen
                 </option>
                 {categoryOptions.map((option) => (
                   <option
@@ -1156,7 +1156,7 @@ export default function TicketsPage() {
       <PageHero
         eyebrow="Support"
         title="Tickets"
-        description="Supportfälle und Aufgaben aus PostgreSQL verwalten."
+        description="SupportfÃ¤lle und Aufgaben aus PostgreSQL verwalten."
         badges={[
           {
             label: `${visibleTickets.length} Tickets`,
@@ -1224,7 +1224,7 @@ export default function TicketsPage() {
           label="Tickets gesamt"
           value={visibleTickets.length}
           description="Alle sichtbaren Tickets"
-          icon="🎫"
+          icon="ðŸŽ«"
           active={!statusFilter && !priorityFilter && !categoryFilter && !tagFilter}
           onClick={resetFilters}
         />
@@ -1232,7 +1232,7 @@ export default function TicketsPage() {
           label="Offen"
           value={openTickets.length}
           description="Noch nicht bearbeitet"
-          icon="📌"
+          icon="ðŸ“Œ"
           tone="blue"
           active={statusFilter === "open"}
           onClick={() => setStatusFilter("open")}
@@ -1241,7 +1241,7 @@ export default function TicketsPage() {
           label="In Bearbeitung"
           value={inProgressTickets.length}
           description="Aktuell in Arbeit"
-          icon="⏳"
+          icon="â³"
           tone="orange"
           active={statusFilter === "in_progress"}
           onClick={() => setStatusFilter("in_progress")}
@@ -1250,7 +1250,7 @@ export default function TicketsPage() {
           label="Hoch/Dringend"
           value={highOrUrgentTickets.length}
           description={`${closedTickets.length} geschlossen`}
-          icon="⚡"
+          icon="âš¡"
           tone="red"
           active={priorityFilter === "urgent"}
           onClick={() => setPriorityFilter("urgent")}
@@ -1307,7 +1307,7 @@ export default function TicketsPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Zurücksetzen
+              ZurÃ¼cksetzen
             </button>
           </div>
         </div>
@@ -1344,7 +1344,7 @@ export default function TicketsPage() {
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
-              Alle Prioritäten
+              Alle PrioritÃ¤ten
             </option>
             {priorityOptions.map((option) => (
               <option
@@ -1481,7 +1481,7 @@ export default function TicketsPage() {
                     </div>
 
                     <h2 className="text-2xl font-bold mt-4">
-                      #{ticket.id} · {ticket.title}
+                      #{ticket.id} Â· {ticket.title}
                     </h2>
 
                     <p className="text-zinc-500 mt-2 line-clamp-2">
@@ -1507,7 +1507,7 @@ export default function TicketsPage() {
 
                     <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
                       <span>
-                        Kategorie: {ticket.category || "Keine Kategorie"}
+                        Kategorie: {ticket.category || "Nicht gesetzt"}
                       </span>
                       <span>
                         Zugewiesen: {ticket.assignedTo || "Niemand"}
@@ -1545,7 +1545,7 @@ export default function TicketsPage() {
                     Status
                   </th>
                   <th className="px-5 py-4 font-semibold">
-                    Priorität
+                    PrioritÃ¤t
                   </th>
                   <th className="px-5 py-4 font-semibold">
                     Kategorie
@@ -1604,7 +1604,7 @@ export default function TicketsPage() {
                       </td>
 
                       <td className="px-5 py-4 align-top text-zinc-500 min-w-[220px]">
-                        {ticket.category || "Keine Kategorie"}
+                        {ticket.category || "Nicht gesetzt"}
                       </td>
 
                       <td className="px-5 py-4 align-top text-zinc-500">
@@ -1637,3 +1637,4 @@ export default function TicketsPage() {
     </div>
   );
 }
+

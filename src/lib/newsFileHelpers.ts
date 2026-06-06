@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -62,7 +62,7 @@ function createNewsFileActivity(
         "Intern",
 
       department:
-        "Allgemein",
+        "",
 
       metadata: {
         newsId:
@@ -77,7 +77,7 @@ function createNewsFileActivity(
     .catch(
       (error) => {
         console.error(
-          "News-Datei-Aktivität konnte nicht gespeichert werden:",
+          "News-Datei-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -130,8 +130,8 @@ export async function deleteNewsFile(
   createNewsFileActivity(
     post,
     "deleted",
-    "News-Datei gelöscht",
-    `Datei "${fileName || "Unbenannte Datei"}" wurde von News "${post.title}" gelöscht.`,
+    "News-Datei gelÃ¶scht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von News "${post.title}" gelÃ¶scht.`,
     fileName
   );
 }
@@ -145,3 +145,4 @@ export async function deleteNewsFiles(
     )
   );
 }
+

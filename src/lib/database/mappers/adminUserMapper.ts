@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AdminUser,
   AdminUserStatus,
   UserRole,
@@ -106,7 +106,7 @@ export function mapAdminUserRow(
 
     department:
       row.department ||
-      "Allgemein",
+      "",
 
     passwordMustChange:
       Boolean(
@@ -129,3 +129,4 @@ export function mapAdminUserRow(
       row.updated_at,
   };
 }
+

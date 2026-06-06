@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -66,7 +66,7 @@ function createTicketFileActivity(
 
       department:
         ticket.department ||
-        "Allgemein",
+        "",
 
       metadata: {
         ticketId:
@@ -81,7 +81,7 @@ function createTicketFileActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-Datei-Aktivität konnte nicht gespeichert werden:",
+          "Ticket-Datei-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -134,8 +134,8 @@ export async function deleteTicketFile(
   createTicketFileActivity(
     ticket,
     "deleted",
-    "Ticket-Datei gelöscht",
-    `Datei "${fileName || "Unbenannte Datei"}" wurde von Ticket #${ticket.id} gelöscht.`,
+    "Ticket-Datei gelÃ¶scht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von Ticket #${ticket.id} gelÃ¶scht.`,
     fileName
   );
 }
@@ -149,3 +149,4 @@ export async function deleteTicketFiles(
     )
   );
 }
+

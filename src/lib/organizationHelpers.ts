@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Company,
   Department,
 } from "../types/company";
@@ -111,7 +111,7 @@ export function enrichTicketWithOrganization(
       ticket.departmentId
     ) ||
     ticket.department ||
-    "Allgemein";
+    "";
 
   return {
     ...ticket,
@@ -134,9 +134,9 @@ export function getCompanyDepartmentLabel(
 
   const nextDepartment =
     department ||
-    "Allgemein";
+    "";
 
-  return `${nextCompany} · ${nextDepartment}`;
+  return `${nextCompany} Â· ${nextDepartment}`;
 }
 
 export function getOrganizationLabels(
@@ -148,7 +148,7 @@ export function getOrganizationLabels(
 
   const department =
     source?.department ||
-    "Allgemein";
+    "";
 
   return {
     company,
@@ -176,3 +176,4 @@ export function getOrganizationLabel(
     source
   ).label;
 }
+

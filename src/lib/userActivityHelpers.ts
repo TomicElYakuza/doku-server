@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -53,7 +53,7 @@ function createUserActivity(
 
       department:
         user.department ||
-        "Allgemein",
+        "",
 
       metadata: {
         userId:
@@ -75,7 +75,7 @@ function createUserActivity(
     .catch(
       (error) => {
         console.error(
-          "Benutzer-Aktivität konnte nicht gespeichert werden:",
+          "Benutzer-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -110,8 +110,8 @@ export function saveUserDeletedActivity(
   createUserActivity(
     user,
     "deleted",
-    "Benutzer gelöscht",
-    `Benutzer "${user.name}" wurde gelöscht.`
+    "Benutzer gelÃ¶scht",
+    `Benutzer "${user.name}" wurde gelÃ¶scht.`
   );
 }
 
@@ -145,8 +145,8 @@ export function saveUserStatusChangedActivity(
   createUserActivity(
     user,
     "edited",
-    "Benutzerstatus geändert",
-    `Benutzer "${user.name}" wurde von "${oldStatus}" auf "${newStatus}" geändert.`
+    "Benutzerstatus geÃ¤ndert",
+    `Benutzer "${user.name}" wurde von "${oldStatus}" auf "${newStatus}" geÃ¤ndert.`
   );
 }
 
@@ -158,7 +158,8 @@ export function saveUserRoleChangedActivity(
   createUserActivity(
     user,
     "edited",
-    "Benutzerrolle geändert",
-    `Benutzer "${user.name}" wurde von "${oldRole}" auf "${newRole}" geändert.`
+    "Benutzerrolle geÃ¤ndert",
+    `Benutzer "${user.name}" wurde von "${oldRole}" auf "${newRole}" geÃ¤ndert.`
   );
 }
+

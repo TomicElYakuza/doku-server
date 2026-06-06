@@ -1,4 +1,4 @@
-import {
+﻿import {
   activityRepository,
 } from "./activityRepository";
 
@@ -53,7 +53,7 @@ function createTemplateActivity(
 
       department:
         template.department ||
-        "Allgemein",
+        "",
 
       metadata: {
         templateId:
@@ -75,7 +75,7 @@ function createTemplateActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-Vorlagen-Aktivität konnte nicht gespeichert werden:",
+          "Ticket-Vorlagen-AktivitÃ¤t konnte nicht gespeichert werden:",
           error
         );
       }
@@ -132,7 +132,7 @@ function createTemplateUsageActivity(
       department:
         ticket.department ||
         template.department ||
-        "Allgemein",
+        "",
 
       metadata: {
         ticketId:
@@ -186,8 +186,8 @@ export function saveTicketTemplateDeletedActivity(
   createTemplateActivity(
     template,
     "deleted",
-    "Ticket-Vorlage gelöscht",
-    `Ticket-Vorlage "${template.title}" wurde gelöscht.`
+    "Ticket-Vorlage gelÃ¶scht",
+    `Ticket-Vorlage "${template.title}" wurde gelÃ¶scht.`
   );
 }
 
@@ -210,3 +210,4 @@ export function saveTicketTemplateUsedActivity(
     ticket
   );
 }
+

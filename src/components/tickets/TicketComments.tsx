@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -163,7 +163,7 @@ export default function TicketComments({
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           commentId:
@@ -198,7 +198,7 @@ export default function TicketComments({
   ) {
     if (!editable) {
       alert(
-        "Du hast keine Berechtigung, Kommentare zu löschen."
+        "Du hast keine Berechtigung, Kommentare zu lÃ¶schen."
       );
 
       return;
@@ -206,7 +206,7 @@ export default function TicketComments({
 
     const confirmed =
       confirm(
-        "Kommentar wirklich löschen?"
+        "Kommentar wirklich lÃ¶schen?"
       );
 
     if (!confirmed) {
@@ -223,10 +223,10 @@ export default function TicketComments({
           "deleted",
 
         title:
-          "Ticket-Kommentar gelöscht",
+          "Ticket-Kommentar gelÃ¶scht",
 
         description:
-          `Kommentar zu Ticket #${ticketId} wurde gelöscht.`,
+          `Kommentar zu Ticket #${ticketId} wurde gelÃ¶scht.`,
 
         entityType:
           "ticket",
@@ -253,7 +253,7 @@ export default function TicketComments({
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           commentId:
@@ -272,7 +272,7 @@ export default function TicketComments({
       alert(
         error instanceof Error
           ? error.message
-          : "Kommentar konnte nicht gelöscht werden."
+          : "Kommentar konnte nicht gelÃ¶scht werden."
       );
     }
   }
@@ -286,7 +286,7 @@ export default function TicketComments({
           </h2>
 
           <p className="text-zinc-500 mt-1">
-            Rückfragen, Notizen und Bearbeitungsverlauf zum Ticket.
+            RÃ¼ckfragen, Notizen und Bearbeitungsverlauf zum Ticket.
           </p>
         </div>
 
@@ -364,7 +364,7 @@ export default function TicketComments({
                     }
                     className="text-sm text-red-600 hover:text-red-500"
                   >
-                    Löschen
+                    LÃ¶schen
                   </button>
                 )}
               </div>

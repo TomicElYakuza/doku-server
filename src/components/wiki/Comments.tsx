@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -153,7 +153,7 @@ export default function Comments({
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           commentId:
@@ -188,7 +188,7 @@ export default function Comments({
   ) {
     const confirmed =
       confirm(
-        "Kommentar wirklich löschen?"
+        "Kommentar wirklich lÃ¶schen?"
       );
 
     if (!confirmed) {
@@ -205,10 +205,10 @@ export default function Comments({
           "deleted",
 
         title:
-          "Wiki-Kommentar gelöscht",
+          "Wiki-Kommentar gelÃ¶scht",
 
         description:
-          `Kommentar zu Wiki-Seite "${pageSlug}" wurde gelöscht.`,
+          `Kommentar zu Wiki-Seite "${pageSlug}" wurde gelÃ¶scht.`,
 
         entityType:
           "wiki",
@@ -235,7 +235,7 @@ export default function Comments({
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           commentId:
@@ -254,7 +254,7 @@ export default function Comments({
       alert(
         error instanceof Error
           ? error.message
-          : "Kommentar konnte nicht gelöscht werden."
+          : "Kommentar konnte nicht gelÃ¶scht werden."
       );
     }
   }
@@ -343,7 +343,7 @@ export default function Comments({
                   }
                   className="text-sm text-red-600 hover:text-red-500"
                 >
-                  Löschen
+                  LÃ¶schen
                 </button>
               </div>
 

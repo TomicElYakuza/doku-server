@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 
@@ -41,33 +41,33 @@ function getActivityIcon(
   type: string
 ) {
   if (type === "created") {
-    return "＋";
+    return "ï¼‹";
   }
 
   if (
     type === "edited" ||
     type === "updated"
   ) {
-    return "✎";
+    return "âœŽ";
   }
 
   if (type === "deleted") {
-    return "🗑️";
+    return "ðŸ—‘ï¸";
   }
 
   if (type === "restored") {
-    return "↺";
+    return "â†º";
   }
 
   if (type === "login") {
-    return "→";
+    return "â†’";
   }
 
   if (type === "logout") {
-    return "←";
+    return "â†";
   }
 
-  return "•";
+  return "â€¢";
 }
 
 function getEntityLabel(
@@ -106,7 +106,7 @@ function getEntityLabel(
   }
 
   return entityType ||
-    "Allgemein";
+    "Keine Abteilung";
 }
 
 function getEntityHref(
@@ -329,7 +329,7 @@ export default function ActivityPage() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Aktivitäten konnten nicht geladen werden."
+          : "AktivitÃ¤ten konnten nicht geladen werden."
       );
     } finally {
       setLoading(
@@ -577,7 +577,7 @@ export default function ActivityPage() {
         <div className="space-y-8">
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <h1 className="text-3xl font-bold">
-              Aktivitätsprotokoll deaktiviert
+              AktivitÃ¤tsprotokoll deaktiviert
             </h1>
 
             <p className="text-zinc-500 mt-2">
@@ -590,12 +590,12 @@ export default function ActivityPage() {
       <div className="space-y-8">
         <PageHero
           eyebrow="System"
-          title="Aktivität"
-          description="Protokollierte Aktionen aus PostgreSQL. Änderungen, Logins und Systemereignisse zentral nachvollziehen."
+          title="AktivitÃ¤t"
+          description="Protokollierte Aktionen aus PostgreSQL. Ã„nderungen, Logins und Systemereignisse zentral nachvollziehen."
           badges={[
             {
               label:
-                `${activities.length} Einträge`,
+                `${activities.length} EintrÃ¤ge`,
             },
             {
               label:
@@ -624,7 +624,7 @@ export default function ActivityPage() {
         {loading && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <p className="text-zinc-500">
-              Aktivitäten werden geladen...
+              AktivitÃ¤ten werden geladen...
             </p>
           </div>
         )}
@@ -645,8 +645,8 @@ export default function ActivityPage() {
           <StatCard
             label="Gesamt"
             value={activities.length}
-            description="Alle Einträge"
-            icon="🧾"
+            description="Alle EintrÃ¤ge"
+            icon="ðŸ§¾"
             active={
               !typeFilter &&
               !entityFilter &&
@@ -660,8 +660,8 @@ export default function ActivityPage() {
           <StatCard
             label="Erstellt"
             value={createdCount}
-            description="Neue Datensätze"
-            icon="＋"
+            description="Neue DatensÃ¤tze"
+            icon="ï¼‹"
             tone="green"
             active={typeFilter === "created"}
             onClick={() =>
@@ -674,8 +674,8 @@ export default function ActivityPage() {
           <StatCard
             label="Bearbeitet"
             value={editedCount}
-            description="Geänderte Datensätze"
-            icon="✎"
+            description="GeÃ¤nderte DatensÃ¤tze"
+            icon="âœŽ"
             tone="blue"
             active={
               typeFilter === "edited" ||
@@ -689,10 +689,10 @@ export default function ActivityPage() {
           />
 
           <StatCard
-            label="Gelöscht"
+            label="GelÃ¶scht"
             value={deletedCount}
-            description="Entfernte Datensätze"
-            icon="🗑️"
+            description="Entfernte DatensÃ¤tze"
+            icon="ðŸ—‘ï¸"
             tone="red"
             active={typeFilter === "deleted"}
             onClick={() =>
@@ -706,7 +706,7 @@ export default function ActivityPage() {
             label="Logins"
             value={loginCount}
             description="Anmeldeereignisse"
-            icon="→"
+            icon="â†’"
             tone="indigo"
             active={typeFilter === "login"}
             onClick={() =>
@@ -725,7 +725,7 @@ export default function ActivityPage() {
               </h2>
 
               <p className="text-zinc-500 mt-1">
-                Filtere Aktivitäten nach Typ, Bereich, Firma oder Abteilung.
+                Filtere AktivitÃ¤ten nach Typ, Bereich, Firma oder Abteilung.
               </p>
             </div>
 
@@ -734,7 +734,7 @@ export default function ActivityPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Zurücksetzen
+              ZurÃ¼cksetzen
             </button>
           </div>
 
@@ -746,7 +746,7 @@ export default function ActivityPage() {
                   event.target.value
                 )
               }
-              placeholder="Aktivitäten suchen..."
+              placeholder="AktivitÃ¤ten suchen..."
               className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
             />
 
@@ -860,18 +860,18 @@ export default function ActivityPage() {
           </div>
 
           <p className="text-sm text-zinc-500 mt-5">
-            {filteredActivities.length} von {activities.length} Aktivitäten gefunden.
+            {filteredActivities.length} von {activities.length} AktivitÃ¤ten gefunden.
           </p>
         </section>
 
         {!loading && filteredActivities.length === 0 && (
           <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
             <h2 className="text-xl font-semibold">
-              Keine Aktivitäten gefunden
+              Keine AktivitÃ¤ten gefunden
             </h2>
 
             <p className="text-zinc-500 mt-2">
-              Es gibt keine passenden Einträge.
+              Es gibt keine passenden EintrÃ¤ge.
             </p>
           </div>
         )}
@@ -954,7 +954,7 @@ export default function ActivityPage() {
 
                     {href && (
                       <span className="shrink-0 bg-zinc-100 text-zinc-700 px-4 py-2 rounded-xl text-sm">
-                        Öffnen
+                        Ã–ffnen
                       </span>
                     )}
                   </div>

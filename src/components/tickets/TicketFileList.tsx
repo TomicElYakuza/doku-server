@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   ChangeEvent,
@@ -236,7 +236,7 @@ export default function TicketFileList({
             "Intern",
 
           department:
-            "Allgemein",
+            "Keine Abteilung",
 
           metadata: {
             ticketId,
@@ -275,7 +275,7 @@ export default function TicketFileList({
   ) {
     if (!editable) {
       alert(
-        "Du hast keine Berechtigung, Dateien zu löschen."
+        "Du hast keine Berechtigung, Dateien zu lÃ¶schen."
       );
 
       return;
@@ -283,7 +283,7 @@ export default function TicketFileList({
 
     const confirmed =
       confirm(
-        `Datei "${file.name}" wirklich löschen?`
+        `Datei "${file.name}" wirklich lÃ¶schen?`
       );
 
     if (!confirmed) {
@@ -303,10 +303,10 @@ export default function TicketFileList({
           "deleted",
 
         title:
-          "Ticket-Datei gelöscht",
+          "Ticket-Datei gelÃ¶scht",
 
         description:
-          `Datei "${file.name}" wurde von Ticket #${ticketId} gelöscht.`,
+          `Datei "${file.name}" wurde von Ticket #${ticketId} gelÃ¶scht.`,
 
         entityType:
           "ticket",
@@ -333,7 +333,7 @@ export default function TicketFileList({
           "Intern",
 
         department:
-          "Allgemein",
+          "Keine Abteilung",
 
         metadata: {
           ticketId,
@@ -351,7 +351,7 @@ export default function TicketFileList({
       alert(
         error instanceof Error
           ? error.message
-          : "Datei konnte nicht gelöscht werden."
+          : "Datei konnte nicht gelÃ¶scht werden."
       );
     }
   }
@@ -365,7 +365,7 @@ export default function TicketFileList({
           </h2>
 
           <p className="text-zinc-500 mt-1">
-            Anhänge zu diesem Ticket.
+            AnhÃ¤nge zu diesem Ticket.
           </p>
         </div>
 
@@ -400,7 +400,7 @@ export default function TicketFileList({
 
           {uploading && (
             <p className="text-sm text-zinc-500 mt-3">
-              Upload läuft...
+              Upload lÃ¤uft...
             </p>
           )}
         </div>
@@ -431,10 +431,10 @@ export default function TicketFileList({
                 </p>
 
                 <p className="text-sm text-zinc-500 mt-1">
-                  {file.type} ·{" "}
+                  {file.type} Â·{" "}
                   {formatFileSize(
                     file.size
-                  )} · Hochgeladen am{" "}
+                  )} Â· Hochgeladen am{" "}
                   {file.uploadedAt}
                 </p>
               </div>
@@ -459,7 +459,7 @@ export default function TicketFileList({
                     }
                     className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                   >
-                    Löschen
+                    LÃ¶schen
                   </button>
                 )}
               </div>

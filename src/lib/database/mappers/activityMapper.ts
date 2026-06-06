@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Activity,
   ActivityType,
 } from "../../../types/activity";
@@ -89,7 +89,7 @@ export function mapActivityRow(
 
     department:
       row.department ||
-      "Allgemein",
+      "",
 
     metadata:
       normalizeMetadata(
@@ -102,3 +102,4 @@ export function mapActivityRow(
       ).toLocaleString(),
   };
 }
+

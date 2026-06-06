@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   ChangeEvent,
@@ -149,7 +149,7 @@ export default function FileUpload({
             "Intern",
 
           department:
-            "Allgemein",
+            "Keine Abteilung",
 
           metadata: {
             pageSlug,
@@ -208,7 +208,7 @@ export default function FileUpload({
 
       {uploading && (
         <p className="text-sm text-zinc-500 mt-3">
-          Upload läuft...
+          Upload lÃ¤uft...
         </p>
       )}
     </div>

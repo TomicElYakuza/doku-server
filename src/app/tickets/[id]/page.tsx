@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -240,7 +240,7 @@ export default function TicketDetailPage() {
   const [companyId, setCompanyId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [company, setCompany] = useState("Intern");
-  const [department, setDepartment] = useState("Allgemein");
+  const [department, setDepartment] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [createdBy, setCreatedBy] = useState("System");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -404,7 +404,7 @@ export default function TicketDetailPage() {
     return (
       departments.find((nextDepartment) => nextDepartment.id === nextDepartmentId)?.name ||
       ticket?.department ||
-      "Allgemein"
+      "Keine Abteilung"
     );
   }
 
@@ -529,7 +529,7 @@ export default function TicketDetailPage() {
     setCompanyId(nextCompanyId);
     setDepartmentId("");
     setCompany(selectedCompany?.name || "Intern");
-    setDepartment("Allgemein");
+    setDepartment("");
   }
 
   function handleDepartmentChange(nextDepartmentId: string) {
@@ -538,7 +538,7 @@ export default function TicketDetailPage() {
     );
 
     setDepartmentId(nextDepartmentId);
-    setDepartment(selectedDepartment?.name || "Allgemein");
+    setDepartment(selectedDepartment?.name || "");
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -559,7 +559,7 @@ export default function TicketDetailPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswählen.");
+      alert("Bitte eine Kategorie auswÃ¤hlen.");
       return;
     }
 
@@ -619,7 +619,7 @@ export default function TicketDetailPage() {
       nextStatus === "closed" &&
       !canCloseTicket
     ) {
-      alert("Du hast keine Berechtigung, Tickets zu schließen.");
+      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
       return;
     }
 
@@ -674,12 +674,12 @@ export default function TicketDetailPage() {
     }
 
     if (!canDeleteTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu löschen.");
+      alert("Du hast keine Berechtigung, Tickets zu lÃ¶schen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich lÃ¶schen?`,
     );
 
     if (!confirmed) {
@@ -702,7 +702,7 @@ export default function TicketDetailPage() {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Ticket konnte nicht gelöscht werden.",
+          : "Ticket konnte nicht gelÃ¶scht werden.",
       );
     } finally {
       setSaving(false);
@@ -734,7 +734,7 @@ export default function TicketDetailPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              Zurück zu Tickets
+              ZurÃ¼ck zu Tickets
             </Link>
           }
         />
@@ -748,13 +748,13 @@ export default function TicketDetailPage() {
         <PageHero
           eyebrow="Tickets"
           title="Keine Berechtigung"
-          description="Du hast keine Berechtigung, dieses Ticket zu öffnen."
+          description="Du hast keine Berechtigung, dieses Ticket zu Ã¶ffnen."
           actions={
             <Link
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              Zurück zu Tickets
+              ZurÃ¼ck zu Tickets
             </Link>
           }
         />
@@ -764,7 +764,7 @@ export default function TicketDetailPage() {
 
   const companyName = getCompanyName(ticket.companyId);
   const departmentName = getDepartmentName(ticket.departmentId);
-  const ticketCategory = ticket.category || "Keine Kategorie";
+  const ticketCategory = ticket.category || "Nicht gesetzt";
 
   return (
     <div className="space-y-8">
@@ -790,7 +790,7 @@ export default function TicketDetailPage() {
               disabled={saving}
               className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
             >
-              {saving ? "Speichert..." : "Änderungen speichern"}
+              {saving ? "Speichert..." : "Ã„nderungen speichern"}
             </button>
           </div>
         }
@@ -823,7 +823,7 @@ export default function TicketDetailPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Kategorie auswählen
+                  Kategorie auswÃ¤hlen
                 </option>
                 {categoryOptions.map((option) => (
                   <option
@@ -858,7 +858,7 @@ export default function TicketDetailPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                Priorität
+                PrioritÃ¤t
               </label>
               <select
                 value={priority}
@@ -1018,7 +1018,7 @@ export default function TicketDetailPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              Zurück zu Tickets
+              ZurÃ¼ck zu Tickets
             </Link>
 
             {canEditTicket && (
@@ -1038,7 +1038,7 @@ export default function TicketDetailPage() {
                 disabled={saving}
                 className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
               >
-                Schließen
+                SchlieÃŸen
               </button>
             )}
 
@@ -1049,7 +1049,7 @@ export default function TicketDetailPage() {
                 disabled={saving}
                 className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
               >
-                Wieder öffnen
+                Wieder Ã¶ffnen
               </button>
             )}
 
@@ -1060,7 +1060,7 @@ export default function TicketDetailPage() {
                 disabled={saving}
                 className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition disabled:opacity-50"
               >
-                Löschen
+                LÃ¶schen
               </button>
             )}
           </div>
@@ -1091,28 +1091,28 @@ export default function TicketDetailPage() {
           label="Status"
           value={getStatusLabel(ticket.status)}
           description="Aktueller Bearbeitungsstatus"
-          icon="🎫"
+          icon="ðŸŽ«"
           tone="blue"
         />
         <StatCard
-          label="Priorität"
+          label="PrioritÃ¤t"
           value={getPriorityLabel(ticket.priority)}
           description="Wichtigkeit des Tickets"
-          icon="⚡"
+          icon="âš¡"
           tone="orange"
         />
         <StatCard
           label="Alter"
           value={getTicketAgeLabel(ticket.createdAt)}
           description="Seit Erstellung"
-          icon="⏱️"
+          icon="â±ï¸"
           tone="purple"
         />
         <StatCard
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="#️⃣"
+          icon="#ï¸âƒ£"
           tone="indigo"
         />
       </div>
@@ -1265,7 +1265,7 @@ export default function TicketDetailPage() {
                   disabled={saving}
                   className="w-full text-left bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition disabled:opacity-50"
                 >
-                  Ticket schließen
+                  Ticket schlieÃŸen
                 </button>
               )}
 
@@ -1276,7 +1276,7 @@ export default function TicketDetailPage() {
                   disabled={saving}
                   className="w-full text-left bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition disabled:opacity-50"
                 >
-                  Ticket wieder öffnen
+                  Ticket wieder Ã¶ffnen
                 </button>
               )}
 
@@ -1284,21 +1284,21 @@ export default function TicketDetailPage() {
                 href={`/tickets?category=${encodeURIComponent(ticketCategory)}`}
                 className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
               >
-                Gleiche Kategorie öffnen
+                Gleiche Kategorie Ã¶ffnen
               </Link>
 
               <Link
                 href={`/tickets?company=${encodeURIComponent(companyName)}`}
                 className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
               >
-                Gleiche Firma öffnen
+                Gleiche Firma Ã¶ffnen
               </Link>
 
               <Link
                 href={`/tickets?department=${encodeURIComponent(departmentName)}`}
                 className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
               >
-                Gleiche Abteilung öffnen
+                Gleiche Abteilung Ã¶ffnen
               </Link>
             </div>
           </div>
@@ -1329,7 +1329,7 @@ export default function TicketDetailPage() {
 
               <div>
                 <p className="text-zinc-400">
-                  Priorität
+                  PrioritÃ¤t
                 </p>
                 <p className="font-medium text-zinc-800">
                   {getPriorityLabel(ticket.priority)}
