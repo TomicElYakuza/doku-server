@@ -10,6 +10,7 @@ import {
 import {
   useSearchParams,
 } from "next/navigation";
+
 import AppModal from "../../components/AppModal";
 import PageHero from "../../components/PageHero";
 import StatCard from "../../components/StatCard";
@@ -50,21 +51,32 @@ type TaxonomyItem = {
   isActive?: boolean;
 };
 
-function formatTags(tags?: string[]) {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-
-  return tags.filter(Boolean);
-}
+type SelectOption = {
+  id: string;
+  value: string;
+  label: string;
+};
 
 function getWikiHref(slug: string) {
   return `/wiki/${encodeURIComponent(slug)}`;
 }
 
-function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
-  if (item.path) {
-    return item.path;
+function getSafeTags(tags?: string[]) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
+}
+
+function getTaxonomyLabel(
+  item: TaxonomyItem,
+  allItems: TaxonomyItem[],
+) {
+  if (item.path?.trim()) {
+    return item.path.trim();
   }
 
   const names: string[] = [];
@@ -79,21 +91,39 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
       break;
     }
 
-    current = allItems.find((candidate) => candidate.id === current?.parentId);
+    current = allItems.find(
+      (candidate) => candidate.id === current?.parentId,
+    );
   }
 
   return names.join(" > ") || item.name;
 }
 
 function sortByLabel(
-  first: {
-    label: string;
-  },
-  second: {
-    label: string;
-  },
+  first: SelectOption,
+  second: SelectOption,
 ) {
   return first.label.localeCompare(second.label);
+}
+
+function getStatusLabel(pageCount: number) {
+  if (pageCount === 1) {
+    return "1 Seite";
+  }
+
+  return `${pageCount} Seiten`;
+}
+
+function createSlugFromTitle(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function WikiPageList() {
@@ -109,23 +139,34 @@ export default function WikiPageList() {
     settings,
   } = useAppSettings();
 
-  const canManageWiki = isAdmin || hasAnyPermission([
-    "wiki.manage",
-  ]);
-  const canCreateWiki = canManageWiki || hasAnyPermission([
-    "wiki.create",
-  ]);
-  const canEditWiki = canManageWiki || hasAnyPermission([
-    "wiki.edit",
-  ]);
-  const canDeleteWiki = canManageWiki || hasAnyPermission([
-    "wiki.delete",
-  ]);
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
+
+  const canCreateWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.create",
+    ]);
+
+  const canEditWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
+  const canDeleteWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.delete",
+    ]);
 
   const urlCompanyFilter = searchParams.get("company") || "";
   const urlDepartmentFilter = searchParams.get("department") || "";
-  const urlTagFilter = searchParams.get("tag") || "";
   const urlCategoryFilter = searchParams.get("category") || "";
+  const urlTagFilter = searchParams.get("tag") || "";
 
   const [pages, setPages] = useState<WikiPage[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -142,13 +183,14 @@ export default function WikiPageList() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSlug, setEditingSlug] = useState("");
+
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
   const [company, setCompany] = useState("Intern");
-  const [department, setDepartment] = useState("Allgemein");
+  const [department, setDepartment] = useState("");
   const [author, setAuthor] = useState("System");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -156,7 +198,6 @@ export default function WikiPageList() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
 
   useEffect(() => {
     setViewMode(settings.defaultWikiView === "cards" ? "cards" : "table");
@@ -179,14 +220,32 @@ export default function WikiPageList() {
       void loadOrganization();
     }
 
-    window.addEventListener("wikiPagesUpdated", handleWikiPagesUpdated);
-    window.addEventListener("companiesUpdated", handleCompaniesUpdated);
-    window.addEventListener("departmentsUpdated", handleDepartmentsUpdated);
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated,
+    );
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated,
+    );
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated,
+    );
 
     return () => {
-      window.removeEventListener("wikiPagesUpdated", handleWikiPagesUpdated);
-      window.removeEventListener("companiesUpdated", handleCompaniesUpdated);
-      window.removeEventListener("departmentsUpdated", handleDepartmentsUpdated);
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated,
+      );
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated,
+      );
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated,
+      );
     };
   }, []);
 
@@ -205,8 +264,8 @@ export default function WikiPageList() {
   async function loadTaxonomyItems() {
     const requests = await Promise.allSettled([
       fetch("/api/taxonomy?target=wiki&type=category"),
-      fetch("/api/taxonomy?target=global&type=tag"),
       fetch("/api/taxonomy?target=wiki&type=tag"),
+      fetch("/api/taxonomy?target=global&type=tag"),
     ]);
 
     const nextWikiCategories: TaxonomyItem[] = [];
@@ -218,7 +277,7 @@ export default function WikiPageList() {
       }
 
       const data = await result.value.json();
-      const items = Array.isArray(data) ? data : [];
+      const items: TaxonomyItem[] = Array.isArray(data) ? data : [];
 
       if (index === 0) {
         nextWikiCategories.push(...items);
@@ -231,18 +290,18 @@ export default function WikiPageList() {
       nextWikiCategories.filter((item) => item.isActive !== false),
     );
 
-    const uniqueTags = Array.from(
-      new Map(
-        nextTags
-          .filter((item) => item.isActive !== false)
-          .map((item) => [
-            item.name,
-            item,
-          ]),
-      ).values(),
+    setWikiTags(
+      Array.from(
+        new Map(
+          nextTags
+            .filter((item) => item.isActive !== false)
+            .map((item) => [
+              item.name,
+              item,
+            ]),
+        ).values(),
+      ),
     );
-
-    setWikiTags(uniqueTags);
   }
 
   async function loadOrganization() {
@@ -258,7 +317,10 @@ export default function WikiPageList() {
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
-      console.error("Organisation konnte nicht geladen werden:", loadError);
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError,
+      );
     }
   }
 
@@ -283,6 +345,7 @@ export default function WikiPageList() {
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
       console.error(loadError);
+
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -303,10 +366,7 @@ export default function WikiPageList() {
     }
 
     if (user.department) {
-      return (
-        page.department === user.department ||
-        page.category === user.department
-      );
+      return page.department === user.department;
     }
 
     if (user.company) {
@@ -329,11 +389,16 @@ export default function WikiPageList() {
   const categoryOptions = useMemo(
     () =>
       wikiCategories
-        .map((item) => ({
-          id: item.id,
-          value: getTaxonomyLabel(item, wikiCategories),
-          label: getTaxonomyLabel(item, wikiCategories),
-        }))
+        .map((item) => {
+          const label = getTaxonomyLabel(item, wikiCategories);
+
+          return {
+            id: item.id,
+            value: label,
+            label,
+          };
+        })
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       wikiCategories,
@@ -348,6 +413,7 @@ export default function WikiPageList() {
           value: item.name,
           label: item.name,
         }))
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       wikiTags,
@@ -358,6 +424,7 @@ export default function WikiPageList() {
     () =>
       Array.from(
         new Set([
+          "Intern",
           ...companies.map((nextCompany) => nextCompany.name),
           ...visiblePages.map((page) => page.company || "Intern"),
         ]),
@@ -371,17 +438,19 @@ export default function WikiPageList() {
   );
 
   const departmentOptions = useMemo(() => {
-    const values = Array.from(
+    const baseValues = Array.from(
       new Set([
         ...departments.map((nextDepartment) => nextDepartment.name),
-        ...visiblePages.map((page) => page.department || "Allgemein"),
+        ...visiblePages
+          .map((page) => String(page.department || "").trim())
+          .filter(Boolean),
       ]),
     )
       .filter(Boolean)
       .sort((first, second) => first.localeCompare(second));
 
     if (!companyFilter) {
-      return values;
+      return baseValues;
     }
 
     const selectedCompany = companies.find(
@@ -389,19 +458,21 @@ export default function WikiPageList() {
     );
 
     if (!selectedCompany) {
-      return values;
+      return baseValues;
     }
-
-    const filteredByCompany = departments
-      .filter((nextDepartment) => nextDepartment.companyId === selectedCompany.id)
-      .map((nextDepartment) => nextDepartment.name);
 
     return Array.from(
       new Set([
-        ...filteredByCompany,
+        ...departments
+          .filter(
+            (nextDepartment) =>
+              nextDepartment.companyId === selectedCompany.id,
+          )
+          .map((nextDepartment) => nextDepartment.name),
         ...visiblePages
           .filter((page) => page.company === companyFilter)
-          .map((page) => page.department || "Allgemein"),
+          .map((page) => String(page.department || "").trim())
+          .filter(Boolean),
       ]),
     )
       .filter(Boolean)
@@ -418,9 +489,9 @@ export default function WikiPageList() {
 
     return visiblePages.filter((page) => {
       const pageCompany = page.company || "Intern";
-      const pageDepartment = page.department || "Allgemein";
-      const pageCategory = page.category || "";
-      const pageTags = formatTags(page.tags);
+      const pageDepartment = String(page.department || "").trim();
+      const pageCategory = String(page.category || "").trim();
+      const pageTags = getSafeTags(page.tags);
 
       const matchesSearch =
         !query ||
@@ -443,11 +514,21 @@ export default function WikiPageList() {
           .toLowerCase()
           .includes(query);
 
-      const matchesCompany = !companyFilter || pageCompany === companyFilter;
+      const matchesCompany =
+        !companyFilter ||
+        pageCompany === companyFilter;
+
       const matchesDepartment =
-        !departmentFilter || pageDepartment === departmentFilter;
-      const matchesCategory = !categoryFilter || pageCategory === categoryFilter;
-      const matchesTag = !tagFilter || pageTags.includes(tagFilter);
+        !departmentFilter ||
+        pageDepartment === departmentFilter;
+
+      const matchesCategory =
+        !categoryFilter ||
+        pageCategory === categoryFilter;
+
+      const matchesTag =
+        !tagFilter ||
+        pageTags.includes(tagFilter);
 
       return (
         matchesSearch &&
@@ -467,7 +548,9 @@ export default function WikiPageList() {
   ]);
 
   const latestPages = useMemo(
-    () => [...visiblePages].slice(0, 5),
+    () => [
+      ...visiblePages,
+    ].slice(0, 5),
     [
       visiblePages,
     ],
@@ -489,7 +572,7 @@ export default function WikiPageList() {
     setContent("");
     setCategory(categoryOptions[0]?.value || "");
     setCompany(user?.company || "Intern");
-    setDepartment(user?.department || "Allgemein");
+    setDepartment(user?.department || "");
     setAuthor(user?.name || "System");
     setSelectedTags([]);
   }
@@ -522,9 +605,9 @@ export default function WikiPageList() {
     setContent(page.content || "");
     setCategory(page.category || categoryOptions[0]?.value || "");
     setCompany(page.company || "Intern");
-    setDepartment(page.department || "Allgemein");
+    setDepartment(page.department || "");
     setAuthor(page.author || user?.name || "System");
-    setSelectedTags(formatTags(page.tags));
+    setSelectedTags(getSafeTags(page.tags));
     setModalOpen(true);
   }
 
@@ -539,18 +622,6 @@ export default function WikiPageList() {
         tag,
       ];
     });
-  }
-
-  function createSlugFromTitle(value: string) {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -596,13 +667,16 @@ export default function WikiPageList() {
         content: content.trim(),
         category: category.trim(),
         company: company.trim() || "Intern",
-        department: department.trim() || "Allgemein",
+        department: department.trim(),
         author: author.trim() || user?.name || "System",
         tags: selectedTags,
       };
 
       if (editingSlug) {
-        const updatedPage = await wikiRepository.update(editingSlug, payload);
+        const updatedPage = await wikiRepository.update(
+          editingSlug,
+          payload,
+        );
 
         if (updatedPage) {
           void activityRepository.create({
@@ -657,6 +731,7 @@ export default function WikiPageList() {
       setMessage("Wiki-Seite wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -673,7 +748,9 @@ export default function WikiPageList() {
       return;
     }
 
-    const confirmed = confirm(`Wiki-Seite "${page.title}" wirklich löschen?`);
+    const confirmed = confirm(
+      `Wiki-Seite "${page.title}" wirklich löschen?`,
+    );
 
     if (!confirmed) {
       return;
@@ -697,7 +774,7 @@ export default function WikiPageList() {
         companyId: "",
         departmentId: "",
         company: page.company || "Intern",
-        department: page.department || "Allgemein",
+        department: page.department || "",
         metadata: {
           pageSlug: page.slug,
           pageTitle: page.title,
@@ -708,6 +785,7 @@ export default function WikiPageList() {
       setMessage("Wiki-Seite wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
+
       setError(
         deleteError instanceof Error
           ? deleteError.message
@@ -753,24 +831,25 @@ export default function WikiPageList() {
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title={editingSlug ? "Wiki-Seite bearbeiten" : "Wiki-Seite erstellen"}
-        description="Wiki-Seiten werden über PostgreSQL gespeichert. Kategorien und Tags kommen aus dem Admin Backend."
-        maxWidth="5xl"
         onClose={closeModal}
+        title={editingSlug ? "Wiki-Seite bearbeiten" : "Wiki-Seite erstellen"}
+        description="Kategorie und Tags kommen aus dem Admin Backend."
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
-              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition"
+              disabled={saving}
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
+
             <button
               type="submit"
               form="wiki-page-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
               {saving
                 ? "Speichert..."
@@ -778,7 +857,7 @@ export default function WikiPageList() {
                   ? "Änderungen speichern"
                   : "Wiki-Seite erstellen"}
             </button>
-          </div>
+          </>
         }
       >
         <form
@@ -800,7 +879,7 @@ export default function WikiPageList() {
                     setSlug(createSlugFromTitle(event.target.value));
                   }
                 }}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="Titel der Wiki-Seite"
               />
             </div>
@@ -812,7 +891,7 @@ export default function WikiPageList() {
               <input
                 value={slug}
                 onChange={(event) => setSlug(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="wiki-seite"
               />
             </div>
@@ -824,11 +903,12 @@ export default function WikiPageList() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
                   Kategorie auswählen
                 </option>
+
                 {categoryOptions.map((option) => (
                   <option
                     key={option.id}
@@ -838,6 +918,12 @@ export default function WikiPageList() {
                   </option>
                 ))}
               </select>
+
+              {categoryOptions.length === 0 && (
+                <p className="text-sm text-red-600 mt-2">
+                  Bitte zuerst eine aktive Wiki-Kategorie im Admin Backend anlegen.
+                </p>
+              )}
             </div>
 
             <div>
@@ -847,7 +933,7 @@ export default function WikiPageList() {
               <input
                 value={author}
                 onChange={(event) => setAuthor(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="System"
               />
             </div>
@@ -860,14 +946,11 @@ export default function WikiPageList() {
                 value={company}
                 onChange={(event) => {
                   setCompany(event.target.value);
-                  setDepartment("Allgemein");
+                  setDepartment("");
                 }}
                 disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
-                <option value="Intern">
-                  Intern
-                </option>
                 {companyOptions.map((option) => (
                   <option
                     key={option}
@@ -887,11 +970,12 @@ export default function WikiPageList() {
                 value={department}
                 onChange={(event) => setDepartment(event.target.value)}
                 disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
-                <option value="Allgemein">
-                  Allgemein
+                <option value="">
+                  Keine Abteilung
                 </option>
+
                 {departmentOptions.map((option) => (
                   <option
                     key={option}
@@ -912,7 +996,7 @@ export default function WikiPageList() {
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
               placeholder="Kurze Beschreibung der Wiki-Seite..."
             />
           </div>
@@ -925,7 +1009,7 @@ export default function WikiPageList() {
               value={content}
               onChange={(event) => setContent(event.target.value)}
               rows={10}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y"
               placeholder="Wiki-Inhalt..."
             />
           </div>
@@ -937,7 +1021,7 @@ export default function WikiPageList() {
 
             {tagOptions.length === 0 ? (
               <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                Noch keine globalen Wiki-Tags im Admin Backend vorhanden.
+                Noch keine globalen oder Wiki-Tags im Admin Backend vorhanden.
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -951,7 +1035,7 @@ export default function WikiPageList() {
                       onClick={() => toggleTag(option.value)}
                       className={`px-4 py-2 rounded-xl border transition ${
                         active
-                          ? "bg-zinc-900 text-white border-zinc-900"
+                          ? "app-accent-bg text-white app-brand-shadow"
                           : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
@@ -968,10 +1052,10 @@ export default function WikiPageList() {
       <PageHero
         eyebrow="Wissen"
         title="Wiki"
-        description="Dokumentation, Wissen und interne Anleitungen aus PostgreSQL."
+        description="Dokumentation, Wissen und interne Anleitungen aus PostgreSQL mit Kategorien und Tags aus dem Admin Backend."
         badges={[
           {
-            label: `${visiblePages.length} Seiten`,
+            label: getStatusLabel(visiblePages.length),
           },
           {
             label: `${categoryOptions.length} Kategorien`,
@@ -985,7 +1069,7 @@ export default function WikiPageList() {
             <button
               type="button"
               onClick={openCreateForm}
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
             >
               Wiki-Seite erstellen
             </button>
@@ -1040,7 +1124,7 @@ export default function WikiPageList() {
         <StatCard
           label="Tags"
           value={tagOptions.length}
-          description="Vordefinierte globale Tags"
+          description="Vordefinierte Tags"
           icon="🏷️"
           tone="purple"
           active={Boolean(tagFilter)}
@@ -1071,7 +1155,7 @@ export default function WikiPageList() {
               onClick={() => setViewMode("cards")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "cards"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white app-brand-shadow"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1082,7 +1166,7 @@ export default function WikiPageList() {
               onClick={() => setViewMode("table")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "table"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white app-brand-shadow"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1102,18 +1186,19 @@ export default function WikiPageList() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
             placeholder="Wiki durchsuchen..."
           />
 
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Kategorien
             </option>
+
             {categoryOptions.map((option) => (
               <option
                 key={option.id}
@@ -1127,11 +1212,12 @@ export default function WikiPageList() {
           <select
             value={tagFilter}
             onChange={(event) => setTagFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Tags
             </option>
+
             {tagOptions.map((option) => (
               <option
                 key={option.id}
@@ -1148,11 +1234,12 @@ export default function WikiPageList() {
               setCompanyFilter(event.target.value);
               setDepartmentFilter("");
             }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Firmen
             </option>
+
             {companyOptions.map((option) => (
               <option
                 key={option}
@@ -1166,11 +1253,12 @@ export default function WikiPageList() {
           <select
             value={departmentFilter}
             onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Abteilungen
             </option>
+
             {departmentOptions.map((option) => (
               <option
                 key={option}
@@ -1198,144 +1286,158 @@ export default function WikiPageList() {
         </div>
       )}
 
-      {viewMode === "cards" && filteredPages.length > 0 && (
-        <div className="space-y-4">
+      {filteredPages.length > 0 && viewMode === "cards" && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           {filteredPages.map((page) => {
-            const pageDepartment = page.department || "Allgemein";
-            const pageCompany = page.company || "Intern";
-            const pageCategory = page.category || "Keine Kategorie";
-            const pageTags = formatTags(page.tags);
+            const pageDepartment = String(page.department || "").trim();
+            const pageCategory = String(page.category || "").trim();
+            const pageTags = getSafeTags(page.tags);
 
             return (
-              <div
+              <article
                 key={page.slug}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition"
               >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <Link
-                    href={getWikiHref(page.slug)}
-                    className="min-w-0 block flex-1"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        {pageCompany}
-                      </span>
-                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                        {pageDepartment}
-                      </span>
-                      <span className="text-xs bg-purple-50 text-purple-700 px-3 py-1 rounded-full">
-                        {pageCategory}
-                      </span>
-                    </div>
+                <div className="flex flex-wrap gap-2">
+                  {pageCategory && (
+                    <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                      {pageCategory}
+                    </span>
+                  )}
 
-                    <h2 className="text-2xl font-bold mt-4">
-                      {page.title}
-                    </h2>
+                  {page.company && (
+                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      {page.company}
+                    </span>
+                  )}
 
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
-                      {page.description || page.excerpt || "Keine Beschreibung vorhanden."}
-                    </p>
+                  {pageDepartment && (
+                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      {pageDepartment}
+                    </span>
+                  )}
+                </div>
 
-                    <div className="flex flex-wrap gap-2 mt-5">
-                      {pageTags.length === 0 && (
-                        <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
-                          Keine Tags
-                        </span>
-                      )}
+                <h2 className="text-2xl font-black mt-5">
+                  {page.title}
+                </h2>
 
-                      {pageTags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
+                <p className="text-zinc-500 mt-3 line-clamp-3">
+                  {page.description ||
+                    page.excerpt ||
+                    "Keine Beschreibung vorhanden."}
+                </p>
 
-                    <div className="flex flex-wrap gap-5 text-sm text-zinc-400 mt-5">
-                      <span>
-                        Autor: {page.author || "System"}
-                      </span>
-                      <span>
-                        Aktualisiert: {page.updatedAt || page.createdAt}
-                      </span>
-                    </div>
-                  </Link>
+                <div className="flex flex-wrap gap-2 mt-5">
+                  {pageTags.length === 0 && (
+                    <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
+                      Keine Tags
+                    </span>
+                  )}
+
+                  {pageTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setTagFilter(tag)}
+                      className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mt-6 pt-5 border-t border-zinc-100">
+                  <div className="text-sm text-zinc-500">
+                    {page.author || "System"} · {page.updatedAt || page.createdAt}
+                  </div>
 
                   {renderActions(page)}
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
       )}
 
-      {viewMode === "table" && filteredPages.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+      {filteredPages.length > 0 && viewMode === "table" && (
+        <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left">
               <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
-                  <th className="px-5 py-4 font-semibold">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Seite
                   </th>
-                  <th className="px-5 py-4 font-semibold">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Kategorie
                   </th>
-                  <th className="px-5 py-4 font-semibold">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Organisation
                   </th>
-                  <th className="px-5 py-4 font-semibold">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Tags
                   </th>
-                  <th className="px-5 py-4 font-semibold">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Aktualisiert
                   </th>
-                  <th className="px-5 py-4 font-semibold text-right">
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Aktionen
                   </th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-zinc-100">
                 {filteredPages.map((page) => {
-                  const pageDepartment = page.department || "Allgemein";
-                  const pageCompany = page.company || "Intern";
-                  const pageCategory = page.category || "Keine Kategorie";
-                  const pageTags = formatTags(page.tags);
+                  const pageDepartment = String(page.department || "").trim();
+                  const pageCategory = String(page.category || "").trim();
+                  const pageTags = getSafeTags(page.tags);
 
                   return (
                     <tr
                       key={page.slug}
-                      className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50"
+                      className="hover:bg-zinc-50 transition"
                     >
-                      <td className="px-5 py-4 align-top min-w-[280px]">
+                      <td className="px-5 py-4 align-top">
                         <Link
                           href={getWikiHref(page.slug)}
-                          className="font-semibold hover:underline"
+                          className="font-black text-zinc-950 hover:app-accent-text transition"
                         >
                           {page.title}
                         </Link>
-                        <p className="text-zinc-500 mt-1 line-clamp-2">
-                          {page.description || page.excerpt || "Keine Beschreibung vorhanden."}
+                        <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
+                          {page.description ||
+                            page.excerpt ||
+                            "Keine Beschreibung vorhanden."}
                         </p>
-                        <p className="text-xs text-zinc-400 mt-2">
-                          Slug: {page.slug}
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        {pageCategory ? (
+                          <button
+                            type="button"
+                            onClick={() => setCategoryFilter(pageCategory)}
+                            className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold"
+                          >
+                            {pageCategory}
+                          </button>
+                        ) : (
+                          <span className="text-sm text-zinc-400">
+                            Keine Kategorie
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        <p className="font-medium">
+                          {page.company || "Intern"}
+                        </p>
+                        <p className="text-sm text-zinc-500">
+                          {pageDepartment || "Keine Abteilung"}
                         </p>
                       </td>
 
-                      <td className="px-5 py-4 align-top text-zinc-500 min-w-[220px]">
-                        {pageCategory}
-                      </td>
-
-                      <td className="px-5 py-4 align-top text-zinc-500">
-                        {pageCompany}
-                        <br />
-                        {pageDepartment}
-                      </td>
-
-                      <td className="px-5 py-4 align-top min-w-[220px]">
+                      <td className="px-5 py-4 align-top">
                         <div className="flex flex-wrap gap-2">
                           {pageTags.length === 0 && (
                             <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
@@ -1344,24 +1446,24 @@ export default function WikiPageList() {
                           )}
 
                           {pageTags.map((tag) => (
-                            <span
+                            <button
                               key={tag}
-                              className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
+                              type="button"
+                              onClick={() => setTagFilter(tag)}
+                              className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
                             >
                               #{tag}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 align-top text-zinc-500 whitespace-nowrap">
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
                         {page.updatedAt || page.createdAt}
                       </td>
 
                       <td className="px-5 py-4 align-top">
-                        <div className="flex justify-end">
-                          {renderActions(page)}
-                        </div>
+                        {renderActions(page)}
                       </td>
                     </tr>
                   );
@@ -1369,27 +1471,37 @@ export default function WikiPageList() {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       )}
 
       {latestPages.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold">
-            Letzte Seiten
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            Zuletzt sichtbar
           </h2>
+          <p className="text-zinc-500 mt-1">
+            Schneller Zugriff auf die neuesten sichtbaren Wiki-Seiten.
+          </p>
 
-          <div className="flex flex-wrap gap-3 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mt-6">
             {latestPages.map((page) => (
               <Link
                 key={page.slug}
                 href={getWikiHref(page.slug)}
-                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-2 rounded-xl transition"
+                className="bg-zinc-50 hover:bg-zinc-100 rounded-3xl p-5 transition"
               >
-                {page.title}
+                <h3 className="font-black line-clamp-2">
+                  {page.title}
+                </h3>
+                <p className="text-sm text-zinc-500 mt-3 line-clamp-2">
+                  {page.description ||
+                    page.excerpt ||
+                    "Keine Beschreibung vorhanden."}
+                </p>
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

@@ -355,12 +355,12 @@ export default function TicketTemplatesPage() {
 
   function getDepartmentName(nextDepartmentId?: string) {
     if (!nextDepartmentId) {
-      return "Allgemein";
+      return "";
     }
 
     return (
       departments.find((item) => item.id === nextDepartmentId)?.name ||
-      "Allgemein"
+      ""
     );
   }
 
@@ -784,7 +784,7 @@ export default function TicketTemplatesPage() {
         companyId: template.companyId || "",
         departmentId: template.departmentId || "",
         company: template.company || "Intern",
-        department: template.department || "Allgemein",
+        department: template.department || "",
         assignedTo: template.assignedTo || "",
         createdBy: user?.name || "System",
         tags: formatTags(template.tags),

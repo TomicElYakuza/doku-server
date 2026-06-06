@@ -1,6 +1,7 @@
 import {
   NextResponse,
 } from "next/server";
+
 import {
   queryOne,
 } from "../../../../lib/database/db";
@@ -37,10 +38,88 @@ type UpdateTicketBody = {
   tags?: string[];
 };
 
-type ServerUser = Awaited<ReturnType<typeof getCurrentServerUser>>;
+type CurrentServerUser = Awaited<
+  ReturnType<typeof getCurrentServerUser>
+>;
+
+const allowedStatusValues = [
+  "open",
+  "in_progress",
+  "waiting",
+  "done",
+  "closed",
+];
+
+const allowedPriorityValues = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
 
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
+}
+
+function normalizeNullableId(value?: string | null) {
+  const normalized = normalizeText(value);
+
+  return normalized || null;
+}
+
+function normalizeStatus(
+  value: string | undefined,
+  fallback: string,
+) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (!allowedStatusValues.includes(normalized)) {
+    return fallback;
+  }
+
+  return normalized;
+}
+
+function normalizePriority(
+  value: string | undefined,
+  fallback: string,
+) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (!allowedPriorityValues.includes(normalized)) {
+    return fallback;
+  }
+
+  return normalized;
 }
 
 function normalizeTags(tags?: string[]) {
@@ -57,37 +136,8 @@ function normalizeTags(tags?: string[]) {
   );
 }
 
-function getErrorStatus(
-  error: unknown,
-) {
-  if (
-    isPermissionError(
-      error,
-    )
-  ) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
-  if (
-    isPermissionError(
-      error,
-    )
-  ) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
-
 function userCanAccessTicket(
-  currentUser: ServerUser,
+  currentUser: CurrentServerUser,
   ticket: TicketRow,
 ) {
   if (!currentUser) {
@@ -205,10 +255,7 @@ export async function GET(
       );
     }
 
-    if (!userCanAccessTicket(
-      currentUser,
-      row,
-    )) {
+    if (!userCanAccessTicket(currentUser, row)) {
       return NextResponse.json(
         {
           message: "Keine Berechtigung.",
@@ -219,13 +266,9 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      mapTicketRow(row),
-    );
+    return NextResponse.json(mapTicketRow(row));
   } catch (error) {
-    console.error(
-      error,
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
@@ -233,12 +276,13 @@ export async function GET(
           error,
           "Ticket konnte nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
-        status: getErrorStatus(
-          error,
-        ),
+        status: getErrorStatus(error),
       },
     );
   }
@@ -273,7 +317,7 @@ export async function PATCH(
       id,
     } = await context.params;
 
-    const body = await request.json() as UpdateTicketBody;
+    const body = (await request.json()) as UpdateTicketBody;
 
     const current = await queryOne<TicketRow>(
       `
@@ -312,10 +356,7 @@ export async function PATCH(
       );
     }
 
-    if (!userCanAccessTicket(
-      currentUser,
-      current,
-    )) {
+    if (!userCanAccessTicket(currentUser, current)) {
       return NextResponse.json(
         {
           message: "Keine Berechtigung.",
@@ -326,24 +367,14 @@ export async function PATCH(
       );
     }
 
-    if (
-      statusIsClosing(
-        body.status,
-        current.status,
-      )
-    ) {
+    if (statusIsClosing(body.status, current.status)) {
       await requireAnyServerPermission([
         "tickets.close",
         "tickets.manage",
       ]);
     }
 
-    if (
-      assignmentIsChanging(
-        body.assignedTo,
-        current.assigned_to,
-      )
-    ) {
+    if (assignmentIsChanging(body.assignedTo, current.assigned_to)) {
       await requireAnyServerPermission([
         "tickets.assign",
         "tickets.manage",
@@ -352,13 +383,15 @@ export async function PATCH(
 
     const canChooseScope = currentUser.role === "admin";
 
-    const nextTitle = body.title !== undefined
-      ? normalizeText(body.title)
-      : current.title;
+    const nextTitle =
+      body.title !== undefined
+        ? normalizeText(body.title)
+        : normalizeText(current.title);
 
-    const nextCategory = body.category !== undefined
-      ? normalizeText(body.category)
-      : current.category || "";
+    const nextCategory =
+      body.category !== undefined
+        ? normalizeText(body.category)
+        : normalizeText(current.category);
 
     if (!nextTitle) {
       return NextResponse.json(
@@ -374,13 +407,70 @@ export async function PATCH(
     if (!nextCategory) {
       return NextResponse.json(
         {
-          message: "Ticket-Kategorie ist erforderlich.",
+          message: "Kategorie ist erforderlich.",
         },
         {
           status: 400,
         },
       );
     }
+
+    const nextDescription =
+      body.description !== undefined
+        ? normalizeText(body.description)
+        : normalizeText(current.description);
+
+    const nextStatus = normalizeStatus(
+      body.status,
+      current.status,
+    );
+
+    const nextPriority = normalizePriority(
+      body.priority,
+      current.priority,
+    );
+
+    const nextCompanyId = canChooseScope
+      ? body.companyId !== undefined
+        ? normalizeNullableId(body.companyId)
+        : current.company_id
+      : current.company_id;
+
+    const nextDepartmentId = canChooseScope
+      ? body.departmentId !== undefined
+        ? normalizeNullableId(body.departmentId)
+        : current.department_id
+      : current.department_id;
+
+    const nextCompany = canChooseScope
+      ? body.company !== undefined
+        ? normalizeText(body.company) || "Intern"
+        : normalizeText(current.company) || "Intern"
+      : normalizeText(current.company) ||
+        currentUser.company ||
+        "Intern";
+
+    const nextDepartment = canChooseScope
+      ? body.department !== undefined
+        ? normalizeText(body.department)
+        : normalizeText(current.department)
+      : normalizeText(current.department) ||
+        currentUser.department ||
+        "";
+
+    const nextAssignedTo =
+      body.assignedTo !== undefined
+        ? normalizeText(body.assignedTo)
+        : normalizeText(current.assigned_to);
+
+    const nextCreatedBy =
+      body.createdBy !== undefined
+        ? normalizeText(body.createdBy)
+        : normalizeText(current.created_by);
+
+    const nextTags = Array.isArray(body.tags)
+      ? normalizeTags(body.tags)
+      : current.tags || [];
 
     const row = await queryOne<TicketRow>(
       `
@@ -419,41 +509,17 @@ export async function PATCH(
       `,
       [
         nextTitle,
-        body.description !== undefined
-          ? normalizeText(body.description)
-          : current.description || "",
-        body.status || current.status,
-        body.priority || current.priority,
+        nextDescription,
+        nextStatus,
+        nextPriority,
         nextCategory,
-        canChooseScope
-          ? body.companyId !== undefined
-            ? normalizeText(body.companyId) || null
-            : current.company_id
-          : current.company_id,
-        canChooseScope
-          ? body.departmentId !== undefined
-            ? normalizeText(body.departmentId) || null
-            : current.department_id
-          : current.department_id,
-        canChooseScope
-          ? body.company !== undefined
-            ? normalizeText(body.company) || "Intern"
-            : current.company || "Intern"
-          : current.company || currentUser.company || "Intern",
-        canChooseScope
-          ? body.department !== undefined
-            ? normalizeText(body.department) || "Allgemein"
-            : current.department || "Allgemein"
-          : current.department || currentUser.department || "Allgemein",
-        body.assignedTo !== undefined
-          ? normalizeText(body.assignedTo)
-          : current.assigned_to || "",
-        body.createdBy !== undefined
-          ? normalizeText(body.createdBy) || "System"
-          : current.created_by || "",
-        Array.isArray(body.tags)
-          ? normalizeTags(body.tags)
-          : current.tags || [],
+        nextCompanyId,
+        nextDepartmentId,
+        nextCompany,
+        nextDepartment,
+        nextAssignedTo,
+        nextCreatedBy,
+        nextTags,
         id,
       ],
     );
@@ -469,13 +535,9 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json(
-      mapTicketRow(row),
-    );
+    return NextResponse.json(mapTicketRow(row));
   } catch (error) {
-    console.error(
-      error,
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
@@ -483,12 +545,13 @@ export async function PATCH(
           error,
           "Ticket konnte nicht aktualisiert werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
-        status: getErrorStatus(
-          error,
-        ),
+        status: getErrorStatus(error),
       },
     );
   }
@@ -558,10 +621,7 @@ export async function DELETE(
       );
     }
 
-    if (!userCanAccessTicket(
-      currentUser,
-      current,
-    )) {
+    if (!userCanAccessTicket(currentUser, current)) {
       return NextResponse.json(
         {
           message: "Keine Berechtigung.",
@@ -587,9 +647,7 @@ export async function DELETE(
       ok: true,
     });
   } catch (error) {
-    console.error(
-      error,
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
@@ -597,12 +655,13 @@ export async function DELETE(
           error,
           "Ticket konnte nicht gelöscht werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
-        status: getErrorStatus(
-          error,
-        ),
+        status: getErrorStatus(error),
       },
     );
   }

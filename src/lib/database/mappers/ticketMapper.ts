@@ -44,8 +44,8 @@ export type TicketTemplateRow = {
   updated_at: string;
 };
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
 }
 
 function normalizeTags(tags: string[] | null) {
@@ -53,13 +53,9 @@ function normalizeTags(tags: string[] | null) {
     return [];
   }
 
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
-  );
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
 }
 
 export function mapTicketRow(
@@ -67,20 +63,20 @@ export function mapTicketRow(
 ): Ticket {
   return {
     id: String(row.id),
-    title: row.title,
-    description: row.description || "",
+    title: normalizeText(row.title),
+    description: normalizeText(row.description),
     status: row.status as TicketStatus,
     priority: row.priority as TicketPriority,
-    category: row.category || "",
-    companyId: row.company_id || "",
-    departmentId: row.department_id || "",
-    company: row.company || "Intern",
-    department: row.department || "Allgemein",
-    assignedTo: row.assigned_to || "",
-    createdBy: row.created_by || "",
+    category: normalizeText(row.category),
+    companyId: normalizeText(row.company_id),
+    departmentId: normalizeText(row.department_id),
+    company: normalizeText(row.company) || "Intern",
+    department: normalizeText(row.department),
+    assignedTo: normalizeText(row.assigned_to),
+    createdBy: normalizeText(row.created_by),
     tags: normalizeTags(row.tags),
-    createdAt: formatDate(row.created_at),
-    updatedAt: formatDate(row.updated_at),
+    createdAt: new Date(row.created_at).toLocaleString(),
+    updatedAt: new Date(row.updated_at).toLocaleString(),
   };
 }
 
@@ -88,19 +84,19 @@ export function mapTicketTemplateRow(
   row: TicketTemplateRow,
 ): TicketTemplate {
   return {
-    id: row.id,
-    title: row.title,
-    description: row.description || "",
+    id: normalizeText(row.id),
+    title: normalizeText(row.title),
+    description: normalizeText(row.description),
     status: row.status as TicketTemplateStatus,
     priority: row.priority as TicketTemplatePriority,
-    category: row.category || "",
-    companyId: row.company_id || "",
-    departmentId: row.department_id || "",
-    company: row.company || "Intern",
-    department: row.department || "Allgemein",
-    assignedTo: row.assigned_to || "",
+    category: normalizeText(row.category),
+    companyId: normalizeText(row.company_id),
+    departmentId: normalizeText(row.department_id),
+    company: normalizeText(row.company) || "Intern",
+    department: normalizeText(row.department),
+    assignedTo: normalizeText(row.assigned_to),
     tags: normalizeTags(row.tags),
-    createdAt: formatDate(row.created_at),
-    updatedAt: formatDate(row.updated_at),
+    createdAt: new Date(row.created_at).toLocaleString(),
+    updatedAt: new Date(row.updated_at).toLocaleString(),
   };
 }

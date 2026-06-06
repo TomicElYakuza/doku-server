@@ -1,6 +1,10 @@
 import {
+  randomUUID,
+} from "crypto";
+import {
   NextResponse,
 } from "next/server";
+
 import {
   query,
   queryOne,
@@ -31,23 +35,17 @@ type CreateTicketTemplateBody = {
   tags?: string[];
 };
 
-function normalizeText(value?: string | null) {
-  return String(value || "").trim();
-}
+const allowedStatusValues = [
+  "active",
+  "inactive",
+];
 
-function normalizeTags(tags?: string[]) {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
-  );
-}
+const allowedPriorityValues = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
 
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
@@ -65,17 +63,69 @@ function getErrorMessage(
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  return error instanceof Error
+    ? error.message
+    : fallback;
 }
 
-export async function GET(request: Request) {
+function normalizeText(value?: string) {
+  return String(value || "").trim();
+}
+
+function normalizeNullableId(value?: string) {
+  const normalized = normalizeText(value);
+
+  return normalized || null;
+}
+
+function normalizeStatus(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "active";
+  }
+
+  if (!allowedStatusValues.includes(normalized)) {
+    return "active";
+  }
+
+  return normalized;
+}
+
+function normalizePriority(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "medium";
+  }
+
+  if (!allowedPriorityValues.includes(normalized)) {
+    return "medium";
+  }
+
+  return normalized;
+}
+
+function normalizeTags(tags?: string[]) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag).trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+export async function GET() {
   try {
     await requireAnyServerPermission([
-      "tickets.templates.view",
-      "tickets.templates.manage",
-      "tickets.templates.create",
-      "tickets.templates.edit",
-      "tickets.templates.delete",
+      "tickets.view",
+      "tickets.create",
+      "tickets.edit",
       "tickets.manage",
     ]);
 
@@ -92,23 +142,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const url = new URL(request.url);
-
-    const status = url.searchParams.get("status");
-    const priority = url.searchParams.get("priority");
-
     const params: unknown[] = [];
     const whereParts: string[] = [];
-
-    if (status) {
-      params.push(status);
-      whereParts.push(`status = $${params.length}`);
-    }
-
-    if (priority) {
-      params.push(priority);
-      whereParts.push(`priority = $${params.length}`);
-    }
 
     if (currentUser.role !== "admin") {
       if (currentUser.departmentId) {
@@ -122,9 +157,10 @@ export async function GET(request: Request) {
       }
     }
 
-    const whereSql = whereParts.length > 0
-      ? `WHERE ${whereParts.join(" AND ")}`
-      : "";
+    const whereSql =
+      whereParts.length > 0
+        ? `WHERE ${whereParts.join(" AND ")}`
+        : "";
 
     const rows = await query<TicketTemplateRow>(
       `
@@ -145,14 +181,12 @@ export async function GET(request: Request) {
           updated_at
         FROM ticket_templates
         ${whereSql}
-        ORDER BY updated_at DESC
+        ORDER BY created_at DESC
       `,
       params,
     );
 
-    return NextResponse.json(
-      rows.map(mapTicketTemplateRow),
-    );
+    return NextResponse.json(rows.map(mapTicketTemplateRow));
   } catch (error) {
     console.error(error);
 
@@ -162,7 +196,10 @@ export async function GET(request: Request) {
           error,
           "Ticket-Vorlagen konnten nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -174,8 +211,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await requireAnyServerPermission([
-      "tickets.templates.create",
-      "tickets.templates.manage",
+      "tickets.create",
       "tickets.manage",
     ]);
 
@@ -192,10 +228,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json() as CreateTicketTemplateBody;
+    const body = (await request.json()) as CreateTicketTemplateBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
+    const description = normalizeText(body.description);
+    const status = normalizeStatus(body.status);
+    const priority = normalizePriority(body.priority);
+    const assignedTo = normalizeText(body.assignedTo);
+    const tags = normalizeTags(body.tags);
 
     if (!title) {
       return NextResponse.json(
@@ -211,7 +252,7 @@ export async function POST(request: Request) {
     if (!category) {
       return NextResponse.json(
         {
-          message: "Ticket-Kategorie ist erforderlich.",
+          message: "Kategorie ist erforderlich.",
         },
         {
           status: 400,
@@ -222,11 +263,11 @@ export async function POST(request: Request) {
     const canChooseScope = currentUser.role === "admin";
 
     const companyId = canChooseScope
-      ? normalizeText(body.companyId) || null
+      ? normalizeNullableId(body.companyId)
       : currentUser.companyId || null;
 
     const departmentId = canChooseScope
-      ? normalizeText(body.departmentId) || null
+      ? normalizeNullableId(body.departmentId)
       : currentUser.departmentId || null;
 
     const company = canChooseScope
@@ -234,12 +275,13 @@ export async function POST(request: Request) {
       : currentUser.company || "Intern";
 
     const department = canChooseScope
-      ? normalizeText(body.department) || currentUser.department || "Allgemein"
-      : currentUser.department || "Allgemein";
+      ? normalizeText(body.department)
+      : currentUser.department || "";
 
     const row = await queryOne<TicketTemplateRow>(
       `
         INSERT INTO ticket_templates (
+          id,
           title,
           description,
           status,
@@ -263,7 +305,8 @@ export async function POST(request: Request) {
           $8,
           $9,
           $10,
-          $11
+          $11,
+          $12
         )
         RETURNING
           id,
@@ -282,17 +325,18 @@ export async function POST(request: Request) {
           updated_at
       `,
       [
+        randomUUID(),
         title,
-        normalizeText(body.description),
-        body.status || "open",
-        body.priority || "medium",
+        description,
+        status,
+        priority,
         category,
         companyId,
         departmentId,
         company,
         department,
-        normalizeText(body.assignedTo),
-        normalizeTags(body.tags),
+        assignedTo,
+        tags,
       ],
     );
 
@@ -322,7 +366,10 @@ export async function POST(request: Request) {
           error,
           "Ticket-Vorlage konnte nicht erstellt werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

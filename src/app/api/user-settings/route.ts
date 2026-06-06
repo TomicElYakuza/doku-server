@@ -1,11 +1,9 @@
 import {
   NextResponse,
 } from "next/server";
-
 import {
   queryOne,
 } from "../../../lib/database/db";
-
 import {
   getCurrentServerUser,
 } from "../../../lib/serverPermissions";
@@ -24,30 +22,17 @@ type UserSettingsUpdateBody = {
   compactMode?: boolean;
 };
 
-function mapUserSettingsRow(
-  row: UserSettingsRow
-) {
+function mapUserSettingsRow(row: UserSettingsRow) {
   return {
-    userId:
-      row.user_id,
-
-    theme:
-      row.theme,
-
-    accentColor:
-      row.accent_color,
-
-    compactMode:
-      row.compact_mode,
-
-    updatedAt:
-      row.updated_at,
+    userId: row.user_id,
+    theme: row.theme,
+    accentColor: row.accent_color,
+    compactMode: row.compact_mode,
+    updatedAt: row.updated_at,
   };
 }
 
-function normalizeTheme(
-  value?: string
-) {
+function normalizeTheme(value?: string) {
   if (value === "light") {
     return "light";
   }
@@ -63,10 +48,9 @@ function normalizeTheme(
   return "modern";
 }
 
-function normalizeAccentColor(
-  value?: string
-) {
+function normalizeAccentColor(value?: string) {
   if (
+    value === "velunis" ||
     value === "blue" ||
     value === "green" ||
     value === "red" ||
@@ -74,155 +58,124 @@ function normalizeAccentColor(
     value === "purple" ||
     value === "indigo" ||
     value === "emerald" ||
-    value === "amber"
+    value === "amber" ||
+    value === "zinc"
   ) {
     return value;
   }
 
-  return "zinc";
+  return "velunis";
 }
 
-async function ensureUserSettings(
-  userId: string
-) {
+async function ensureUserSettings(userId: string) {
   return queryOne<UserSettingsRow>(
     `
-    INSERT INTO user_settings (
-      user_id,
-      theme,
-      accent_color,
-      compact_mode
-    )
-    VALUES (
-      $1,
-      'modern',
-      'zinc',
-      false
-    )
-    ON CONFLICT (user_id)
-    DO UPDATE SET
-      user_id = EXCLUDED.user_id
-    RETURNING
-      user_id,
-      theme,
-      accent_color,
-      compact_mode,
-      updated_at
+      INSERT INTO user_settings (
+        user_id,
+        theme,
+        accent_color,
+        compact_mode
+      )
+      VALUES (
+        $1,
+        'modern',
+        'velunis',
+        false
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        user_id = EXCLUDED.user_id
+      RETURNING
+        user_id,
+        theme,
+        accent_color,
+        compact_mode,
+        updated_at
     `,
     [
       userId,
-    ]
+    ],
   );
 }
 
 export async function GET() {
   try {
-    const currentUser =
-      await getCurrentServerUser();
+    const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nicht angemeldet.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            401,
-        }
+          status: 401,
+        },
       );
     }
 
-    const row =
-      await ensureUserSettings(
-        currentUser.id
-      );
+    const row = await ensureUserSettings(currentUser.id);
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Benutzereinstellungen konnten nicht geladen werden.",
+          message: "Benutzereinstellungen konnten nicht geladen werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
-    return NextResponse.json(
-      mapUserSettingsRow(
-        row
-      )
-    );
+    return NextResponse.json(mapUserSettingsRow(row));
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          "Benutzereinstellungen konnten nicht geladen werden.",
-
+        message: "Benutzereinstellungen konnten nicht geladen werden.",
         error:
           error instanceof Error
             ? error.message
             : "Unbekannter Fehler",
       },
       {
-        status:
-          500,
-      }
+        status: 500,
+      },
     );
   }
 }
 
-export async function PATCH(
-  request: Request
-) {
+export async function PATCH(request: Request) {
   try {
-    const currentUser =
-      await getCurrentServerUser();
+    const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nicht angemeldet.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            401,
-        }
+          status: 401,
+        },
       );
     }
 
-    const current =
-      await ensureUserSettings(
-        currentUser.id
-      );
+    const current = await ensureUserSettings(currentUser.id);
 
     if (!current) {
       return NextResponse.json(
         {
-          message:
-            "Benutzereinstellungen konnten nicht vorbereitet werden.",
+          message: "Benutzereinstellungen konnten nicht vorbereitet werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
-    const body =
-      await request.json() as UserSettingsUpdateBody;
+    const body = (await request.json()) as UserSettingsUpdateBody;
 
-    const row =
-      await queryOne<UserSettingsRow>(
-        `
+    const row = await queryOne<UserSettingsRow>(
+      `
         UPDATE user_settings
         SET
           theme = $1,
@@ -236,65 +189,47 @@ export async function PATCH(
           accent_color,
           compact_mode,
           updated_at
-        `,
-        [
-          body.theme !== undefined
-            ? normalizeTheme(
-                body.theme
-              )
-            : current.theme,
-
-          body.accentColor !== undefined
-            ? normalizeAccentColor(
-                body.accentColor
-              )
-            : current.accent_color,
-
-          typeof body.compactMode === "boolean"
-            ? body.compactMode
-            : current.compact_mode,
-
-          currentUser.id,
-        ]
-      );
+      `,
+      [
+        body.theme !== undefined
+          ? normalizeTheme(body.theme)
+          : current.theme,
+        body.accentColor !== undefined
+          ? normalizeAccentColor(body.accentColor)
+          : current.accent_color,
+        typeof body.compactMode === "boolean"
+          ? body.compactMode
+          : current.compact_mode,
+        currentUser.id,
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Benutzereinstellungen konnten nicht gespeichert werden.",
+          message: "Benutzereinstellungen konnten nicht gespeichert werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
-    return NextResponse.json(
-      mapUserSettingsRow(
-        row
-      )
-    );
+    return NextResponse.json(mapUserSettingsRow(row));
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          "Benutzereinstellungen konnten nicht gespeichert werden.",
-
+        message: "Benutzereinstellungen konnten nicht gespeichert werden.",
         error:
           error instanceof Error
             ? error.message
             : "Unbekannter Fehler",
       },
       {
-        status:
-          500,
-      }
+        status: 500,
+      },
     );
   }
 }

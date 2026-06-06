@@ -18,8 +18,8 @@ export type WikiPageRow = {
   updated_at: string;
 };
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
 }
 
 function normalizeTags(tags: string[] | null) {
@@ -27,30 +27,29 @@ function normalizeTags(tags: string[] | null) {
     return [];
   }
 
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
-  );
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
 }
 
 export function mapWikiPageRow(
   row: WikiPageRow,
 ): WikiPage {
+  const description = normalizeText(row.description);
+  const excerpt = normalizeText(row.excerpt) || description;
+
   return {
-    slug: row.slug,
-    title: row.title,
-    description: row.description || "",
-    excerpt: row.excerpt || row.description || "",
-    company: row.company || "Intern",
-    category: row.category || "",
-    department: row.department || "Allgemein",
-    author: row.author || "Unbekannt",
+    slug: normalizeText(row.slug),
+    title: normalizeText(row.title),
+    description,
+    excerpt,
+    company: normalizeText(row.company) || "Intern",
+    category: normalizeText(row.category),
+    department: normalizeText(row.department),
+    author: normalizeText(row.author) || "System",
     tags: normalizeTags(row.tags),
-    content: row.content || "",
-    createdAt: formatDate(row.created_at),
-    updatedAt: formatDate(row.updated_at),
+    content: String(row.content || ""),
+    createdAt: new Date(row.created_at).toLocaleString(),
+    updatedAt: new Date(row.updated_at).toLocaleString(),
   };
 }

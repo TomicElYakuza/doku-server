@@ -398,7 +398,7 @@ export default function TicketDetailPage() {
 
   function getDepartmentName(nextDepartmentId?: string) {
     if (!nextDepartmentId) {
-      return ticket?.department || "Allgemein";
+      return ticket?.department || "Keine Abteilung";
     }
 
     return (

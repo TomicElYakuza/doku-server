@@ -117,8 +117,14 @@ const navigationItems: NavigationItem[] = [
     href: "/admin/settings",
     label: "Systemeinstellungen",
     icon: "⚙️",
-    category: "settings",
+    category: "admin",
     adminOnly: true,
+  },
+  {
+    href: "/settings",
+    label: "Einstellungen",
+    icon: "👤",
+    category: "settings",
   },
 ];
 
@@ -150,6 +156,14 @@ function isActivePath(
 
   if (href === "/admin") {
     return pathname === "/admin";
+  }
+
+  if (href === "/admin/settings") {
+    return pathname === "/admin/settings";
+  }
+
+  if (href === "/settings") {
+    return pathname === "/settings" || pathname.startsWith("/settings/");
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -307,6 +321,10 @@ function getPageTitle(pathname: string) {
 }
 
 function getSectionLabel(pathname: string) {
+  if (pathname.startsWith("/admin/settings")) {
+    return "Globale Konfiguration";
+  }
+
   if (pathname.startsWith("/admin")) {
     return "Velunis Admin";
   }
@@ -460,13 +478,13 @@ export default function AppShell({
   } = useAppSettings();
 
   const {
+    settings: userSettings,
+  } = useUserSettings();
+
+  const {
     hasAnyPermission,
     isAdmin,
   } = usePermissions();
-
-  const {
-    settings: userSettings,
-  } = useUserSettings();
 
   useEffect(() => {
     if (isPublicPath(pathname)) {
@@ -570,14 +588,19 @@ export default function AppShell({
     ],
   );
 
+  const effectiveTheme =
+    userSettings.theme ||
+    appSettings.theme ||
+    "modern";
+
   const shellMode = getShellMode(
-    appSettings.theme,
+    effectiveTheme,
     appSettings.darkMode,
   );
 
   const themeClasses = getThemeClasses(
     shellMode,
-    userSettings.compactMode || appSettings.compactMode,
+    userSettings.compactMode ?? appSettings.compactMode,
   );
 
   const pageTitle = getPageTitle(pathname);

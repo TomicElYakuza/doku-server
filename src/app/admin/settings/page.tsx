@@ -3,7 +3,6 @@
 import {
   FormEvent,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -13,29 +12,17 @@ import {
 import {
   canViewAdmin,
 } from "../../../lib/permissions";
+import {
+  appSettingsRepository,
+} from "../../../lib/appSettingsRepository";
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
 import type {
-  AppAccentColor,
   AppDefaultUserRole,
   AppSettings,
-  AppTheme,
   DefaultListView,
 } from "../../../types/settings";
-
-type ThemeOption = {
-  value: AppTheme;
-  label: string;
-  description: string;
-};
-
-type AccentOption = {
-  value: AppAccentColor;
-  label: string;
-  description: string;
-  gradient: string;
-};
 
 type RoleOption = {
   value: AppDefaultUserRole;
@@ -53,10 +40,6 @@ type EditableSettings = {
   appName: string;
   companyName: string;
   appVersion: string;
-  theme: AppTheme;
-  darkMode: boolean;
-  accentColor: AppAccentColor;
-  compactMode: boolean;
   showVersion: boolean;
   enableTicketComments: boolean;
   enableTicketTemplates: boolean;
@@ -68,78 +51,6 @@ type EditableSettings = {
   ticketsPerPage: number;
   wikiPerPage: number;
 };
-
-const themeOptions: ThemeOption[] = [
-  {
-    value: "modern",
-    label: "Modern",
-    description:
-      "Velunis Look mit dunkler Sidebar, dunkler Topbar und heller Arbeitsfläche.",
-  },
-  {
-    value: "light",
-    label: "Hell",
-    description:
-      "Helle Oberfläche mit Velunis-Akzent für helle Arbeitsplätze.",
-  },
-  {
-    value: "dark",
-    label: "Dunkel",
-    description:
-      "Dunkle Oberfläche für alle unterstützten Komponenten.",
-  },
-  {
-    value: "system",
-    label: "System",
-    description:
-      "Folgt automatisch der Hell-/Dunkel-Einstellung des Betriebssystems.",
-  },
-];
-
-const accentOptions: AccentOption[] = [
-  {
-    value: "velunis",
-    label: "Velunis Blau/Lila",
-    description: "Empfohlenes Firmenbranding.",
-    gradient: "from-blue-600 via-indigo-600 to-violet-600",
-  },
-  {
-    value: "blue",
-    label: "Blau",
-    description: "Klar und technisch.",
-    gradient: "from-blue-600 to-blue-700",
-  },
-  {
-    value: "purple",
-    label: "Lila",
-    description: "Modern und kreativ.",
-    gradient: "from-purple-600 to-fuchsia-600",
-  },
-  {
-    value: "indigo",
-    label: "Indigo",
-    description: "Ruhig und digital.",
-    gradient: "from-indigo-600 to-indigo-700",
-  },
-  {
-    value: "emerald",
-    label: "Emerald",
-    description: "Frisch und statusorientiert.",
-    gradient: "from-emerald-600 to-green-600",
-  },
-  {
-    value: "amber",
-    label: "Amber",
-    description: "Warm und auffällig.",
-    gradient: "from-amber-500 to-orange-500",
-  },
-  {
-    value: "zinc",
-    label: "Neutral",
-    description: "Minimal ohne starke Markenfarbe.",
-    gradient: "from-zinc-700 to-zinc-950",
-  },
-];
 
 const roleOptions: RoleOption[] = [
   {
@@ -176,39 +87,6 @@ const listViewOptions: ListViewOption[] = [
       "Listen werden standardmäßig als Karten angezeigt.",
   },
 ];
-
-function normalizeTheme(value: AppSettings["theme"]): AppTheme {
-  if (
-    value === "light" ||
-    value === "dark" ||
-    value === "system"
-  ) {
-    return value;
-  }
-
-  return "modern";
-}
-
-function normalizeAccentColor(
-  value: AppSettings["accentColor"],
-): AppAccentColor {
-  if (
-    value === "velunis" ||
-    value === "blue" ||
-    value === "green" ||
-    value === "red" ||
-    value === "orange" ||
-    value === "purple" ||
-    value === "indigo" ||
-    value === "emerald" ||
-    value === "amber" ||
-    value === "zinc"
-  ) {
-    return value;
-  }
-
-  return "velunis";
-}
 
 function normalizeDefaultUserRole(
   value: AppSettings["defaultUserRole"],
@@ -258,12 +136,6 @@ function normalizePageSize(
 function getDefaultEditableSettings(
   settings: AppSettings,
 ): EditableSettings {
-  const accentColor = normalizeAccentColor(
-    settings.appAccentColor ||
-      settings.accentColor ||
-      "velunis",
-  );
-
   return {
     appName: settings.appName || "Intranet",
     companyName: settings.companyName || "Velunis",
@@ -271,10 +143,6 @@ function getDefaultEditableSettings(
       settings.appVersion ||
       settings.version ||
       "0.1.0",
-    theme: normalizeTheme(settings.theme),
-    darkMode: Boolean(settings.darkMode),
-    accentColor,
-    compactMode: Boolean(settings.compactMode),
     showVersion: settings.showVersion ?? true,
     enableTicketComments:
       settings.enableTicketComments ?? true,
@@ -304,20 +172,6 @@ function getDefaultEditableSettings(
   };
 }
 
-function getThemeLabel(theme: AppTheme) {
-  return (
-    themeOptions.find((option) => option.value === theme)?.label ||
-    theme
-  );
-}
-
-function getAccentLabel(accentColor: AppAccentColor) {
-  return (
-    accentOptions.find((option) => option.value === accentColor)
-      ?.label || accentColor
-  );
-}
-
 function getRoleLabel(role: AppDefaultUserRole) {
   return (
     roleOptions.find((option) => option.value === role)?.label ||
@@ -330,22 +184,6 @@ function getListViewLabel(view: DefaultListView) {
     listViewOptions.find((option) => option.value === view)
       ?.label || view
   );
-}
-
-function getThemePreviewClass(theme: AppTheme) {
-  if (theme === "dark") {
-    return "bg-zinc-950 text-white border-zinc-800";
-  }
-
-  if (theme === "light") {
-    return "bg-white text-zinc-950 border-zinc-200";
-  }
-
-  if (theme === "system") {
-    return "bg-gradient-to-br from-white to-zinc-950 text-zinc-950 border-zinc-300";
-  }
-
-  return "bg-[#060711] text-white border-white/10";
 }
 
 type ToggleCardProps = {
@@ -365,7 +203,7 @@ function ToggleCard({
     <label
       className={`flex items-start gap-4 rounded-3xl border p-5 transition cursor-pointer ${
         checked
-          ? "border-indigo-300 bg-indigo-50"
+          ? "app-accent-border app-accent-soft"
           : "border-zinc-200 bg-white hover:bg-zinc-50"
       }`}
     >
@@ -440,16 +278,6 @@ export default function AdminSettingsPage() {
           form.appVersion.trim() || "0.1.0",
         version:
           form.appVersion.trim() || "0.1.0",
-        theme: form.theme,
-        darkMode:
-          form.theme === "dark"
-            ? true
-            : form.theme === "light"
-              ? false
-              : form.darkMode,
-        accentColor: form.accentColor,
-        appAccentColor: form.accentColor,
-        compactMode: form.compactMode,
         showVersion: form.showVersion,
         enableTicketComments:
           form.enableTicketComments,
@@ -514,16 +342,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const selectedAccent = useMemo(
-    () =>
-      accentOptions.find(
-        (option) => option.value === form.accentColor,
-      ) || accentOptions[0],
-    [
-      form.accentColor,
-    ],
-  );
-
   if (!mounted) {
     return null;
   }
@@ -542,16 +360,16 @@ export default function AdminSettingsPage() {
       <PageHero
         eyebrow="Admin Backend"
         title="Systemeinstellungen"
-        description="Branding, Darstellung, Standardansichten und globale Funktionsbereiche für Velunis zentral konfigurieren."
+        description="Globale Systemwerte, Features, Standardansichten und Benutzer-Defaults für Velunis zentral konfigurieren."
         badges={[
           {
-            label: `Design: ${getThemeLabel(form.theme)}`,
-          },
-          {
-            label: `Akzent: ${getAccentLabel(form.accentColor)}`,
+            label: `Firma: ${form.companyName || "Velunis"}`,
           },
           {
             label: `Version ${form.appVersion || "0.1.0"}`,
+          },
+          {
+            label: `Standardrolle: ${getRoleLabel(form.defaultUserRole)}`,
           },
         ]}
         actions={
@@ -608,22 +426,22 @@ export default function AdminSettingsPage() {
         <StatCard
           label="Firma"
           value={form.companyName || "Velunis"}
-          description="Globales Branding"
+          description="Globaler Firmenname"
           icon="✦"
           tone="indigo"
         />
         <StatCard
-          label="Design"
-          value={getThemeLabel(form.theme)}
-          description="Aktueller Modus"
-          icon="🎨"
+          label="App"
+          value={form.appName || "Intranet"}
+          description="Globaler App-Name"
+          icon="🏢"
           tone="purple"
         />
         <StatCard
-          label="Akzent"
-          value={getAccentLabel(form.accentColor)}
-          description="Systemfarbe"
-          icon="🌈"
+          label="Version"
+          value={form.appVersion || "0.1.0"}
+          description={form.showVersion ? "Wird angezeigt" : "Ausgeblendet"}
+          icon="🏷️"
           tone="blue"
         />
         <StatCard
@@ -708,151 +526,16 @@ export default function AdminSettingsPage() {
               />
             </div>
           </div>
-        </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Design & Branding
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Velunis-Farbton, Theme und globale Darstellung.
-              </p>
-            </div>
-
-            <div
-              className={`rounded-3xl bg-gradient-to-br ${selectedAccent.gradient} text-white p-5 min-w-72 shadow-[0_16px_40px_rgba(79,70,229,0.22)]`}
-            >
-              <p className="text-xs uppercase tracking-[0.22em] font-black text-white/70">
-                Brand Preview
-              </p>
-              <p className="text-2xl font-black mt-2">
-                Velunis
-              </p>
-              <p className="text-sm text-white/75 mt-1">
-                {selectedAccent.label}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            <div>
-              <h3 className="text-lg font-bold">
-                Theme
-              </h3>
-              <p className="text-sm text-zinc-500 mt-1">
-                Dark Mode ist vollständig mit dem Velunis-Branding kompatibel.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-                {themeOptions.map((option) => {
-                  const active = form.theme === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        updateField("theme", option.value);
-                        updateField(
-                          "darkMode",
-                          option.value === "dark",
-                        );
-                      }}
-                      className={`text-left border rounded-3xl p-5 transition ${
-                        active
-                          ? "border-indigo-300 ring-4 ring-indigo-500/10 bg-indigo-50"
-                          : "border-zinc-200 bg-white hover:bg-zinc-50"
-                      }`}
-                    >
-                      <div
-                        className={`h-16 rounded-2xl border mb-4 ${getThemePreviewClass(
-                          option.value,
-                        )}`}
-                      />
-
-                      <h4 className="font-black text-zinc-950">
-                        {option.label}
-                      </h4>
-                      <p className="text-sm text-zinc-500 mt-2">
-                        {option.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold">
-                Akzentfarbe
-              </h3>
-              <p className="text-sm text-zinc-500 mt-1">
-                Diese Farbe wird für Branding, aktive Elemente und Fokuszustände verwendet.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4 mt-4">
-                {accentOptions.map((option) => {
-                  const active = form.accentColor === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() =>
-                        updateField("accentColor", option.value)
-                      }
-                      className={`text-left border rounded-3xl p-5 transition ${
-                        active
-                          ? "border-indigo-300 ring-4 ring-indigo-500/10 bg-indigo-50"
-                          : "border-zinc-200 bg-white hover:bg-zinc-50"
-                      }`}
-                    >
-                      <div
-                        className={`h-12 rounded-2xl bg-gradient-to-r ${option.gradient} shadow-sm`}
-                      />
-
-                      <h4 className="font-black text-zinc-950 mt-4">
-                        {option.label}
-                      </h4>
-                      <p className="text-sm text-zinc-500 mt-1">
-                        {option.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <ToggleCard
-                title="Dark Mode erzwingen"
-                description="Erzwingt dunkle Darstellung, unabhängig vom Theme."
-                checked={form.darkMode}
-                onChange={(checked) =>
-                  updateField("darkMode", checked)
-                }
-              />
-
-              <ToggleCard
-                title="Kompakter Modus"
-                description="Reduziert Abstände für dichtere Oberflächen."
-                checked={form.compactMode}
-                onChange={(checked) =>
-                  updateField("compactMode", checked)
-                }
-              />
-
-              <ToggleCard
-                title="Version anzeigen"
-                description="Zeigt die App-Version in unterstützten Komponenten."
-                checked={form.showVersion}
-                onChange={(checked) =>
-                  updateField("showVersion", checked)
-                }
-              />
-            </div>
+          <div className="mt-6">
+            <ToggleCard
+              title="Version anzeigen"
+              description="Zeigt die App-Version in unterstützten Komponenten."
+              checked={form.showVersion}
+              onChange={(checked) =>
+                updateField("showVersion", checked)
+              }
+            />
           </div>
         </section>
 
@@ -887,7 +570,7 @@ export default function AdminSettingsPage() {
                       }
                       className={`text-left border rounded-3xl p-5 transition ${
                         active
-                          ? "border-indigo-300 bg-indigo-50"
+                          ? "app-accent-border app-accent-soft"
                           : "border-zinc-200 bg-white hover:bg-zinc-50"
                       }`}
                     >
@@ -925,7 +608,7 @@ export default function AdminSettingsPage() {
                       }
                       className={`text-left border rounded-3xl p-5 transition ${
                         active
-                          ? "border-indigo-300 bg-indigo-50"
+                          ? "app-accent-border app-accent-soft"
                           : "border-zinc-200 bg-white hover:bg-zinc-50"
                       }`}
                     >
@@ -1055,7 +738,7 @@ export default function AdminSettingsPage() {
                   }
                   className={`text-left border rounded-3xl p-5 transition ${
                     active
-                      ? "border-indigo-300 bg-indigo-50"
+                      ? "app-accent-border app-accent-soft"
                       : "border-zinc-200 bg-white hover:bg-zinc-50"
                   }`}
                 >
@@ -1096,7 +779,7 @@ export default function AdminSettingsPage() {
             <button
               type="submit"
               disabled={saving || loading}
-              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white px-6 py-4 rounded-2xl hover:opacity-90 transition disabled:opacity-50 font-black shadow-[0_16px_40px_rgba(79,70,229,0.24)]"
+              className="app-accent-bg text-white px-6 py-4 rounded-2xl transition disabled:opacity-50 font-black app-brand-shadow"
             >
               {saving
                 ? "Speichert..."
@@ -1105,6 +788,22 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       </form>
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <h2 className="text-2xl font-bold">
+          Persönliche Darstellung
+        </h2>
+        <p className="text-zinc-500 mt-1">
+          Theme, Akzentfarbe und kompakter Modus werden pro Benutzer unter den persönlichen Einstellungen verwaltet.
+        </p>
+
+        <a
+          href="/settings"
+          className="inline-flex mt-5 bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition"
+        >
+          Persönliche Einstellungen öffnen
+        </a>
+      </section>
     </div>
   );
 }

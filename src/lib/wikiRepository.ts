@@ -21,7 +21,7 @@ export type WikiRepository = {
   create: (page: WikiCreateInput) => Promise<WikiPage>;
   update: (
     slug: string,
-    updates: WikiUpdateInput
+    updates: WikiUpdateInput,
   ) => Promise<WikiPage | null>;
   delete: (slug: string) => Promise<void>;
   saveAll: (pages: WikiPage[]) => Promise<void>;
@@ -97,7 +97,7 @@ function normalizeCreatePayload(page: WikiCreateInput) {
     excerpt: normalizeText(page.excerpt || page.description),
     company: normalizeText(page.company) || "Intern",
     category: normalizeText(page.category),
-    department: normalizeText(page.department) || "Allgemein",
+    department: normalizeText(page.department),
     author: normalizeText(page.author) || "System",
     tags: normalizeTags(page.tags),
     content: String(page.content || ""),
@@ -106,36 +106,46 @@ function normalizeCreatePayload(page: WikiCreateInput) {
 
 function normalizeUpdatePayload(updates: WikiUpdateInput) {
   return {
-    slug: updates.slug !== undefined
-      ? normalizeText(updates.slug)
-      : undefined,
-    title: updates.title !== undefined
-      ? normalizeText(updates.title)
-      : undefined,
-    description: updates.description !== undefined
-      ? normalizeText(updates.description)
-      : undefined,
-    excerpt: updates.excerpt !== undefined
-      ? normalizeText(updates.excerpt)
-      : undefined,
-    company: updates.company !== undefined
-      ? normalizeText(updates.company) || "Intern"
-      : undefined,
-    category: updates.category !== undefined
-      ? normalizeText(updates.category)
-      : undefined,
-    department: updates.department !== undefined
-      ? normalizeText(updates.department) || "Allgemein"
-      : undefined,
-    author: updates.author !== undefined
-      ? normalizeText(updates.author) || "System"
-      : undefined,
-    tags: updates.tags !== undefined
-      ? normalizeTags(updates.tags)
-      : undefined,
-    content: updates.content !== undefined
-      ? String(updates.content || "")
-      : undefined,
+    slug:
+      updates.slug !== undefined
+        ? normalizeText(updates.slug)
+        : undefined,
+    title:
+      updates.title !== undefined
+        ? normalizeText(updates.title)
+        : undefined,
+    description:
+      updates.description !== undefined
+        ? normalizeText(updates.description)
+        : undefined,
+    excerpt:
+      updates.excerpt !== undefined
+        ? normalizeText(updates.excerpt)
+        : undefined,
+    company:
+      updates.company !== undefined
+        ? normalizeText(updates.company) || "Intern"
+        : undefined,
+    category:
+      updates.category !== undefined
+        ? normalizeText(updates.category)
+        : undefined,
+    department:
+      updates.department !== undefined
+        ? normalizeText(updates.department)
+        : undefined,
+    author:
+      updates.author !== undefined
+        ? normalizeText(updates.author) || "System"
+        : undefined,
+    tags:
+      updates.tags !== undefined
+        ? normalizeTags(updates.tags)
+        : undefined,
+    content:
+      updates.content !== undefined
+        ? String(updates.content || "")
+        : undefined,
   };
 }
 
@@ -183,8 +193,8 @@ export const postgresWikiRepository: WikiRepository = {
   async search(query: string) {
     const pages = await postgresWikiRepository.list();
 
-    return pages.filter(
-      (page) => pageMatchesQuery(
+    return pages.filter((page) =>
+      pageMatchesQuery(
         page,
         query,
       ),
@@ -291,7 +301,6 @@ export const postgresWikiRepository: WikiRepository = {
             page.slug,
             page,
           );
-
           return;
         }
 

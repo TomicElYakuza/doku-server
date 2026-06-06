@@ -11,6 +11,7 @@ import {
   useParams,
   useRouter,
 } from "next/navigation";
+
 import AppModal from "../../../components/AppModal";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
@@ -46,6 +47,12 @@ type TaxonomyItem = {
   isActive?: boolean;
 };
 
+type SelectOption = {
+  id: string;
+  value: string;
+  label: string;
+};
+
 function getPageSlug(page: WikiPage) {
   return String(page.slug || "");
 }
@@ -58,32 +65,29 @@ function getPageContent(page: WikiPage) {
   return String(page.content || "");
 }
 
-function getPageTags(page: WikiPage) {
-  if (Array.isArray(page.tags)) {
-    return page.tags
-      .map((tag) => String(tag))
-      .filter(Boolean);
+function getSafeTags(tags?: string[]) {
+  if (!Array.isArray(tags)) {
+    return [];
   }
 
-  return [];
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
 }
 
 function getTaxonomyLabel(
   item: TaxonomyItem,
   allItems: TaxonomyItem[],
 ) {
-  if (item.path) {
-    return item.path;
+  if (item.path?.trim()) {
+    return item.path.trim();
   }
 
   const names: string[] = [];
   let current: TaxonomyItem | undefined = item;
   const visited = new Set<string>();
 
-  while (
-    current &&
-    !visited.has(current.id)
-  ) {
+  while (current && !visited.has(current.id)) {
     visited.add(current.id);
     names.unshift(current.name);
 
@@ -100,12 +104,8 @@ function getTaxonomyLabel(
 }
 
 function sortByLabel(
-  first: {
-    label: string;
-  },
-  second: {
-    label: string;
-  },
+  first: SelectOption,
+  second: SelectOption,
 ) {
   return first.label.localeCompare(second.label);
 }
@@ -133,20 +133,33 @@ export default function WikiDetailPage() {
     hasAnyPermission,
   } = usePermissions();
 
-  const canManageWiki = isAdmin || hasAnyPermission([
-    "wiki.manage",
-  ]);
-  const canViewWiki = canManageWiki || hasAnyPermission([
-    "wiki.view",
-  ]);
-  const canEditWiki = canManageWiki || hasAnyPermission([
-    "wiki.edit",
-  ]);
-  const canDeleteWiki = canManageWiki || hasAnyPermission([
-    "wiki.delete",
-  ]);
+  const canManageWiki =
+    isAdmin ||
+    hasAnyPermission([
+      "wiki.manage",
+    ]);
 
-  const slug = String(params.slug || "");
+  const canViewWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.view",
+    ]);
+
+  const canEditWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
+  const canDeleteWiki =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.delete",
+    ]);
+
+  const slug = Array.isArray(params.slug)
+    ? String(params.slug[0] || "")
+    : String(params.slug || "");
 
   const [page, setPage] = useState<WikiPage | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -156,13 +169,14 @@ export default function WikiDetailPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSlug, setEditingSlug] = useState("");
+
   const [title, setTitle] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
   const [company, setCompany] = useState("Intern");
-  const [department, setDepartment] = useState("Allgemein");
+  const [department, setDepartment] = useState("");
   const [author, setAuthor] = useState("System");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -186,14 +200,32 @@ export default function WikiDetailPage() {
       void loadOrganization();
     }
 
-    window.addEventListener("wikiPagesUpdated", handleWikiPagesUpdated);
-    window.addEventListener("companiesUpdated", handleCompaniesUpdated);
-    window.addEventListener("departmentsUpdated", handleDepartmentsUpdated);
+    window.addEventListener(
+      "wikiPagesUpdated",
+      handleWikiPagesUpdated,
+    );
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated,
+    );
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated,
+    );
 
     return () => {
-      window.removeEventListener("wikiPagesUpdated", handleWikiPagesUpdated);
-      window.removeEventListener("companiesUpdated", handleCompaniesUpdated);
-      window.removeEventListener("departmentsUpdated", handleDepartmentsUpdated);
+      window.removeEventListener(
+        "wikiPagesUpdated",
+        handleWikiPagesUpdated,
+      );
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated,
+      );
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated,
+      );
     };
   }, [
     slug,
@@ -209,19 +241,13 @@ export default function WikiDetailPage() {
     const nextWikiCategories: TaxonomyItem[] = [];
     const nextTags: TaxonomyItem[] = [];
 
-    for (const [
-      index,
-      result,
-    ] of requests.entries()) {
-      if (
-        result.status !== "fulfilled" ||
-        !result.value.ok
-      ) {
+    for (const [index, result] of requests.entries()) {
+      if (result.status !== "fulfilled" || !result.value.ok) {
         continue;
       }
 
       const data = await result.value.json();
-      const items = Array.isArray(data) ? data : [];
+      const items: TaxonomyItem[] = Array.isArray(data) ? data : [];
 
       if (index === 0) {
         nextWikiCategories.push(...items);
@@ -234,18 +260,18 @@ export default function WikiDetailPage() {
       nextWikiCategories.filter((item) => item.isActive !== false),
     );
 
-    const uniqueTags = Array.from(
-      new Map(
-        nextTags
-          .filter((item) => item.isActive !== false)
-          .map((item) => [
-            item.name,
-            item,
-          ]),
-      ).values(),
+    setWikiTags(
+      Array.from(
+        new Map(
+          nextTags
+            .filter((item) => item.isActive !== false)
+            .map((item) => [
+              item.name,
+              item,
+            ]),
+        ).values(),
+      ),
     );
-
-    setWikiTags(uniqueTags);
   }
 
   async function loadOrganization() {
@@ -261,7 +287,10 @@ export default function WikiDetailPage() {
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
-      console.error("Organisation konnte nicht geladen werden:", loadError);
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError,
+      );
     }
   }
 
@@ -310,15 +339,12 @@ export default function WikiDetailPage() {
       return true;
     }
 
-    if (
-      !user ||
-      !canViewWiki
-    ) {
+    if (!user || !canViewWiki) {
       return false;
     }
 
-    const pageCompany = wikiPage.company || "";
-    const pageDepartment = wikiPage.department || "";
+    const pageCompany = String(wikiPage.company || "");
+    const pageDepartment = String(wikiPage.department || "");
 
     if (user.department) {
       return pageDepartment === user.department;
@@ -334,11 +360,16 @@ export default function WikiDetailPage() {
   const categoryOptions = useMemo(
     () =>
       wikiCategories
-        .map((item) => ({
-          id: item.id,
-          value: getTaxonomyLabel(item, wikiCategories),
-          label: getTaxonomyLabel(item, wikiCategories),
-        }))
+        .map((item) => {
+          const label = getTaxonomyLabel(item, wikiCategories);
+
+          return {
+            id: item.id,
+            value: label,
+            label,
+          };
+        })
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       wikiCategories,
@@ -353,6 +384,7 @@ export default function WikiDetailPage() {
           value: item.name,
           label: item.name,
         }))
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       wikiTags,
@@ -363,6 +395,7 @@ export default function WikiDetailPage() {
     () =>
       Array.from(
         new Set([
+          "Intern",
           ...companies.map((nextCompany) => nextCompany.name),
           page?.company || "Intern",
         ]),
@@ -376,17 +409,17 @@ export default function WikiDetailPage() {
   );
 
   const departmentOptions = useMemo(() => {
-    const values = Array.from(
+    const baseValues = Array.from(
       new Set([
         ...departments.map((nextDepartment) => nextDepartment.name),
-        page?.department || "Allgemein",
+        String(page?.department || "").trim(),
       ]),
     )
       .filter(Boolean)
       .sort((first, second) => first.localeCompare(second));
 
     if (!company) {
-      return values;
+      return baseValues;
     }
 
     const selectedCompany = companies.find(
@@ -394,17 +427,18 @@ export default function WikiDetailPage() {
     );
 
     if (!selectedCompany) {
-      return values;
+      return baseValues;
     }
-
-    const filteredByCompany = departments
-      .filter((nextDepartment) => nextDepartment.companyId === selectedCompany.id)
-      .map((nextDepartment) => nextDepartment.name);
 
     return Array.from(
       new Set([
-        ...filteredByCompany,
-        page?.department || "Allgemein",
+        ...departments
+          .filter(
+            (nextDepartment) =>
+              nextDepartment.companyId === selectedCompany.id,
+          )
+          .map((nextDepartment) => nextDepartment.name),
+        String(page?.department || "").trim(),
       ]),
     )
       .filter(Boolean)
@@ -425,7 +459,7 @@ export default function WikiDetailPage() {
     setContent("");
     setCategory("");
     setCompany("Intern");
-    setDepartment("Allgemein");
+    setDepartment("");
     setAuthor("System");
     setSelectedTags([]);
   }
@@ -443,9 +477,9 @@ export default function WikiDetailPage() {
     setContent(wikiPage.content || "");
     setCategory(wikiPage.category || categoryOptions[0]?.value || "");
     setCompany(wikiPage.company || "Intern");
-    setDepartment(wikiPage.department || "Allgemein");
+    setDepartment(wikiPage.department || "");
     setAuthor(wikiPage.author || user?.name || "System");
-    setSelectedTags(getPageTags(wikiPage));
+    setSelectedTags(getSafeTags(wikiPage.tags));
     setModalOpen(true);
   }
 
@@ -504,7 +538,7 @@ export default function WikiDetailPage() {
         content: content.trim(),
         category: category.trim(),
         company: company.trim() || "Intern",
-        department: department.trim() || "Allgemein",
+        department: department.trim(),
         author: author.trim() || user?.name || "System",
         tags: selectedTags,
       };
@@ -543,7 +577,6 @@ export default function WikiDetailPage() {
       }
 
       await loadPage();
-
       setMessage("Wiki-Seite wurde gespeichert.");
     } catch (saveError) {
       console.error(saveError);
@@ -591,7 +624,7 @@ export default function WikiDetailPage() {
         companyId: "",
         departmentId: "",
         company: page.company || "Intern",
-        department: page.department || "Allgemein",
+        department: page.department || "",
         metadata: {
           pageSlug: getPageSlug(page),
           pageTitle: getPageTitle(page),
@@ -610,10 +643,7 @@ export default function WikiDetailPage() {
     }
   }
 
-  if (
-    loading ||
-    permissionsLoading
-  ) {
+  if (loading || permissionsLoading) {
     return (
       <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <p className="text-zinc-500">
@@ -623,16 +653,13 @@ export default function WikiDetailPage() {
     );
   }
 
-  if (
-    error ||
-    !page
-  ) {
+  if (error || !page) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <PageHero
           eyebrow="Wiki"
-          title="Seite nicht gefunden"
-          description={error || "Diese Wiki-Seite existiert nicht."}
+          title="Wiki-Seite nicht gefunden"
+          description={error || "Diese Wiki-Seite ist nicht vorhanden."}
           actions={
             <Link
               href="/wiki"
@@ -648,11 +675,11 @@ export default function WikiDetailPage() {
 
   if (!userCanSeePage(page)) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <PageHero
           eyebrow="Wiki"
-          title="Keine Berechtigung"
-          description="Du hast keine Berechtigung, diese Wiki-Seite zu öffnen."
+          title="Kein Zugriff"
+          description="Du hast keine Berechtigung, diese Wiki-Seite zu sehen."
           actions={
             <Link
               href="/wiki"
@@ -666,26 +693,29 @@ export default function WikiDetailPage() {
     );
   }
 
-  const tags = getPageTags(page);
+  const tags = getSafeTags(page.tags);
   const pageCompany = page.company || "Intern";
-  const pageDepartment = page.department || "Allgemein";
-  const pageCategory = page.category || "Keine Kategorie";
-  const pageDescription = page.description || page.excerpt || "Keine Beschreibung vorhanden.";
+  const pageDepartment = String(page.department || "").trim();
+  const pageCategory = String(page.category || "").trim();
+  const pageDescription =
+    page.description ||
+    page.excerpt ||
+    "Keine Beschreibung vorhanden.";
 
   return (
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
+        onClose={closeModal}
         title="Wiki-Seite bearbeiten"
         description="Kategorie und Tags kommen aus dem Admin Backend."
-        maxWidth="5xl"
-        onClose={closeModal}
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
-              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition"
+              disabled={saving}
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
@@ -694,11 +724,11 @@ export default function WikiDetailPage() {
               type="submit"
               form="wiki-detail-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
               {saving ? "Speichert..." : "Änderungen speichern"}
             </button>
-          </div>
+          </>
         }
       >
         <form
@@ -714,7 +744,7 @@ export default function WikiDetailPage() {
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="Titel der Wiki-Seite"
               />
             </div>
@@ -726,7 +756,7 @@ export default function WikiDetailPage() {
               <input
                 value={formSlug}
                 onChange={(event) => setFormSlug(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="wiki-seite"
               />
             </div>
@@ -738,11 +768,12 @@ export default function WikiDetailPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
                   Kategorie auswählen
                 </option>
+
                 {categoryOptions.map((option) => (
                   <option
                     key={option.id}
@@ -752,6 +783,12 @@ export default function WikiDetailPage() {
                   </option>
                 ))}
               </select>
+
+              {categoryOptions.length === 0 && (
+                <p className="text-sm text-red-600 mt-2">
+                  Bitte zuerst eine aktive Wiki-Kategorie im Admin Backend anlegen.
+                </p>
+              )}
             </div>
 
             <div>
@@ -761,7 +798,7 @@ export default function WikiDetailPage() {
               <input
                 value={author}
                 onChange={(event) => setAuthor(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="System"
               />
             </div>
@@ -774,24 +811,19 @@ export default function WikiDetailPage() {
                 value={company}
                 onChange={(event) => {
                   setCompany(event.target.value);
-                  setDepartment("Allgemein");
+                  setDepartment("");
                 }}
                 disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
-                <option value="Intern">
-                  Intern
-                </option>
-                {companyOptions
-                  .filter((option) => option !== "Intern")
-                  .map((option) => (
-                    <option
-                      key={option}
-                      value={option}
-                    >
-                      {option}
-                    </option>
-                  ))}
+                {companyOptions.map((option) => (
+                  <option
+                    key={option}
+                    value={option}
+                  >
+                    {option}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -803,82 +835,81 @@ export default function WikiDetailPage() {
                 value={department}
                 onChange={(event) => setDepartment(event.target.value)}
                 disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
-                <option value="Allgemein">
-                  Allgemein
+                <option value="">
+                  Keine Abteilung
                 </option>
-                {departmentOptions
-                  .filter((option) => option !== "Allgemein")
-                  .map((option) => (
-                    <option
-                      key={option}
-                      value={option}
-                    >
-                      {option}
-                    </option>
-                  ))}
+
+                {departmentOptions.map((option) => (
+                  <option
+                    key={option}
+                    value={option}
+                  >
+                    {option}
+                  </option>
+                ))}
               </select>
             </div>
+          </div>
 
-            <div className="xl:col-span-2">
-              <label className="block mb-2 font-medium">
-                Kurzbeschreibung
-              </label>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={3}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                placeholder="Kurze Beschreibung der Wiki-Seite..."
-              />
-            </div>
+          <div>
+            <label className="block mb-2 font-medium">
+              Kurzbeschreibung
+            </label>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
+              placeholder="Kurze Beschreibung der Wiki-Seite..."
+            />
+          </div>
 
-            <div className="xl:col-span-2">
-              <label className="block mb-2 font-medium">
-                Inhalt
-              </label>
-              <textarea
-                value={content}
-                onChange={(event) => setContent(event.target.value)}
-                rows={10}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
-                placeholder="Wiki-Inhalt..."
-              />
-            </div>
+          <div>
+            <label className="block mb-2 font-medium">
+              Inhalt
+            </label>
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              rows={10}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y"
+              placeholder="Wiki-Inhalt..."
+            />
+          </div>
 
-            <div className="xl:col-span-2">
-              <label className="block mb-3 font-medium">
-                Tags
-              </label>
+          <div>
+            <label className="block mb-3 font-medium">
+              Tags
+            </label>
 
-              {tagOptions.length === 0 ? (
-                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                  Noch keine globalen Wiki-Tags im Admin Backend vorhanden.
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {tagOptions.map((option) => {
-                    const active = selectedTags.includes(option.value);
+            {tagOptions.length === 0 ? (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
+                Noch keine globalen oder Wiki-Tags im Admin Backend vorhanden.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {tagOptions.map((option) => {
+                  const active = selectedTags.includes(option.value);
 
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => toggleTag(option.value)}
-                        className={`px-4 py-2 rounded-xl border transition ${
-                          active
-                            ? "bg-zinc-900 text-white border-zinc-900"
-                            : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
-                        }`}
-                      >
-                        #{option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => toggleTag(option.value)}
+                      className={`px-4 py-2 rounded-xl border transition ${
+                        active
+                          ? "app-accent-bg text-white app-brand-shadow"
+                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                      }`}
+                    >
+                      #{option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </form>
       </AppModal>
@@ -891,12 +922,20 @@ export default function WikiDetailPage() {
           {
             label: pageCompany,
           },
-          {
-            label: pageDepartment,
-          },
-          {
-            label: pageCategory,
-          },
+          ...(pageDepartment
+            ? [
+                {
+                  label: pageDepartment,
+                },
+              ]
+            : []),
+          ...(pageCategory
+            ? [
+                {
+                  label: pageCategory,
+                },
+              ]
+            : []),
         ]}
         actions={
           <div className="flex flex-wrap gap-3">
@@ -938,19 +977,27 @@ export default function WikiDetailPage() {
         </div>
       )}
 
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-red-700 font-medium">
+            {error}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           label="Kategorie"
-          value={pageCategory}
+          value={pageCategory || "Nicht gesetzt"}
           description="Aus dem Admin Backend"
-          icon="🏷️"
+          icon="🗂️"
           tone="indigo"
         />
         <StatCard
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="#️⃣"
+          icon="🏷️"
           tone="purple"
         />
         <StatCard
@@ -1000,7 +1047,7 @@ export default function WikiDetailPage() {
                   Abteilung
                 </p>
                 <p className="font-medium text-zinc-800">
-                  {pageDepartment}
+                  {pageDepartment || "Keine Abteilung"}
                 </p>
               </div>
 
@@ -1009,7 +1056,7 @@ export default function WikiDetailPage() {
                   Kategorie
                 </p>
                 <p className="font-medium text-zinc-800">
-                  {pageCategory}
+                  {pageCategory || "Nicht gesetzt"}
                 </p>
               </div>
 
@@ -1063,12 +1110,14 @@ export default function WikiDetailPage() {
             </h2>
 
             <div className="space-y-3 mt-5">
-              <Link
-                href={`/wiki?category=${encodeURIComponent(pageCategory)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Kategorie öffnen
-              </Link>
+              {pageCategory && (
+                <Link
+                  href={`/wiki?category=${encodeURIComponent(pageCategory)}`}
+                  className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
+                >
+                  Gleiche Kategorie öffnen
+                </Link>
+              )}
 
               <Link
                 href={`/wiki?company=${encodeURIComponent(pageCompany)}`}
@@ -1077,12 +1126,14 @@ export default function WikiDetailPage() {
                 Gleiche Firma öffnen
               </Link>
 
-              <Link
-                href={`/wiki?department=${encodeURIComponent(pageDepartment)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Abteilung öffnen
-              </Link>
+              {pageDepartment && (
+                <Link
+                  href={`/wiki?department=${encodeURIComponent(pageDepartment)}`}
+                  className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
+                >
+                  Gleiche Abteilung öffnen
+                </Link>
+              )}
             </div>
           </div>
         </aside>

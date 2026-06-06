@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   useEffect,
   useMemo,
@@ -11,57 +10,40 @@ import {
 import {
   ticketRepository,
 } from "../../lib/ticketRepository";
-
 import {
   newsRepository,
 } from "../../lib/newsRepository";
-
 import {
   appSettingsRepository,
 } from "../../lib/appSettingsRepository";
-
 import {
   companyRepository,
 } from "../../lib/companyRepository";
-
 import {
   adminUserRepository,
 } from "../../lib/adminUserRepository";
-
 import {
   getCachedCurrentUser,
   loadCurrentUser,
 } from "../../lib/currentUserRepository";
-
 import {
   useFeatureFlags,
 } from "../../hooks/useFeatureFlags";
-
-import {
-  usePermissions,
-} from "../../hooks/usePermissions";
-
 import PageHero from "../../components/PageHero";
-
 import StatCard from "../../components/StatCard";
-
 import type {
   Ticket,
 } from "../../types/ticket";
-
 import type {
   NewsPost,
 } from "../../types/news";
-
 import type {
   AppSettings,
 } from "../../types/settings";
-
 import type {
   Company,
   Department,
 } from "../../types/company";
-
 import type {
   AdminUser,
   User,
@@ -78,45 +60,25 @@ type QuickLink = {
   description: string;
   href: string;
   icon: string;
-  permissionAny?: string[];
-  adminOnly?: boolean;
 };
 
-function getTicketStatusLabel(
-  status: string
-) {
-  return ticketRepository.getStatusLabel(
-    status
-  );
+function getTicketStatusLabel(status: string) {
+  return ticketRepository.getStatusLabel(status);
 }
 
-function getTicketStatusClass(
-  status: string
-) {
-  return ticketRepository.getStatusClass(
-    status
-  );
+function getTicketStatusClass(status: string) {
+  return ticketRepository.getStatusClass(status);
 }
 
-function getTicketPriorityLabel(
-  priority: string
-) {
-  return ticketRepository.getPriorityLabel(
-    priority
-  );
+function getTicketPriorityLabel(priority: string) {
+  return ticketRepository.getPriorityLabel(priority);
 }
 
-function getTicketPriorityClass(
-  priority: string
-) {
-  return ticketRepository.getPriorityClass(
-    priority
-  );
+function getTicketPriorityClass(priority: string) {
+  return ticketRepository.getPriorityClass(priority);
 }
 
-function getCategoryClass(
-  category: string
-) {
+function getCategoryClass(category: string) {
   if (category === "System") {
     return "bg-blue-50 text-blue-700";
   }
@@ -136,9 +98,7 @@ function getCategoryClass(
   return "bg-zinc-100 text-zinc-700";
 }
 
-function getRoleLabel(
-  role?: string
-) {
+function getRoleLabel(role?: string) {
   if (role === "admin") {
     return "Administrator";
   }
@@ -150,53 +110,53 @@ function getRoleLabel(
   return "Mitarbeiter";
 }
 
+function getPostCategory(post: NewsPost) {
+  return String(post.category || "");
+}
+
+function getHealthLabel(health: HealthState | null) {
+  if (!health) {
+    return "Unbekannt";
+  }
+
+  if (health.ok) {
+    return "Online";
+  }
+
+  return "Fehler";
+}
+
+function getHealthClass(health: HealthState | null) {
+  if (!health) {
+    return "bg-zinc-100 text-zinc-600 border border-zinc-200";
+  }
+
+  if (health.ok) {
+    return "bg-green-50 text-green-700 border border-green-100";
+  }
+
+  return "bg-red-50 text-red-700 border border-red-100";
+}
+
 export default function DashboardPage() {
   const {
     ticketTemplatesEnabled,
-  } =
-    useFeatureFlags();
+  } = useFeatureFlags();
 
-  const {
-    isAdmin,
-    hasAnyPermission,
-  } =
-    usePermissions();
-
-  const [currentUser, setCurrentUser] =
-    useState<User | null>(
-      getCachedCurrentUser()
-    );
-
-  const [tickets, setTickets] =
-    useState<Ticket[]>([]);
-
-  const [newsPosts, setNewsPosts] =
-    useState<NewsPost[]>([]);
-
-  const [settings, setSettings] =
-    useState<AppSettings>(
-      appSettingsRepository.getDefault()
-    );
-
-  const [companies, setCompanies] =
-    useState<Company[]>([]);
-
-  const [departments, setDepartments] =
-    useState<Department[]>([]);
-
-  const [users, setUsers] =
-    useState<AdminUser[]>([]);
-
-  const [health, setHealth] =
-    useState<HealthState | null>(
-      null
-    );
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
+  const [currentUser, setCurrentUser] = useState<User | null>(
+    getCachedCurrentUser(),
+  );
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(
+    appSettingsRepository.getDefault(),
+  );
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [health, setHealth] = useState<HealthState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void loadDashboard();
@@ -204,495 +164,236 @@ export default function DashboardPage() {
 
   async function loadHealth() {
     try {
-      const response =
-        await fetch(
-          "/api/database/health"
-        );
+      const response = await fetch("/api/database/health", {
+        cache: "no-store",
+      });
 
-      const data =
-        await response.json() as HealthState;
+      const data = (await response.json()) as HealthState;
 
-      setHealth(
-        data
-      );
+      setHealth(data);
     } catch (healthError) {
       console.error(
         "Datenbankstatus konnte nicht geladen werden:",
-        healthError
+        healthError,
       );
 
       setHealth({
-        ok:
-          false,
-
-        database:
-          "error",
-
-        error:
-          "Healthcheck nicht erreichbar.",
+        ok: false,
+        database: "error",
+        error: "Healthcheck nicht erreichbar.",
       });
     }
   }
 
   async function loadDashboard() {
     try {
-      setLoading(
-        true
-      );
-
-      setError(
-        ""
-      );
-
-      const nextUser =
-        await loadCurrentUser();
-
-      setCurrentUser(
-        nextUser
-      );
+      setLoading(true);
+      setError("");
 
       const [
+        nextUser,
         nextTickets,
         nextNewsPosts,
         nextSettings,
         nextCompanies,
         nextDepartments,
-      ] =
-        await Promise.all([
-          ticketRepository.list(),
-          newsRepository.list(),
-          appSettingsRepository.get(),
-          companyRepository.listCompanies(),
-          companyRepository.listDepartments(),
-        ]);
+        nextUsers,
+      ] = await Promise.all([
+        loadCurrentUser(),
+        ticketRepository.list(),
+        newsRepository.list(),
+        appSettingsRepository.get(),
+        companyRepository.listCompanies(),
+        companyRepository.listDepartments(),
+        adminUserRepository.list(),
+      ]);
 
-      setTickets(
-        Array.isArray(
-          nextTickets
-        )
-          ? nextTickets
-          : []
-      );
-
-      setNewsPosts(
-        Array.isArray(
-          nextNewsPosts
-        )
-          ? nextNewsPosts
-          : []
-      );
-
-      setSettings(
-        nextSettings
-      );
-
-      setCompanies(
-        Array.isArray(
-          nextCompanies
-        )
-          ? nextCompanies
-          : []
-      );
-
-      setDepartments(
-        Array.isArray(
-          nextDepartments
-        )
-          ? nextDepartments
-          : []
-      );
-
-      if (nextUser?.role === "admin") {
-        const nextUsers =
-          await adminUserRepository.list();
-
-        setUsers(
-          Array.isArray(
-            nextUsers
-          )
-            ? nextUsers
-            : []
-        );
-      } else {
-        setUsers(
-          []
-        );
-      }
+      setCurrentUser(nextUser);
+      setTickets(Array.isArray(nextTickets) ? nextTickets : []);
+      setNewsPosts(Array.isArray(nextNewsPosts) ? nextNewsPosts : []);
+      setSettings(nextSettings);
+      setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
+      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      setUsers(Array.isArray(nextUsers) ? nextUsers : []);
 
       await loadHealth();
     } catch (loadError) {
-      console.error(
-        loadError
-      );
+      console.error(loadError);
 
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Dashboard konnte nicht geladen werden."
+          : "Dashboard konnte nicht geladen werden.",
       );
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
-  const openTickets =
-    useMemo(
-      () =>
-        tickets.filter(
-          (ticket) =>
-            ticket.status !== "closed"
-        ),
-      [
-        tickets,
-      ]
-    );
+  const openTickets = useMemo(
+    () => tickets.filter((ticket) => ticket.status !== "closed"),
+    [
+      tickets,
+    ],
+  );
 
-  const closedTickets =
-    useMemo(
-      () =>
-        tickets.filter(
-          (ticket) =>
-            ticket.status === "closed"
-        ),
-      [
-        tickets,
-      ]
-    );
+  const closedTickets = useMemo(
+    () => tickets.filter((ticket) => ticket.status === "closed"),
+    [
+      tickets,
+    ],
+  );
 
-  const urgentTickets =
-    useMemo(
-      () =>
-        tickets.filter(
-          (ticket) =>
-            ticket.priority === "urgent" ||
-            ticket.priority === "high"
-        ),
-      [
-        tickets,
-      ]
-    );
+  const urgentTickets = useMemo(
+    () =>
+      tickets.filter(
+        (ticket) =>
+          ticket.priority === "urgent" ||
+          ticket.priority === "high",
+      ),
+    [
+      tickets,
+    ],
+  );
 
-  const myTickets =
-    useMemo(
-      () => {
-        if (!currentUser) {
-          return [];
-        }
+  const myTickets = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
 
-        const userName =
-          currentUser.name.toLowerCase();
+    const userName = currentUser.name.toLowerCase();
+    const userEmail = currentUser.email.toLowerCase();
 
-        const userEmail =
-          currentUser.email.toLowerCase();
+    return tickets.filter((ticket) => {
+      const assignedTo = String(ticket.assignedTo || "").toLowerCase();
+      const createdBy = String(ticket.createdBy || "").toLowerCase();
 
-        return tickets.filter(
-          (ticket) => {
-            const assignedTo =
-              String(
-                ticket.assignedTo ||
-                  ""
-              ).toLowerCase();
+      return (
+        assignedTo.includes(userName) ||
+        assignedTo.includes(userEmail) ||
+        createdBy.includes(userName) ||
+        createdBy.includes(userEmail)
+      );
+    });
+  }, [
+    tickets,
+    currentUser,
+  ]);
 
-            const createdBy =
-              String(
-                ticket.createdBy ||
-                  ""
-              ).toLowerCase();
+  const latestTickets = useMemo(
+    () => [
+      ...tickets,
+    ].slice(0, 5),
+    [
+      tickets,
+    ],
+  );
 
-            return (
-              assignedTo.includes(
-                userName
-              ) ||
-              assignedTo.includes(
-                userEmail
-              ) ||
-              createdBy.includes(
-                userName
-              ) ||
-              createdBy.includes(
-                userEmail
-              )
-            );
-          }
-        );
-      },
-      [
-        tickets,
-        currentUser,
-      ]
-    );
+  const latestNews = useMemo(
+    () => [
+      ...newsPosts,
+    ].slice(0, 4),
+    [
+      newsPosts,
+    ],
+  );
 
-  const latestTickets =
-    useMemo(
-      () =>
-        [
-          ...tickets,
-        ].slice(
-          0,
-          5
-        ),
-      [
-        tickets,
-      ]
-    );
+  const pinnedNews = useMemo(
+    () => newsPosts.filter((post) => post.pinned),
+    [
+      newsPosts,
+    ],
+  );
 
-  const latestNews =
-    useMemo(
-      () =>
-        [
-          ...newsPosts,
-        ].slice(
-          0,
-          4
-        ),
-      [
-        newsPosts,
-      ]
-    );
-
-  const pinnedNews =
-    useMemo(
-      () =>
-        newsPosts.filter(
-          (post) =>
-            post.pinned
-        ),
-      [
-        newsPosts,
-      ]
-    );
-
-  const activeUsers =
-    useMemo(
-      () =>
-        users.filter(
-          (user) =>
-            user.status === "active"
-        ),
-      [
-        users,
-      ]
-    );
+  const activeUsers = useMemo(
+    () => users.filter((user) => user.status === "active"),
+    [
+      users,
+    ],
+  );
 
   const ticketCompletionPercent =
     tickets.length === 0
       ? 0
-      : Math.round(
-          (
-            closedTickets.length /
-            tickets.length
-          ) * 100
-        );
+      : Math.round((closedTickets.length / tickets.length) * 100);
 
-  const quickLinks =
-    useMemo(
-      () => {
-        const links: QuickLink[] = [
-          {
-            title:
-              "Tickets öffnen",
-
-            description:
-              "Supportfälle und Aufgaben verwalten",
-
-            href:
-              "/tickets",
-
-            icon:
-              "🎫",
-
-            permissionAny: [
-              "tickets.view",
-              "tickets.manage",
-            ],
-          },
-          {
-            title:
-              "Wiki öffnen",
-
-            description:
-              "Dokumentation durchsuchen",
-
-            href:
-              "/wiki",
-
-            icon:
-              "📚",
-
-            permissionAny: [
-              "wiki.view",
-              "wiki.manage",
-            ],
-          },
-          {
-            title:
-              "News lesen",
-
-            description:
-              "Aktuelle interne Meldungen",
-
-            href:
-              "/news",
-
-            icon:
-              "📰",
-
-            permissionAny: [
-              "news.view",
-              "news.manage",
-            ],
-          },
-          {
-            title:
-              "Dateien",
-
-            description:
-              "Anhänge und Uploads verwalten",
-
-            href:
-              "/files",
-
-            icon:
-              "📁",
-
-            permissionAny: [
-              "files.view",
-              "files.manage",
-            ],
-          },
-        ];
-
-        if (ticketTemplatesEnabled) {
-          links.push({
-            title:
-              "Ticket-Vorlagen",
-
-            description:
-              "Vorlagen für wiederkehrende Fälle",
-
-            href:
-              "/tickets/templates",
-
-            icon:
-              "📋",
-
-            permissionAny: [
-              "tickets.manage",
-              "tickets.templates.view",
-              "tickets.templates.manage",
-            ],
-          });
-        }
-
-        if (isAdmin) {
-          links.push({
-            title:
-              "Admin Backend",
-
-            description:
-              "Benutzer, Rechte und System verwalten",
-
-            href:
-              "/admin",
-
-            icon:
-              "⚙️",
-
-            adminOnly:
-              true,
-          });
-        }
-
-        return links;
+  const quickLinks = useMemo(() => {
+    const links: QuickLink[] = [
+      {
+        title: "Tickets öffnen",
+        description: "Supportfälle und Aufgaben verwalten",
+        href: "/tickets",
+        icon: "🎫",
       },
-      [
-        ticketTemplatesEnabled,
-        isAdmin,
-      ]
-    );
+      {
+        title: "Wiki öffnen",
+        description: "Dokumentation durchsuchen",
+        href: "/wiki",
+        icon: "📚",
+      },
+      {
+        title: "News lesen",
+        description: "Aktuelle interne Meldungen",
+        href: "/news",
+        icon: "📰",
+      },
+      {
+        title: "Dateien",
+        description: "Anhänge und Uploads verwalten",
+        href: "/files",
+        icon: "📁",
+      },
+    ];
 
-  const visibleQuickLinks =
-    useMemo(
-      () =>
-        quickLinks.filter(
-          (link) => {
-            if (link.adminOnly) {
-              return isAdmin;
-            }
+    if (ticketTemplatesEnabled) {
+      links.push({
+        title: "Ticket-Vorlagen",
+        description: "Vorlagen für wiederkehrende Fälle",
+        href: "/tickets/templates",
+        icon: "🧩",
+      });
+    }
 
-            if (
-              !link.permissionAny ||
-              link.permissionAny.length === 0
-            ) {
-              return true;
-            }
+    return links;
+  }, [
+    ticketTemplatesEnabled,
+  ]);
 
-            return hasAnyPermission(
-              link.permissionAny
-            );
-          }
-        ),
-      [
-        quickLinks,
-        isAdmin,
-        hasAnyPermission,
-      ]
-    );
+  const userIsAdmin = currentUser?.role === "admin";
 
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Willkommen zurück"
-        title={currentUser?.name || "Dashboard"}
-        description={`Deine Übersicht für ${settings.appName || "Intranet"} · ${settings.companyName || "Intern"}. Hier siehst du offene Arbeit, wichtige News und den Systemstatus.`}
+        eyebrow="Velunis Workspace"
+        title={`Willkommen zurück, ${currentUser?.name || "Dashboard"}`}
+        description={`Deine Übersicht für ${
+          settings.appName || "Intranet"
+        } · ${
+          settings.companyName || "Velunis"
+        }. Hier siehst du offene Arbeit, wichtige News und den aktuellen Systemstatus.`}
         badges={[
           {
-            label:
-              getRoleLabel(
-                currentUser?.role
-              ),
+            label: getRoleLabel(currentUser?.role),
           },
           {
-            label:
-              currentUser?.company ||
-              "Intern",
+            label: currentUser?.company || "Velunis",
           },
           {
-            label:
-              currentUser?.department ||
-              "Allgemein",
+            label: currentUser?.department || "Keine Abteilung",
           },
           {
-            label:
-              health?.ok
-                ? "Datenbank online"
-                : "Datenbank unbekannt",
+            label: `Datenbank: ${getHealthLabel(health)}`,
           },
         ]}
-        actions={(
-          <>
-            <button
-              type="button"
-              onClick={() =>
-                void loadDashboard()
-              }
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Aktualisieren
-            </button>
-
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
-              >
-                Admin Backend
-              </Link>
-            )}
-          </>
-        )}
+        actions={
+          <button
+            type="button"
+            onClick={() => void loadDashboard()}
+            className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+          >
+            Aktualisieren
+          </button>
+        }
       />
 
       {loading && (
@@ -708,184 +409,190 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold text-red-700">
             Fehler
           </h2>
-
           <p className="text-red-600 mt-2">
             {error}
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Link href="/tickets">
-          <StatCard
-            label="Offene Tickets"
-            value={openTickets.length}
-            description="Nicht geschlossene Tickets"
-            icon="📬"
-            tone="blue"
-          />
-        </Link>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard
+          label="Offene Tickets"
+          value={openTickets.length}
+          description="Nicht geschlossene Tickets"
+          icon="🎫"
+          tone="blue"
+        />
 
-        <Link href="/tickets?priority=urgent">
-          <StatCard
-            label="Hoch / Dringend"
-            value={urgentTickets.length}
-            description="Tickets mit erhöhter Priorität"
-            icon="🚨"
-            tone="red"
-          />
-        </Link>
+        <StatCard
+          label="Hoch / Dringend"
+          value={urgentTickets.length}
+          description="Tickets mit erhöhter Priorität"
+          icon="⚡"
+          tone="orange"
+        />
 
-        <Link href="/news">
-          <StatCard
-            label="News"
-            value={newsPosts.length}
-            description={`${pinnedNews.length} fixiert`}
-            icon="📰"
-            tone="green"
-          />
-        </Link>
+        <StatCard
+          label="News"
+          value={newsPosts.length}
+          description={`${pinnedNews.length} fixiert`}
+          icon="📰"
+          tone="indigo"
+        />
 
-        {isAdmin ? (
-          <Link href="/admin/users">
-            <StatCard
-              label="Benutzer"
-              value={activeUsers.length}
-              description={`${users.length} insgesamt`}
-              icon="👥"
-              tone="indigo"
-            />
-          </Link>
+        {userIsAdmin ? (
+          <StatCard
+            label="Benutzer"
+            value={activeUsers.length}
+            description={`${users.length} insgesamt`}
+            icon="👥"
+            tone="purple"
+          />
         ) : (
-          <Link href="/wiki">
-            <StatCard
-              label="Wissen"
-              value={companies.length + departments.length}
-              description="Organisationsbereiche"
-              icon="📚"
-              tone="indigo"
-            />
-          </Link>
+          <StatCard
+            label="Organisation"
+            value={companies.length + departments.length}
+            description="Firmen & Abteilungen"
+            icon="🏢"
+            tone="purple"
+          />
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        <section className="xl:col-span-2 bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm xl:col-span-2">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold">
+              <h2 className="text-2xl font-bold">
                 Schnellzugriff
               </h2>
-
               <p className="text-zinc-500 mt-1">
                 Häufige Bereiche direkt öffnen.
               </p>
             </div>
+
+            <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+              {quickLinks.length} Bereiche
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-            {visibleQuickLinks.map(
-              (item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="border border-zinc-200 rounded-3xl p-6 hover:bg-zinc-50 transition"
-                >
-                  <div className="text-3xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {quickLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group relative overflow-hidden border border-zinc-200 bg-white rounded-3xl p-5 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+              >
+                <div className="absolute -right-12 -top-12 h-28 w-28 rounded-full app-accent-bg opacity-10 blur-2xl" />
+
+                <div className="relative flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl shrink-0">
                     {item.icon}
                   </div>
 
-                  <h3 className="text-xl font-semibold mt-4">
-                    {item.title}
-                  </h3>
-
-                  <p className="text-zinc-500 mt-2">
-                    {item.description}
-                  </p>
-                </Link>
-              )
-            )}
+                  <div>
+                    <h3 className="font-black text-zinc-950 group-hover:app-accent-text transition">
+                      {item.title}
+                    </h3>
+                    <p className="text-sm text-zinc-500 mt-2">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold">
-            Ticket-Fortschritt
-          </h2>
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-bold">
+                Ticket-Fortschritt
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Geschlossene Tickets im Verhältnis zu allen Tickets.
+              </p>
+            </div>
 
-          <p className="text-zinc-500 mt-1">
-            Verhältnis aus geschlossenen zu allen Tickets.
-          </p>
+            <span className="rounded-full app-accent-bg text-white px-3 py-1 text-xs font-black app-brand-shadow">
+              {ticketCompletionPercent}%
+            </span>
+          </div>
 
-          <div className="mt-8">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-5xl font-bold tracking-tight">
-                  {ticketCompletionPercent}%
+          <div className="mt-7">
+            <div className="h-3 rounded-full bg-zinc-100 overflow-hidden">
+              <div
+                className="h-full rounded-full app-accent-bg"
+                style={{
+                  width: `${ticketCompletionPercent}%`,
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Geschlossen
                 </p>
-
-                <p className="text-zinc-500 mt-2">
-                  abgeschlossen
+                <p className="text-2xl font-black mt-1">
+                  {closedTickets.length}
                 </p>
               </div>
 
-              <div className="text-right text-sm text-zinc-500">
-                <p>
-                  Geschlossen
-                </p>
-
-                <p className="font-semibold text-zinc-900">
-                  {closedTickets.length}
-                </p>
-
-                <p className="mt-2">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Gesamt
                 </p>
-
-                <p className="font-semibold text-zinc-900">
+                <p className="text-2xl font-black mt-1">
                   {tickets.length}
                 </p>
               </div>
             </div>
-
-            <div className="h-3 bg-zinc-100 rounded-full overflow-hidden mt-6">
-              <div
-                className="h-full bg-zinc-900 rounded-full transition-all"
-                style={{
-                  width:
-                    `${ticketCompletionPercent}%`,
-                }}
-              />
-            </div>
           </div>
 
-          <div className="mt-8 rounded-2xl bg-zinc-50 p-5">
-            <p className="text-sm text-zinc-500">
-              Datenbank
-            </p>
+          <div className="mt-6 border-t border-zinc-100 pt-5 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Firmen
+              </span>
+              <span className="font-bold">
+                {companies.length}
+              </span>
+            </div>
 
-            <p className="font-semibold mt-1">
-              {health?.ok
-                ? "Online"
-                : "Unbekannt"}
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Abteilungen
+              </span>
+              <span className="font-bold">
+                {departments.length}
+              </span>
+            </div>
 
-            <p className="text-sm text-zinc-500 mt-1">
-              {health?.database ||
-                "PostgreSQL"}
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">
+                Datenbank
+              </span>
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${getHealthClass(
+                  health,
+                )}`}
+              >
+                {getHealthLabel(health)}
+              </span>
+            </div>
           </div>
         </section>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold">
+              <h2 className="text-2xl font-bold">
                 Deine Tickets
               </h2>
-
               <p className="text-zinc-500 mt-1">
                 Tickets, die dir zugeordnet sind oder von dir erstellt wurden.
               </p>
@@ -893,66 +600,66 @@ export default function DashboardPage() {
 
             <Link
               href="/tickets"
-              className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
+              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
             >
               Alle Tickets
             </Link>
           </div>
 
-          <div className="space-y-4 mt-6">
-            {myTickets.length === 0 && (
-              <p className="text-zinc-500">
+          {myTickets.length === 0 && (
+            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
+              <h3 className="font-bold">
                 Aktuell keine direkt zugeordneten Tickets.
+              </h3>
+              <p className="text-zinc-500 mt-2">
+                Neue oder zugewiesene Tickets erscheinen hier automatisch.
               </p>
-            )}
+            </div>
+          )}
 
-            {myTickets
-              .slice(
-                0,
-                5
-              )
-              .map(
-                (ticket) => (
-                  <Link
-                    key={ticket.id}
-                    href={`/tickets/${ticket.id}`}
-                    className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+          <div className="space-y-3">
+            {myTickets.slice(0, 5).map((ticket) => (
+              <Link
+                key={ticket.id}
+                href={`/tickets/${ticket.id}`}
+                className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
+              >
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(
+                      ticket.status,
+                    )}`}
                   >
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
-                        {getTicketStatusLabel(
-                          ticket.status
-                        )}
-                      </span>
+                    {getTicketStatusLabel(ticket.status)}
+                  </span>
 
-                      <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
-                        {getTicketPriorityLabel(
-                          ticket.priority
-                        )}
-                      </span>
-                    </div>
+                  <span
+                    className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(
+                      ticket.priority,
+                    )}`}
+                  >
+                    {getTicketPriorityLabel(ticket.priority)}
+                  </span>
+                </div>
 
-                    <h3 className="font-semibold mt-3">
-                      #{ticket.id} · {ticket.title}
-                    </h3>
+                <h3 className="font-black mt-3 line-clamp-1">
+                  #{ticket.id} · {ticket.title}
+                </h3>
 
-                    <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
-                      {ticket.description ||
-                        "Keine Beschreibung vorhanden."}
-                    </p>
-                  </Link>
-                )
-              )}
+                <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
+                  {ticket.description || "Keine Beschreibung vorhanden."}
+                </p>
+              </Link>
+            ))}
           </div>
         </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold">
+              <h2 className="text-2xl font-bold">
                 Aktuelle News
               </h2>
-
               <p className="text-zinc-500 mt-1">
                 Wichtige Meldungen und neue Beiträge.
               </p>
@@ -960,36 +667,43 @@ export default function DashboardPage() {
 
             <Link
               href="/news"
-              className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
+              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
             >
               Alle News
             </Link>
           </div>
 
-          <div className="space-y-4 mt-6">
-            {latestNews.length === 0 && (
-              <p className="text-zinc-500">
+          {latestNews.length === 0 && (
+            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
+              <h3 className="font-bold">
                 Noch keine News vorhanden.
+              </h3>
+              <p className="text-zinc-500 mt-2">
+                Neue interne Beiträge erscheinen hier.
               </p>
-            )}
+            </div>
+          )}
 
-            {latestNews.map(
-              (post) => (
+          <div className="space-y-3">
+            {latestNews.map((post) => {
+              const category = getPostCategory(post);
+
+              return (
                 <Link
                   key={post.id}
                   href={`/news/${post.id}`}
-                  className="block border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
+                  className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
                 >
                   <div className="flex flex-wrap gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
-                      String(
-                        post.category ||
-                          "Allgemein"
-                      )
-                    )}`}>
-                      {post.category ||
-                        "Allgemein"}
-                    </span>
+                    {category && (
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
+                          category,
+                        )}`}
+                      >
+                        {category}
+                      </span>
+                    )}
 
                     {post.pinned && (
                       <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
@@ -998,28 +712,26 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  <h3 className="font-semibold mt-3">
+                  <h3 className="font-black mt-3 line-clamp-1">
                     {post.title}
                   </h3>
 
-                  <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
-                    {post.description ||
-                      "Keine Beschreibung vorhanden."}
+                  <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
+                    {post.description || "Keine Beschreibung vorhanden."}
                   </p>
                 </Link>
-              )
-            )}
+              );
+            })}
           </div>
         </section>
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
           <div>
-            <h2 className="text-2xl font-semibold">
+            <h2 className="text-2xl font-bold">
               Letzte Tickets
             </h2>
-
             <p className="text-zinc-500 mt-1">
               Neueste Tickets im System.
             </p>
@@ -1027,54 +739,57 @@ export default function DashboardPage() {
 
           <Link
             href="/tickets"
-            className="bg-zinc-100 px-4 py-2 rounded-xl hover:bg-zinc-200 transition text-sm"
+            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition font-bold"
           >
             Tickets öffnen
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
-          {latestTickets.length === 0 && (
-            <p className="text-zinc-500">
+        {latestTickets.length === 0 && (
+          <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
+            <h3 className="font-bold">
               Noch keine Tickets vorhanden.
+            </h3>
+            <p className="text-zinc-500 mt-2">
+              Neue Tickets erscheinen hier automatisch.
             </p>
-          )}
+          </div>
+        )}
 
-          {latestTickets.map(
-            (ticket) => (
-              <Link
-                key={ticket.id}
-                href={`/tickets/${ticket.id}`}
-                className="border border-zinc-200 rounded-2xl p-5 hover:bg-zinc-50 transition"
-              >
-                <div className="flex flex-wrap gap-2">
-                  <span className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}>
-                    {getTicketStatusLabel(
-                      ticket.status
-                    )}
-                  </span>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {latestTickets.map((ticket) => (
+            <Link
+              key={ticket.id}
+              href={`/tickets/${ticket.id}`}
+              className="border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
+            >
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(
+                    ticket.status,
+                  )}`}
+                >
+                  {getTicketStatusLabel(ticket.status)}
+                </span>
 
-                  <span className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}>
-                    {getTicketPriorityLabel(
-                      ticket.priority
-                    )}
-                  </span>
-                </div>
+                <span
+                  className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(
+                    ticket.priority,
+                  )}`}
+                >
+                  {getTicketPriorityLabel(ticket.priority)}
+                </span>
+              </div>
 
-                <h3 className="font-semibold mt-3">
-                  #{ticket.id} · {ticket.title}
-                </h3>
+              <h3 className="font-black mt-3 line-clamp-1">
+                #{ticket.id} · {ticket.title}
+              </h3>
 
-                <p className="text-sm text-zinc-500 mt-2">
-                  {ticket.company ||
-                    "Intern"}{" "}
-                  ·{" "}
-                  {ticket.department ||
-                    "Allgemein"}
-                </p>
-              </Link>
-            )
-          )}
+              <p className="text-sm text-zinc-500 mt-2">
+                {ticket.company || "Intern"} · {ticket.department || "Keine Abteilung"}
+              </p>
+            </Link>
+          ))}
         </div>
       </section>
     </div>

@@ -2,32 +2,28 @@ import type {
   UserSettings,
   UserSettingsUpdateInput,
 } from "../types/userSettings";
-
 import type {
   AppAccentColor,
   AppTheme,
 } from "../types/settings";
 
 const defaultUserSettings: UserSettings = {
-  userId:
-    "",
-
-  theme:
-    "modern",
-
-  accentColor:
-    "zinc",
-
-  compactMode:
-    false,
-
-  updatedAt:
-    "",
+  userId: "",
+  theme: "modern",
+  accentColor: "velunis",
+  compactMode: false,
+  updatedAt: "",
 };
 
-function normalizeTheme(
-  value: unknown
-): AppTheme {
+function dispatchUserSettingsUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event("userSettingsUpdated"));
+}
+
+function normalizeTheme(value: unknown): AppTheme {
   if (value === "light") {
     return "light";
   }
@@ -43,9 +39,11 @@ function normalizeTheme(
   return "modern";
 }
 
-function normalizeAccentColor(
-  value: unknown
-): AppAccentColor {
+function normalizeAccentColor(value: unknown): AppAccentColor {
+  if (value === "velunis") {
+    return "velunis";
+  }
+
   if (value === "blue") {
     return "blue";
   }
@@ -81,47 +79,21 @@ function normalizeAccentColor(
   return "zinc";
 }
 
-function mapUserSettings(
-  value: Partial<UserSettings>
-): UserSettings {
+function mapUserSettings(value: Partial<UserSettings>): UserSettings {
   return {
-    userId:
-      String(
-        value.userId ||
-          ""
-      ),
-
-    theme:
-      normalizeTheme(
-        value.theme
-      ),
-
-    accentColor:
-      normalizeAccentColor(
-        value.accentColor
-      ),
-
-    compactMode:
-      Boolean(
-        value.compactMode
-      ),
-
-    updatedAt:
-      String(
-        value.updatedAt ||
-          ""
-      ),
+    userId: String(value.userId || ""),
+    theme: normalizeTheme(value.theme),
+    accentColor: normalizeAccentColor(value.accentColor),
+    compactMode: Boolean(value.compactMode),
+    updatedAt: String(value.updatedAt || ""),
   };
 }
 
 async function parseResponse<T>(
   response: Response,
-  fallbackMessage: string
+  fallbackMessage: string,
 ): Promise<T> {
-  const data =
-    await response.json().catch(
-      () => null
-    );
+  const data = await response.json().catch(() => null);
 
   if (!response.ok) {
     const message =
@@ -129,9 +101,7 @@ async function parseResponse<T>(
         ? data.message
         : fallbackMessage;
 
-    throw new Error(
-      message
-    );
+    throw new Error(message);
   }
 
   return data as T;
@@ -145,65 +115,41 @@ export const userSettingsRepository = {
   },
 
   async get() {
-    const response =
-      await fetch(
-        "/api/user-settings",
-        {
-          method:
-            "GET",
+    const response = await fetch("/api/user-settings", {
+      method: "GET",
+      cache: "no-store",
+    });
 
-          cache:
-            "no-store",
-        }
-      );
-
-    const data =
-      await parseResponse<Partial<UserSettings>>(
-        response,
-        "Benutzereinstellungen konnten nicht geladen werden."
-      );
-
-    return mapUserSettings(
-      data
+    const data = await parseResponse<Partial<UserSettings>>(
+      response,
+      "Benutzereinstellungen konnten nicht geladen werden.",
     );
+
+    return mapUserSettings(data);
   },
 
-  async update(
-    input: UserSettingsUpdateInput
-  ) {
-    const response =
-      await fetch(
-        "/api/user-settings",
-        {
-          method:
-            "PATCH",
+  async update(input: UserSettingsUpdateInput) {
+    const response = await fetch("/api/user-settings", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    });
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify(
-              input
-            ),
-        }
-      );
-
-    const data =
-      await parseResponse<Partial<UserSettings>>(
-        response,
-        "Benutzereinstellungen konnten nicht gespeichert werden."
-      );
-
-    return mapUserSettings(
-      data
+    const data = await parseResponse<Partial<UserSettings>>(
+      response,
+      "Benutzereinstellungen konnten nicht gespeichert werden.",
     );
+
+    const updatedSettings = mapUserSettings(data);
+
+    dispatchUserSettingsUpdated();
+
+    return updatedSettings;
   },
 
-  getThemeLabel(
-    theme: AppTheme
-  ) {
+  getThemeLabel(theme: AppTheme) {
     if (theme === "light") {
       return "Hell";
     }
@@ -219,9 +165,11 @@ export const userSettingsRepository = {
     return "Modern";
   },
 
-  getAccentColorLabel(
-    accentColor: AppAccentColor
-  ) {
+  getAccentColorLabel(accentColor: AppAccentColor) {
+    if (accentColor === "velunis") {
+      return "Velunis Blau/Lila";
+    }
+
     if (accentColor === "blue") {
       return "Blau";
     }

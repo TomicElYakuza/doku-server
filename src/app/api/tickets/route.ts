@@ -1,6 +1,7 @@
 import {
   NextResponse,
 } from "next/server";
+
 import {
   query,
   queryOne,
@@ -32,8 +33,78 @@ type CreateTicketBody = {
   tags?: string[];
 };
 
-function normalizeText(value?: string | null) {
+const allowedStatusValues = [
+  "open",
+  "in_progress",
+  "waiting",
+  "done",
+  "closed",
+];
+
+const allowedPriorityValues = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : fallback;
+}
+
+function normalizeText(value?: string) {
   return String(value || "").trim();
+}
+
+function normalizeNullableId(value?: string) {
+  const normalized = normalizeText(value);
+
+  return normalized || null;
+}
+
+function normalizeStatus(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "open";
+  }
+
+  if (!allowedStatusValues.includes(normalized)) {
+    return "open";
+  }
+
+  return normalized;
+}
+
+function normalizePriority(value?: string) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return "medium";
+  }
+
+  if (!allowedPriorityValues.includes(normalized)) {
+    return "medium";
+  }
+
+  return normalized;
 }
 
 function normalizeTags(tags?: string[]) {
@@ -50,38 +121,7 @@ function normalizeTags(tags?: string[]) {
   );
 }
 
-function getErrorStatus(
-  error: unknown,
-) {
-  if (
-    isPermissionError(
-      error,
-    )
-  ) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
-  if (
-    isPermissionError(
-      error,
-    )
-  ) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error ? error.message : fallback;
-}
-
-export async function GET(
-  request: Request,
-) {
+export async function GET(request: Request) {
   try {
     await requireAnyServerPermission([
       "tickets.view",
@@ -106,16 +146,14 @@ export async function GET(
       );
     }
 
-    const url = new URL(
-      request.url,
-    );
+    const url = new URL(request.url);
 
     const status = url.searchParams.get("status");
     const priority = url.searchParams.get("priority");
-    const companyId = url.searchParams.get("companyId");
-    const departmentId = url.searchParams.get("departmentId");
     const category = url.searchParams.get("category");
     const tag = url.searchParams.get("tag");
+    const companyId = url.searchParams.get("companyId");
+    const departmentId = url.searchParams.get("departmentId");
 
     const params: unknown[] = [];
     const whereParts: string[] = [];
@@ -130,16 +168,6 @@ export async function GET(
       whereParts.push(`priority = $${params.length}`);
     }
 
-    if (companyId) {
-      params.push(companyId);
-      whereParts.push(`company_id = $${params.length}`);
-    }
-
-    if (departmentId) {
-      params.push(departmentId);
-      whereParts.push(`department_id = $${params.length}`);
-    }
-
     if (category) {
       params.push(category);
       whereParts.push(`category = $${params.length}`);
@@ -148,6 +176,16 @@ export async function GET(
     if (tag) {
       params.push(tag);
       whereParts.push(`$${params.length} = ANY(tags)`);
+    }
+
+    if (companyId) {
+      params.push(companyId);
+      whereParts.push(`company_id = $${params.length}`);
+    }
+
+    if (departmentId) {
+      params.push(departmentId);
+      whereParts.push(`department_id = $${params.length}`);
     }
 
     if (currentUser.role !== "admin") {
@@ -162,9 +200,10 @@ export async function GET(
       }
     }
 
-    const whereSql = whereParts.length > 0
-      ? `WHERE ${whereParts.join(" AND ")}`
-      : "";
+    const whereSql =
+      whereParts.length > 0
+        ? `WHERE ${whereParts.join(" AND ")}`
+        : "";
 
     const rows = await query<TicketRow>(
       `
@@ -191,13 +230,9 @@ export async function GET(
       params,
     );
 
-    return NextResponse.json(
-      rows.map(mapTicketRow),
-    );
+    return NextResponse.json(rows.map(mapTicketRow));
   } catch (error) {
-    console.error(
-      error,
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
@@ -205,20 +240,19 @@ export async function GET(
           error,
           "Tickets konnten nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
-        status: getErrorStatus(
-          error,
-        ),
+        status: getErrorStatus(error),
       },
     );
   }
 }
 
-export async function POST(
-  request: Request,
-) {
+export async function POST(request: Request) {
   try {
     await requireAnyServerPermission([
       "tickets.create",
@@ -238,10 +272,15 @@ export async function POST(
       );
     }
 
-    const body = await request.json() as CreateTicketBody;
+    const body = (await request.json()) as CreateTicketBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
+    const description = normalizeText(body.description);
+    const status = normalizeStatus(body.status);
+    const priority = normalizePriority(body.priority);
+    const assignedTo = normalizeText(body.assignedTo);
+    const tags = normalizeTags(body.tags);
 
     if (!title) {
       return NextResponse.json(
@@ -257,7 +296,7 @@ export async function POST(
     if (!category) {
       return NextResponse.json(
         {
-          message: "Ticket-Kategorie ist erforderlich.",
+          message: "Kategorie ist erforderlich.",
         },
         {
           status: 400,
@@ -268,11 +307,11 @@ export async function POST(
     const canChooseScope = currentUser.role === "admin";
 
     const companyId = canChooseScope
-      ? normalizeText(body.companyId) || null
+      ? normalizeNullableId(body.companyId)
       : currentUser.companyId || null;
 
     const departmentId = canChooseScope
-      ? normalizeText(body.departmentId) || null
+      ? normalizeNullableId(body.departmentId)
       : currentUser.departmentId || null;
 
     const company = canChooseScope
@@ -280,8 +319,13 @@ export async function POST(
       : currentUser.company || "Intern";
 
     const department = canChooseScope
-      ? normalizeText(body.department) || currentUser.department || "Allgemein"
-      : currentUser.department || "Allgemein";
+      ? normalizeText(body.department)
+      : currentUser.department || "";
+
+    const createdBy =
+      normalizeText(body.createdBy) ||
+      currentUser.name ||
+      "System";
 
     const row = await queryOne<TicketRow>(
       `
@@ -332,17 +376,17 @@ export async function POST(
       `,
       [
         title,
-        normalizeText(body.description),
-        body.status || "open",
-        body.priority || "medium",
+        description,
+        status,
+        priority,
         category,
         companyId,
         departmentId,
         company,
         department,
-        normalizeText(body.assignedTo),
-        normalizeText(body.createdBy) || currentUser.name || "System",
-        normalizeTags(body.tags),
+        assignedTo,
+        createdBy,
+        tags,
       ],
     );
 
@@ -364,9 +408,7 @@ export async function POST(
       },
     );
   } catch (error) {
-    console.error(
-      error,
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
@@ -374,12 +416,13 @@ export async function POST(
           error,
           "Ticket konnte nicht erstellt werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
-        status: getErrorStatus(
-          error,
-        ),
+        status: getErrorStatus(error),
       },
     );
   }

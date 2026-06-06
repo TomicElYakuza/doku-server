@@ -240,7 +240,7 @@ export default function TicketsPage() {
   const [companyId, setCompanyId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [company, setCompany] = useState("Intern");
-  const [department, setDepartment] = useState("Allgemein");
+  const [department, setDepartment] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [createdBy, setCreatedBy] = useState("System");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -409,12 +409,12 @@ export default function TicketsPage() {
 
   function getDepartmentName(nextDepartmentId?: string) {
     if (!nextDepartmentId) {
-      return "Allgemein";
+      return "";
     }
 
     return (
       departments.find((nextDepartment) => nextDepartment.id === nextDepartmentId)?.name ||
-      "Allgemein"
+      ""
     );
   }
 
@@ -604,7 +604,7 @@ export default function TicketsPage() {
     setCompanyId(user?.companyId || "");
     setDepartmentId(user?.departmentId || "");
     setCompany(user?.company || "Intern");
-    setDepartment(user?.department || "Allgemein");
+    setDepartment(user?.department || "");
     setAssignedTo("");
     setCreatedBy(user?.name || "System");
     setSelectedTags([]);
@@ -632,7 +632,7 @@ export default function TicketsPage() {
       setCompanyId(firstCompany?.id || "");
       setDepartmentId(firstDepartment?.id || "");
       setCompany(firstCompany?.name || "Intern");
-      setDepartment(firstDepartment?.name || "Allgemein");
+      setDepartment(firstDepartment?.name || "");
     }
 
     setModalOpen(true);
@@ -671,7 +671,7 @@ export default function TicketsPage() {
     setCompanyId(nextCompanyId);
     setDepartmentId(firstDepartment?.id || "");
     setCompany(selectedCompany?.name || "Intern");
-    setDepartment(firstDepartment?.name || "Allgemein");
+    setDepartment(firstDepartment?.name || "");
   }
 
   function handleDepartmentChange(nextDepartmentId: string) {
@@ -680,7 +680,7 @@ export default function TicketsPage() {
     );
 
     setDepartmentId(nextDepartmentId);
-    setDepartment(selectedDepartment?.name || "Allgemein");
+    setDepartment(selectedDepartment?.name || "");
   }
 
   function toggleTag(tag: string) {
