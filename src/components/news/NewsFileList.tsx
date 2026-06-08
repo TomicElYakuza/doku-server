@@ -62,24 +62,63 @@ function getFileIcon(type?: string) {
     normalizedType.includes("word") ||
     normalizedType.includes("document")
   ) {
-    return "📘";
+    return "📄";
   }
 
   if (
     normalizedType.includes("excel") ||
     normalizedType.includes("spreadsheet")
   ) {
-    return "📗";
+    return "📊";
   }
 
   if (
     normalizedType.includes("zip") ||
     normalizedType.includes("compressed")
   ) {
-    return "🗜️";
+    return "📦";
   }
 
-  return "📄";
+  return "📎";
+}
+
+function getFileTypeLabel(type?: string) {
+  const normalizedType = String(type || "").toLowerCase();
+
+  if (!normalizedType) {
+    return "Datei";
+  }
+
+  if (normalizedType.includes("pdf")) {
+    return "PDF";
+  }
+
+  if (normalizedType.includes("image")) {
+    return "Bild";
+  }
+
+  if (
+    normalizedType.includes("word") ||
+    normalizedType.includes("document")
+  ) {
+    return "Dokument";
+  }
+
+  if (
+    normalizedType.includes("excel") ||
+    normalizedType.includes("spreadsheet")
+  ) {
+    return "Tabelle";
+  }
+
+  if (
+    normalizedType.includes("zip") ||
+    normalizedType.includes("compressed")
+  ) {
+    return "Archiv";
+  }
+
+  return type || "Datei";
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -160,7 +199,9 @@ export default function NewsFileList({
     }
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
     if (!editable) {
       alert("Du hast keine Berechtigung, Dateien hochzuladen.");
       return;
@@ -289,6 +330,7 @@ export default function NewsFileList({
             <h2 className="text-2xl font-black">
               Dateien
             </h2>
+
             <p className="text-zinc-500 mt-1">
               Anhänge, Dokumente und Dateien zu dieser News.
             </p>
@@ -300,8 +342,8 @@ export default function NewsFileList({
         </div>
 
         {editable && (
-          <div className="border border-dashed border-zinc-300 rounded-3xl p-5 bg-zinc-50 mt-6">
-            <label className="block mb-2 font-bold">
+          <div className="mt-6 border border-dashed border-zinc-300 rounded-3xl p-5 bg-zinc-50">
+            <label className="block font-black mb-2">
               Dateien hochladen
             </label>
 
@@ -310,34 +352,35 @@ export default function NewsFileList({
               multiple
               onChange={(event) => void handleFileChange(event)}
               disabled={uploading}
-              className="w-full border border-dashed border-zinc-300 rounded-2xl px-5 py-4 bg-white disabled:opacity-50"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 bg-white outline-none app-focus disabled:opacity-50"
             />
 
             {uploading && (
-              <div className="mt-4 app-accent-soft app-accent-text rounded-2xl p-4 font-medium">
+              <div className="mt-4 app-accent-soft app-accent-text rounded-2xl px-4 py-3 text-sm font-bold">
                 Upload läuft...
               </div>
             )}
           </div>
         )}
 
-        <div className="space-y-4 mt-8">
+        <div className="space-y-4 mt-6">
           {loading && (
-            <div className="bg-zinc-50 rounded-2xl p-5 text-zinc-500">
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-zinc-500">
               Dateien werden geladen...
             </div>
           )}
 
           {!loading && files.length === 0 && (
-            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-              <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
-                📎
+            <div className="text-center bg-zinc-50 border border-zinc-200 rounded-3xl p-8">
+              <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
+                📁
               </div>
 
-              <p className="font-black mt-4">
+              <h3 className="font-black text-zinc-950 mt-4">
                 Noch keine Dateien
-              </p>
-              <p className="text-zinc-500 mt-1">
+              </h3>
+
+              <p className="text-zinc-500 mt-2">
                 Anhänge erscheinen hier, sobald sie hochgeladen werden.
               </p>
             </div>
@@ -350,18 +393,20 @@ export default function NewsFileList({
             >
               <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
                 <div className="flex items-start gap-4 min-w-0">
-                  <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl shrink-0">
+                  <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl shrink-0">
                     {getFileIcon(file.type)}
                   </div>
 
                   <div className="min-w-0">
-                    <p className="font-black text-zinc-950 break-all">
+                    <h3 className="font-black text-zinc-950 break-words">
                       {file.name}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500 mt-1 break-all">
+                      {formatFileSize(file.size)} · {getFileTypeLabel(file.type)}
                     </p>
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {formatFileSize(file.size)} · {file.type || "application/octet-stream"}
-                    </p>
-                    <p className="text-xs text-zinc-400 mt-1">
+
+                    <p className="text-xs text-zinc-400 mt-2">
                       {file.uploadedAt || "-"} · {file.uploadedBy || "System"}
                     </p>
                   </div>
@@ -401,4 +446,3 @@ export default function NewsFileList({
     </section>
   );
 }
-

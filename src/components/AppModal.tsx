@@ -3,62 +3,66 @@
 import {
   ReactNode,
   useEffect,
+  useId,
 } from "react";
-
-type AppModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 type AppModalProps = {
   open: boolean;
-  onClose: () => void;
   title: string;
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: AppModalSize;
-  maxWidth?: string;
+  maxWidth?: "md" | "lg" | "xl" | "2xl" | "3xl" | "5xl" | "6xl";
+  size?: "md" | "lg" | "xl" | "2xl" | "3xl" | "5xl" | "6xl";
+  onClose: () => void;
 };
 
-function getSizeClass(size: AppModalSize) {
-  if (size === "sm") {
+function getMaxWidthClass(maxWidth: AppModalProps["maxWidth"]) {
+  if (maxWidth === "md") {
+    return "max-w-md";
+  }
+
+  if (maxWidth === "lg") {
+    return "max-w-lg";
+  }
+
+  if (maxWidth === "xl") {
     return "max-w-xl";
   }
 
-  if (size === "md") {
+  if (maxWidth === "2xl") {
     return "max-w-2xl";
   }
 
-  if (size === "lg") {
-    return "max-w-4xl";
+  if (maxWidth === "3xl") {
+    return "max-w-3xl";
   }
 
-  if (size === "2xl") {
+  if (maxWidth === "5xl") {
+    return "max-w-5xl";
+  }
+
+  if (maxWidth === "6xl") {
     return "max-w-6xl";
   }
 
-  return "max-w-5xl";
-}
-
-function getModalWidthClass(
-  size: AppModalSize,
-  maxWidth?: string,
-) {
-  if (maxWidth) {
-    return maxWidth;
-  }
-
-  return getSizeClass(size);
+  return "max-w-3xl";
 }
 
 export default function AppModal({
   open,
-  onClose,
   title,
   description,
   children,
   footer,
-  size = "xl",
   maxWidth,
+  size,
+  onClose,
 }: AppModalProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const resolvedMaxWidth = maxWidth || size || "3xl";
+
   useEffect(() => {
     if (!open) {
       return;
@@ -71,11 +75,13 @@ export default function AppModal({
     }
 
     document.addEventListener("keydown", handleKeyDown);
+
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
     };
   }, [
     open,
@@ -87,38 +93,41 @@ export default function AppModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
-      <button
-        type="button"
-        aria-label="Modal schließen"
-        onClick={onClose}
-        className="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm"
-      />
-
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-950/55 backdrop-blur-sm p-0 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
+      onMouseDown={onClose}
+    >
       <section
-        role="dialog"
-        aria-modal="true"
-        className={`relative w-full ${getModalWidthClass(
-          size,
-          maxWidth,
-        )} max-h-[90vh] overflow-hidden rounded-[2rem] bg-white border border-white/60 shadow-2xl`}
+        className={`bg-white w-full ${getMaxWidthClass(
+          resolvedMaxWidth,
+        )} max-h-[92vh] sm:max-h-[88vh] overflow-hidden rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl border border-zinc-200`}
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="relative overflow-hidden app-accent-bg text-white px-6 py-6 md:px-8">
+        <header className="relative overflow-hidden app-accent-bg text-white p-6">
           <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute -left-20 -bottom-20 h-44 w-44 rounded-full bg-white/10 blur-3xl" />
 
           <div className="relative flex items-start justify-between gap-5">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-white/55 font-black">
-                Dialog
+            <div className="min-w-0">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-white/65">
+                Formular
               </p>
 
-              <h2 className="text-2xl md:text-3xl font-black tracking-[-0.03em] mt-2">
+              <h2
+                id={titleId}
+                className="text-2xl xl:text-3xl font-black tracking-[-0.05em] mt-2"
+              >
                 {title}
               </h2>
 
               {description && (
-                <p className="text-white/70 mt-2 leading-7">
+                <p
+                  id={descriptionId}
+                  className="text-white/70 leading-7 mt-2 max-w-3xl"
+                >
                   {description}
                 </p>
               )}
@@ -127,27 +136,24 @@ export default function AppModal({
             <button
               type="button"
               onClick={onClose}
-              className="h-11 w-11 rounded-2xl bg-white/10 border border-white/10 hover:bg-white/20 transition flex items-center justify-center text-xl shrink-0"
-              aria-label="Schließen"
+              className="h-11 w-11 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 transition flex items-center justify-center font-black shrink-0"
+              aria-label="Modal schließen"
             >
-              ×
+              ✕
             </button>
           </div>
-        </div>
+        </header>
 
-        <div className="max-h-[calc(90vh-190px)] overflow-y-auto px-6 py-6 md:px-8 bg-white">
+        <div className="max-h-[calc(92vh-190px)] sm:max-h-[calc(88vh-210px)] overflow-y-auto p-6">
           {children}
         </div>
 
         {footer && (
-          <div className="border-t border-zinc-100 bg-zinc-50 px-6 py-5 md:px-8">
-            <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-3">
-              {footer}
-            </div>
-          </div>
+          <footer className="bg-zinc-50 border-t border-zinc-200 p-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+            {footer}
+          </footer>
         )}
       </section>
     </div>
   );
 }
-

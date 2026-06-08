@@ -19,6 +19,18 @@ type CommentsProps = {
   pageSlug: string;
 };
 
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    return new Date(value).toLocaleString("de-AT");
+  } catch {
+    return value;
+  }
+}
+
 export default function Comments({
   pageSlug,
 }: CommentsProps) {
@@ -175,6 +187,7 @@ export default function Comments({
             <h2 className="text-2xl font-black">
               Kommentare
             </h2>
+
             <p className="text-zinc-500 mt-1">
               Diskussion und Hinweise zu dieser Wiki-Seite.
             </p>
@@ -185,16 +198,12 @@ export default function Comments({
           </span>
         </div>
 
-        <div className="mt-6 bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-          <label className="block mb-2 font-bold">
-            Neuer Kommentar
-          </label>
-
+        <div className="mt-6">
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
             rows={4}
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none bg-white"
+            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
             placeholder="Kommentar schreiben..."
           />
 
@@ -210,22 +219,23 @@ export default function Comments({
 
         <div className="space-y-4 mt-8">
           {loading && (
-            <div className="bg-zinc-50 rounded-2xl p-5 text-zinc-500">
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-zinc-500">
               Kommentare werden geladen...
             </div>
           )}
 
           {!loading && comments.length === 0 && (
-            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-              <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
+            <div className="text-center bg-zinc-50 border border-zinc-200 rounded-3xl p-8">
+              <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
                 💬
               </div>
 
-              <p className="font-black mt-4">
+              <h3 className="font-black text-zinc-950 mt-4">
                 Noch keine Kommentare
-              </p>
-              <p className="text-zinc-500 mt-1">
-                Hinweise und Diskussionen erscheinen hier.
+              </h3>
+
+              <p className="text-zinc-500 mt-2">
+                Hinweise und Rückfragen erscheinen hier.
               </p>
             </div>
           )}
@@ -236,18 +246,21 @@ export default function Comments({
               className="border border-zinc-200 rounded-3xl p-5 bg-white hover:border-indigo-200 transition"
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="h-11 w-11 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center font-black shrink-0">
-                    {(comment.author || "S").charAt(0).toUpperCase()}
-                  </div>
+                <div className="min-w-0">
+                  <div className="flex items-start gap-3">
+                    <div className="h-11 w-11 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center font-black shrink-0">
+                      {(comment.author || "S").slice(0, 1).toUpperCase()}
+                    </div>
 
-                  <div className="min-w-0">
-                    <p className="font-black text-zinc-950">
-                      {comment.author || "System"}
-                    </p>
-                    <p className="text-sm text-zinc-400 mt-1">
-                      {comment.createdAt || "-"}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="font-black text-zinc-950">
+                        {comment.author || "System"}
+                      </p>
+
+                      <p className="text-sm text-zinc-400 mt-1">
+                        {formatDate(comment.createdAt)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -260,7 +273,7 @@ export default function Comments({
                 </button>
               </div>
 
-              <p className="text-zinc-700 mt-4 whitespace-pre-wrap leading-7">
+              <p className="text-zinc-700 mt-5 whitespace-pre-wrap leading-7">
                 {comment.content}
               </p>
             </article>
@@ -270,4 +283,3 @@ export default function Comments({
     </section>
   );
 }
-
