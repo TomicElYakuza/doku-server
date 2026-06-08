@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -330,7 +330,7 @@ export default function NewsLandingPage() {
             )}
 
             {variant === "pinned" && (
-              <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full font-bold">
+              <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full font-bold">
                 Fixiert
               </span>
             )}
@@ -498,7 +498,7 @@ export default function NewsLandingPage() {
           label="Kategorien"
           value={categories.length}
           description="Aktive News-Bereiche"
-          icon="🗂️"
+          icon="🗂️"
           tone="purple"
         />
       </div>
@@ -588,7 +588,7 @@ export default function NewsLandingPage() {
           <button
             type="button"
             onClick={resetFilters}
-            className="mt-5 bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition font-bold"
+            className="mt-5 app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow font-bold"
           >
             Filter zurücksetzen
           </button>

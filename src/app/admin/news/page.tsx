@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -865,7 +865,7 @@ export default function AdminNewsPage() {
                     )}
 
                     {post.pinned && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full font-bold">
+                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full font-bold">
                         Fixiert
                       </span>
                     )}
@@ -911,7 +911,7 @@ export default function AdminNewsPage() {
                     <button
                       type="button"
                       onClick={() => startEditPost(post)}
-                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                      className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                     >
                       Bearbeiten
                     </button>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -706,7 +706,7 @@ export default function DashboardPage() {
                     )}
 
                     {post.pinned && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full">
                         Fixiert
                       </span>
                     )}
@@ -739,7 +739,7 @@ export default function DashboardPage() {
 
           <Link
             href="/tickets"
-            className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition font-bold"
+            className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow font-bold"
           >
             Tickets öffnen
           </Link>
@@ -795,3 +795,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

@@ -161,7 +161,7 @@ function getDatabaseErrorMessage(
   }
 
   if (databaseError.message?.includes("username")) {
-    return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungÃ¼ltig.";
+    return "Die Datenbankspalte username fehlt noch oder der Benutzername ist ungültig.";
   }
 
   return databaseError.message ||
@@ -416,7 +416,7 @@ export async function POST(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dÃ¼rfen Benutzer erstellen.",
+            "Nur Administratoren dürfen Benutzer erstellen.",
         },
         {
           status:

@@ -208,14 +208,14 @@ export default function NewsDetailPage() {
               href="/news"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
             >
-              ZurÃ¼ck zu Neuigkeiten
+              Zurück zu Neuigkeiten
             </Link>
           }
         />
 
         <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-red-700">
-            Beitrag nicht verfÃ¼gbar
+            Beitrag nicht verfügbar
           </h2>
           <p className="text-red-600 mt-2">
             {error || "Dieser Beitrag konnte nicht geladen werden."}
@@ -251,7 +251,7 @@ export default function NewsDetailPage() {
               href="/news"
               className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
             >
-              ZurÃ¼ck zu Neuigkeiten
+              Zurück zu Neuigkeiten
             </Link>
 
             {canEdit() && (
@@ -271,23 +271,23 @@ export default function NewsDetailPage() {
           label="Kategorie"
           value={postCategory || "Nicht zugeordnet"}
           description="News-Bereich"
-          icon="ðŸ“°"
+          icon="📰"
           tone="blue"
         />
 
         <StatCard
           label="Autor"
           value={getPostAuthor(post)}
-          description="VerÃ¶ffentlicht von"
-          icon="ðŸ‘¤"
+          description="Veröffentlicht von"
+          icon="👤"
           tone="indigo"
         />
 
         <StatCard
           label="Lesedauer"
           value={getReadingTime(postContent)}
-          description="GeschÃ¤tzt"
-          icon="â±ï¸"
+          description="Geschätzt"
+          icon="â±"
           tone="purple"
         />
 
@@ -295,7 +295,7 @@ export default function NewsDetailPage() {
           label="Status"
           value={post.pinned ? "Fixiert" : "Normal"}
           description={markingOpened ? "Wird markiert..." : "Gelesen erfasst"}
-          icon={post.pinned ? "ðŸ“Œ" : "âœ“"}
+          icon={post.pinned ? "📌" : "✓"}
           tone={post.pinned ? "orange" : "green"}
         />
       </div>
@@ -437,8 +437,8 @@ export default function NewsDetailPage() {
                   href="/news"
                   className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 rounded-2xl p-4 transition font-bold"
                 >
-                  <span>Zur News-Ãœbersicht</span>
-                  <span>â†’</span>
+                  <span>Zur News-Übersicht</span>
+                  <span>→</span>
                 </Link>
 
                 {canEdit() && (
@@ -447,7 +447,7 @@ export default function NewsDetailPage() {
                     className="flex items-center justify-between gap-4 app-accent-bg text-white rounded-2xl p-4 transition font-bold app-brand-shadow"
                   >
                     <span>News verwalten</span>
-                    <span>â†’</span>
+                    <span>→</span>
                   </Link>
                 )}
               </div>
@@ -463,3 +463,4 @@ export default function NewsDetailPage() {
     </div>
   );
 }
+

@@ -75,7 +75,7 @@ function createUserActivity(
     .catch(
       (error) => {
         console.error(
-          "Benutzer-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "Benutzer-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -110,8 +110,8 @@ export function saveUserDeletedActivity(
   createUserActivity(
     user,
     "deleted",
-    "Benutzer gelÃ¶scht",
-    `Benutzer "${user.name}" wurde gelÃ¶scht.`
+    "Benutzer gelöscht",
+    `Benutzer "${user.name}" wurde gelöscht.`
   );
 }
 
@@ -145,8 +145,8 @@ export function saveUserStatusChangedActivity(
   createUserActivity(
     user,
     "edited",
-    "Benutzerstatus geÃ¤ndert",
-    `Benutzer "${user.name}" wurde von "${oldStatus}" auf "${newStatus}" geÃ¤ndert.`
+    "Benutzerstatus geändert",
+    `Benutzer "${user.name}" wurde von "${oldStatus}" auf "${newStatus}" geändert.`
   );
 }
 
@@ -158,8 +158,8 @@ export function saveUserRoleChangedActivity(
   createUserActivity(
     user,
     "edited",
-    "Benutzerrolle geÃ¤ndert",
-    `Benutzer "${user.name}" wurde von "${oldRole}" auf "${newRole}" geÃ¤ndert.`
+    "Benutzerrolle geändert",
+    `Benutzer "${user.name}" wurde von "${oldRole}" auf "${newRole}" geändert.`
   );
 }
 

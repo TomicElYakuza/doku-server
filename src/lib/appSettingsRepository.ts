@@ -147,7 +147,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     }
 
     if (color === "green") {
-      return "GrÃ¼n";
+      return "Grün";
     }
 
     if (color === "amber") {

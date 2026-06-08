@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -116,7 +116,7 @@ const navigationItems: NavigationItem[] = [
   {
     href: "/admin/settings",
     label: "Systemeinstellungen",
-    icon: "⚙️",
+    icon: "⚠️",
     category: "admin",
     adminOnly: true,
   },
@@ -874,3 +874,5 @@ export default function AppShell({
     </div>
   );
 }
+
+

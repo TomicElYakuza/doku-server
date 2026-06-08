@@ -81,7 +81,7 @@ function createTicketFileActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-Datei-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "Ticket-Datei-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -134,8 +134,8 @@ export async function deleteTicketFile(
   createTicketFileActivity(
     ticket,
     "deleted",
-    "Ticket-Datei gelÃ¶scht",
-    `Datei "${fileName || "Unbenannte Datei"}" wurde von Ticket #${ticket.id} gelÃ¶scht.`,
+    "Ticket-Datei gelöscht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von Ticket #${ticket.id} gelöscht.`,
     fileName
   );
 }

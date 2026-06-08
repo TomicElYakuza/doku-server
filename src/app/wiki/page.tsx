@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -799,7 +799,7 @@ export default function WikiPageList() {
       <div className="flex flex-wrap gap-2">
         <Link
           href={getWikiHref(page.slug)}
-          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
         >
           Öffnen
         </Link>
@@ -1117,7 +1117,7 @@ export default function WikiPageList() {
           label="Kategorien"
           value={categoryOptions.length}
           description="Aus dem Admin Backend"
-          icon="🗂️"
+          icon="🗂️"
           tone="indigo"
           active={Boolean(categoryFilter)}
         />
@@ -1506,3 +1506,5 @@ export default function WikiPageList() {
     </div>
   );
 }
+
+

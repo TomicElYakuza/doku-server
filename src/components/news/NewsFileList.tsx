@@ -22,7 +22,12 @@ type NewsFileListProps = {
   editable?: boolean;
 };
 
-function getNewsFileKey(newsId: string) {
+type FileEntry = {
+  file: StoredFile;
+  index: number;
+};
+
+function getFileKey(newsId: string) {
   return `news-${newsId}`;
 }
 
@@ -101,6 +106,13 @@ export default function NewsFileList({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
+  const fileKey = useMemo(
+    () => getFileKey(newsId),
+    [
+      newsId,
+    ],
+  );
+
   useEffect(() => {
     void loadFiles();
 
@@ -120,12 +132,11 @@ export default function NewsFileList({
       );
     };
   }, [
-    newsId,
+    fileKey,
   ]);
 
   async function loadFiles() {
-    if (!newsId) {
-      setFiles([]);
+    if (!fileKey) {
       setLoading(false);
       return;
     }
@@ -133,10 +144,12 @@ export default function NewsFileList({
     try {
       setLoading(true);
 
-      const nextFiles =
-        await fileRepository.listForKey(getNewsFileKey(newsId));
+      const fileMap = await fileRepository.getAll();
+      const nextFiles = Array.isArray(fileMap[fileKey])
+        ? fileMap[fileKey]
+        : [];
 
-      setFiles(Array.isArray(nextFiles) ? nextFiles : []);
+      setFiles(nextFiles);
     } catch (error) {
       console.error(
         "News-Dateien konnten nicht geladen werden:",
@@ -146,17 +159,6 @@ export default function NewsFileList({
       setLoading(false);
     }
   }
-
-  const totalSize = useMemo(
-    () =>
-      files.reduce(
-        (sum, file) => sum + (file.size || 0),
-        0,
-      ),
-    [
-      files,
-    ],
-  );
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     if (!editable) {
@@ -177,7 +179,7 @@ export default function NewsFileList({
         const data = await readFileAsDataUrl(file);
 
         await fileRepository.addToKey(
-          getNewsFileKey(newsId),
+          fileKey,
           {
             name: file.name,
             type: file.type || "application/octet-stream",
@@ -203,6 +205,7 @@ export default function NewsFileList({
           department: "",
           metadata: {
             newsId,
+            fileKey,
             fileName: file.name,
             fileSize: file.size,
           },
@@ -224,17 +227,14 @@ export default function NewsFileList({
     }
   }
 
-  async function handleDeleteFile(
-    file: StoredFile,
-    index: number,
-  ) {
+  async function handleDeleteFile(entry: FileEntry) {
     if (!editable) {
       alert("Du hast keine Berechtigung, Dateien zu löschen.");
       return;
     }
 
     const confirmed = confirm(
-      `Datei "${file.name}" wirklich löschen?`,
+      `Datei "${entry.file.name}" wirklich löschen?`,
     );
 
     if (!confirmed) {
@@ -243,14 +243,14 @@ export default function NewsFileList({
 
     try {
       await fileRepository.deleteFromKey(
-        getNewsFileKey(newsId),
-        index,
+        fileKey,
+        entry.index,
       );
 
       void activityRepository.create({
         type: "deleted",
         title: "News-Datei gelöscht",
-        description: `Datei "${file.name}" wurde von News #${newsId} gelöscht.`,
+        description: `Datei "${entry.file.name}" wurde von News #${newsId} gelöscht.`,
         entityType: "news",
         entityId: newsId,
         userName: "System",
@@ -262,7 +262,8 @@ export default function NewsFileList({
         department: "",
         metadata: {
           newsId,
-          fileName: file.name,
+          fileKey,
+          fileName: entry.file.name,
         },
       });
 
@@ -283,42 +284,33 @@ export default function NewsFileList({
       <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
       <div className="relative">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
           <div>
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-2xl font-black">
               Dateien
             </h2>
             <p className="text-zinc-500 mt-1">
-              Anhänge und Downloads zu dieser News.
+              Anhänge, Dokumente und Dateien zu dieser News.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-              {files.length} Dateien
-            </span>
-
-            <span className="rounded-full bg-zinc-100 text-zinc-700 px-4 py-2 text-sm font-bold">
-              {formatFileSize(totalSize)}
-            </span>
-          </div>
+          <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+            {files.length} Dateien
+          </span>
         </div>
 
         {editable && (
-          <div className="mt-6 bg-zinc-50 border border-zinc-200 rounded-3xl p-5">
-            <label className="block font-bold text-zinc-950">
+          <div className="border border-dashed border-zinc-300 rounded-3xl p-5 bg-zinc-50 mt-6">
+            <label className="block mb-2 font-bold">
               Dateien hochladen
             </label>
-            <p className="text-sm text-zinc-500 mt-1">
-              Dateien werden der News-Gruppe zugeordnet und gespeichert.
-            </p>
 
             <input
               type="file"
               multiple
               onChange={(event) => void handleFileChange(event)}
               disabled={uploading}
-              className="mt-4 block w-full border border-dashed border-zinc-300 rounded-2xl px-5 py-5 bg-white disabled:opacity-50"
+              className="w-full border border-dashed border-zinc-300 rounded-2xl px-5 py-4 bg-white disabled:opacity-50"
             />
 
             {uploading && (
@@ -329,80 +321,53 @@ export default function NewsFileList({
           </div>
         )}
 
-        {loading && (
-          <div className="mt-6 bg-zinc-50 rounded-2xl p-4">
-            <p className="text-zinc-500">
+        <div className="space-y-4 mt-8">
+          {loading && (
+            <div className="bg-zinc-50 rounded-2xl p-5 text-zinc-500">
               Dateien werden geladen...
-            </p>
-          </div>
-        )}
-
-        {!loading && files.length === 0 && (
-          <div className="mt-6 border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-            <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
-              📎
             </div>
-            <h3 className="font-bold mt-4">
-              Noch keine Dateien vorhanden.
-            </h3>
-            <p className="text-zinc-500 mt-2">
-              Anhänge erscheinen hier, sobald sie hochgeladen wurden.
-            </p>
-          </div>
-        )}
+          )}
 
-        {!loading && files.length > 0 && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
-            {files.map((file, index) => (
-              <article
-                key={`${file.name}-${index}`}
-                className="border border-zinc-200 rounded-3xl p-5 bg-white hover:border-indigo-200 hover:shadow-md transition"
-              >
-                <div className="flex items-start gap-4">
+          {!loading && files.length === 0 && (
+            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
+              <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
+                📎
+              </div>
+
+              <p className="font-black mt-4">
+                Noch keine Dateien
+              </p>
+              <p className="text-zinc-500 mt-1">
+                Anhänge erscheinen hier, sobald sie hochgeladen werden.
+              </p>
+            </div>
+          )}
+
+          {files.map((file, index) => (
+            <article
+              key={`${file.name}-${index}`}
+              className="border border-zinc-200 rounded-3xl p-5 bg-white hover:border-indigo-200 transition"
+            >
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div className="flex items-start gap-4 min-w-0">
                   <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl shrink-0">
                     {getFileIcon(file.type)}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-black text-zinc-950 line-clamp-1">
+                  <div className="min-w-0">
+                    <p className="font-black text-zinc-950 break-all">
                       {file.name}
-                    </h3>
-                    <p className="text-sm text-zinc-500 mt-1 line-clamp-1">
-                      {file.type || "application/octet-stream"}
+                    </p>
+                    <p className="text-sm text-zinc-500 mt-1">
+                      {formatFileSize(file.size)} · {file.type || "application/octet-stream"}
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      {file.uploadedAt || "-"} · {file.uploadedBy || "System"}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Größe
-                    </p>
-                    <p className="font-bold mt-1">
-                      {formatFileSize(file.size)}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Hochgeladen
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {file.uploadedAt || "-"}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-3">
-                    <p className="text-xs text-zinc-500">
-                      Von
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {file.uploadedBy || "System"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-zinc-100">
+                <div className="flex flex-wrap gap-2 shrink-0">
                   {file.data && (
                     <a
                       href={file.data}
@@ -416,17 +381,22 @@ export default function NewsFileList({
                   {editable && (
                     <button
                       type="button"
-                      onClick={() => void handleDeleteFile(file, index)}
+                      onClick={() =>
+                        void handleDeleteFile({
+                          file,
+                          index,
+                        })
+                      }
                       className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
                     >
                       Löschen
                     </button>
                   )}
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useEffect,
@@ -86,7 +86,7 @@ function getCheckClass(exists: boolean) {
 
 function getNullableClass(nullable: string) {
   if (nullable === "NO") {
-    return "bg-zinc-900 text-white border-zinc-900";
+    return "app-accent-bg text-white border-transparent app-brand-shadow";
   }
 
   return "bg-blue-50 text-blue-700 border-blue-100";
@@ -762,7 +762,7 @@ export default function AdminDatabasePage() {
                               setSelectedTable(table.table_name);
                               setSectionMode("columns");
                             }}
-                            className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                           >
                             Spalten anzeigen
                           </button>
@@ -945,7 +945,7 @@ export default function AdminDatabasePage() {
                           setSelectedTable(table.table_name);
                           setSectionMode("columns");
                         }}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                       >
                         Spalten
                       </button>

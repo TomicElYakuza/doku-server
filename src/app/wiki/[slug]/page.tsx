@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -1185,7 +1185,7 @@ export default function WikiDetailPage() {
           label="Tags"
           value={pageTags.length}
           description="Vordefinierte Tags"
-          icon="#️⃣"
+          icon="#âƒ£"
           tone="purple"
         />
 
@@ -1193,7 +1193,7 @@ export default function WikiDetailPage() {
           label="Lesedauer"
           value={getReadingTime(pageContent)}
           description="Geschätzt"
-          icon="⏱️"
+          icon="â±"
           tone="blue"
         />
 

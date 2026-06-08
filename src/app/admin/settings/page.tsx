@@ -85,14 +85,14 @@ const listViewOptions: ListViewOption[] = [
     value: "table",
     label: "Tabelle",
     description:
-      "Listen werden standardmÃ¤ÃŸig als Tabelle angezeigt.",
+      "Listen werden standardmäßig als Tabelle angezeigt.",
     icon: "â–¦",
   },
   {
     value: "cards",
     label: "Karten",
     description:
-      "Listen werden standardmÃ¤ÃŸig als Karten angezeigt.",
+      "Listen werden standardmäßig als Karten angezeigt.",
     icon: "â–£",
   },
 ];
@@ -306,7 +306,7 @@ export default function AdminSettingsPage() {
 
   async function handleReset() {
     const confirmed = confirm(
-      "Systemeinstellungen wirklich auf Standard zurÃ¼cksetzen?",
+      "Systemeinstellungen wirklich auf Standard zurücksetzen?",
     );
 
     if (!confirmed) {
@@ -320,14 +320,14 @@ export default function AdminSettingsPage() {
 
       await resetSettings();
 
-      setMessage("Systemeinstellungen wurden zurÃ¼ckgesetzt.");
+      setMessage("Systemeinstellungen wurden zurückgesetzt.");
     } catch (resetError) {
       console.error(resetError);
 
       setError(
         resetError instanceof Error
           ? resetError.message
-          : "Systemeinstellungen konnten nicht zurÃ¼ckgesetzt werden.",
+          : "Systemeinstellungen konnten nicht zurückgesetzt werden.",
       );
     } finally {
       setSaving(false);
@@ -356,7 +356,7 @@ export default function AdminSettingsPage() {
     return (
       <AccessDeniedCard
         title="Systemeinstellungen"
-        description="Du hast keine Berechtigung fÃ¼r die Systemeinstellungen."
+        description="Du hast keine Berechtigung für die Systemeinstellungen."
         backHref="/admin"
         backLabel="Zum Admin Dashboard"
       />
@@ -368,7 +368,7 @@ export default function AdminSettingsPage() {
       <PageHero
         eyebrow="Velunis Admin"
         title="Systemeinstellungen"
-        description="Globale App-Defaults fÃ¼r Name, Version, Features, Listenansichten und neue Benutzer verwalten."
+        description="Globale App-Defaults für Name, Version, Features, Listenansichten und neue Benutzer verwalten."
         badges={[
           {
             label: form.companyName || "Velunis",
@@ -391,7 +391,7 @@ export default function AdminSettingsPage() {
               disabled={saving || loading}
               className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition disabled:opacity-50 font-bold"
             >
-              ZurÃ¼cksetzen
+              Zurücksetzen
             </button>
 
             <button
@@ -438,7 +438,7 @@ export default function AdminSettingsPage() {
           label="App"
           value={form.appName || "Intranet"}
           description={form.companyName || "Velunis"}
-          icon="âœ¨"
+          icon="✨"
           tone="blue"
         />
 
@@ -450,7 +450,7 @@ export default function AdminSettingsPage() {
               ? "Wird angezeigt"
               : "Wird ausgeblendet"
           }
-          icon="ðŸ·ï¸"
+          icon="🏷️"
           tone="indigo"
         />
 
@@ -458,15 +458,15 @@ export default function AdminSettingsPage() {
           label="Features"
           value={`${enabledFeatureCount}/3`}
           description="Aktive Funktionsbereiche"
-          icon="âš™ï¸"
+          icon="⚠️"
           tone="green"
         />
 
         <StatCard
           label="Standardrolle"
           value={getRoleLabel(form.defaultUserRole)}
-          description="FÃ¼r neue Benutzer"
-          icon="ðŸ‘¤"
+          description="Für neue Benutzer"
+          icon="👤"
           tone="purple"
         />
       </div>
@@ -531,7 +531,7 @@ export default function AdminSettingsPage() {
               <div className="flex items-end">
                 <ToggleCard
                   title="Version anzeigen"
-                  description="Zeigt die App-Version in der OberflÃ¤che an."
+                  description="Zeigt die App-Version in der Oberfläche an."
                   checked={form.showVersion}
                   onChange={(checked) =>
                     updateField("showVersion", checked)
@@ -564,7 +564,7 @@ export default function AdminSettingsPage() {
                   {form.showVersion && (
                     <>
                       {" "}
-                      Â· v{form.appVersion || "0.1.0"}
+                      · v{form.appVersion || "0.1.0"}
                     </>
                   )}
                 </p>
@@ -578,7 +578,7 @@ export default function AdminSettingsPage() {
             Standardansichten
           </h2>
           <p className="text-zinc-500 mt-1">
-            Globale Defaults fÃ¼r Listen, Tabellen und Filter.
+            Globale Defaults für Listen, Tabellen und Filter.
           </p>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
@@ -675,7 +675,7 @@ export default function AdminSettingsPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-8">
             <ToggleCard
-              title="Geschlossene Tickets standardmÃ¤ÃŸig ausblenden"
+              title="Geschlossene Tickets standardmäßig ausblenden"
               description="Neue Benutzer sehen geschlossene Tickets nicht automatisch."
               checked={form.hideClosedTicketsByDefault}
               onChange={(checked) =>
@@ -752,7 +752,7 @@ export default function AdminSettingsPage() {
 
             <ToggleCard
               title="Ticket-Vorlagen"
-              description="Aktiviert Vorlagen fÃ¼r wiederkehrende Tickets."
+              description="Aktiviert Vorlagen für wiederkehrende Tickets."
               checked={form.enableTicketTemplates}
               onChange={(checked) =>
                 updateField("enableTicketTemplates", checked)
@@ -760,7 +760,7 @@ export default function AdminSettingsPage() {
             />
 
             <ToggleCard
-              title="AktivitÃ¤tsprotokoll"
+              title="Aktivitätsprotokoll"
               description="Aktiviert das Systemprotokoll im Intranet."
               checked={form.enableActivityLog}
               onChange={(checked) =>
@@ -775,7 +775,7 @@ export default function AdminSettingsPage() {
             Benutzer
           </h2>
           <p className="text-zinc-500 mt-1">
-            Standardwerte fÃ¼r neue Benutzer.
+            Standardwerte für neue Benutzer.
           </p>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
@@ -816,10 +816,10 @@ export default function AdminSettingsPage() {
           <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
               <h2 className="text-2xl font-bold">
-                PersÃ¶nliche Darstellung
+                Persönliche Darstellung
               </h2>
               <p className="text-zinc-500 mt-1">
-                Theme, Akzentfarbe und kompakter Modus werden pro Benutzer in den persÃ¶nlichen Einstellungen verwaltet.
+                Theme, Akzentfarbe und kompakter Modus werden pro Benutzer in den persönlichen Einstellungen verwaltet.
               </p>
             </div>
 
@@ -827,7 +827,7 @@ export default function AdminSettingsPage() {
               href="/settings"
               className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow text-center"
             >
-              PersÃ¶nliche Einstellungen Ã¶ffnen
+              Persönliche Einstellungen öffnen
             </Link>
           </div>
         </section>
@@ -841,7 +841,7 @@ export default function AdminSettingsPage() {
             disabled={saving}
             className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
           >
-            Ã„nderungen verwerfen
+            Änderungen verwerfen
           </button>
 
           <button
@@ -850,7 +850,7 @@ export default function AdminSettingsPage() {
             disabled={saving || loading}
             className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
           >
-            Auf Standard zurÃ¼cksetzen
+            Auf Standard zurücksetzen
           </button>
 
           <button
@@ -867,3 +867,6 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
+
+
+

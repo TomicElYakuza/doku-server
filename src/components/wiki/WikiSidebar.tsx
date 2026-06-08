@@ -290,7 +290,7 @@ export default function WikiSidebar() {
 
             <p className="text-sm text-zinc-500 mt-1">
               {loading
-                ? "LÃ¤dt..."
+                ? "Lädt..."
                 : `${pages.length} Seiten`}
             </p>
           </div>
@@ -298,7 +298,7 @@ export default function WikiSidebar() {
           {canManageWiki && (
             <Link
               href="/wiki"
-              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition text-sm"
+              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow text-sm"
             >
               Neue Seite
             </Link>
@@ -312,7 +312,7 @@ export default function WikiSidebar() {
             !activeCompany &&
             !activeDepartment &&
             !activeTag
-              ? "bg-zinc-900 text-white"
+              ? "app-accent-bg text-white"
               : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
           }`}
         >
@@ -339,7 +339,7 @@ export default function WikiSidebar() {
                     getWikiHref(
                       page.slug
                     )
-                      ? "bg-zinc-900 text-white"
+                      ? "app-accent-bg text-white"
                       : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                   }`}
                 >
@@ -379,7 +379,7 @@ export default function WikiSidebar() {
                 )}
                 className={`block px-4 py-3 rounded-2xl transition ${
                   activeCompany === company
-                    ? "bg-zinc-900 text-white"
+                    ? "app-accent-bg text-white"
                     : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
@@ -411,7 +411,7 @@ export default function WikiSidebar() {
                 )}
                 className={`block px-4 py-3 rounded-2xl transition ${
                   activeDepartment === department
-                    ? "bg-zinc-900 text-white"
+                    ? "app-accent-bg text-white"
                     : "bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
@@ -443,7 +443,7 @@ export default function WikiSidebar() {
                 )}
                 className={`text-xs px-3 py-1 rounded-full transition ${
                   activeTag === tag
-                    ? "bg-zinc-900 text-white"
+                    ? "app-accent-bg text-white"
                     : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
@@ -462,16 +462,17 @@ export default function WikiSidebar() {
 
           <Link
             href="/wiki"
-            className="block mt-4 bg-zinc-900 text-white px-4 py-3 rounded-2xl hover:bg-zinc-700 transition"
+            className="block mt-4 app-accent-bg text-white px-4 py-3 rounded-2xl hover:opacity-90 transition"
           >
             Wiki verwalten
           </Link>
 
           <p className="text-xs text-zinc-500 mt-3">
-            Erstellen und Bearbeiten lÃ¤uft jetzt Ã¼ber die Wiki-Ãœbersicht im Modal.
+            Erstellen und Bearbeiten läuft jetzt über die Wiki-Übersicht im Modal.
           </p>
         </section>
       )}
     </aside>
   );
 }
+

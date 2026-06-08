@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -156,7 +156,7 @@ function getModuleFallbackIcon(key: string) {
   }
 
   if (key === "taxonomy") {
-    return "🗂️";
+    return "🗂️";
   }
 
   if (key === "database") {
@@ -176,7 +176,7 @@ function getModuleFallbackIcon(key: string) {
   }
 
   if (key === "settings") {
-    return "⚙️";
+    return "⚠️";
   }
 
   if (key === "modules") {
@@ -986,7 +986,7 @@ export default function AdminPage() {
 
           <Link
             href="/admin/settings"
-            className="block mt-6 text-center bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 transition font-bold"
+            className="block mt-6 text-center app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow font-bold"
           >
             Schalter bearbeiten
           </Link>
@@ -1022,7 +1022,7 @@ export default function AdminPage() {
             className="bg-zinc-50 hover:bg-zinc-100 rounded-3xl p-5 transition"
           >
             <p className="text-2xl">
-              🗂️
+              🗂️
             </p>
             <h3 className="font-black mt-3">
               Kategorien & Tags
@@ -1067,7 +1067,7 @@ export default function AdminPage() {
             className="bg-zinc-50 hover:bg-zinc-100 rounded-3xl p-5 transition"
           >
             <p className="text-2xl">
-              ⚙️
+              ⚠️
             </p>
             <h3 className="font-black mt-3">
               Systemeinstellungen
@@ -1170,3 +1170,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+

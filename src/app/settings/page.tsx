@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -388,7 +388,7 @@ export default function SettingsPage() {
           label="Layout"
           value={compactMode ? "Kompakt" : "Standard"}
           description="Abstände und Dichte"
-          icon="📐"
+          icon="📌"
           tone="blue"
         />
 
@@ -400,7 +400,7 @@ export default function SettingsPage() {
               ? "Bitte speichern"
               : "Keine Änderungen"
           }
-          icon={hasChanges ? "●" : "✓"}
+          icon={hasChanges ? "â—" : "✓"}
           tone={hasChanges ? "orange" : "green"}
         />
       </div>

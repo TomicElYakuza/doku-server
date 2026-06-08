@@ -999,7 +999,7 @@ export default function AdminUsersPage() {
                     ))}
 
                     {selectedTemplate.permissionKeys.length > 10 && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full">
+                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full">
                         +{selectedTemplate.permissionKeys.length - 10}
                       </span>
                     )}
@@ -1053,7 +1053,7 @@ export default function AdminUsersPage() {
                     onClick={() => setStatus(option.value)}
                     className={`text-left border rounded-3xl p-5 transition ${
                       active
-                        ? "bg-zinc-900 text-white border-zinc-900"
+                        ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
@@ -1562,7 +1562,7 @@ export default function AdminUsersPage() {
                             <button
                               type="button"
                               onClick={() => startEditUser(user)}
-                              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                             >
                               Bearbeiten
                             </button>
@@ -1647,7 +1647,7 @@ export default function AdminUsersPage() {
                       <button
                         type="button"
                         onClick={() => startEditUser(user)}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                       >
                         Bearbeiten
                       </button>

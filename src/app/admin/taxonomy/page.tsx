@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -730,7 +730,7 @@ export default function AdminTaxonomyPage() {
                     }}
                     className={`text-left border rounded-3xl p-5 transition disabled:opacity-50 ${
                       active
-                        ? "bg-zinc-900 text-white border-zinc-900"
+                        ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
@@ -877,7 +877,7 @@ export default function AdminTaxonomyPage() {
                     onClick={() => setStatus(option.value)}
                     className={`text-left border rounded-3xl p-5 transition ${
                       active
-                        ? "bg-zinc-900 text-white border-zinc-900"
+                        ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
@@ -982,7 +982,7 @@ export default function AdminTaxonomyPage() {
           label="Gesamt"
           value={items.length}
           description="Alle Einträge"
-          icon="🗂️"
+          icon="🗂️"
           active={
             !targetFilter &&
             !typeFilter &&
@@ -1341,7 +1341,7 @@ export default function AdminTaxonomyPage() {
                             <button
                               type="button"
                               onClick={() => startEditItem(item)}
-                              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                             >
                               Bearbeiten
                             </button>
@@ -1431,7 +1431,7 @@ export default function AdminTaxonomyPage() {
                       <button
                         type="button"
                         onClick={() => startEditItem(item)}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                       >
                         Bearbeiten
                       </button>
@@ -1512,3 +1512,5 @@ export default function AdminTaxonomyPage() {
     </div>
   );
 }
+
+

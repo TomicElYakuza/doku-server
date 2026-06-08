@@ -82,7 +82,7 @@ function createTicketActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "Ticket-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -117,8 +117,8 @@ export function saveTicketDeletedActivity(
   createTicketActivity(
     ticket,
     "deleted",
-    "Ticket gelÃ¶scht",
-    `Ticket #${ticket.id} "${ticket.title}" wurde gelÃ¶scht.`
+    "Ticket gelöscht",
+    `Ticket #${ticket.id} "${ticket.title}" wurde gelöscht.`
   );
 }
 
@@ -139,8 +139,8 @@ export function saveTicketReopenedActivity(
   createTicketActivity(
     ticket,
     "reopened",
-    "Ticket wieder geÃ¶ffnet",
-    `Ticket #${ticket.id} "${ticket.title}" wurde wieder geÃ¶ffnet.`
+    "Ticket wieder geöffnet",
+    `Ticket #${ticket.id} "${ticket.title}" wurde wieder geöffnet.`
   );
 }
 
@@ -152,8 +152,8 @@ export function saveTicketStatusChangedActivity(
   createTicketActivity(
     ticket,
     "edited",
-    "Ticket-Status geÃ¤ndert",
-    `Ticket #${ticket.id} wurde von "${oldStatus}" auf "${newStatus}" geÃ¤ndert.`
+    "Ticket-Status geändert",
+    `Ticket #${ticket.id} wurde von "${oldStatus}" auf "${newStatus}" geändert.`
   );
 }
 
@@ -165,8 +165,8 @@ export function saveTicketPriorityChangedActivity(
   createTicketActivity(
     ticket,
     "edited",
-    "Ticket-PrioritÃ¤t geÃ¤ndert",
-    `Ticket #${ticket.id} wurde von "${oldPriority}" auf "${newPriority}" geÃ¤ndert.`
+    "Ticket-Priorität geändert",
+    `Ticket #${ticket.id} wurde von "${oldPriority}" auf "${newPriority}" geändert.`
   );
 }
 

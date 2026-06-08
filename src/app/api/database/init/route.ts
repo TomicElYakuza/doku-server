@@ -42,7 +42,7 @@ export async function POST() {
     if (!currentUser || currentUser.role !== "admin") {
       return NextResponse.json(
         {
-          message: "Nur Administratoren dÃ¼rfen die Datenbankinitialisierung ausfÃ¼hren.",
+          message: "Nur Administratoren dürfen die Datenbankinitialisierung ausführen.",
         },
         {
           status: 403,
@@ -345,7 +345,7 @@ export async function POST() {
         title TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         href TEXT NOT NULL,
-        icon TEXT NOT NULL DEFAULT 'ðŸ§©',
+        icon TEXT NOT NULL DEFAULT '🧩',
         category TEXT NOT NULL DEFAULT 'admin',
         badge_label TEXT NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
@@ -672,7 +672,7 @@ export async function POST() {
           'Benutzerverwaltung',
           'Benutzer, Rollen, Login-Daten, Status und Organisationszuordnung verwalten.',
           '/admin/users',
-          'ðŸ‘¥',
+          '👥',
           'admin',
           'Benutzer',
           10,
@@ -685,7 +685,7 @@ export async function POST() {
           'Berechtigungen',
           'Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.',
           '/admin/permissions',
-          'ðŸ”',
+          '🔐',
           'admin',
           'Rechte',
           20,
@@ -696,9 +696,9 @@ export async function POST() {
         (
           'role-templates',
           'Rollen-Vorlagen',
-          'Standardrechte fÃ¼r Rollen vorbereiten und verwalten.',
+          'Standardrechte für Rollen vorbereiten und verwalten.',
           '/admin/role-templates',
-          'ðŸ§¬',
+          '🧬',
           'admin',
           'Rollen',
           25,
@@ -711,7 +711,7 @@ export async function POST() {
           'Firmen & Abteilungen',
           'Firmenstruktur und Abteilungen zentral konfigurieren.',
           '/admin/companies',
-          'ðŸ¢',
+          '🏢',
           'admin',
           'Organisation',
           30,
@@ -724,7 +724,7 @@ export async function POST() {
           'Kategorien & Tags',
           'Ticket- und Wiki-Kategorien als Baum sowie globale Tags verwalten.',
           '/admin/taxonomy',
-          'ðŸ·ï¸',
+          '🏷️',
           'admin',
           'Taxonomie',
           40,
@@ -737,7 +737,7 @@ export async function POST() {
           'Admin-Module',
           'Admin-Module zentral verwalten, aktivieren, ausblenden und sortieren.',
           '/admin/modules',
-          'ðŸ§©',
+          '🧩',
           'system',
           'Module',
           45,
@@ -748,9 +748,9 @@ export async function POST() {
         (
           'database',
           'Datenbankstatus',
-          'PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prÃ¼fen.',
+          'PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prüfen.',
           '/admin/database',
-          'ðŸ—„ï¸',
+          '🗄️',
           'system',
           'Status',
           50,
@@ -761,9 +761,9 @@ export async function POST() {
         (
           'news',
           'News-Verwaltung',
-          'Neuigkeiten erstellen, bearbeiten, fixieren und lÃ¶schen.',
+          'Neuigkeiten erstellen, bearbeiten, fixieren und löschen.',
           '/admin/news',
-          'ðŸ“°',
+          '📰',
           'content',
           'News',
           60,
@@ -774,9 +774,9 @@ export async function POST() {
         (
           'ticket-templates',
           'Ticket-Vorlagen',
-          'Wiederverwendbare Vorlagen fÃ¼r Supportprozesse verwalten.',
+          'Wiederverwendbare Vorlagen für Supportprozesse verwalten.',
           '/tickets/templates',
-          'ðŸ“‹',
+          '📋',
           'tickets',
           'Vorlagen',
           70,
@@ -787,9 +787,9 @@ export async function POST() {
         (
           'settings',
           'Systemeinstellungen',
-          'App-Name, globale OberflÃ¤che, Features und Standardrollen konfigurieren.',
+          'App-Name, globale Oberfläche, Features und Standardrollen konfigurieren.',
           '/admin/settings',
-          'âš™ï¸',
+          '⚠️',
           'system',
           'System',
           80,
@@ -799,12 +799,12 @@ export async function POST() {
         ),
         (
           'activity',
-          'AktivitÃ¤tsprotokoll',
-          'SystemaktivitÃ¤ten und Benutzeraktionen nachvollziehen.',
+          'Aktivitätsprotokoll',
+          'Systemaktivitäten und Benutzeraktionen nachvollziehen.',
           '/activity',
-          'ðŸ•“',
+          '🕓',
           'system',
-          'AktivitÃ¤t',
+          'Aktivität',
           90,
           TRUE,
           TRUE,
@@ -828,7 +828,7 @@ export async function POST() {
         (
           'employee-default',
           'Mitarbeiter Standard',
-          'Standardrechte fÃ¼r normale Mitarbeiter.',
+          'Standardrechte für normale Mitarbeiter.',
           'employee',
           ARRAY[
             'dashboard.view',
@@ -845,7 +845,7 @@ export async function POST() {
         (
           'department-lead-default',
           'Abteilungsleiter Standard',
-          'Standardrechte fÃ¼r Abteilungsleiter.',
+          'Standardrechte für Abteilungsleiter.',
           'department_lead',
           ARRAY[
             'dashboard.view',
@@ -865,7 +865,7 @@ export async function POST() {
         (
           'admin-default',
           'Administrator Standard',
-          'Vollzugriff fÃ¼r Administratoren.',
+          'Vollzugriff für Administratoren.',
           'admin',
           ARRAY[
             'dashboard.view',
@@ -914,3 +914,5 @@ export async function POST() {
     );
   }
 }
+
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -878,7 +878,7 @@ export default function AdminModulesPage() {
           label="Kernmodule"
           value={coreCount}
           description="Nicht löschbare Module"
-          icon="🛡️"
+          icon="🛡️"
           tone="indigo"
         />
       </div>
@@ -1085,7 +1085,7 @@ export default function AdminModulesPage() {
                           </p>
 
                           {module.isCore && (
-                            <span className="inline-flex mt-2 text-xs bg-zinc-900 text-white px-2 py-1 rounded-full">
+                            <span className="inline-flex mt-2 text-xs app-accent-bg text-white px-2 py-1 rounded-full">
                               Kernmodul
                             </span>
                           )}
@@ -1136,7 +1136,7 @@ export default function AdminModulesPage() {
                         <button
                           type="button"
                           onClick={() => openEditModal(module)}
-                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                         >
                           Bearbeiten
                         </button>
@@ -1226,7 +1226,7 @@ export default function AdminModulesPage() {
                     </span>
 
                     {module.isCore && (
-                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full font-bold">
+                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full font-bold">
                         Kernmodul
                       </span>
                     )}
@@ -1256,7 +1256,7 @@ export default function AdminModulesPage() {
                   <button
                     type="button"
                     onClick={() => openEditModal(module)}
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                   >
                     Bearbeiten
                   </button>

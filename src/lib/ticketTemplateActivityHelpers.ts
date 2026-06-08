@@ -75,7 +75,7 @@ function createTemplateActivity(
     .catch(
       (error) => {
         console.error(
-          "Ticket-Vorlagen-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "Ticket-Vorlagen-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -186,8 +186,8 @@ export function saveTicketTemplateDeletedActivity(
   createTemplateActivity(
     template,
     "deleted",
-    "Ticket-Vorlage gelÃ¶scht",
-    `Ticket-Vorlage "${template.title}" wurde gelÃ¶scht.`
+    "Ticket-Vorlage gelöscht",
+    `Ticket-Vorlage "${template.title}" wurde gelöscht.`
   );
 }
 

@@ -57,13 +57,13 @@ const roleOptions: {
     value: "employee",
     label: "Mitarbeiter",
     description:
-      "Standardrolle fÃ¼r normale Benutzer mit Basisrechten.",
+      "Standardrolle für normale Benutzer mit Basisrechten.",
   },
   {
     value: "department_lead",
     label: "Abteilungsleiter",
     description:
-      "Erweiterte Rolle fÃ¼r Bereichs- und Teamverantwortliche.",
+      "Erweiterte Rolle für Bereichs- und Teamverantwortliche.",
   },
   {
     value: "admin",
@@ -559,14 +559,14 @@ export default function AdminRoleTemplatesPage() {
       setError(
         toggleError instanceof Error
           ? toggleError.message
-          : "Status konnte nicht geÃ¤ndert werden.",
+          : "Status konnte nicht geändert werden.",
       );
     }
   }
 
   async function deleteTemplate(template: RolePermissionTemplate) {
     const confirmed = confirm(
-      `Rollen-Vorlage "${template.name}" wirklich lÃ¶schen?`,
+      `Rollen-Vorlage "${template.name}" wirklich löschen?`,
     );
 
     if (!confirmed) {
@@ -583,14 +583,14 @@ export default function AdminRoleTemplatesPage() {
         current.filter((item) => item.key !== template.key),
       );
 
-      setMessage("Rollen-Vorlage wurde gelÃ¶scht.");
+      setMessage("Rollen-Vorlage wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
 
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Rollen-Vorlage konnte nicht gelÃ¶scht werden.",
+          : "Rollen-Vorlage konnte nicht gelöscht werden.",
       );
     }
   }
@@ -603,7 +603,7 @@ export default function AdminRoleTemplatesPage() {
     return (
       <AccessDeniedCard
         title="Rollen-Vorlagen"
-        description="Du hast keine Berechtigung fÃ¼r die Rollen-Vorlagen."
+        description="Du hast keine Berechtigung für die Rollen-Vorlagen."
         backHref="/admin"
         backLabel="Zum Admin Dashboard"
       />
@@ -620,7 +620,7 @@ export default function AdminRoleTemplatesPage() {
             ? "Rollen-Vorlage bearbeiten"
             : "Rollen-Vorlage erstellen"
         }
-        description="Vorlagen bÃ¼ndeln Standardrechte und kÃ¶nnen spÃ¤ter auf Benutzer angewendet werden."
+        description="Vorlagen bündeln Standardrechte und können später auf Benutzer angewendet werden."
         footer={
           <>
             <button
@@ -641,7 +641,7 @@ export default function AdminRoleTemplatesPage() {
               {saving
                 ? "Speichert..."
                 : editingKey
-                  ? "Ã„nderungen speichern"
+                  ? "Änderungen speichern"
                   : "Vorlage erstellen"}
             </button>
           </>
@@ -658,7 +658,7 @@ export default function AdminRoleTemplatesPage() {
                 Stammdaten
               </h3>
               <p className="text-zinc-500 mt-1">
-                SchlÃ¼ssel, Name, Rolle, Status und Sortierung.
+                Schlüssel, Name, Rolle, Status und Sortierung.
               </p>
             </div>
 
@@ -763,7 +763,7 @@ export default function AdminRoleTemplatesPage() {
                     Standard-Vorlage
                   </span>
                   <span className="block text-sm text-zinc-500 mt-1">
-                    Diese Vorlage dient als Default fÃ¼r die Rolle.
+                    Diese Vorlage dient als Default für die Rolle.
                   </span>
                 </span>
               </label>
@@ -783,7 +783,7 @@ export default function AdminRoleTemplatesPage() {
                     Aktiv
                   </span>
                   <span className="block text-sm text-zinc-500 mt-1">
-                    Nur aktive Vorlagen kÃ¶nnen angewendet werden.
+                    Nur aktive Vorlagen können angewendet werden.
                   </span>
                 </span>
               </label>
@@ -811,7 +811,7 @@ export default function AdminRoleTemplatesPage() {
             />
 
             <p className="text-sm text-zinc-500">
-              {selectedPermissions.length} Berechtigungen ausgewÃ¤hlt.
+              {selectedPermissions.length} Berechtigungen ausgewählt.
             </p>
 
             <div className="bg-zinc-50 border border-zinc-200 rounded-3xl p-5">
@@ -819,7 +819,7 @@ export default function AdminRoleTemplatesPage() {
                 Schnell-Auswahl
               </h3>
               <p className="text-zinc-500 text-sm mt-1">
-                HÃ¤ufig genutzte Rechte per Klick hinzufÃ¼gen oder entfernen.
+                Häufig genutzte Rechte per Klick hinzufügen oder entfernen.
               </p>
 
               <div className="flex flex-wrap gap-2 mt-4">
@@ -851,7 +851,7 @@ export default function AdminRoleTemplatesPage() {
       <PageHero
         eyebrow="Velunis Admin"
         title="Rollen-Vorlagen"
-        description="Standardrechte fÃ¼r Rollen vorbereiten, pflegen und gezielt auf Benutzer anwenden."
+        description="Standardrechte für Rollen vorbereiten, pflegen und gezielt auf Benutzer anwenden."
         badges={[
           {
             label: `${templates.length} Vorlagen`,
@@ -921,7 +921,7 @@ export default function AdminRoleTemplatesPage() {
           label="Vorlagen"
           value={templates.length}
           description="Alle Rollen-Vorlagen"
-          icon="ðŸ§©"
+          icon="🧩"
           active={!roleFilter && !statusFilter && !defaultFilter && !search}
           onClick={resetFilters}
         />
@@ -930,7 +930,7 @@ export default function AdminRoleTemplatesPage() {
           label="Aktiv"
           value={activeCount}
           description={`${inactiveCount} deaktiviert`}
-          icon="âœ…"
+          icon="✅"
           tone="green"
           active={statusFilter === "active"}
           onClick={() => setStatusFilter("active")}
@@ -950,7 +950,7 @@ export default function AdminRoleTemplatesPage() {
           label="Rechte"
           value={permissionCount}
           description="Eindeutige Rechte"
-          icon="ðŸ”"
+          icon="🔐"
           tone="indigo"
         />
       </div>
@@ -996,7 +996,7 @@ export default function AdminRoleTemplatesPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
             >
-              ZurÃ¼cksetzen
+              Zurücksetzen
             </button>
           </div>
         </div>
@@ -1095,7 +1095,7 @@ export default function AdminRoleTemplatesPage() {
       {filteredTemplates.length === 0 && (
         <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
           <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-            ðŸ”Ž
+            🔎
           </div>
 
           <h2 className="text-xl font-semibold mt-5">
@@ -1202,7 +1202,7 @@ export default function AdminRoleTemplatesPage() {
                         })}
 
                         {template.permissionKeys.length > 5 && (
-                          <span className="text-xs bg-zinc-900 text-white px-2 py-1 rounded-lg">
+                          <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg">
                             +{template.permissionKeys.length - 5}
                           </span>
                         )}
@@ -1224,7 +1224,7 @@ export default function AdminRoleTemplatesPage() {
                         <button
                           type="button"
                           onClick={() => openEditModal(template)}
-                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                         >
                           Bearbeiten
                         </button>
@@ -1244,7 +1244,7 @@ export default function AdminRoleTemplatesPage() {
                           onClick={() => void deleteTemplate(template)}
                           className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
                         >
-                          LÃ¶schen
+                          Löschen
                         </button>
                       </div>
                     </td>
@@ -1310,7 +1310,7 @@ export default function AdminRoleTemplatesPage() {
                   <button
                     type="button"
                     onClick={() => openEditModal(template)}
-                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                   >
                     Bearbeiten
                   </button>
@@ -1328,7 +1328,7 @@ export default function AdminRoleTemplatesPage() {
                     onClick={() => void deleteTemplate(template)}
                     className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
                   >
-                    LÃ¶schen
+                    Löschen
                   </button>
                 </div>
               </div>
@@ -1379,7 +1379,7 @@ export default function AdminRoleTemplatesPage() {
                 })}
 
                 {template.permissionKeys.length > 8 && (
-                  <span className="text-xs bg-zinc-900 text-white px-2 py-1 rounded-lg">
+                  <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg">
                     +{template.permissionKeys.length - 8}
                   </span>
                 )}
@@ -1397,4 +1397,5 @@ export default function AdminRoleTemplatesPage() {
     </div>
   );
 }
+
 

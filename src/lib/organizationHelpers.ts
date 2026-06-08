@@ -136,7 +136,7 @@ export function getCompanyDepartmentLabel(
     department ||
     "";
 
-  return `${nextCompany} Â· ${nextDepartment}`;
+  return `${nextCompany} · ${nextDepartment}`;
 }
 
 export function getOrganizationLabels(

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -303,7 +303,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
                     autoComplete="username"
-                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition"
+                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus transition"
                     placeholder="Benutzername"
                   />
                 </div>
@@ -322,7 +322,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
-                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition"
+                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus transition"
                     placeholder="Passwort"
                   />
                 </div>
@@ -376,3 +376,4 @@ export default function LoginPage() {
     </main>
   );
 }
+

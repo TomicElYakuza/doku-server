@@ -77,7 +77,7 @@ function createNewsFileActivity(
     .catch(
       (error) => {
         console.error(
-          "News-Datei-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "News-Datei-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -130,8 +130,8 @@ export async function deleteNewsFile(
   createNewsFileActivity(
     post,
     "deleted",
-    "News-Datei gelÃ¶scht",
-    `Datei "${fileName || "Unbenannte Datei"}" wurde von News "${post.title}" gelÃ¶scht.`,
+    "News-Datei gelöscht",
+    `Datei "${fileName || "Unbenannte Datei"}" wurde von News "${post.title}" gelöscht.`,
     fileName
   );
 }

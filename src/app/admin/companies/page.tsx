@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -1010,7 +1010,7 @@ export default function AdminCompaniesPage() {
           label="Archiviert"
           value={archivedCompanies.length}
           description={`${inactiveDepartments.length} Abteilungen inaktiv`}
-          icon="🗄️"
+          icon="🗄️"
           tone="orange"
           active={statusFilter === "archived"}
           onClick={() => setStatusFilter("archived")}
@@ -1228,7 +1228,7 @@ export default function AdminCompaniesPage() {
                           <button
                             type="button"
                             onClick={() => startEditCompany(company)}
-                            className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                           >
                             Bearbeiten
                           </button>
@@ -1293,7 +1293,7 @@ export default function AdminCompaniesPage() {
                           <button
                             type="button"
                             onClick={() => startEditDepartment(department)}
-                            className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                           >
                             Bearbeiten
                           </button>
@@ -1381,7 +1381,7 @@ export default function AdminCompaniesPage() {
                       <button
                         type="button"
                         onClick={() => startEditCompany(company)}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                       >
                         Bearbeiten
                       </button>
@@ -1463,7 +1463,7 @@ export default function AdminCompaniesPage() {
                       <button
                         type="button"
                         onClick={() => startEditDepartment(department)}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                       >
                         Bearbeiten
                       </button>
@@ -1486,3 +1486,5 @@ export default function AdminCompaniesPage() {
     </div>
   );
 }
+
+

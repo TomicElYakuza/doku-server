@@ -1,4 +1,4 @@
-import TicketsSidebar from "../../components/tickets/TicketsSidebar";
+﻿import TicketsSidebar from "../../components/tickets/TicketsSidebar";
 
 export default function TicketsLayout({
   children,

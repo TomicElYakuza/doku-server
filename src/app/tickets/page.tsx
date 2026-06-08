@@ -710,7 +710,7 @@ export default function TicketsPage() {
     }
 
     if (status === "closed" && !canCloseTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
+      alert("Du hast keine Berechtigung, Tickets zu schließen.");
       return;
     }
 
@@ -733,7 +733,7 @@ export default function TicketsPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswÃ¤hlen.");
+      alert("Bitte eine Kategorie auswählen.");
       return;
     }
 
@@ -796,12 +796,12 @@ export default function TicketsPage() {
 
   async function handleCloseTicket(ticket: Ticket) {
     if (!canCloseTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
+      alert("Du hast keine Berechtigung, Tickets zu schließen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich schlieÃŸen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich schließen?`,
     );
 
     if (!confirmed) {
@@ -834,12 +834,12 @@ export default function TicketsPage() {
 
   async function handleDeleteTicket(ticket: Ticket) {
     if (!canDeleteTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu lÃ¶schen.");
+      alert("Du hast keine Berechtigung, Tickets zu löschen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich lÃ¶schen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`,
     );
 
     if (!confirmed) {
@@ -853,13 +853,13 @@ export default function TicketsPage() {
       saveTicketDeletedActivity(ticket);
       await ticketRepository.delete(ticket.id);
       await loadData();
-      setMessage("Ticket wurde gelÃ¶scht.");
+      setMessage("Ticket wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Ticket konnte nicht gelÃ¶scht werden.",
+          : "Ticket konnte nicht gelöscht werden.",
       );
     }
   }
@@ -880,9 +880,9 @@ export default function TicketsPage() {
       <div className="flex flex-wrap gap-2">
         <Link
           href={`/tickets/${ticket.id}`}
-          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
         >
-          Ã–ffnen
+          Öffnen
         </Link>
 
         {canEditTicket && (
@@ -901,7 +901,7 @@ export default function TicketsPage() {
             onClick={() => void handleCloseTicket(ticket)}
             className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-500 transition"
           >
-            SchlieÃŸen
+            Schließen
           </button>
         )}
 
@@ -911,7 +911,7 @@ export default function TicketsPage() {
             onClick={() => void handleDeleteTicket(ticket)}
             className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
           >
-            LÃ¶schen
+            Löschen
           </button>
         )}
       </div>
@@ -939,12 +939,12 @@ export default function TicketsPage() {
               type="submit"
               form="ticket-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl hover:opacity-90 disabled:bg-zinc-400 transition"
             >
               {saving
                 ? "Speichert..."
                 : editingTicketId
-                  ? "Ã„nderungen speichern"
+                  ? "Änderungen speichern"
                   : "Ticket erstellen"}
             </button>
           </div>
@@ -962,7 +962,7 @@ export default function TicketsPage() {
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
               placeholder="Kurzer Titel"
             />
           </div>
@@ -975,7 +975,7 @@ export default function TicketsPage() {
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={5}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
               placeholder="Beschreibung des Tickets..."
             />
           </div>
@@ -988,7 +988,7 @@ export default function TicketsPage() {
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as TicketStatus)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {statusOptions.map((option) => (
                   <option
@@ -1003,12 +1003,12 @@ export default function TicketsPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                PrioritÃ¤t
+                Priorität
               </label>
               <select
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as TicketPriority)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {priorityOptions.map((option) => (
                   <option
@@ -1028,10 +1028,10 @@ export default function TicketsPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
-                  Kategorie auswÃ¤hlen
+                  Kategorie auswählen
                 </option>
                 {categoryOptions.map((option) => (
                   <option
@@ -1052,7 +1052,7 @@ export default function TicketsPage() {
                 value={assignedTo}
                 onChange={(event) => setAssignedTo(event.target.value)}
                 disabled={!canAssignTicket}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus disabled:bg-zinc-100 disabled:text-zinc-400"
                 placeholder="Name oder Team"
               />
             </div>
@@ -1065,7 +1065,7 @@ export default function TicketsPage() {
                 value={companyId}
                 onChange={(event) => handleCompanyChange(event.target.value)}
                 disabled={!isAdmin && !canManageTickets}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Intern
@@ -1089,7 +1089,7 @@ export default function TicketsPage() {
                 value={departmentId}
                 onChange={(event) => handleDepartmentChange(event.target.value)}
                 disabled={!isAdmin && !canManageTickets}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Nicht zugeordnet
@@ -1112,7 +1112,7 @@ export default function TicketsPage() {
               <input
                 value={createdBy}
                 onChange={(event) => setCreatedBy(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="System"
               />
             </div>
@@ -1139,7 +1139,7 @@ export default function TicketsPage() {
                       onClick={() => toggleTag(option.value)}
                       className={`px-4 py-2 rounded-xl border transition ${
                         active
-                          ? "bg-zinc-900 text-white border-zinc-900"
+                          ? "app-accent-bg text-white border-transparent app-brand-shadow"
                           : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
@@ -1156,7 +1156,7 @@ export default function TicketsPage() {
       <PageHero
         eyebrow="Support"
         title="Tickets"
-        description="SupportfÃ¤lle und Aufgaben aus PostgreSQL verwalten."
+        description="Supportfälle und Aufgaben aus PostgreSQL verwalten."
         badges={[
           {
             label: `${visibleTickets.length} Tickets`,
@@ -1224,7 +1224,7 @@ export default function TicketsPage() {
           label="Tickets gesamt"
           value={visibleTickets.length}
           description="Alle sichtbaren Tickets"
-          icon="ðŸŽ«"
+          icon="🎫"
           active={!statusFilter && !priorityFilter && !categoryFilter && !tagFilter}
           onClick={resetFilters}
         />
@@ -1232,7 +1232,7 @@ export default function TicketsPage() {
           label="Offen"
           value={openTickets.length}
           description="Noch nicht bearbeitet"
-          icon="ðŸ“Œ"
+          icon="📌"
           tone="blue"
           active={statusFilter === "open"}
           onClick={() => setStatusFilter("open")}
@@ -1250,7 +1250,7 @@ export default function TicketsPage() {
           label="Hoch/Dringend"
           value={highOrUrgentTickets.length}
           description={`${closedTickets.length} geschlossen`}
-          icon="âš¡"
+          icon="⚡"
           tone="red"
           active={priorityFilter === "urgent"}
           onClick={() => setPriorityFilter("urgent")}
@@ -1274,7 +1274,7 @@ export default function TicketsPage() {
               onClick={() => setViewMode("cards")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "cards"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1285,7 +1285,7 @@ export default function TicketsPage() {
               onClick={() => setViewMode("table")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "table"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1307,7 +1307,7 @@ export default function TicketsPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              ZurÃ¼cksetzen
+              Zurücksetzen
             </button>
           </div>
         </div>
@@ -1316,14 +1316,14 @@ export default function TicketsPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
             placeholder="Tickets suchen..."
           />
 
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Status
@@ -1341,10 +1341,10 @@ export default function TicketsPage() {
           <select
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
-              Alle PrioritÃ¤ten
+              Alle Prioritäten
             </option>
             {priorityOptions.map((option) => (
               <option
@@ -1359,7 +1359,7 @@ export default function TicketsPage() {
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Kategorien
@@ -1377,7 +1377,7 @@ export default function TicketsPage() {
           <select
             value={tagFilter}
             onChange={(event) => setTagFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Tags
@@ -1398,7 +1398,7 @@ export default function TicketsPage() {
               setCompanyFilter(event.target.value);
               setDepartmentFilter("");
             }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Firmen
@@ -1416,7 +1416,7 @@ export default function TicketsPage() {
           <select
             value={departmentFilter}
             onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Abteilungen
@@ -1481,7 +1481,7 @@ export default function TicketsPage() {
                     </div>
 
                     <h2 className="text-2xl font-bold mt-4">
-                      #{ticket.id} Â· {ticket.title}
+                      #{ticket.id} · {ticket.title}
                     </h2>
 
                     <p className="text-zinc-500 mt-2 line-clamp-2">
@@ -1545,7 +1545,7 @@ export default function TicketsPage() {
                     Status
                   </th>
                   <th className="px-5 py-4 font-semibold">
-                    PrioritÃ¤t
+                    Priorität
                   </th>
                   <th className="px-5 py-4 font-semibold">
                     Kategorie
@@ -1637,5 +1637,8 @@ export default function TicketsPage() {
     </div>
   );
 }
+
+
+
 
 

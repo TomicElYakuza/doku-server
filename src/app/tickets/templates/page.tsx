@@ -659,7 +659,7 @@ export default function TicketTemplatesPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswÃ¤hlen.");
+      alert("Bitte eine Kategorie auswählen.");
       return;
     }
 
@@ -727,11 +727,11 @@ export default function TicketTemplatesPage() {
     }
 
     if (!canDeleteTemplate) {
-      alert("Du hast keine Berechtigung, Vorlagen zu lÃ¶schen.");
+      alert("Du hast keine Berechtigung, Vorlagen zu löschen.");
       return;
     }
 
-    const confirmed = confirm(`Vorlage "${template.title}" wirklich lÃ¶schen?`);
+    const confirmed = confirm(`Vorlage "${template.title}" wirklich löschen?`);
 
     if (!confirmed) {
       return;
@@ -744,13 +744,13 @@ export default function TicketTemplatesPage() {
       saveTicketTemplateDeletedActivity(template);
       await ticketTemplateRepository.delete(template.id);
       await loadData();
-      setMessage("Vorlage wurde gelÃ¶scht.");
+      setMessage("Vorlage wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Vorlage konnte nicht gelÃ¶scht werden.",
+          : "Vorlage konnte nicht gelöscht werden.",
       );
     }
   }
@@ -767,7 +767,7 @@ export default function TicketTemplatesPage() {
     }
 
     if (!template.category) {
-      alert("Die Vorlage hat keine gÃ¼ltige Kategorie.");
+      alert("Die Vorlage hat keine gültige Kategorie.");
       return;
     }
 
@@ -844,7 +844,7 @@ export default function TicketTemplatesPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              ZurÃ¼ck zu Tickets
+              Zurück zu Tickets
             </Link>
           }
         />
@@ -873,12 +873,12 @@ export default function TicketTemplatesPage() {
               type="submit"
               form="ticket-template-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl hover:opacity-90 disabled:bg-zinc-400 transition"
             >
               {saving
                 ? "Speichert..."
                 : editingId
-                  ? "Ã„nderungen speichern"
+                  ? "Änderungen speichern"
                   : "Vorlage erstellen"}
             </button>
           </div>
@@ -896,7 +896,7 @@ export default function TicketTemplatesPage() {
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
               placeholder="Kurzer Titel"
             />
           </div>
@@ -909,10 +909,10 @@ export default function TicketTemplatesPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
-                  Kategorie auswÃ¤hlen
+                  Kategorie auswählen
                 </option>
                 {categoryOptions.map((option) => (
                   <option
@@ -932,7 +932,7 @@ export default function TicketTemplatesPage() {
               <input
                 value={assignedTo}
                 onChange={(event) => setAssignedTo(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 placeholder="Name oder Team"
               />
             </div>
@@ -944,7 +944,7 @@ export default function TicketTemplatesPage() {
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value as TicketTemplateStatus)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {statusOptions.map((option) => (
                   <option
@@ -959,12 +959,12 @@ export default function TicketTemplatesPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                PrioritÃ¤t
+                Priorität
               </label>
               <select
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as TicketTemplatePriority)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {priorityOptions.map((option) => (
                   <option
@@ -985,7 +985,7 @@ export default function TicketTemplatesPage() {
                 value={companyId}
                 onChange={(event) => handleCompanyChange(event.target.value)}
                 disabled={!isAdmin && !canManageTemplates}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Intern
@@ -1009,7 +1009,7 @@ export default function TicketTemplatesPage() {
                 value={departmentId}
                 onChange={(event) => setDepartmentId(event.target.value)}
                 disabled={!isAdmin && !canManageTemplates}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
                   Nicht zugeordnet
@@ -1034,7 +1034,7 @@ export default function TicketTemplatesPage() {
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={5}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
               placeholder="Beschreibung der Vorlage..."
             />
           </div>
@@ -1060,7 +1060,7 @@ export default function TicketTemplatesPage() {
                       onClick={() => toggleTag(option.value)}
                       className={`px-4 py-2 rounded-xl border transition ${
                         active
-                          ? "bg-zinc-900 text-white border-zinc-900"
+                          ? "app-accent-bg text-white border-transparent app-brand-shadow"
                           : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
@@ -1095,7 +1095,7 @@ export default function TicketTemplatesPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              ZurÃ¼ck zu Tickets
+              Zurück zu Tickets
             </Link>
 
             {canCreateTemplate && (
@@ -1143,7 +1143,7 @@ export default function TicketTemplatesPage() {
           label="Vorlagen gesamt"
           value={visibleTemplates.length}
           description="Alle sichtbaren Vorlagen"
-          icon="ðŸ“‹"
+          icon="📋"
           active={!statusFilter && !priorityFilter && !categoryFilter && !tagFilter}
           onClick={resetFilters}
         />
@@ -1151,7 +1151,7 @@ export default function TicketTemplatesPage() {
           label="Offen"
           value={openCount}
           description="Vorlagen mit Status offen"
-          icon="ðŸ“Œ"
+          icon="📌"
           tone="blue"
           active={statusFilter === "open"}
           onClick={() => setStatusFilter("open")}
@@ -1159,8 +1159,8 @@ export default function TicketTemplatesPage() {
         <StatCard
           label="Hoch/Dringend"
           value={highPriorityCount}
-          description="PrioritÃ¤t hoch oder dringend"
-          icon="âš¡"
+          description="Priorität hoch oder dringend"
+          icon="⚡"
           tone="orange"
           active={priorityFilter === "high" || priorityFilter === "urgent"}
           onClick={() => setPriorityFilter("high")}
@@ -1169,7 +1169,7 @@ export default function TicketTemplatesPage() {
           label="Gefiltert"
           value={filteredTemplates.length}
           description="Nach Suche und Filtern"
-          icon="ðŸ”Ž"
+          icon="🔎"
           tone="indigo"
         />
       </div>
@@ -1191,7 +1191,7 @@ export default function TicketTemplatesPage() {
               onClick={() => setViewMode("cards")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "cards"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1202,7 +1202,7 @@ export default function TicketTemplatesPage() {
               onClick={() => setViewMode("table")}
               className={`px-4 py-2 rounded-xl transition ${
                 viewMode === "table"
-                  ? "bg-zinc-900 text-white"
+                  ? "app-accent-bg text-white"
                   : "bg-zinc-100 hover:bg-zinc-200"
               }`}
             >
@@ -1213,7 +1213,7 @@ export default function TicketTemplatesPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              ZurÃ¼cksetzen
+              Zurücksetzen
             </button>
           </div>
         </div>
@@ -1224,13 +1224,13 @@ export default function TicketTemplatesPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Vorlagen durchsuchen..."
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
           />
 
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Kategorien
@@ -1248,7 +1248,7 @@ export default function TicketTemplatesPage() {
           <select
             value={tagFilter}
             onChange={(event) => setTagFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Tags
@@ -1266,7 +1266,7 @@ export default function TicketTemplatesPage() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Status
@@ -1284,10 +1284,10 @@ export default function TicketTemplatesPage() {
           <select
             value={priorityFilter}
             onChange={(event) => setPriorityFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
-              Alle PrioritÃ¤ten
+              Alle Prioritäten
             </option>
             {priorityOptions.map((option) => (
               <option
@@ -1305,7 +1305,7 @@ export default function TicketTemplatesPage() {
               setCompanyFilter(event.target.value);
               setDepartmentFilter("");
             }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Firmen
@@ -1323,7 +1323,7 @@ export default function TicketTemplatesPage() {
           <select
             value={departmentFilter}
             onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white xl:col-span-2"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white xl:col-span-2"
           >
             <option value="">
               Alle Abteilungen
@@ -1418,7 +1418,7 @@ export default function TicketTemplatesPage() {
                       </p>
                       {template.assignedTo && (
                         <p>
-                          ZustÃ¤ndig: {template.assignedTo}
+                          Zuständig: {template.assignedTo}
                         </p>
                       )}
                     </div>
@@ -1429,7 +1429,7 @@ export default function TicketTemplatesPage() {
                       <button
                         type="button"
                         onClick={() => void createTicketFromTemplate(template)}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                       >
                         Ticket erstellen
                       </button>
@@ -1451,7 +1451,7 @@ export default function TicketTemplatesPage() {
                         onClick={() => void handleDeleteTemplate(template)}
                         className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                       >
-                        LÃ¶schen
+                        Löschen
                       </button>
                     )}
                   </div>
@@ -1478,7 +1478,7 @@ export default function TicketTemplatesPage() {
                     Status
                   </th>
                   <th className="px-5 py-4 font-semibold">
-                    PrioritÃ¤t
+                    Priorität
                   </th>
                   <th className="px-5 py-4 font-semibold">
                     Organisation
@@ -1559,7 +1559,7 @@ export default function TicketTemplatesPage() {
                             <button
                               type="button"
                               onClick={() => void createTicketFromTemplate(template)}
-                              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                             >
                               Ticket erstellen
                             </button>
@@ -1581,7 +1581,7 @@ export default function TicketTemplatesPage() {
                               onClick={() => void handleDeleteTemplate(template)}
                               className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                             >
-                              LÃ¶schen
+                              Löschen
                             </button>
                           )}
                         </div>
@@ -1597,3 +1597,6 @@ export default function TicketTemplatesPage() {
     </div>
   );
 }
+
+
+

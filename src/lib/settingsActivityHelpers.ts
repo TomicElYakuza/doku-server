@@ -75,7 +75,7 @@ function createSettingsActivity(
     .catch(
       (error) => {
         console.error(
-          "Einstellungen-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "Einstellungen-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -98,8 +98,8 @@ export function saveSettingsResetActivity(
 ) {
   createSettingsActivity(
     "restored",
-    "Einstellungen zurÃ¼ckgesetzt",
-    "Die Systemeinstellungen wurden auf Standardwerte zurÃ¼ckgesetzt.",
+    "Einstellungen zurückgesetzt",
+    "Die Systemeinstellungen wurden auf Standardwerte zurückgesetzt.",
     settings
   );
 }

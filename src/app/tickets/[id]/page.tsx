@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -1253,7 +1253,7 @@ export default function TicketDetailPage() {
           label="Status"
           value={getStatusLabel(ticket.status)}
           description="Aktueller Bearbeitungsstatus"
-          icon="●"
+          icon="â—"
           tone={getStatusTone(ticket.status)}
         />
 
@@ -1269,7 +1269,7 @@ export default function TicketDetailPage() {
           label="Alter"
           value={getTicketAgeLabel(ticket.createdAt)}
           description="Seit Erstellung"
-          icon="⏱️"
+          icon="â±"
           tone="purple"
         />
 
@@ -1277,7 +1277,7 @@ export default function TicketDetailPage() {
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="#️⃣"
+          icon="#âƒ£"
           tone="indigo"
         />
       </div>

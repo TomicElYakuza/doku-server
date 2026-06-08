@@ -310,8 +310,8 @@ export default function TicketsSidebar({
             </p>
           </div>
 
-          <span className="h-11 w-11 rounded-2xl bg-zinc-900 text-white flex items-center justify-center">
-            ðŸŽ«
+          <span className="h-11 w-11 rounded-2xl app-accent-bg text-white flex items-center justify-center">
+            🎫
           </span>
         </div>
 
@@ -400,7 +400,7 @@ export default function TicketsSidebar({
 
       <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-sm">
         <h3 className="font-semibold">
-          PrioritÃ¤t
+          Priorität
         </h3>
 
         <div className="space-y-1 mt-4">
@@ -451,13 +451,13 @@ export default function TicketsSidebar({
                 className="block rounded-2xl border border-zinc-100 p-4 hover:bg-zinc-50 transition"
               >
                 <p className="font-medium line-clamp-2">
-                  #{ticket.id} Â· {ticket.title}
+                  #{ticket.id} · {ticket.title}
                 </p>
 
                 <p className="text-xs text-zinc-500 mt-2">
                   {ticket.company ||
                     "Intern"}
-                  {" Â· "}
+                  {" · "}
                   {ticket.department ||
                     "Keine Abteilung"}
                 </p>
@@ -469,3 +469,4 @@ export default function TicketsSidebar({
     </aside>
   );
 }
+

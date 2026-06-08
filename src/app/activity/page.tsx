@@ -901,7 +901,7 @@ export default function ActivityPage() {
                           {href ? (
                             <Link
                               href={href}
-                              className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
                             >
                               Öffnen
                             </Link>

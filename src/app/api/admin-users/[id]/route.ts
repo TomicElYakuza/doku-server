@@ -426,7 +426,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dÃ¼rfen Benutzer bearbeiten.",
+            "Nur Administratoren dürfen Benutzer bearbeiten.",
         },
         {
           status:
@@ -668,7 +668,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           message:
-            "Nur Administratoren dÃ¼rfen Benutzer lÃ¶schen.",
+            "Nur Administratoren dürfen Benutzer löschen.",
         },
         {
           status:
@@ -686,7 +686,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           message:
-            "Du kannst deinen eigenen Benutzer nicht lÃ¶schen.",
+            "Du kannst deinen eigenen Benutzer nicht löschen.",
         },
         {
           status:
@@ -736,7 +736,7 @@ export async function DELETE(
         message:
           getErrorMessage(
             error,
-            "Benutzer konnte nicht gelÃ¶scht werden."
+            "Benutzer konnte nicht gelöscht werden."
           ),
 
         error:

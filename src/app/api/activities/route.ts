@@ -304,7 +304,7 @@ export async function GET(
         message:
           getErrorMessage(
             error,
-            "AktivitÃ¤ten konnten nicht geladen werden."
+            "Aktivitäten konnten nicht geladen werden."
           ),
 
         error:
@@ -454,7 +454,7 @@ export async function POST(
       return NextResponse.json(
         {
           message:
-            "AktivitÃ¤t konnte nicht erstellt werden.",
+            "Aktivität konnte nicht erstellt werden.",
         },
         {
           status:
@@ -482,7 +482,7 @@ export async function POST(
         message:
           getErrorMessage(
             error,
-            "AktivitÃ¤t konnte nicht erstellt werden."
+            "Aktivität konnte nicht erstellt werden."
           ),
 
         error:

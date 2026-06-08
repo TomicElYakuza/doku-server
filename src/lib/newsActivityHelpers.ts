@@ -70,7 +70,7 @@ function createNewsActivity(
     .catch(
       (error) => {
         console.error(
-          "News-AktivitÃ¤t konnte nicht gespeichert werden:",
+          "News-Aktivität konnte nicht gespeichert werden:",
           error
         );
       }
@@ -105,8 +105,8 @@ export function saveNewsDeletedActivity(
   createNewsActivity(
     post,
     "deleted",
-    "News gelÃ¶scht",
-    `News "${post.title}" wurde gelÃ¶scht.`
+    "News gelöscht",
+    `News "${post.title}" wurde gelöscht.`
   );
 }
 

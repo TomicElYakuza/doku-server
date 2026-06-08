@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -312,7 +312,7 @@ export default function ChangePasswordPage() {
           label="Rolle"
           value={getRoleLabel(user?.role)}
           description="Aktuelle Benutzerrolle"
-          icon="🛡️"
+          icon="🛡️"
           tone="indigo"
         />
 

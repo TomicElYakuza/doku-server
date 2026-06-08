@@ -521,7 +521,7 @@ export async function DELETE() {
       {
         message: getErrorMessage(
           error,
-          "Einstellungen konnten nicht zurÃ¼ckgesetzt werden.",
+          "Einstellungen konnten nicht zurückgesetzt werden.",
         ),
         error:
           error instanceof Error
