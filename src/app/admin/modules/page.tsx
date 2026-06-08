@@ -7,8 +7,10 @@ import {
   useState,
 } from "react";
 
-import AppModal from "../../../components/AppModal";
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
 import {
@@ -77,26 +79,6 @@ function getCategoryLabel(category: string) {
   );
 }
 
-function getCategoryClass(category: string) {
-  if (category === "admin") {
-    return "bg-red-50 text-red-700 border-red-100";
-  }
-
-  if (category === "content") {
-    return "bg-blue-50 text-blue-700 border-blue-100";
-  }
-
-  if (category === "tickets") {
-    return "bg-orange-50 text-orange-700 border-orange-100";
-  }
-
-  if (category === "system") {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
-
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
-}
-
 function getStatusClass(enabled: boolean) {
   if (enabled) {
     return "bg-green-50 text-green-700 border-green-100";
@@ -129,20 +111,32 @@ function normalizeForm(module: AdminModuleConfig): ModuleForm {
   };
 }
 
+function sortModules(modules: AdminModuleConfig[]) {
+  return [
+    ...modules,
+  ].sort((first, second) => {
+    const sortCompare =
+      Number(first.sortOrder || 0) - Number(second.sortOrder || 0);
+
+    if (sortCompare !== 0) {
+      return sortCompare;
+    }
+
+    return first.title.localeCompare(second.title);
+  });
+}
+
 export default function AdminModulesPage() {
   const [mounted, setMounted] = useState(false);
   const [modules, setModules] = useState<AdminModuleConfig[]>([]);
-
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState("");
   const [form, setForm] = useState<ModuleForm>(emptyForm);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -176,7 +170,11 @@ export default function AdminModulesPage() {
 
       const nextModules = await adminModuleRepository.list();
 
-      setModules(Array.isArray(nextModules) ? nextModules : []);
+      setModules(
+        sortModules(
+          Array.isArray(nextModules) ? nextModules : [],
+        ),
+      );
     } catch (loadError) {
       console.error(loadError);
 
@@ -202,17 +200,13 @@ export default function AdminModulesPage() {
 
   function openCreateModal() {
     setEditingKey("");
-
     setForm({
       ...emptyForm,
       sortOrder:
         modules.length > 0
-          ? Math.max(
-              ...modules.map((module) => module.sortOrder || 0),
-            ) + 10
+          ? Math.max(...modules.map((module) => module.sortOrder || 0)) + 10
           : 10,
     });
-
     setModalOpen(true);
   }
 
@@ -305,7 +299,12 @@ export default function AdminModulesPage() {
     ],
   );
 
-  const latestModule = modules[0];
+  const visibleCount = useMemo(
+    () => modules.filter((module) => module.isVisible).length,
+    [
+      modules,
+    ],
+  );
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -338,9 +337,9 @@ export default function AdminModulesPage() {
             description: form.description.trim(),
             href: form.href.trim(),
             icon: form.icon.trim(),
-            category: form.category.trim(),
+            category: form.category,
             badgeLabel: form.badgeLabel.trim(),
-            sortOrder: form.sortOrder,
+            sortOrder: Number(form.sortOrder || 0),
             isEnabled: form.isEnabled,
             isVisible: form.isVisible,
             isCore: form.isCore,
@@ -348,10 +347,12 @@ export default function AdminModulesPage() {
         );
 
         setModules((current) =>
-          current.map((module) =>
-            module.key === updatedModule.key
-              ? updatedModule
-              : module,
+          sortModules(
+            current.map((module) =>
+              module.key === updatedModule.key
+                ? updatedModule
+                : module,
+            ),
           ),
         );
 
@@ -366,19 +367,19 @@ export default function AdminModulesPage() {
         description: form.description.trim(),
         href: form.href.trim(),
         icon: form.icon.trim(),
-        category: form.category.trim(),
+        category: form.category,
         badgeLabel: form.badgeLabel.trim(),
-        sortOrder: form.sortOrder,
+        sortOrder: Number(form.sortOrder || 0),
         isEnabled: form.isEnabled,
         isVisible: form.isVisible,
         isCore: form.isCore,
       });
 
       setModules((current) =>
-        [
+        sortModules([
           ...current,
           createdModule,
-        ].sort((first, second) => first.sortOrder - second.sortOrder),
+        ]),
       );
 
       closeModal();
@@ -409,10 +410,12 @@ export default function AdminModulesPage() {
       );
 
       setModules((current) =>
-        current.map((item) =>
-          item.key === updatedModule.key
-            ? updatedModule
-            : item,
+        sortModules(
+          current.map((item) =>
+            item.key === updatedModule.key
+              ? updatedModule
+              : item,
+          ),
         ),
       );
 
@@ -445,10 +448,12 @@ export default function AdminModulesPage() {
       );
 
       setModules((current) =>
-        current.map((item) =>
-          item.key === updatedModule.key
-            ? updatedModule
-            : item,
+        sortModules(
+          current.map((item) =>
+            item.key === updatedModule.key
+              ? updatedModule
+              : item,
+          ),
         ),
       );
 
@@ -513,10 +518,10 @@ export default function AdminModulesPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Admin-Module"
-        description="Du hast keine Berechtigung für die Modulverwaltung."
+        title="Admin-Module nicht verfügbar"
+        description="Du hast keine Berechtigung, Admin-Module zu sehen."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -526,26 +531,23 @@ export default function AdminModulesPage() {
       <AppModal
         open={modalOpen}
         onClose={closeModal}
-        title={
-          editingKey
-            ? "Admin-Modul bearbeiten"
-            : "Admin-Modul erstellen"
-        }
-        description="Module steuern, was im Admin Dashboard sichtbar, aktiv und verlinkt ist."
+        title={editingKey ? "Modul bearbeiten" : "Modul erstellen"}
+        description="Admin-Module steuern, welche Verwaltungsbereiche im Admin Dashboard angezeigt werden."
+        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
               disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
             >
               Abbrechen
             </button>
 
             <button
               type="submit"
-              form="admin-module-form"
+              form="module-form"
               disabled={saving}
               className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
@@ -559,25 +561,25 @@ export default function AdminModulesPage() {
         }
       >
         <form
-          id="admin-module-form"
+          id="module-form"
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-8"
         >
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Stammdaten
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Schlüssel, Titel, Route, Icon, Kategorie und Sortierung.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Modul-Daten
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <p className="text-zinc-500 mt-1">
+              Titel, Link, Icon und Kategorie für das Admin Dashboard.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Modul-Key
                 </label>
+
                 <input
                   value={form.key}
                   onChange={(event) =>
@@ -590,23 +592,25 @@ export default function AdminModulesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Titel
                 </label>
+
                 <input
                   value={form.title}
                   onChange={(event) =>
                     updateForm("title", event.target.value)
                   }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                  placeholder="Benutzerverwaltung"
+                  placeholder="Titel"
                 />
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Link
                 </label>
+
                 <input
                   value={form.href}
                   onChange={(event) =>
@@ -618,23 +622,25 @@ export default function AdminModulesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Icon
                 </label>
+
                 <input
                   value={form.icon}
                   onChange={(event) =>
                     updateForm("icon", event.target.value)
                   }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                  placeholder="👥"
+                  placeholder="🛠️"
                 />
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Kategorie
                 </label>
+
                 <select
                   value={form.category}
                   onChange={(event) =>
@@ -654,9 +660,10 @@ export default function AdminModulesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Badge
                 </label>
+
                 <input
                   value={form.badgeLabel}
                   onChange={(event) =>
@@ -668,9 +675,10 @@ export default function AdminModulesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Sortierung
                 </label>
+
                 <input
                   type="number"
                   value={form.sortOrder}
@@ -685,9 +693,10 @@ export default function AdminModulesPage() {
               </div>
 
               <div className="xl:col-span-2">
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Beschreibung
                 </label>
+
                 <textarea
                   value={form.description}
                   onChange={(event) =>
@@ -701,18 +710,17 @@ export default function AdminModulesPage() {
             </div>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Schalter
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Aktive und sichtbare Module erscheinen im Admin Dashboard.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Status & Sichtbarkeit
+            </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
+            <p className="text-zinc-500 mt-1">
+              Lege fest, ob das Modul aktiv ist, angezeigt wird und als Kernmodul geschützt ist.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
+              <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
                 <input
                   type="checkbox"
                   checked={form.isEnabled}
@@ -723,16 +731,16 @@ export default function AdminModulesPage() {
                 />
 
                 <span>
-                  <span className="block font-bold text-zinc-950">
+                  <span className="block font-black">
                     Aktiv
                   </span>
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Modul ist funktional aktiv.
+                  <span className="block text-zinc-500 text-sm mt-1">
+                    Modul kann verwendet werden.
                   </span>
                 </span>
               </label>
 
-              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
+              <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
                 <input
                   type="checkbox"
                   checked={form.isVisible}
@@ -743,16 +751,16 @@ export default function AdminModulesPage() {
                 />
 
                 <span>
-                  <span className="block font-bold text-zinc-950">
+                  <span className="block font-black">
                     Sichtbar
                   </span>
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Modul wird als Karte angezeigt.
+                  <span className="block text-zinc-500 text-sm mt-1">
+                    Modul erscheint im Admin Dashboard.
                   </span>
                 </span>
               </label>
 
-              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
+              <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
                 <input
                   type="checkbox"
                   checked={form.isCore}
@@ -763,11 +771,11 @@ export default function AdminModulesPage() {
                 />
 
                 <span>
-                  <span className="block font-bold text-zinc-950">
+                  <span className="block font-black">
                     Kernmodul
                   </span>
-                  <span className="block text-sm text-zinc-500 mt-1">
-                    Kernmodule können nicht gelöscht werden.
+                  <span className="block text-zinc-500 text-sm mt-1">
+                    Geschützt vor Löschung.
                   </span>
                 </span>
               </label>
@@ -777,9 +785,9 @@ export default function AdminModulesPage() {
       </AppModal>
 
       <PageHero
-        eyebrow="Velunis Admin"
+        eyebrow="Admin Backend"
         title="Admin-Module"
-        description="Verwaltungsbereiche zentral vorbereiten, aktivieren, ausblenden, sortieren und im Admin Dashboard steuern."
+        description="Verwaltungsbereiche zentral vorbereiten, aktivieren, ausblenden und sortieren."
         badges={[
           {
             label: `${modules.length} Module`,
@@ -791,9 +799,7 @@ export default function AdminModulesPage() {
             label: `${hiddenCount} ausgeblendet`,
           },
           {
-            label: latestModule
-              ? `Neueste: ${latestModule.title}`
-              : "Noch kein Modul",
+            label: `${coreCount} Kernmodule`,
           },
         ]}
         actions={
@@ -818,30 +824,35 @@ export default function AdminModulesPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Admin-Module werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Admin-Module werden geladen..."
+          description="Modul-Konfigurationen, Sichtbarkeit und Sortierung werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Admin-Module konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadModules()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -849,8 +860,8 @@ export default function AdminModulesPage() {
           label="Module gesamt"
           value={modules.length}
           description="Alle konfigurierten Module"
-          icon="🧭"
-          active={!categoryFilter && !statusFilter && !visibilityFilter && !search}
+          icon="🧩"
+          active={!categoryFilter && !statusFilter && !visibilityFilter}
           onClick={resetFilters}
         />
 
@@ -865,203 +876,214 @@ export default function AdminModulesPage() {
         />
 
         <StatCard
-          label="Ausgeblendet"
-          value={hiddenCount}
-          description="Nicht sichtbare Module"
-          icon="🙈"
-          tone="orange"
-          active={visibilityFilter === "hidden"}
-          onClick={() => setVisibilityFilter("hidden")}
+          label="Sichtbar"
+          value={visibleCount}
+          description={`${hiddenCount} ausgeblendet`}
+          icon="👁️"
+          tone="blue"
+          active={visibilityFilter === "visible"}
+          onClick={() => setVisibilityFilter("visible")}
         />
 
         <StatCard
           label="Kernmodule"
           value={coreCount}
           description="Nicht löschbare Module"
-          icon="🛡️"
+          icon="🛡️"
           tone="indigo"
         />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Filtere nach Titel, Key, Kategorie, Status oder Sichtbarkeit.
-            </p>
-          </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
+        <div className="relative">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-black">
+                Suche & Filter
+              </h2>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Karten
-            </button>
+              <p className="text-zinc-500 mt-1">
+                Filtere nach Kategorie, Status, Sichtbarkeit, Link oder Modul-Key.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-            >
-              Zurücksetzen
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Module suchen..."
-          />
-
-          <select
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Kategorien
-            </option>
-
-            {categoryOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "table"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
               >
-                {option.label}
+                Tabelle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "cards"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Karten
+              </button>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              >
+                Zurücksetzen
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Module suchen..."
+            />
+
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Kategorien
               </option>
-            ))}
-          </select>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-            <option value="enabled">
-              Aktiv
-            </option>
-            <option value="disabled">
-              Deaktiviert
-            </option>
-          </select>
+              {categoryOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={visibilityFilter}
-            onChange={(event) => setVisibilityFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Sichtbarkeiten
-            </option>
-            <option value="visible">
-              Sichtbar
-            </option>
-            <option value="hidden">
-              Ausgeblendet
-            </option>
-          </select>
-        </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Status
+              </option>
+              <option value="enabled">
+                Aktiv
+              </option>
+              <option value="disabled">
+                Deaktiviert
+              </option>
+            </select>
 
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredModules.length} von {modules.length} Modulen gefunden.
-          </span>
+            <select
+              value={visibilityFilter}
+              onChange={(event) => setVisibilityFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Sichtbarkeiten
+              </option>
+              <option value="visible">
+                Sichtbar
+              </option>
+              <option value="hidden">
+                Ausgeblendet
+              </option>
+            </select>
+          </div>
 
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="text-sm text-zinc-500">
+              {filteredModules.length} von {modules.length} Modulen gefunden.
             </span>
-          )}
 
-          {categoryFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Kategorie: {getCategoryLabel(categoryFilter)}
-            </span>
-          )}
+            {search && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Suche: {search}
+              </span>
+            )}
 
-          {statusFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Status: {statusFilter === "enabled" ? "Aktiv" : "Deaktiviert"}
-            </span>
-          )}
+            {categoryFilter && (
+              <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                Kategorie: {getCategoryLabel(categoryFilter)}
+              </span>
+            )}
 
-          {visibilityFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Sichtbarkeit: {visibilityFilter === "visible" ? "Sichtbar" : "Ausgeblendet"}
-            </span>
-          )}
+            {statusFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Status: {statusFilter === "enabled" ? "Aktiv" : "Deaktiviert"}
+              </span>
+            )}
+
+            {visibilityFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Sichtbarkeit: {visibilityFilter === "visible" ? "Sichtbar" : "Ausgeblendet"}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {viewMode === "table" && (
+      {!loading && !error && filteredModules.length === 0 && (
+        <EmptyState
+          icon="🧩"
+          title="Keine Module gefunden"
+          description="Passe die Filter an oder erstelle ein neues Admin-Modul."
+          action={
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Modul erstellen
+            </button>
+          }
+        />
+      )}
+
+      {viewMode === "table" && filteredModules.length > 0 && (
         <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left text-sm">
               <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Modul
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Link
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Kategorie
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Status
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Sichtbarkeit
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Sortierung
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500 text-right">
                     Aktionen
                   </th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-zinc-100">
-                {filteredModules.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-10 text-center text-zinc-500"
-                    >
-                      Keine Module gefunden.
-                    </td>
-                  </tr>
-                )}
-
                 {filteredModules.map((module) => (
                   <tr
                     key={module.key}
@@ -1069,23 +1091,25 @@ export default function AdminModulesPage() {
                   >
                     <td className="px-5 py-4 align-top min-w-[300px]">
                       <div className="flex items-start gap-3">
-                        <span className="text-2xl">
-                          {module.icon || "✨"}
+                        <span className="text-2xl shrink-0">
+                          {module.icon || "🧩"}
                         </span>
 
                         <div>
                           <p className="font-black text-zinc-950">
                             {module.title}
                           </p>
+
                           <p className="text-xs text-zinc-400 mt-1">
                             {module.key}
                           </p>
+
                           <p className="text-zinc-500 mt-2 line-clamp-2">
                             {module.description || "Keine Beschreibung"}
                           </p>
 
                           {module.isCore && (
-                            <span className="inline-flex mt-2 text-xs app-accent-bg text-white px-2 py-1 rounded-full">
+                            <span className="inline-flex mt-2 text-xs app-accent-soft app-accent-text px-2 py-1 rounded-full font-bold">
                               Kernmodul
                             </span>
                           )}
@@ -1098,11 +1122,7 @@ export default function AdminModulesPage() {
                     </td>
 
                     <td className="px-5 py-4 align-top">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryClass(
-                          module.category,
-                        )}`}
-                      >
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
                         {getCategoryLabel(module.category)}
                       </span>
                     </td>
@@ -1132,11 +1152,11 @@ export default function AdminModulesPage() {
                     </td>
 
                     <td className="px-5 py-4 align-top">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => openEditModal(module)}
-                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                          className="app-accent-bg text-white px-3 py-2 rounded-xl transition font-bold app-brand-shadow"
                         >
                           Bearbeiten
                         </button>
@@ -1144,7 +1164,7 @@ export default function AdminModulesPage() {
                         <button
                           type="button"
                           onClick={() => void toggleEnabled(module)}
-                          className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                          className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition font-bold"
                         >
                           {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
                         </button>
@@ -1152,7 +1172,7 @@ export default function AdminModulesPage() {
                         <button
                           type="button"
                           onClick={() => void toggleVisible(module)}
-                          className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                          className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition font-bold"
                         >
                           {module.isVisible ? "Ausblenden" : "Anzeigen"}
                         </button>
@@ -1161,7 +1181,7 @@ export default function AdminModulesPage() {
                           <button
                             type="button"
                             onClick={() => void deleteModule(module)}
-                            className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
+                            className="bg-red-600 text-white hover:bg-red-500 px-3 py-2 rounded-xl transition font-bold"
                           >
                             Löschen
                           </button>
@@ -1176,89 +1196,117 @@ export default function AdminModulesPage() {
         </section>
       )}
 
-      {viewMode === "cards" && (
-        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {filteredModules.length === 0 && (
-            <div className="xl:col-span-2 bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-              <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-                🔎
-              </div>
-
-              <h2 className="text-xl font-semibold mt-5">
-                Keine Module gefunden
-              </h2>
-              <p className="text-zinc-500 mt-2">
-                Erstelle ein Modul oder passe die Filter an.
-              </p>
-            </div>
-          )}
-
+      {viewMode === "cards" && filteredModules.length > 0 && (
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {filteredModules.map((module) => (
             <article
               key={module.key}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
             >
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryClass(
-                        module.category,
-                      )}`}
-                    >
-                      {getCategoryLabel(module.category)}
-                    </span>
+              <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                        module.isEnabled,
-                      )}`}
-                    >
-                      {module.isEnabled ? "Aktiv" : "Deaktiviert"}
-                    </span>
-
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getVisibleClass(
-                        module.isVisible,
-                      )}`}
-                    >
-                      {module.isVisible ? "Sichtbar" : "Ausgeblendet"}
-                    </span>
-
-                    {module.isCore && (
-                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full font-bold">
-                        Kernmodul
+              <div className="relative">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-3xl">
+                        {module.icon || "🧩"}
                       </span>
-                    )}
-                  </div>
 
-                  <div className="flex items-center gap-3 mt-4">
-                    <span className="text-3xl">
-                      {module.icon || "✨"}
-                    </span>
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                          module.isEnabled,
+                        )}`}
+                      >
+                        {module.isEnabled ? "Aktiv" : "Deaktiviert"}
+                      </span>
 
-                    <div>
-                      <h2 className="text-2xl font-black line-clamp-1">
-                        {module.title}
-                      </h2>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        {module.key}
-                      </p>
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getVisibleClass(
+                          module.isVisible,
+                        )}`}
+                      >
+                        {module.isVisible ? "Sichtbar" : "Ausgeblendet"}
+                      </span>
+
+                      {module.isCore && (
+                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                          Kernmodul
+                        </span>
+                      )}
                     </div>
+
+                    <h2 className="text-2xl font-black mt-4">
+                      {module.title}
+                    </h2>
+
+                    <p className="text-zinc-500 mt-2 line-clamp-2">
+                      {module.description || "Keine Beschreibung"}
+                    </p>
                   </div>
 
-                  <p className="text-zinc-500 mt-4 line-clamp-2">
-                    {module.description || "Keine Beschreibung"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => openEditModal(module)}
-                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow shrink-0"
                   >
                     Bearbeiten
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Key
+                    </p>
+                    <p className="font-black mt-1 break-all">
+                      {module.key}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Kategorie
+                    </p>
+                    <p className="font-black mt-1">
+                      {getCategoryLabel(module.category)}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Link
+                    </p>
+                    <p className="font-black mt-1 break-all">
+                      {module.href}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Sortierung
+                    </p>
+                    <p className="font-black mt-1">
+                      {module.sortOrder}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => void toggleEnabled(module)}
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold"
+                  >
+                    {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void toggleVisible(module)}
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold"
+                  >
+                    {module.isVisible ? "Ausblenden" : "Anzeigen"}
                   </button>
 
                   {!module.isCore && (
@@ -1272,53 +1320,6 @@ export default function AdminModulesPage() {
                   )}
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Link
-                  </p>
-                  <p className="font-bold mt-1 line-clamp-1">
-                    {module.href}
-                  </p>
-                </div>
-
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Sortierung
-                  </p>
-                  <p className="font-bold mt-1">
-                    {module.sortOrder}
-                  </p>
-                </div>
-
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Badge
-                  </p>
-                  <p className="font-bold mt-1 line-clamp-1">
-                    {module.badgeLabel || "-"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-zinc-100">
-                <button
-                  type="button"
-                  onClick={() => void toggleEnabled(module)}
-                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-                >
-                  {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void toggleVisible(module)}
-                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-                >
-                  {module.isVisible ? "Ausblenden" : "Anzeigen"}
-                </button>
-              </div>
             </article>
           ))}
         </section>
@@ -1326,4 +1327,3 @@ export default function AdminModulesPage() {
     </div>
   );
 }
-

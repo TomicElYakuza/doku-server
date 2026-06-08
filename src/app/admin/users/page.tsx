@@ -7,6 +7,15 @@ import {
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
+import PageHero from "../../../components/PageHero";
+import StatCard from "../../../components/StatCard";
+import {
+  useAppSettings,
+} from "../../../hooks/useAppSettings";
 import {
   adminUserRepository,
 } from "../../../lib/adminUserRepository";
@@ -21,22 +30,10 @@ import {
   rolePermissionTemplateRepository,
 } from "../../../lib/rolePermissionTemplateRepository";
 import {
-  useAppSettings,
-} from "../../../hooks/useAppSettings";
-import {
   saveUserCreatedActivity,
   saveUserDeletedActivity,
   saveUserUpdatedActivity,
 } from "../../../lib/userActivityHelpers";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import AppModal from "../../../components/AppModal";
-import PageHero from "../../../components/PageHero";
-import StatCard from "../../../components/StatCard";
-import type {
-  AdminUser,
-  AdminUserStatus,
-  UserRole,
-} from "../../../types/user";
 import type {
   Company,
   Department,
@@ -44,6 +41,11 @@ import type {
 import type {
   RolePermissionTemplate,
 } from "../../../types/rolePermissionTemplate";
+import type {
+  AdminUser,
+  AdminUserStatus,
+  UserRole,
+} from "../../../types/user";
 
 type RoleOption = {
   value: UserRole;
@@ -84,8 +86,7 @@ const statusOptions: StatusOption[] = [
   {
     value: "active",
     label: "Aktiv",
-    description:
-      "Benutzer kann sich anmelden.",
+    description: "Benutzer kann sich anmelden.",
   },
   {
     value: "invited",
@@ -96,8 +97,7 @@ const statusOptions: StatusOption[] = [
   {
     value: "inactive",
     label: "Inaktiv",
-    description:
-      "Benutzer ist gesperrt.",
+    description: "Benutzer ist gesperrt.",
   },
 ];
 
@@ -166,19 +166,20 @@ export default function AdminUsersPage() {
   } = useAppSettings();
 
   const [mounted, setMounted] = useState(false);
-
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [roleTemplates, setRoleTemplates] = useState<RolePermissionTemplate[]>([]);
+  const [roleTemplates, setRoleTemplates] = useState<RolePermissionTemplate[]>(
+    [],
+  );
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
 
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState("");
@@ -222,14 +223,17 @@ export default function AdminUsersPage() {
       "adminUsersUpdated",
       handleAdminUsersUpdated,
     );
+
     window.addEventListener(
       "companiesUpdated",
       handleCompaniesUpdated,
     );
+
     window.addEventListener(
       "departmentsUpdated",
       handleDepartmentsUpdated,
     );
+
     window.addEventListener(
       "rolePermissionTemplatesUpdated",
       handleRoleTemplatesUpdated,
@@ -240,14 +244,17 @@ export default function AdminUsersPage() {
         "adminUsersUpdated",
         handleAdminUsersUpdated,
       );
+
       window.removeEventListener(
         "companiesUpdated",
         handleCompaniesUpdated,
       );
+
       window.removeEventListener(
         "departmentsUpdated",
         handleDepartmentsUpdated,
       );
+
       window.removeEventListener(
         "rolePermissionTemplatesUpdated",
         handleRoleTemplatesUpdated,
@@ -266,7 +273,9 @@ export default function AdminUsersPage() {
       ]);
 
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      setDepartments(
+        Array.isArray(nextDepartments) ? nextDepartments : [],
+      );
     } catch (loadError) {
       console.error(
         "Organisation konnte nicht geladen werden:",
@@ -280,7 +289,9 @@ export default function AdminUsersPage() {
       const nextTemplates =
         await rolePermissionTemplateRepository.listActive();
 
-      setRoleTemplates(Array.isArray(nextTemplates) ? nextTemplates : []);
+      setRoleTemplates(
+        Array.isArray(nextTemplates) ? nextTemplates : [],
+      );
     } catch (loadError) {
       console.error(
         "Rollen-Vorlagen konnten nicht geladen werden:",
@@ -308,8 +319,12 @@ export default function AdminUsersPage() {
 
       setUsers(Array.isArray(nextUsers) ? nextUsers : []);
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
-      setRoleTemplates(Array.isArray(nextRoleTemplates) ? nextRoleTemplates : []);
+      setDepartments(
+        Array.isArray(nextDepartments) ? nextDepartments : [],
+      );
+      setRoleTemplates(
+        Array.isArray(nextRoleTemplates) ? nextRoleTemplates : [],
+      );
     } catch (loadError) {
       console.error(loadError);
 
@@ -353,7 +368,10 @@ export default function AdminUsersPage() {
   );
 
   const activeDepartments = useMemo(
-    () => departments.filter((department) => department.status === "active"),
+    () =>
+      departments.filter(
+        (department) => department.status === "active",
+      ),
     [
       departments,
     ],
@@ -509,8 +527,9 @@ export default function AdminUsersPage() {
 
   const selectedTemplate = useMemo(
     () =>
-      roleTemplates.find((template) => template.key === selectedTemplateKey) ||
-      null,
+      roleTemplates.find(
+        (template) => template.key === selectedTemplateKey,
+      ) || null,
     [
       roleTemplates,
       selectedTemplateKey,
@@ -549,20 +568,20 @@ export default function AdminUsersPage() {
     resetForm();
 
     const firstCompany = activeCompanies[0] || companies[0];
-
     const firstDepartment =
       departments.find(
         (department) =>
           department.companyId === firstCompany?.id &&
           department.status === "active",
       ) ||
-      departments.find((department) => department.companyId === firstCompany?.id) ||
+      departments.find(
+        (department) => department.companyId === firstCompany?.id,
+      ) ||
       departments[0];
 
     setCompanyId(firstCompany?.id || "");
     setDepartmentId(firstDepartment?.id || "");
     setAuthorDefaults();
-
     setModalOpen(true);
   }
 
@@ -614,7 +633,9 @@ export default function AdminUsersPage() {
           department.companyId === nextCompanyId &&
           department.status === "active",
       ) ||
-      departments.find((department) => department.companyId === nextCompanyId);
+      departments.find(
+        (department) => department.companyId === nextCompanyId,
+      );
 
     setDepartmentId(firstDepartment?.id || "");
   }
@@ -648,10 +669,9 @@ export default function AdminUsersPage() {
     }
 
     const companyName = getCompanyName(companyId);
-    const departmentName =
-      departmentId
-        ? getDepartmentName(departmentId)
-        : "";
+    const departmentName = departmentId
+      ? getDepartmentName(departmentId)
+      : "";
 
     try {
       setSaving(true);
@@ -768,6 +788,7 @@ export default function AdminUsersPage() {
       setError("");
 
       saveUserDeletedActivity(user);
+
       await adminUserRepository.delete(user.id);
       await loadData();
 
@@ -798,10 +819,10 @@ export default function AdminUsersPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Benutzerverwaltung"
-        description="Du hast keine Berechtigung für die Benutzerverwaltung."
-        backHref="/dashboard"
-        backLabel="Zum Dashboard"
+        title="Benutzerverwaltung nicht verfügbar"
+        description="Du hast keine Berechtigung, Benutzer zu verwalten."
+        backHref="/admin"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -812,21 +833,22 @@ export default function AdminUsersPage() {
         open={modalOpen}
         onClose={closeModal}
         title={editingUserId ? "Benutzer bearbeiten" : "Benutzer erstellen"}
-        description="Lege Login-Daten, Rolle, Status und Organisation fest."
+        description="Lege Benutzerkonten, Rollen, Organisation und Startpasswort zentral fest."
+        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
               disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
             >
               Abbrechen
             </button>
 
             <button
               type="submit"
-              form="admin-user-form"
+              form="user-form"
               disabled={saving}
               className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
@@ -840,25 +862,25 @@ export default function AdminUsersPage() {
         }
       >
         <form
-          id="admin-user-form"
+          id="user-form"
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-8"
         >
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Login & Konto
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Grunddaten für Anmeldung und Passwort.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Login & Konto
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <p className="text-zinc-500 mt-1">
+              Grunddaten für Anmeldung und Passwort.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Name
                 </label>
+
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
@@ -868,10 +890,12 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   E-Mail
                 </label>
+
                 <input
+                  type="email"
                   value={email}
                   onChange={(event) => {
                     const nextEmail = event.target.value;
@@ -888,9 +912,10 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Benutzername
                 </label>
+
                 <input
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
@@ -900,12 +925,14 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   {editingUserId
                     ? "Neues Passwort setzen"
                     : "Vordefiniertes Passwort"}
                 </label>
+
                 <input
+                  type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
@@ -916,45 +943,48 @@ export default function AdminUsersPage() {
                   }
                 />
               </div>
+
+              <label className="xl:col-span-2 flex items-start gap-3 bg-white border border-zinc-200 rounded-2xl p-4">
+                <input
+                  type="checkbox"
+                  checked={passwordMustChange}
+                  onChange={(event) =>
+                    setPasswordMustChange(event.target.checked)
+                  }
+                  className="h-5 w-5 mt-1 accent-indigo-600"
+                />
+
+                <span>
+                  <span className="block font-bold">
+                    Passwort bei nächster Anmeldung ändern
+                  </span>
+                  <span className="block text-zinc-500 text-sm mt-1">
+                    Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
+                  </span>
+                </span>
+              </label>
             </div>
-
-            <label className="flex items-start gap-4 rounded-3xl border border-zinc-200 p-5 bg-zinc-50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={passwordMustChange}
-                onChange={(event) => setPasswordMustChange(event.target.checked)}
-                className="h-5 w-5 mt-1 accent-indigo-600"
-              />
-
-              <span>
-                <span className="block font-bold text-zinc-950">
-                  Passwort bei nächster Anmeldung ändern
-                </span>
-                <span className="block text-sm text-zinc-500 mt-1">
-                  Der Benutzer muss nach dem ersten Login oder Passwort-Reset ein neues Passwort vergeben.
-                </span>
-              </span>
-            </label>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Rolle & Status
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Die Rolle legt die Grundhierarchie fest. Rollen-Vorlagen setzen zusätzlich globale Benutzerrechte.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Rolle & Status
+            </h3>
 
-            <div>
-              <label className="block mb-2 font-medium">
+            <p className="text-zinc-500 mt-1">
+              Die Rolle legt die Grundhierarchie fest. Rollen-Vorlagen setzen zusätzlich globale Benutzerrechte.
+            </p>
+
+            <div className="mt-5">
+              <label className="block mb-2 font-bold">
                 Rollen-Vorlage
               </label>
 
               <select
                 value={selectedTemplateKey}
-                onChange={(event) => handleRoleTemplateChange(event.target.value)}
+                onChange={(event) =>
+                  handleRoleTemplateChange(event.target.value)
+                }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
@@ -972,34 +1002,33 @@ export default function AdminUsersPage() {
               </select>
 
               {selectedTemplate && (
-                <div className="mt-4 bg-zinc-50 border border-zinc-200 rounded-3xl p-5">
-                  <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
-                    <div>
-                      <h4 className="font-black">
-                        {selectedTemplate.name}
-                      </h4>
-                      <p className="text-zinc-500 mt-1">
-                        {selectedTemplate.description || "Keine Beschreibung"}
-                      </p>
-                    </div>
+                <div className="bg-white border border-zinc-200 rounded-3xl p-5 mt-4">
+                  <h4 className="font-black text-zinc-950">
+                    {selectedTemplate.name}
+                  </h4>
 
-                    <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-                      {selectedTemplate.permissionKeys.length} Rechte
-                    </span>
-                  </div>
+                  <p className="text-zinc-500 mt-1">
+                    {selectedTemplate.description || "Keine Beschreibung"}
+                  </p>
 
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {selectedTemplate.permissionKeys.slice(0, 10).map((permission) => (
-                      <span
-                        key={permission}
-                        className="text-xs bg-white border border-zinc-200 text-zinc-700 px-3 py-1 rounded-full"
-                      >
-                        {permission}
-                      </span>
-                    ))}
+                  <p className="text-sm font-bold mt-4">
+                    {selectedTemplate.permissionKeys.length} Rechte
+                  </p>
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {selectedTemplate.permissionKeys
+                      .slice(0, 10)
+                      .map((permission) => (
+                        <span
+                          key={permission}
+                          className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full"
+                        >
+                          {permission}
+                        </span>
+                      ))}
 
                     {selectedTemplate.permissionKeys.length > 10 && (
-                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full">
+                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
                         +{selectedTemplate.permissionKeys.length - 10}
                       </span>
                     )}
@@ -1012,7 +1041,7 @@ export default function AdminUsersPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
               {roleOptions.map((option) => {
                 const active = role === option.value;
 
@@ -1030,9 +1059,10 @@ export default function AdminUsersPage() {
                     <h4 className="font-black">
                       {option.label}
                     </h4>
+
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/75" : "text-zinc-500"
+                        active ? "text-white/70" : "text-zinc-500"
                       }`}
                     >
                       {option.description}
@@ -1042,7 +1072,7 @@ export default function AdminUsersPage() {
               })}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
               {statusOptions.map((option) => {
                 const active = status === option.value;
 
@@ -1060,9 +1090,10 @@ export default function AdminUsersPage() {
                     <h4 className="font-black">
                       {option.label}
                     </h4>
+
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/75" : "text-zinc-500"
+                        active ? "text-white/70" : "text-zinc-500"
                       }`}
                     >
                       {option.description}
@@ -1073,31 +1104,36 @@ export default function AdminUsersPage() {
             </div>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Organisation
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Firma und Abteilung bestimmen, welche Bereichsdaten der Benutzer sieht.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Organisation
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <p className="text-zinc-500 mt-1">
+              Firma und Abteilung bestimmen, welche Bereichsdaten der Benutzer sieht.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Firma
                 </label>
+
                 <select
                   value={companyId}
-                  onChange={(event) => handleCompanyChange(event.target.value)}
+                  onChange={(event) =>
+                    handleCompanyChange(event.target.value)
+                  }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   <option value="">
                     Keine Firma
                   </option>
 
-                  {(activeCompanies.length > 0 ? activeCompanies : companies).map((company) => (
+                  {(activeCompanies.length > 0
+                    ? activeCompanies
+                    : companies
+                  ).map((company) => (
                     <option
                       key={company.id}
                       value={company.id}
@@ -1109,12 +1145,15 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Abteilung
                 </label>
+
                 <select
                   value={departmentId}
-                  onChange={(event) => setDepartmentId(event.target.value)}
+                  onChange={(event) =>
+                    setDepartmentId(event.target.value)
+                  }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   <option value="">
@@ -1138,8 +1177,8 @@ export default function AdminUsersPage() {
 
       <PageHero
         eyebrow="Velunis Admin"
-        title="Benutzerverwaltung"
-        description="Benutzerkonten, Rollen, Status, Startpasswörter, Firmen und Abteilungen zentral verwalten."
+        title="Benutzer"
+        description="Benutzerkonten, Rollen, Status, Organisation und Passwortvorgaben zentral verwalten."
         badges={[
           {
             label: `${users.length} Benutzer`,
@@ -1148,10 +1187,10 @@ export default function AdminUsersPage() {
             label: `${activeUsers.length} aktiv`,
           },
           {
-            label: `${adminUsers.length} Administratoren`,
+            label: `${adminUsers.length} Admins`,
           },
           {
-            label: `${roleTemplates.length} Rollen-Vorlagen`,
+            label: `${passwordResetUsers.length} Passwortwechsel offen`,
           },
         ]}
         actions={
@@ -1178,47 +1217,52 @@ export default function AdminUsersPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Benutzer werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Benutzer werden geladen..."
+          description="Konten, Organisationen und Rollen-Vorlagen werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Benutzer konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
-          label="Aktive Benutzer"
+          label="Aktiv"
           value={activeUsers.length}
-          description={`${users.length} insgesamt`}
-          icon="👥"
-          tone="blue"
+          description={`${users.length} Benutzer gesamt`}
+          icon="✅"
+          tone="green"
           active={statusFilter === "active"}
           onClick={() => setStatusFilter("active")}
         />
 
         <StatCard
-          label="Administratoren"
+          label="Admins"
           value={adminUsers.length}
-          description="Vollzugriff"
+          description={`${departmentLeadUsers.length} Abteilungsleiter`}
           icon="🛡️"
           tone="red"
           active={roleFilter === "admin"}
@@ -1228,8 +1272,8 @@ export default function AdminUsersPage() {
         <StatCard
           label="Leitung"
           value={departmentLeadUsers.length}
-          description="Abteilungsleiter"
-          icon="🧭"
+          description={`${employeeUsers.length} Mitarbeiter`}
+          icon="👥"
           tone="indigo"
           active={roleFilter === "department_lead"}
           onClick={() => setRoleFilter("department_lead")}
@@ -1238,7 +1282,7 @@ export default function AdminUsersPage() {
         <StatCard
           label="Passwortwechsel"
           value={passwordResetUsers.length}
-          description="Muss Passwort ändern"
+          description="Muss beim nächsten Login geändert werden"
           icon="🔐"
           tone="orange"
           active={search === "passwort ändern"}
@@ -1252,6 +1296,7 @@ export default function AdminUsersPage() {
           value={employeeUsers.length}
           description="Standardrolle"
           icon="👤"
+          tone="blue"
           active={roleFilter === "employee"}
           onClick={() => setRoleFilter("employee")}
         />
@@ -1259,8 +1304,8 @@ export default function AdminUsersPage() {
         <StatCard
           label="Eingeladen"
           value={invitedUsers.length}
-          description="Vorbereitete Konten"
-          icon="✉️"
+          description="Noch nicht vollständig aktiv"
+          icon="📨"
           tone="purple"
           active={statusFilter === "invited"}
           onClick={() => setStatusFilter("invited")}
@@ -1269,186 +1314,195 @@ export default function AdminUsersPage() {
         <StatCard
           label="Inaktiv"
           value={inactiveUsers.length}
-          description="Gesperrte Konten"
+          description="Gesperrte Benutzer"
           icon="⛔"
-          tone="orange"
+          tone="default"
           active={statusFilter === "inactive"}
           onClick={() => setStatusFilter("inactive")}
         />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Suche nach Name, Benutzername, E-Mail, Rolle, Status oder Organisation.
-            </p>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+        <div className="relative">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-black">
+                Suche & Filter
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Suche nach Name, Benutzername, E-Mail, Rolle, Status oder Organisation.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "table"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Tabelle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "cards"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Karten
+              </button>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              >
+                Zurücksetzen
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-6">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Benutzer suchen..."
+            />
 
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
+            <select
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              Karten
-            </button>
+              <option value="">
+                Alle Rollen
+              </option>
+              <option value="admin">
+                Administrator
+              </option>
+              <option value="department_lead">
+                Abteilungsleiter
+              </option>
+              <option value="employee">
+                Mitarbeiter
+              </option>
+            </select>
 
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              Zurücksetzen
-            </button>
+              <option value="">
+                Alle Status
+              </option>
+              <option value="active">
+                Aktiv
+              </option>
+              <option value="invited">
+                Eingeladen
+              </option>
+              <option value="inactive">
+                Inaktiv
+              </option>
+            </select>
+
+            <select
+              value={companyFilter}
+              onChange={(event) => {
+                setCompanyFilter(event.target.value);
+                setDepartmentFilter("");
+              }}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Firmen
+              </option>
+
+              {companies.map((company) => (
+                <option
+                  key={company.id}
+                  value={company.id}
+                >
+                  {company.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={departmentFilter}
+              onChange={(event) => setDepartmentFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Abteilungen
+              </option>
+
+              {filteredDepartments.map((department) => (
+                <option
+                  key={department.id}
+                  value={department.id}
+                >
+                  {department.name}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Benutzer suchen..."
-          />
-
-          <select
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Rollen
-            </option>
-            <option value="admin">
-              Administrator
-            </option>
-            <option value="department_lead">
-              Abteilungsleiter
-            </option>
-            <option value="employee">
-              Mitarbeiter
-            </option>
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-            <option value="active">
-              Aktiv
-            </option>
-            <option value="invited">
-              Eingeladen
-            </option>
-            <option value="inactive">
-              Inaktiv
-            </option>
-          </select>
-
-          <select
-            value={companyFilter}
-            onChange={(event) => {
-              setCompanyFilter(event.target.value);
-              setDepartmentFilter("");
-            }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Firmen
-            </option>
-
-            {companies.map((company) => (
-              <option
-                key={company.id}
-                value={company.id}
-              >
-                {company.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={departmentFilter}
-            onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Abteilungen
-            </option>
-
-            {filteredDepartments.map((department) => (
-              <option
-                key={department.id}
-                value={department.id}
-              >
-                {department.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredUsers.length} von {users.length} Benutzern gefunden.
-          </span>
-
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="text-sm text-zinc-500">
+              {filteredUsers.length} von {users.length} Benutzern gefunden.
             </span>
-          )}
 
-          {roleFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Rolle: {getRoleLabel(roleFilter)}
-            </span>
-          )}
+            {search && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Suche: {search}
+              </span>
+            )}
 
-          {statusFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Status: {getStatusLabel(statusFilter)}
-            </span>
-          )}
+            {roleFilter && (
+              <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                Rolle: {getRoleLabel(roleFilter)}
+              </span>
+            )}
+
+            {statusFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Status: {getStatusLabel(statusFilter)}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {filteredUsers.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-            🔎
-          </div>
-
-          <h2 className="text-xl font-semibold mt-5">
-            Keine Benutzer gefunden
-          </h2>
-          <p className="text-zinc-500 mt-2">
-            Passe die Filter an oder erstelle einen neuen Benutzer.
-          </p>
-        </div>
+      {!loading && !error && filteredUsers.length === 0 && (
+        <EmptyState
+          icon="👤"
+          title="Keine Benutzer gefunden"
+          description="Passe die Filter an oder erstelle einen neuen Benutzer."
+          action={
+            canManageUsers() ? (
+              <button
+                type="button"
+                onClick={openCreateForm}
+                className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+              >
+                Benutzer erstellen
+              </button>
+            ) : undefined
+          }
+        />
       )}
 
       {viewMode === "table" && filteredUsers.length > 0 && (
@@ -1491,13 +1545,15 @@ export default function AdminUsersPage() {
                       key={user.id}
                       className="hover:bg-zinc-50 transition"
                     >
-                      <td className="px-5 py-4 align-top">
+                      <td className="px-5 py-4 align-top min-w-[260px]">
                         <p className="font-black text-zinc-950">
                           {user.name}
                         </p>
-                        <p className="text-sm text-zinc-500 break-all mt-1">
+
+                        <p className="text-sm text-zinc-500 mt-1">
                           {user.email}
                         </p>
+
                         <p className="text-xs text-zinc-400 mt-1">
                           @{user.username || "-"}
                         </p>
@@ -1505,7 +1561,7 @@ export default function AdminUsersPage() {
 
                       <td className="px-5 py-4 align-top">
                         <span
-                          className={`text-xs px-3 py-1 rounded-full font-bold border ${getRoleTone(
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getRoleTone(
                             user.role,
                           )}`}
                         >
@@ -1515,7 +1571,7 @@ export default function AdminUsersPage() {
 
                       <td className="px-5 py-4 align-top">
                         <span
-                          className={`text-xs px-3 py-1 rounded-full font-bold border ${getStatusTone(
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusTone(
                             user.status,
                           )}`}
                         >
@@ -1523,36 +1579,36 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 align-top">
-                        <p className="font-medium text-zinc-900">
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500 min-w-[220px]">
+                        <p className="font-medium text-zinc-700">
                           {companyName}
                         </p>
-                        <p className="text-sm text-zinc-500 mt-1">
+                        <p className="mt-1">
                           {departmentName}
                         </p>
                       </td>
 
                       <td className="px-5 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2">
                           {user.hasPassword ? (
-                            <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold">
+                            <span className="text-xs bg-green-50 text-green-700 border border-green-100 px-3 py-1 rounded-full font-bold">
                               Passwort gesetzt
                             </span>
                           ) : (
-                            <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full font-bold">
+                            <span className="text-xs bg-red-50 text-red-700 border border-red-100 px-3 py-1 rounded-full font-bold">
                               Kein Passwort
                             </span>
                           )}
 
                           {user.passwordMustChange && (
-                            <span className="text-xs bg-orange-50 text-orange-700 px-3 py-1 rounded-full font-bold">
+                            <span className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-3 py-1 rounded-full font-bold">
                               Passwort ändern
                             </span>
                           )}
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500 whitespace-nowrap">
                         {user.lastLoginAt || "Noch nie"}
                       </td>
 
@@ -1562,7 +1618,7 @@ export default function AdminUsersPage() {
                             <button
                               type="button"
                               onClick={() => startEditUser(user)}
-                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                             >
                               Bearbeiten
                             </button>
@@ -1587,7 +1643,7 @@ export default function AdminUsersPage() {
       )}
 
       {viewMode === "cards" && filteredUsers.length > 0 && (
-        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {filteredUsers.map((user) => {
             const companyName = getCompanyName(user.companyId);
             const departmentName = getDepartmentName(user.departmentId);
@@ -1595,129 +1651,131 @@ export default function AdminUsersPage() {
             return (
               <article
                 key={user.id}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
               >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full font-bold border ${getRoleTone(
-                          user.role,
-                        )}`}
-                      >
-                        {getRoleLabel(user.role)}
-                      </span>
+                <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full font-bold border ${getStatusTone(
-                          user.status,
-                        )}`}
-                      >
-                        {getStatusLabel(user.status)}
-                      </span>
+                <div className="relative">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getRoleTone(
+                            user.role,
+                          )}`}
+                        >
+                          {getRoleLabel(user.role)}
+                        </span>
 
-                      {user.hasPassword ? (
-                        <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold">
-                          Passwort gesetzt
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusTone(
+                            user.status,
+                          )}`}
+                        >
+                          {getStatusLabel(user.status)}
                         </span>
-                      ) : (
-                        <span className="text-xs bg-red-50 text-red-700 px-3 py-1 rounded-full font-bold">
-                          Kein Passwort
-                        </span>
-                      )}
 
-                      {user.passwordMustChange && (
-                        <span className="text-xs bg-orange-50 text-orange-700 px-3 py-1 rounded-full font-bold">
-                          Passwort ändern
-                        </span>
-                      )}
+                        {user.hasPassword ? (
+                          <span className="text-xs bg-green-50 text-green-700 border border-green-100 px-3 py-1 rounded-full font-bold">
+                            Passwort gesetzt
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-red-50 text-red-700 border border-red-100 px-3 py-1 rounded-full font-bold">
+                            Kein Passwort
+                          </span>
+                        )}
+
+                        {user.passwordMustChange && (
+                          <span className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-3 py-1 rounded-full font-bold">
+                            Passwort ändern
+                          </span>
+                        )}
+                      </div>
+
+                      <h2 className="text-2xl font-black mt-4">
+                        {user.name}
+                      </h2>
+
+                      <p className="text-zinc-500 mt-1 break-all">
+                        {user.email}
+                      </p>
                     </div>
 
-                    <h2 className="text-2xl font-black mt-4 line-clamp-1">
-                      {user.name}
-                    </h2>
+                    {canManageUsers() && (
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditUser(user)}
+                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+                        >
+                          Bearbeiten
+                        </button>
 
-                    <p className="text-zinc-500 mt-2 break-all">
-                      {user.email}
-                    </p>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteUser(user)}
+                          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {canManageUsers() && (
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEditUser(user)}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
-                      >
-                        Bearbeiten
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteUser(user)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                      >
-                        Löschen
-                      </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Benutzername
+                      </p>
+                      <p className="font-black mt-1">
+                        {user.username || "-"}
+                      </p>
                     </div>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Benutzername
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {user.username || "-"}
-                    </p>
-                  </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Firma
+                      </p>
+                      <p className="font-black mt-1">
+                        {companyName}
+                      </p>
+                    </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Firma
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {companyName}
-                    </p>
-                  </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Abteilung
+                      </p>
+                      <p className="font-black mt-1">
+                        {departmentName}
+                      </p>
+                    </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Abteilung
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {departmentName}
-                    </p>
-                  </div>
-                </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Letzter Login
+                      </p>
+                      <p className="font-black mt-1">
+                        {user.lastLoginAt || "Noch nie"}
+                      </p>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Erstellt
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {user.createdAt || "-"}
-                    </p>
-                  </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Erstellt
+                      </p>
+                      <p className="font-black mt-1">
+                        {user.createdAt || "-"}
+                      </p>
+                    </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Aktualisiert
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {user.updatedAt || "-"}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Letzter Login
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {user.lastLoginAt || "Noch nie"}
-                    </p>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Aktualisiert
+                      </p>
+                      <p className="font-black mt-1">
+                        {user.updatedAt || "-"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -1728,4 +1786,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-

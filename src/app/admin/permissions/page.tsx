@@ -7,30 +7,32 @@ import {
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
+import PageHero from "../../../components/PageHero";
+import StatCard from "../../../components/StatCard";
+import {
+  adminUserRepository,
+} from "../../../lib/adminUserRepository";
+import {
+  companyRepository,
+} from "../../../lib/companyRepository";
 import {
   canViewAdmin,
 } from "../../../lib/permissions";
 import {
   permissionRepository,
 } from "../../../lib/permissionRepository";
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
-import {
-  adminUserRepository,
-} from "../../../lib/adminUserRepository";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import PageHero from "../../../components/PageHero";
-import StatCard from "../../../components/StatCard";
+import type {
+  Company,
+  Department,
+} from "../../../types/company";
 import type {
   Permission,
   PermissionScopeType,
   UserPermission,
 } from "../../../types/permission";
-import type {
-  Company,
-  Department,
-} from "../../../types/company";
 import type {
   AdminUser,
 } from "../../../types/user";
@@ -40,8 +42,6 @@ type TabKey =
   | "companies"
   | "departments"
   | "users";
-
-type ViewMode = "cards" | "compact";
 
 const tabs: Array<{
   key: TabKey;
@@ -65,7 +65,7 @@ const tabs: Array<{
     key: "departments",
     label: "Abteilungsrechte",
     description: "Rechte gezielt pro Abteilung vergeben.",
-    icon: "🧭",
+    icon: "🧩",
   },
   {
     key: "users",
@@ -151,38 +151,29 @@ function getScopeLabel(scopeType: PermissionScopeType) {
   );
 }
 
-function getCategoryTone(category: string) {
-  const normalized = category.toLowerCase();
-
-  if (normalized.includes("ticket")) {
-    return "bg-orange-50 text-orange-700 border-orange-100";
-  }
-
-  if (normalized.includes("wiki")) {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
+function getPermissionScopeType(permission: Permission): PermissionScopeType {
+  const rawPermission = permission as unknown as Record<string, unknown>;
+  const value =
+    rawPermission.scopeType ||
+    rawPermission.scope_type ||
+    rawPermission.scope ||
+    "global";
 
   if (
-    normalized.includes("admin") ||
-    normalized.includes("system")
+    value === "global" ||
+    value === "company" ||
+    value === "department" ||
+    value === "own"
   ) {
-    return "bg-red-50 text-red-700 border-red-100";
+    return value;
   }
 
-  if (
-    normalized.includes("news") ||
-    normalized.includes("datei") ||
-    normalized.includes("file")
-  ) {
-    return "bg-blue-50 text-blue-700 border-blue-100";
-  }
-
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
+  return "global";
 }
 
-function getScopeTone(scopeType: PermissionScopeType) {
+function getScopeClass(scopeType: PermissionScopeType) {
   if (scopeType === "global") {
-    return "bg-red-50 text-red-700 border-red-100";
+    return "bg-zinc-100 text-zinc-700 border-zinc-200";
   }
 
   if (scopeType === "company") {
@@ -193,38 +184,46 @@ function getScopeTone(scopeType: PermissionScopeType) {
     return "bg-indigo-50 text-indigo-700 border-indigo-100";
   }
 
-  if (scopeType === "own") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  }
+  return "bg-emerald-50 text-emerald-700 border-emerald-100";
+}
 
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
+function getCategoryCount(
+  groups: Record<string, Permission[]>,
+  categories: string[],
+) {
+  return categories.reduce(
+    (sum, category) => sum + (groups[category]?.length || 0),
+    0,
+  );
 }
 
 export default function AdminPermissionsPage() {
   const [mounted, setMounted] = useState(false);
-
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
 
   const [activeTab, setActiveTab] = useState<TabKey>("catalog");
-  const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [search, setSearch] = useState("");
 
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [selectedDepartmentCompanyId, setSelectedDepartmentCompanyId] =
-    useState("");
+  const [
+    selectedDepartmentCompanyId,
+    setSelectedDepartmentCompanyId,
+  ] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
 
-  const [companyPermissionKeys, setCompanyPermissionKeys] = useState<string[]>(
-    [],
-  );
+  const [companyPermissionKeys, setCompanyPermissionKeys] = useState<
+    string[]
+  >([]);
   const [departmentPermissionKeys, setDepartmentPermissionKeys] = useState<
     string[]
   >([]);
-  const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
+  const [userPermissions, setUserPermissions] = useState<UserPermission[]>(
+    [],
+  );
 
   const [userScopeType, setUserScopeType] =
     useState<PermissionScopeType>("global");
@@ -306,31 +305,50 @@ export default function AdminPermissionsPage() {
         adminUserRepository.list(),
       ]);
 
-      setPermissions(Array.isArray(nextPermissions) ? nextPermissions : []);
-      setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
-      setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+      const safePermissions = Array.isArray(nextPermissions)
+        ? nextPermissions
+        : [];
+      const safeCompanies = Array.isArray(nextCompanies)
+        ? nextCompanies
+        : [];
+      const safeDepartments = Array.isArray(nextDepartments)
+        ? nextDepartments
+        : [];
+      const safeUsers = Array.isArray(nextUsers) ? nextUsers : [];
 
-      if (!selectedCompanyId && nextCompanies[0]) {
-        setSelectedCompanyId(nextCompanies[0].id);
+      setPermissions(safePermissions);
+      setCompanies(safeCompanies);
+      setDepartments(safeDepartments);
+      setUsers(safeUsers);
+
+      const nextCompanyId =
+        selectedCompanyId ||
+        safeCompanies[0]?.id ||
+        "";
+
+      if (!selectedCompanyId && nextCompanyId) {
+        setSelectedCompanyId(nextCompanyId);
       }
 
-      if (!selectedDepartmentCompanyId && nextCompanies[0]) {
-        setSelectedDepartmentCompanyId(nextCompanies[0].id);
+      if (!selectedDepartmentCompanyId && nextCompanyId) {
+        setSelectedDepartmentCompanyId(nextCompanyId);
       }
 
-      const firstDepartment = nextDepartments.find(
+      const nextDepartmentCompanyId =
+        selectedDepartmentCompanyId ||
+        nextCompanyId;
+
+      const firstDepartment = safeDepartments.find(
         (department) =>
-          department.companyId ===
-          (selectedDepartmentCompanyId || nextCompanies[0]?.id),
+          department.companyId === nextDepartmentCompanyId,
       );
 
       if (!selectedDepartmentId && firstDepartment) {
         setSelectedDepartmentId(firstDepartment.id);
       }
 
-      if (!selectedUserId && nextUsers[0]) {
-        setSelectedUserId(nextUsers[0].id);
+      if (!selectedUserId && safeUsers[0]) {
+        setSelectedUserId(safeUsers[0].id);
       }
     } catch (loadError) {
       console.error(loadError);
@@ -393,9 +411,7 @@ export default function AdminPermissionsPage() {
         await permissionRepository.listUserPermissions(userId);
 
       setUserPermissions(
-        Array.isArray(nextPermissions)
-          ? nextPermissions
-          : [],
+        Array.isArray(nextPermissions) ? nextPermissions : [],
       );
     } catch (loadError) {
       console.error(loadError);
@@ -421,6 +437,7 @@ export default function AdminPermissionsPage() {
         permission.label,
         permission.description,
         permission.category,
+        getPermissionScopeType(permission),
       ]
         .filter(Boolean)
         .join(" ")
@@ -441,7 +458,9 @@ export default function AdminPermissionsPage() {
 
   const categories = useMemo(
     () =>
-      Object.keys(groupedPermissions).sort((a, b) => a.localeCompare(b)),
+      Object.keys(groupedPermissions).sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [
       groupedPermissions,
     ],
@@ -453,7 +472,8 @@ export default function AdminPermissionsPage() {
     }
 
     return departments.filter(
-      (department) => department.companyId === selectedDepartmentCompanyId,
+      (department) =>
+        department.companyId === selectedDepartmentCompanyId,
     );
   }, [
     departments,
@@ -462,7 +482,8 @@ export default function AdminPermissionsPage() {
 
   const selectedCompany = useMemo(
     () =>
-      companies.find((company) => company.id === selectedCompanyId) || null,
+      companies.find((company) => company.id === selectedCompanyId) ||
+      null,
     [
       companies,
       selectedCompanyId,
@@ -471,8 +492,9 @@ export default function AdminPermissionsPage() {
 
   const selectedDepartment = useMemo(
     () =>
-      departments.find((department) => department.id === selectedDepartmentId) ||
-      null,
+      departments.find(
+        (department) => department.id === selectedDepartmentId,
+      ) || null,
     [
       departments,
       selectedDepartmentId,
@@ -481,19 +503,29 @@ export default function AdminPermissionsPage() {
 
   const selectedUser = useMemo(
     () =>
-      users.find((user) => user.id === selectedUserId) || null,
+      users.find((user) => user.id === selectedUserId) ||
+      null,
     [
       users,
       selectedUserId,
     ],
   );
 
-  const globalPermissions = useMemo(
+  const companyScopedPermissions = useMemo(
     () =>
-      permissions.filter((permission) =>
-        String(permission.permissionKey || "").includes("admin") ||
-        String(permission.permissionKey || "").includes("manage") ||
-        String(permission.category || "").toLowerCase().includes("admin"),
+      permissions.filter(
+        (permission) => getPermissionScopeType(permission) === "company",
+      ),
+    [
+      permissions,
+    ],
+  );
+
+  const departmentScopedPermissions = useMemo(
+    () =>
+      permissions.filter(
+        (permission) =>
+          getPermissionScopeType(permission) === "department",
       ),
     [
       permissions,
@@ -648,67 +680,101 @@ export default function AdminPermissionsPage() {
   ) {
     return (
       <div className="space-y-5">
+        {categories.length === 0 && (
+          <EmptyState
+            icon="🔐"
+            title="Keine Berechtigungen gefunden"
+            description="Prüfe den Suchfilter oder den Permission-Katalog."
+          />
+        )}
+
         {categories.map((category) => (
           <section
             key={category}
-            className="border border-zinc-200 rounded-3xl p-5 bg-white"
+            className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
           >
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
-              <div>
-                <h3 className="text-xl font-black">
-                  {category}
-                </h3>
-                <p className="text-zinc-500 mt-1">
-                  {groupedPermissions[category].length} Rechte
-                </p>
+            <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-black">
+                    {category}
+                  </h3>
+
+                  <p className="text-zinc-500 mt-1">
+                    {groupedPermissions[category].length} Rechte
+                  </p>
+                </div>
+
+                <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                  {
+                    groupedPermissions[category].filter((permission) =>
+                      includesPermission(
+                        selectedPermissionKeys,
+                        permission.permissionKey,
+                      ),
+                    ).length
+                  } aktiv
+                </span>
               </div>
 
-              <span
-                className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryTone(
-                  category,
-                )}`}
-              >
-                {category}
-              </span>
-            </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
+                {groupedPermissions[category].map((permission) => {
+                  const checked = includesPermission(
+                    selectedPermissionKeys,
+                    permission.permissionKey,
+                  );
+                  const scopeType = getPermissionScopeType(permission);
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              {groupedPermissions[category].map((permission) => {
-                const checked = includesPermission(
-                  selectedPermissionKeys,
-                  permission.permissionKey,
-                );
+                  return (
+                    <label
+                      key={permission.permissionKey}
+                      className={`border rounded-3xl p-5 cursor-pointer transition ${
+                        checked
+                          ? "app-accent-soft border-indigo-200"
+                          : "border-zinc-200 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            onToggle(permission.permissionKey)
+                          }
+                          className="mt-1 h-5 w-5 accent-indigo-600"
+                        />
 
-                return (
-                  <label
-                    key={permission.permissionKey}
-                    className={`flex items-start gap-4 rounded-2xl border p-4 cursor-pointer transition ${
-                      checked
-                        ? "border-indigo-200 app-accent-soft"
-                        : "border-zinc-100 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onToggle(permission.permissionKey)}
-                      className="mt-1 h-5 w-5 accent-indigo-600"
-                    />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
+                            <p className="font-black text-zinc-950">
+                              {permission.label}
+                            </p>
 
-                    <span className="min-w-0">
-                      <span className="block font-black text-zinc-950">
-                        {permission.label}
-                      </span>
-                      <span className="block text-sm text-zinc-500 mt-1">
-                        {permission.description}
-                      </span>
-                      <span className="block text-xs text-zinc-400 mt-2 break-all">
-                        {permission.permissionKey}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full border font-bold ${getScopeClass(
+                                scopeType,
+                              )}`}
+                            >
+                              {getScopeLabel(scopeType)}
+                            </span>
+                          </div>
+
+                          <p className="text-zinc-500 mt-2 leading-7">
+                            {permission.description ||
+                              "Keine Beschreibung vorhanden."}
+                          </p>
+
+                          <p className="text-xs text-zinc-400 mt-3 font-mono break-all">
+                            {permission.permissionKey}
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </section>
         ))}
@@ -723,10 +789,10 @@ export default function AdminPermissionsPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Berechtigungen"
-        description="Du hast keine Berechtigung für die Rechteverwaltung."
+        title="Berechtigungen nicht verfügbar"
+        description="Du hast keine Berechtigung, das Berechtigungsmanagement zu sehen."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -734,12 +800,12 @@ export default function AdminPermissionsPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Velunis Admin"
+        eyebrow="Admin Backend"
         title="Berechtigungen"
-        description="Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten. Administratoren haben immer vollständigen Zugriff."
+        description="Berechtigungskatalog prüfen und Rechte gezielt für Firmen, Abteilungen und einzelne Benutzer vergeben."
         badges={[
           {
-            label: `${permissions.length} Berechtigungen`,
+            label: `${permissions.length} Rechte`,
           },
           {
             label: `${companies.length} Firmen`,
@@ -772,38 +838,43 @@ export default function AdminPermissionsPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Berechtigungen werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Berechtigungen werden geladen..."
+          description="Katalog, Firmen, Abteilungen und Benutzerrechte werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Berechtigungen konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           label="Katalog"
           value={permissions.length}
-          description={`${categories.length} Kategorien`}
-          icon="📚"
+          description="Verfügbare Rechte"
+          icon="🔐"
           active={activeTab === "catalog"}
           onClick={() => setActiveTab("catalog")}
         />
@@ -811,7 +882,7 @@ export default function AdminPermissionsPage() {
         <StatCard
           label="Firmenrechte"
           value={companyPermissionKeys.length}
-          description={selectedCompany?.name || "Keine Firma"}
+          description={selectedCompany?.name || "Keine Firma ausgewählt"}
           icon="🏢"
           tone="blue"
           active={activeTab === "companies"}
@@ -821,8 +892,10 @@ export default function AdminPermissionsPage() {
         <StatCard
           label="Abteilungsrechte"
           value={departmentPermissionKeys.length}
-          description={selectedDepartment?.name || "Keine Abteilung"}
-          icon="🧭"
+          description={
+            selectedDepartment?.name || "Keine Abteilung ausgewählt"
+          }
+          icon="🧩"
           tone="indigo"
           active={activeTab === "departments"}
           onClick={() => setActiveTab("departments")}
@@ -831,9 +904,9 @@ export default function AdminPermissionsPage() {
         <StatCard
           label="Benutzerrechte"
           value={userPermissions.length}
-          description={selectedUser?.name || "Kein Benutzer"}
+          description={selectedUser?.name || "Kein Benutzer ausgewählt"}
           icon="👤"
-          tone="purple"
+          tone="orange"
           active={activeTab === "users"}
           onClick={() => setActiveTab("users")}
         />
@@ -857,12 +930,14 @@ export default function AdminPermissionsPage() {
               <div className="text-2xl">
                 {tab.icon}
               </div>
+
               <h2 className="font-black mt-3">
                 {tab.label}
               </h2>
+
               <p
-                className={`text-sm mt-2 ${
-                  active ? "text-white/75" : "text-zinc-500"
+                className={`text-sm mt-2 leading-6 ${
+                  active ? "text-white/70" : "text-zinc-500"
                 }`}
               >
                 {tab.description}
@@ -872,142 +947,104 @@ export default function AdminPermissionsPage() {
         })}
       </section>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+        <div className="relative flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Ansicht
+            <h2 className="text-2xl font-black">
+              Suche
             </h2>
+
             <p className="text-zinc-500 mt-1">
               Filtert Rechte nach Schlüssel, Titel, Beschreibung oder Kategorie.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Karten
-            </button>
+          <div className="w-full xl:w-96">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Berechtigungen suchen..."
+            />
 
-            <button
-              type="button"
-              onClick={() => setViewMode("compact")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "compact"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Kompakt
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-            >
-              Suche leeren
-            </button>
+            <p className="text-sm text-zinc-500 mt-3">
+              {getCategoryCount(groupedPermissions, categories)} von {permissions.length} Berechtigungen gefunden.
+            </p>
           </div>
-        </div>
-
-        <div className="mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Berechtigungen suchen..."
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredPermissions.length} von {permissions.length} Berechtigungen gefunden.
-          </span>
-
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
-            </span>
-          )}
-
-          <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-            Tab: {tabs.find((tab) => tab.key === activeTab)?.label}
-          </span>
         </div>
       </section>
 
       {activeTab === "catalog" && (
         <section className="space-y-5">
           {categories.length === 0 && !loading && (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-              <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-                🔎
-              </div>
-
-              <h2 className="text-xl font-semibold mt-5">
-                Keine Berechtigungen gefunden
-              </h2>
-              <p className="text-zinc-500 mt-2">
-                Prüfe, ob der Permission-Katalog in PostgreSQL eingefügt wurde.
-              </p>
-            </div>
+            <EmptyState
+              icon="🔐"
+              title="Keine Berechtigungen gefunden"
+              description="Prüfe, ob der Permission-Katalog in PostgreSQL eingefügt wurde oder passe die Suche an."
+            />
           )}
 
           {categories.map((category) => (
             <section
               key={category}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
             >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
-                <div>
-                  <h2 className="text-2xl font-black">
-                    {category}
-                  </h2>
-                  <p className="text-zinc-500 mt-1">
-                    {groupedPermissions[category].length} Rechte
-                  </p>
+              <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+              <div className="relative">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-black">
+                      {category}
+                    </h3>
+
+                    <p className="text-zinc-500 mt-1">
+                      {groupedPermissions[category].length} Rechte
+                    </p>
+                  </div>
+
+                  <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                    Katalog
+                  </span>
                 </div>
 
-                <span
-                  className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryTone(
-                    category,
-                  )}`}
-                >
-                  {category}
-                </span>
-              </div>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
+                  {groupedPermissions[category].map((permission) => {
+                    const scopeType = getPermissionScopeType(permission);
 
-              <div
-                className={
-                  viewMode === "cards"
-                    ? "grid grid-cols-1 xl:grid-cols-2 gap-4"
-                    : "space-y-3"
-                }
-              >
-                {groupedPermissions[category].map((permission) => (
-                  <article
-                    key={permission.permissionKey}
-                    className="border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
-                  >
-                    <h3 className="font-black">
-                      {permission.label}
-                    </h3>
-                    <p className="text-zinc-500 mt-2">
-                      {permission.description}
-                    </p>
-                    <p className="text-xs text-zinc-400 mt-3 break-all">
-                      {permission.permissionKey}
-                    </p>
-                  </article>
-                ))}
+                    return (
+                      <article
+                        key={permission.permissionKey}
+                        className="border border-zinc-200 rounded-3xl p-5"
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          <span
+                            className={`text-xs px-3 py-1 rounded-full border font-bold ${getScopeClass(
+                              scopeType,
+                            )}`}
+                          >
+                            {getScopeLabel(scopeType)}
+                          </span>
+                        </div>
+
+                        <h4 className="font-black text-zinc-950 mt-3">
+                          {permission.label}
+                        </h4>
+
+                        <p className="text-zinc-500 mt-2 leading-7">
+                          {permission.description ||
+                            "Keine Beschreibung vorhanden."}
+                        </p>
+
+                        <p className="text-xs text-zinc-400 mt-3 font-mono break-all">
+                          {permission.permissionKey}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
             </section>
           ))}
@@ -1019,9 +1056,10 @@ export default function AdminPermissionsPage() {
           <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-2xl font-black">
                   Firmenrechte
                 </h2>
+
                 <p className="text-zinc-500 mt-1">
                   Rechte gelten für Benutzer innerhalb der ausgewählten Firma.
                 </p>
@@ -1037,14 +1075,17 @@ export default function AdminPermissionsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5 mt-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Firma
                 </label>
+
                 <select
                   value={selectedCompanyId}
-                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+                  onChange={(event) =>
+                    setSelectedCompanyId(event.target.value)
+                  }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   <option value="">
@@ -1063,15 +1104,23 @@ export default function AdminPermissionsPage() {
               </div>
 
               <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
+                <p className="text-sm text-zinc-500">
                   Aktuelle Auswahl
                 </p>
-                <p className="font-black mt-1">
+
+                <p className="font-black text-zinc-950 mt-1">
                   {selectedCompany?.name || "Keine Firma ausgewählt"}
                 </p>
+
                 <p className="text-sm text-zinc-500 mt-2">
                   {companyPermissionKeys.length} Rechte aktiv
                 </p>
+
+                {companyScopedPermissions.length > 0 && (
+                  <p className="text-sm text-zinc-500 mt-2">
+                    {companyScopedPermissions.length} Rechte sind speziell für Firmen-Scope vorgesehen.
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -1091,9 +1140,10 @@ export default function AdminPermissionsPage() {
           <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-2xl font-black">
                   Abteilungsrechte
                 </h2>
+
                 <p className="text-zinc-500 mt-1">
                   Rechte gelten für Benutzer innerhalb der ausgewählten Abteilung.
                 </p>
@@ -1109,11 +1159,12 @@ export default function AdminPermissionsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr_320px] gap-5 mt-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Firma
                 </label>
+
                 <select
                   value={selectedDepartmentCompanyId}
                   onChange={(event) => {
@@ -1122,7 +1173,8 @@ export default function AdminPermissionsPage() {
                     setSelectedDepartmentCompanyId(nextCompanyId);
 
                     const firstDepartment = departments.find(
-                      (department) => department.companyId === nextCompanyId,
+                      (department) =>
+                        department.companyId === nextCompanyId,
                     );
 
                     setSelectedDepartmentId(firstDepartment?.id || "");
@@ -1145,9 +1197,10 @@ export default function AdminPermissionsPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Abteilung
                 </label>
+
                 <select
                   value={selectedDepartmentId}
                   onChange={(event) =>
@@ -1171,15 +1224,24 @@ export default function AdminPermissionsPage() {
               </div>
 
               <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
+                <p className="text-sm text-zinc-500">
                   Aktuelle Auswahl
                 </p>
-                <p className="font-black mt-1">
-                  {selectedDepartment?.name || "Keine Abteilung ausgewählt"}
+
+                <p className="font-black text-zinc-950 mt-1">
+                  {selectedDepartment?.name ||
+                    "Keine Abteilung ausgewählt"}
                 </p>
+
                 <p className="text-sm text-zinc-500 mt-2">
                   {departmentPermissionKeys.length} Rechte aktiv
                 </p>
+
+                {departmentScopedPermissions.length > 0 && (
+                  <p className="text-sm text-zinc-500 mt-2">
+                    {departmentScopedPermissions.length} Rechte sind speziell für Abteilungs-Scope vorgesehen.
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -1199,9 +1261,10 @@ export default function AdminPermissionsPage() {
           <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-2xl font-black">
                   Benutzerrechte
                 </h2>
+
                 <p className="text-zinc-500 mt-1">
                   Einzelrechte erweitern die Rechte aus Rolle, Firma und Abteilung.
                 </p>
@@ -1217,14 +1280,17 @@ export default function AdminPermissionsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr_1fr_320px] gap-5 mt-6">
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mt-6">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Benutzer
                 </label>
+
                 <select
                   value={selectedUserId}
-                  onChange={(event) => setSelectedUserId(event.target.value)}
+                  onChange={(event) =>
+                    setSelectedUserId(event.target.value)
+                  }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   <option value="">
@@ -1243,13 +1309,16 @@ export default function AdminPermissionsPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Standard-Scope für neue Rechte
                 </label>
+
                 <select
                   value={userScopeType}
                   onChange={(event) =>
-                    setUserScopeType(event.target.value as PermissionScopeType)
+                    setUserScopeType(
+                      event.target.value as PermissionScopeType,
+                    )
                   }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
@@ -1265,24 +1334,29 @@ export default function AdminPermissionsPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Scope-ID
                 </label>
+
                 <input
                   value={userScopeId}
-                  onChange={(event) => setUserScopeId(event.target.value)}
+                  onChange={(event) =>
+                    setUserScopeId(event.target.value)
+                  }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                   placeholder="optional: Firma-/Abteilungs-ID"
                 />
               </div>
 
               <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
+                <p className="text-sm text-zinc-500">
                   Aktuelle Auswahl
                 </p>
-                <p className="font-black mt-1">
+
+                <p className="font-black text-zinc-950 mt-1">
                   {selectedUser?.name || "Kein Benutzer ausgewählt"}
                 </p>
+
                 <p className="text-sm text-zinc-500 mt-2">
                   {userPermissions.length} Zusatzrechte aktiv
                 </p>
@@ -1291,125 +1365,140 @@ export default function AdminPermissionsPage() {
           </section>
 
           <div className="space-y-5">
+            {categories.length === 0 && (
+              <EmptyState
+                icon="👤"
+                title="Keine Benutzerrechte gefunden"
+                description="Prüfe den Suchfilter oder den Permission-Katalog."
+              />
+            )}
+
             {categories.map((category) => (
               <section
                 key={category}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
               >
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
-                  <div>
-                    <h3 className="text-xl font-black">
-                      {category}
-                    </h3>
-                    <p className="text-zinc-500 mt-1">
-                      {groupedPermissions[category].length} Rechte
-                    </p>
+                <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                <div className="relative">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-black">
+                        {category}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-1">
+                        {groupedPermissions[category].length} Rechte
+                      </p>
+                    </div>
+
+                    <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                      Benutzer
+                    </span>
                   </div>
 
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryTone(
-                      category,
-                    )}`}
-                  >
-                    {category}
-                  </span>
-                </div>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
+                    {groupedPermissions[category].map((permission) => {
+                      const checked = userHasPermission(
+                        permission.permissionKey,
+                      );
+                      const activeUserPermission = userPermissions.find(
+                        (userPermission) =>
+                          userPermission.permissionKey ===
+                          permission.permissionKey,
+                      );
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                  {groupedPermissions[category].map((permission) => {
-                    const checked = userHasPermission(permission.permissionKey);
-                    const activeUserPermission = userPermissions.find(
-                      (userPermission) =>
-                        userPermission.permissionKey === permission.permissionKey,
-                    );
-
-                    return (
-                      <div
-                        key={permission.permissionKey}
-                        className={`rounded-2xl border p-4 transition ${
-                          checked
-                            ? "border-indigo-200 app-accent-soft"
-                            : "border-zinc-100 hover:bg-zinc-50"
-                        }`}
-                      >
-                        <label className="flex items-start gap-4 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              toggleUserPermission(permission.permissionKey)
-                            }
-                            className="mt-1 h-5 w-5 accent-indigo-600"
-                          />
-
-                          <span className="min-w-0">
-                            <span className="block font-black text-zinc-950">
-                              {permission.label}
-                            </span>
-                            <span className="block text-sm text-zinc-500 mt-1">
-                              {permission.description}
-                            </span>
-                            <span className="block text-xs text-zinc-400 mt-2 break-all">
-                              {permission.permissionKey}
-                            </span>
-                          </span>
-                        </label>
-
-                        {checked && activeUserPermission && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pl-9">
-                            <select
-                              value={activeUserPermission.scopeType}
-                              onChange={(event) =>
-                                updateUserPermissionScope(
-                                  permission.permissionKey,
-                                  event.target.value as PermissionScopeType,
-                                  activeUserPermission.scopeId,
-                                )
-                              }
-                              className="border border-zinc-200 rounded-xl px-4 py-3 outline-none app-focus bg-white"
-                            >
-                              {scopeOptions.map((scope) => (
-                                <option
-                                  key={scope.value}
-                                  value={scope.value}
-                                >
-                                  {scope.label}
-                                </option>
-                              ))}
-                            </select>
-
+                      return (
+                        <article
+                          key={permission.permissionKey}
+                          className={`border rounded-3xl p-5 transition ${
+                            checked
+                              ? "app-accent-soft border-indigo-200"
+                              : "border-zinc-200"
+                          }`}
+                        >
+                          <label className="flex items-start gap-3 cursor-pointer">
                             <input
-                              value={activeUserPermission.scopeId || ""}
-                              onChange={(event) =>
-                                updateUserPermissionScope(
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                toggleUserPermission(
                                   permission.permissionKey,
-                                  activeUserPermission.scopeType,
-                                  event.target.value,
                                 )
                               }
-                              className="border border-zinc-200 rounded-xl px-4 py-3 outline-none app-focus"
-                              placeholder="Scope-ID optional"
+                              className="mt-1 h-5 w-5 accent-indigo-600"
                             />
-                          </div>
-                        )}
 
-                        {checked && activeUserPermission && (
-                          <div className="mt-4 pl-9">
-                            <span
-                              className={`text-xs px-3 py-1 rounded-full border font-bold ${getScopeTone(
+                            <span className="min-w-0">
+                              <span className="block font-black text-zinc-950">
+                                {permission.label}
+                              </span>
+
+                              <span className="block text-zinc-500 mt-2 leading-7">
+                                {permission.description ||
+                                  "Keine Beschreibung vorhanden."}
+                              </span>
+
+                              <span className="block text-xs text-zinc-400 mt-3 font-mono break-all">
+                                {permission.permissionKey}
+                              </span>
+                            </span>
+                          </label>
+
+                          {checked && activeUserPermission && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                              <select
+                                value={activeUserPermission.scopeType}
+                                onChange={(event) =>
+                                  updateUserPermissionScope(
+                                    permission.permissionKey,
+                                    event.target
+                                      .value as PermissionScopeType,
+                                    activeUserPermission.scopeId,
+                                  )
+                                }
+                                className="border border-zinc-200 rounded-xl px-4 py-3 outline-none app-focus bg-white"
+                              >
+                                {scopeOptions.map((scope) => (
+                                  <option
+                                    key={scope.value}
+                                    value={scope.value}
+                                  >
+                                    {scope.label}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <input
+                                value={activeUserPermission.scopeId || ""}
+                                onChange={(event) =>
+                                  updateUserPermissionScope(
+                                    permission.permissionKey,
+                                    activeUserPermission.scopeType,
+                                    event.target.value,
+                                  )
+                                }
+                                className="border border-zinc-200 rounded-xl px-4 py-3 outline-none app-focus"
+                                placeholder="Scope-ID optional"
+                              />
+                            </div>
+                          )}
+
+                          {checked && activeUserPermission && (
+                            <p className="text-sm text-zinc-500 mt-4">
+                              Scope:{" "}
+                              {getScopeLabel(
                                 activeUserPermission.scopeType,
-                              )}`}
-                            >
-                              Scope: {getScopeLabel(activeUserPermission.scopeType)}
+                              )}
                               {activeUserPermission.scopeId
                                 ? ` · ${activeUserPermission.scopeId}`
                                 : ""}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
                 </div>
               </section>
             ))}
@@ -1419,6 +1508,3 @@ export default function AdminPermissionsPage() {
     </div>
   );
 }
-
-
-

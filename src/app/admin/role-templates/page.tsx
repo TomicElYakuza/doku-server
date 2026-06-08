@@ -7,8 +7,10 @@ import {
   useState,
 } from "react";
 
-import AppModal from "../../../components/AppModal";
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
 import {
@@ -51,25 +53,18 @@ const emptyForm: TemplateForm = {
 const roleOptions: {
   value: UserRole | string;
   label: string;
-  description: string;
 }[] = [
   {
     value: "employee",
     label: "Mitarbeiter",
-    description:
-      "Standardrolle für normale Benutzer mit Basisrechten.",
   },
   {
     value: "department_lead",
     label: "Abteilungsleiter",
-    description:
-      "Erweiterte Rolle für Bereichs- und Teamverantwortliche.",
   },
   {
     value: "admin",
     label: "Administrator",
-    description:
-      "Vollzugriff auf System, Admin Backend und Verwaltung.",
   },
 ];
 
@@ -98,18 +93,6 @@ function getRoleLabel(role: string) {
     roleOptions.find((option) => option.value === role)?.label ||
     role
   );
-}
-
-function getRoleClass(role: string) {
-  if (role === "admin") {
-    return "bg-red-50 text-red-700 border-red-100";
-  }
-
-  if (role === "department_lead") {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
-
-  return "bg-blue-50 text-blue-700 border-blue-100";
 }
 
 function normalizePermissionKeys(text: string) {
@@ -156,82 +139,32 @@ function normalizeForm(template: RolePermissionTemplate): TemplateForm {
   };
 }
 
-function getPermissionGroup(permission: string) {
-  if (permission.startsWith("tickets")) {
-    return "Tickets";
-  }
+function sortTemplates(templates: RolePermissionTemplate[]) {
+  return [
+    ...templates,
+  ].sort((first, second) => {
+    const sortCompare =
+      Number(first.sortOrder || 0) - Number(second.sortOrder || 0);
 
-  if (permission.startsWith("wiki")) {
-    return "Wiki";
-  }
+    if (sortCompare !== 0) {
+      return sortCompare;
+    }
 
-  if (permission.startsWith("news")) {
-    return "News";
-  }
-
-  if (permission.startsWith("files")) {
-    return "Dateien";
-  }
-
-  if (
-    permission.startsWith("users") ||
-    permission.startsWith("admin")
-  ) {
-    return "Admin";
-  }
-
-  if (
-    permission.startsWith("settings") ||
-    permission.startsWith("organization")
-  ) {
-    return "System";
-  }
-
-  return "Sonstige";
-}
-
-function getPermissionGroupClass(group: string) {
-  if (group === "Tickets") {
-    return "bg-orange-50 text-orange-700 border-orange-100";
-  }
-
-  if (group === "Wiki") {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
-
-  if (group === "News") {
-    return "bg-blue-50 text-blue-700 border-blue-100";
-  }
-
-  if (group === "Dateien") {
-    return "bg-purple-50 text-purple-700 border-purple-100";
-  }
-
-  if (group === "Admin") {
-    return "bg-red-50 text-red-700 border-red-100";
-  }
-
-  if (group === "System") {
-    return "bg-zinc-100 text-zinc-700 border-zinc-200";
-  }
-
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
+    return first.name.localeCompare(second.name);
+  });
 }
 
 export default function AdminRoleTemplatesPage() {
   const [mounted, setMounted] = useState(false);
   const [templates, setTemplates] = useState<RolePermissionTemplate[]>([]);
-
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [defaultFilter, setDefaultFilter] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState("");
   const [form, setForm] = useState<TemplateForm>(emptyForm);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -267,9 +200,9 @@ export default function AdminRoleTemplatesPage() {
         await rolePermissionTemplateRepository.list();
 
       setTemplates(
-        Array.isArray(nextTemplates)
-          ? nextTemplates
-          : [],
+        sortTemplates(
+          Array.isArray(nextTemplates) ? nextTemplates : [],
+        ),
       );
     } catch (loadError) {
       console.error(loadError);
@@ -296,19 +229,15 @@ export default function AdminRoleTemplatesPage() {
 
   function openCreateModal() {
     setEditingKey("");
-
     setForm({
       ...emptyForm,
       sortOrder:
         templates.length > 0
           ? Math.max(
-              ...templates.map(
-                (template) => template.sortOrder || 0,
-              ),
+              ...templates.map((template) => template.sortOrder || 0),
             ) + 10
           : 10,
     });
-
     setModalOpen(true);
   }
 
@@ -341,8 +270,7 @@ export default function AdminRoleTemplatesPage() {
         "permissionKeysText",
         permissionKeysToText(
           currentPermissions.filter(
-            (currentPermission) =>
-              currentPermission !== permission,
+            (currentPermission) => currentPermission !== permission,
           ),
         ),
       );
@@ -390,13 +318,25 @@ export default function AdminRoleTemplatesPage() {
 
       const matchesStatus =
         !statusFilter ||
-        (statusFilter === "active" && template.isActive) ||
-        (statusFilter === "inactive" && !template.isActive);
+        (
+          statusFilter === "active" &&
+          template.isActive
+        ) ||
+        (
+          statusFilter === "inactive" &&
+          !template.isActive
+        );
 
       const matchesDefault =
         !defaultFilter ||
-        (defaultFilter === "default" && template.isDefault) ||
-        (defaultFilter === "custom" && !template.isDefault);
+        (
+          defaultFilter === "default" &&
+          template.isDefault
+        ) ||
+        (
+          defaultFilter === "custom" &&
+          !template.isDefault
+        );
 
       return (
         matchesSearch &&
@@ -420,7 +360,12 @@ export default function AdminRoleTemplatesPage() {
     ],
   );
 
-  const inactiveCount = templates.length - activeCount;
+  const inactiveCount = useMemo(
+    () => templates.filter((template) => !template.isActive).length,
+    [
+      templates,
+    ],
+  );
 
   const defaultCount = useMemo(
     () => templates.filter((template) => template.isDefault).length,
@@ -440,8 +385,6 @@ export default function AdminRoleTemplatesPage() {
       templates,
     ],
   );
-
-  const latestTemplate = templates[0];
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -476,15 +419,17 @@ export default function AdminRoleTemplatesPage() {
               permissionKeys,
               isDefault: form.isDefault,
               isActive: form.isActive,
-              sortOrder: form.sortOrder,
+              sortOrder: Number(form.sortOrder || 0),
             },
           );
 
         setTemplates((current) =>
-          current.map((template) =>
-            template.key === updatedTemplate.key
-              ? updatedTemplate
-              : template,
+          sortTemplates(
+            current.map((template) =>
+              template.key === updatedTemplate.key
+                ? updatedTemplate
+                : template,
+            ),
           ),
         );
 
@@ -502,14 +447,14 @@ export default function AdminRoleTemplatesPage() {
           permissionKeys,
           isDefault: form.isDefault,
           isActive: form.isActive,
-          sortOrder: form.sortOrder,
+          sortOrder: Number(form.sortOrder || 0),
         });
 
       setTemplates((current) =>
-        [
+        sortTemplates([
           ...current,
           createdTemplate,
-        ].sort((first, second) => first.sortOrder - second.sortOrder),
+        ]),
       );
 
       closeModal();
@@ -541,10 +486,12 @@ export default function AdminRoleTemplatesPage() {
         );
 
       setTemplates((current) =>
-        current.map((item) =>
-          item.key === updatedTemplate.key
-            ? updatedTemplate
-            : item,
+        sortTemplates(
+          current.map((item) =>
+            item.key === updatedTemplate.key
+              ? updatedTemplate
+              : item,
+          ),
         ),
       );
 
@@ -602,10 +549,10 @@ export default function AdminRoleTemplatesPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Rollen-Vorlagen"
-        description="Du hast keine Berechtigung für die Rollen-Vorlagen."
+        title="Rollen-Vorlagen nicht verfügbar"
+        description="Du hast keine Berechtigung, Rollen-Vorlagen zu sehen."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -615,19 +562,16 @@ export default function AdminRoleTemplatesPage() {
       <AppModal
         open={modalOpen}
         onClose={closeModal}
-        title={
-          editingKey
-            ? "Rollen-Vorlage bearbeiten"
-            : "Rollen-Vorlage erstellen"
-        }
-        description="Vorlagen bündeln Standardrechte und können später auf Benutzer angewendet werden."
+        title={editingKey ? "Vorlage bearbeiten" : "Vorlage erstellen"}
+        description="Rollen-Vorlagen definieren Standardrechte, die später auf Benutzer angewendet werden können."
+        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
               disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
             >
               Abbrechen
             </button>
@@ -652,21 +596,21 @@ export default function AdminRoleTemplatesPage() {
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-8"
         >
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Stammdaten
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Schlüssel, Name, Rolle, Status und Sortierung.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Vorlage
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <p className="text-zinc-500 mt-1">
+              Name, Key, Rolle und Sortierung für diese Rechtevorlage.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Template-Key
                 </label>
+
                 <input
                   value={form.key}
                   onChange={(event) =>
@@ -679,9 +623,10 @@ export default function AdminRoleTemplatesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Name
                 </label>
+
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -693,9 +638,10 @@ export default function AdminRoleTemplatesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Rolle
                 </label>
+
                 <select
                   value={form.roleKey}
                   onChange={(event) =>
@@ -715,9 +661,10 @@ export default function AdminRoleTemplatesPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Sortierung
                 </label>
+
                 <input
                   type="number"
                   value={form.sortOrder}
@@ -732,9 +679,10 @@ export default function AdminRoleTemplatesPage() {
               </div>
 
               <div className="xl:col-span-2">
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Beschreibung
                 </label>
+
                 <textarea
                   value={form.description}
                   onChange={(event) =>
@@ -746,9 +694,15 @@ export default function AdminRoleTemplatesPage() {
                 />
               </div>
             </div>
+          </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Status & Standard
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+              <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
                 <input
                   type="checkbox"
                   checked={form.isDefault}
@@ -759,7 +713,7 @@ export default function AdminRoleTemplatesPage() {
                 />
 
                 <span>
-                  <span className="block font-bold text-zinc-950">
+                  <span className="block font-black">
                     Standard-Vorlage
                   </span>
                   <span className="block text-sm text-zinc-500 mt-1">
@@ -768,7 +722,7 @@ export default function AdminRoleTemplatesPage() {
                 </span>
               </label>
 
-              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
+              <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
                 <input
                   type="checkbox"
                   checked={form.isActive}
@@ -779,63 +733,64 @@ export default function AdminRoleTemplatesPage() {
                 />
 
                 <span>
-                  <span className="block font-bold text-zinc-950">
+                  <span className="block font-black">
                     Aktiv
                   </span>
                   <span className="block text-sm text-zinc-500 mt-1">
-                    Nur aktive Vorlagen können angewendet werden.
+                    Nur aktive Vorlagen werden später verwendet.
                   </span>
                 </span>
               </label>
             </div>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Berechtigungen
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Eine Berechtigung pro Zeile oder Komma-getrennt.
-              </p>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+              <div>
+                <h3 className="text-xl font-black">
+                  Berechtigungen
+                </h3>
+
+                <p className="text-zinc-500 mt-1">
+                  Eine Berechtigung pro Zeile oder kommagetrennt eintragen.
+                </p>
+              </div>
+
+              <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                {selectedPermissions.length} Rechte
+              </span>
             </div>
 
-            <textarea
-              value={form.permissionKeysText}
-              onChange={(event) =>
-                updateForm("permissionKeysText", event.target.value)
-              }
-              rows={9}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y font-mono text-sm"
-              placeholder="Eine Berechtigung pro Zeile..."
-            />
+            <div className="mt-5">
+              <textarea
+                value={form.permissionKeysText}
+                onChange={(event) =>
+                  updateForm("permissionKeysText", event.target.value)
+                }
+                rows={8}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y font-mono text-sm"
+                placeholder="Eine Berechtigung pro Zeile..."
+              />
+            </div>
 
-            <p className="text-sm text-zinc-500">
-              {selectedPermissions.length} Berechtigungen ausgewählt.
-            </p>
-
-            <div className="bg-zinc-50 border border-zinc-200 rounded-3xl p-5">
-              <h3 className="font-black">
+            <div className="mt-5">
+              <h4 className="font-black">
                 Schnell-Auswahl
-              </h3>
-              <p className="text-zinc-500 text-sm mt-1">
-                Häufig genutzte Rechte per Klick hinzufügen oder entfernen.
-              </p>
+              </h4>
 
-              <div className="flex flex-wrap gap-2 mt-4">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {commonPermissions.map((permission) => {
                   const active = selectedPermissions.includes(permission);
-                  const group = getPermissionGroup(permission);
 
                   return (
                     <button
                       key={permission}
                       type="button"
                       onClick={() => addPermissionToForm(permission)}
-                      className={`text-xs px-3 py-2 rounded-xl border transition ${
+                      className={`text-xs px-3 py-2 rounded-xl border transition font-bold ${
                         active
                           ? "app-accent-bg text-white border-transparent app-brand-shadow"
-                          : `${getPermissionGroupClass(group)} hover:scale-[1.02]`
+                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
                       {permission}
@@ -849,9 +804,9 @@ export default function AdminRoleTemplatesPage() {
       </AppModal>
 
       <PageHero
-        eyebrow="Velunis Admin"
+        eyebrow="Admin Backend"
         title="Rollen-Vorlagen"
-        description="Standardrechte für Rollen vorbereiten, pflegen und gezielt auf Benutzer anwenden."
+        description="Standardrechte für Rollen vorbereiten, pflegen und später auf Benutzer anwenden."
         badges={[
           {
             label: `${templates.length} Vorlagen`,
@@ -863,9 +818,7 @@ export default function AdminRoleTemplatesPage() {
             label: `${defaultCount} Standard`,
           },
           {
-            label: latestTemplate
-              ? `Neueste: ${latestTemplate.name}`
-              : "Noch keine Vorlage",
+            label: `${permissionCount} Rechte`,
           },
         ]}
         actions={
@@ -890,30 +843,35 @@ export default function AdminRoleTemplatesPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Rollen-Vorlagen werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Rollen-Vorlagen werden geladen..."
+          description="Vorlagen, Rollen und Berechtigungen werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Rollen-Vorlagen konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadTemplates()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -921,8 +879,8 @@ export default function AdminRoleTemplatesPage() {
           label="Vorlagen"
           value={templates.length}
           description="Alle Rollen-Vorlagen"
-          icon="🧩"
-          active={!roleFilter && !statusFilter && !defaultFilter && !search}
+          icon="🧾"
+          active={!roleFilter && !statusFilter && !defaultFilter}
           onClick={resetFilters}
         />
 
@@ -940,7 +898,7 @@ export default function AdminRoleTemplatesPage() {
           label="Standard"
           value={defaultCount}
           description="Default-Vorlagen"
-          icon="â­"
+          icon="⭐"
           tone="orange"
           active={defaultFilter === "default"}
           onClick={() => setDefaultFilter("default")}
@@ -955,180 +913,187 @@ export default function AdminRoleTemplatesPage() {
         />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Filtere nach Rolle, Status, Standard-Vorlage oder Berechtigung.
-            </p>
-          </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
+        <div className="relative">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-black">
+                Suche & Filter
+              </h2>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Karten
-            </button>
+              <p className="text-zinc-500 mt-1">
+                Filtere nach Rolle, Status, Standard-Vorlage, Namen oder Berechtigungen.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-            >
-              Zurücksetzen
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Vorlagen suchen..."
-          />
-
-          <select
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Rollen
-            </option>
-
-            {roleOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "table"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
               >
-                {option.label}
+                Tabelle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "cards"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Karten
+              </button>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              >
+                Zurücksetzen
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Vorlagen suchen..."
+            />
+
+            <select
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Rollen
               </option>
-            ))}
-          </select>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-            <option value="active">
-              Aktiv
-            </option>
-            <option value="inactive">
-              Deaktiviert
-            </option>
-          </select>
+              {roleOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={defaultFilter}
-            onChange={(event) => setDefaultFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Typen
-            </option>
-            <option value="default">
-              Standard
-            </option>
-            <option value="custom">
-              Benutzerdefiniert
-            </option>
-          </select>
-        </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Status
+              </option>
+              <option value="active">
+                Aktiv
+              </option>
+              <option value="inactive">
+                Deaktiviert
+              </option>
+            </select>
 
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
-          </span>
+            <select
+              value={defaultFilter}
+              onChange={(event) => setDefaultFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Typen
+              </option>
+              <option value="default">
+                Standard
+              </option>
+              <option value="custom">
+                Benutzerdefiniert
+              </option>
+            </select>
+          </div>
 
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="text-sm text-zinc-500">
+              {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
             </span>
-          )}
 
-          {roleFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Rolle: {getRoleLabel(roleFilter)}
-            </span>
-          )}
+            {search && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Suche: {search}
+              </span>
+            )}
 
-          {statusFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Status: {statusFilter === "active" ? "Aktiv" : "Deaktiviert"}
-            </span>
-          )}
+            {roleFilter && (
+              <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                Rolle: {getRoleLabel(roleFilter)}
+              </span>
+            )}
 
-          {defaultFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Typ: {defaultFilter === "default" ? "Standard" : "Benutzerdefiniert"}
-            </span>
-          )}
+            {statusFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Status: {statusFilter === "active" ? "Aktiv" : "Deaktiviert"}
+              </span>
+            )}
+
+            {defaultFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Typ: {defaultFilter === "default" ? "Standard" : "Benutzerdefiniert"}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {filteredTemplates.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-            🔎
-          </div>
-
-          <h2 className="text-xl font-semibold mt-5">
-            Keine Rollen-Vorlagen gefunden
-          </h2>
-          <p className="text-zinc-500 mt-2">
-            Erstelle eine Vorlage oder passe die Filter an.
-          </p>
-        </div>
+      {!loading && !error && filteredTemplates.length === 0 && (
+        <EmptyState
+          icon="🧾"
+          title="Keine Rollen-Vorlagen gefunden"
+          description="Passe die Filter an oder erstelle eine neue Rollen-Vorlage."
+          action={
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Vorlage erstellen
+            </button>
+          }
+        />
       )}
 
       {viewMode === "table" && filteredTemplates.length > 0 && (
         <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left text-sm">
               <thead className="bg-zinc-50 border-b border-zinc-200">
                 <tr>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Vorlage
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Rolle
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Status
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Rechte
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500">
                     Sortierung
                   </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                  <th className="px-5 py-4 font-bold text-zinc-500 text-right">
                     Aktionen
                   </th>
                 </tr>
@@ -1144,9 +1109,11 @@ export default function AdminRoleTemplatesPage() {
                       <p className="font-black text-zinc-950">
                         {template.name}
                       </p>
+
                       <p className="text-xs text-zinc-400 mt-1">
                         {template.key}
                       </p>
+
                       <p className="text-zinc-500 mt-2 line-clamp-2">
                         {template.description || "Keine Beschreibung"}
                       </p>
@@ -1165,11 +1132,7 @@ export default function AdminRoleTemplatesPage() {
                     </td>
 
                     <td className="px-5 py-4 align-top">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getRoleClass(
-                          String(template.roleKey),
-                        )}`}
-                      >
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
                         {getRoleLabel(String(template.roleKey))}
                       </span>
                     </td>
@@ -1186,23 +1149,19 @@ export default function AdminRoleTemplatesPage() {
 
                     <td className="px-5 py-4 align-top min-w-[260px]">
                       <div className="flex flex-wrap gap-2">
-                        {template.permissionKeys.slice(0, 5).map((permission) => {
-                          const group = getPermissionGroup(permission);
-
-                          return (
+                        {template.permissionKeys
+                          .slice(0, 5)
+                          .map((permission) => (
                             <span
                               key={`${template.key}-${permission}`}
-                              className={`text-xs px-2 py-1 rounded-lg border ${getPermissionGroupClass(
-                                group,
-                              )}`}
+                              className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-lg"
                             >
                               {permission}
                             </span>
-                          );
-                        })}
+                          ))}
 
                         {template.permissionKeys.length > 5 && (
-                          <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg">
+                          <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg font-bold">
                             +{template.permissionKeys.length - 5}
                           </span>
                         )}
@@ -1220,11 +1179,11 @@ export default function AdminRoleTemplatesPage() {
                     </td>
 
                     <td className="px-5 py-4 align-top">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => openEditModal(template)}
-                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                          className="app-accent-bg text-white px-3 py-2 rounded-xl transition font-bold app-brand-shadow"
                         >
                           Bearbeiten
                         </button>
@@ -1232,7 +1191,7 @@ export default function AdminRoleTemplatesPage() {
                         <button
                           type="button"
                           onClick={() => void toggleActive(template)}
-                          className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                          className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition font-bold"
                         >
                           {template.isActive
                             ? "Deaktivieren"
@@ -1242,7 +1201,7 @@ export default function AdminRoleTemplatesPage() {
                         <button
                           type="button"
                           onClick={() => void deleteTemplate(template)}
-                          className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
+                          className="bg-red-600 text-white hover:bg-red-500 px-3 py-2 rounded-xl transition font-bold"
                         >
                           Löschen
                         </button>
@@ -1257,68 +1216,118 @@ export default function AdminRoleTemplatesPage() {
       )}
 
       {viewMode === "cards" && filteredTemplates.length > 0 && (
-        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {filteredTemplates.map((template) => (
             <article
               key={template.key}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
             >
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2">
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getRoleClass(
-                        String(template.roleKey),
-                      )}`}
-                    >
-                      {getRoleLabel(String(template.roleKey))}
-                    </span>
+              <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                        template.isActive,
-                      )}`}
-                    >
-                      {template.isActive ? "Aktiv" : "Deaktiviert"}
-                    </span>
+              <div className="relative">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
+                        {getRoleLabel(String(template.roleKey))}
+                      </span>
 
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getDefaultClass(
-                        template.isDefault,
-                      )}`}
-                    >
-                      {template.isDefault
-                        ? "Standard"
-                        : "Benutzerdefiniert"}
-                    </span>
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                          template.isActive,
+                        )}`}
+                      >
+                        {template.isActive ? "Aktiv" : "Deaktiviert"}
+                      </span>
+
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getDefaultClass(
+                          template.isDefault,
+                        )}`}
+                      >
+                        {template.isDefault
+                          ? "Standard"
+                          : "Benutzerdefiniert"}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl font-black mt-4">
+                      {template.name}
+                    </h2>
+
+                    <p className="text-zinc-500 mt-2 line-clamp-2">
+                      {template.description || "Keine Beschreibung"}
+                    </p>
                   </div>
 
-                  <h2 className="text-2xl font-black mt-4 line-clamp-1">
-                    {template.name}
-                  </h2>
-
-                  <p className="text-zinc-500 mt-2 line-clamp-2">
-                    {template.description || "Keine Beschreibung"}
-                  </p>
-
-                  <p className="text-xs text-zinc-400 mt-3">
-                    Key: {template.key}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => openEditModal(template)}
-                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow shrink-0"
                   >
                     Bearbeiten
                   </button>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Key
+                    </p>
+                    <p className="font-black mt-1 break-all">
+                      {template.key}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Rechte
+                    </p>
+                    <p className="font-black mt-1">
+                      {template.permissionKeys.length}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Sortierung
+                    </p>
+                    <p className="font-black mt-1">
+                      {template.sortOrder}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-5">
+                  {template.permissionKeys
+                    .slice(0, 10)
+                    .map((permission) => (
+                      <span
+                        key={`${template.key}-${permission}`}
+                        className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-lg"
+                      >
+                        {permission}
+                      </span>
+                    ))}
+
+                  {template.permissionKeys.length > 10 && (
+                    <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg font-bold">
+                      +{template.permissionKeys.length - 10}
+                    </span>
+                  )}
+
+                  {template.permissionKeys.length === 0 && (
+                    <span className="text-sm text-zinc-400">
+                      Keine Rechte hinterlegt.
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-6">
                   <button
                     type="button"
                     onClick={() => void toggleActive(template)}
-                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold"
                   >
                     {template.isActive ? "Deaktivieren" : "Aktivieren"}
                   </button>
@@ -1332,64 +1341,6 @@ export default function AdminRoleTemplatesPage() {
                   </button>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Rechte
-                  </p>
-                  <p className="font-black mt-1">
-                    {template.permissionKeys.length}
-                  </p>
-                </div>
-
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Sortierung
-                  </p>
-                  <p className="font-black mt-1">
-                    {template.sortOrder}
-                  </p>
-                </div>
-
-                <div className="bg-zinc-50 rounded-2xl p-4">
-                  <p className="text-xs text-zinc-500">
-                    Rolle
-                  </p>
-                  <p className="font-black mt-1">
-                    {getRoleLabel(String(template.roleKey))}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-zinc-100">
-                {template.permissionKeys.slice(0, 8).map((permission) => {
-                  const group = getPermissionGroup(permission);
-
-                  return (
-                    <span
-                      key={`${template.key}-card-${permission}`}
-                      className={`text-xs px-2 py-1 rounded-lg border ${getPermissionGroupClass(
-                        group,
-                      )}`}
-                    >
-                      {permission}
-                    </span>
-                  );
-                })}
-
-                {template.permissionKeys.length > 8 && (
-                  <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg">
-                    +{template.permissionKeys.length - 8}
-                  </span>
-                )}
-
-                {template.permissionKeys.length === 0 && (
-                  <span className="text-sm text-zinc-400">
-                    Keine Rechte hinterlegt.
-                  </span>
-                )}
-              </div>
             </article>
           ))}
         </section>
@@ -1397,6 +1348,3 @@ export default function AdminRoleTemplatesPage() {
     </div>
   );
 }
-
-
-

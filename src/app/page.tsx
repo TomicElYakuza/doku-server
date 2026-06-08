@@ -3,8 +3,5 @@
 } from "next/navigation";
 
 export default function HomePage() {
-  redirect(
-    "/news"
-  );
+  redirect("/login");
 }
-

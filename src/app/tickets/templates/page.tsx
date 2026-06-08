@@ -7,30 +7,26 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
-import {
-  companyRepository,
-} from "../../../lib/companyRepository";
-import {
-  ticketRepository,
-} from "../../../lib/ticketRepository";
-import {
-  ticketTemplateRepository,
-} from "../../../lib/ticketTemplateRepository";
-import {
-  saveTicketCreatedFromTemplateActivity,
-  saveTicketTemplateCreatedActivity,
-  saveTicketTemplateDeletedActivity,
-  saveTicketTemplateUpdatedActivity,
-} from "../../../lib/ticketTemplateActivityHelpers";
 import {
   useFeatureFlags,
 } from "../../../hooks/useFeatureFlags";
 import {
-  usePermissions,
-} from "../../../hooks/usePermissions";
+  companyRepository,
+} from "../../../lib/companyRepository";
+import {
+  canCreate,
+  canDelete,
+  canEdit,
+} from "../../../lib/permissions";
+import {
+  ticketTemplateRepository,
+} from "../../../lib/ticketTemplateRepository";
 import type {
   Company,
   Department,
@@ -53,6 +49,12 @@ type TaxonomyItem = {
   parentId?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+};
+
+type SelectOption = {
+  id: string;
+  value: string;
+  label: string;
 };
 
 const statusOptions: {
@@ -103,33 +105,38 @@ const priorityOptions: {
   },
 ];
 
-function getStatusLabel(status: TicketTemplateStatus | string) {
+function getTemplateStatusLabel(status: TicketTemplateStatus | string) {
   return ticketTemplateRepository.getStatusLabel(status);
 }
 
-function getStatusClass(status: TicketTemplateStatus | string) {
+function getTemplateStatusClass(status: TicketTemplateStatus | string) {
   return ticketTemplateRepository.getStatusClass(status);
 }
 
-function getPriorityLabel(priority: TicketTemplatePriority | string) {
+function getTemplatePriorityLabel(priority: TicketTemplatePriority | string) {
   return ticketTemplateRepository.getPriorityLabel(priority);
 }
 
-function getPriorityClass(priority: TicketTemplatePriority | string) {
+function getTemplatePriorityClass(priority: TicketTemplatePriority | string) {
   return ticketTemplateRepository.getPriorityClass(priority);
 }
 
-function formatTags(tags?: string[]) {
+function getSafeTags(tags?: string[]) {
   if (!Array.isArray(tags)) {
     return [];
   }
 
-  return tags.filter(Boolean);
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
 }
 
-function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
-  if (item.path) {
-    return item.path;
+function getTaxonomyLabel(
+  item: TaxonomyItem,
+  allItems: TaxonomyItem[],
+) {
+  if (item.path?.trim()) {
+    return item.path.trim();
   }
 
   const names: string[] = [];
@@ -144,54 +151,37 @@ function getTaxonomyLabel(item: TaxonomyItem, allItems: TaxonomyItem[]) {
       break;
     }
 
-    current = allItems.find((candidate) => candidate.id === current?.parentId);
+    current = allItems.find(
+      (candidate) => candidate.id === current?.parentId,
+    );
   }
 
   return names.join(" > ") || item.name;
 }
 
 function sortByLabel(
-  first: {
-    label: string;
-  },
-  second: {
-    label: string;
-  },
+  first: SelectOption,
+  second: SelectOption,
 ) {
   return first.label.localeCompare(second.label);
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    return new Date(value).toLocaleString("de-AT");
+  } catch {
+    return value;
+  }
 }
 
 export default function TicketTemplatesPage() {
   const {
     ticketTemplatesEnabled,
   } = useFeatureFlags();
-
-  const {
-    user,
-    isAdmin,
-    hasAnyPermission,
-  } = usePermissions();
-
-  const canManageTemplates = isAdmin || hasAnyPermission([
-    "tickets.templates.manage",
-    "tickets.manage",
-  ]);
-  const canViewTemplates = canManageTemplates || hasAnyPermission([
-    "tickets.templates.view",
-  ]);
-  const canCreateTemplate = canManageTemplates || hasAnyPermission([
-    "tickets.templates.create",
-  ]);
-  const canEditTemplate = canManageTemplates || hasAnyPermission([
-    "tickets.templates.edit",
-  ]);
-  const canDeleteTemplate = canManageTemplates || hasAnyPermission([
-    "tickets.templates.delete",
-  ]);
-  const canCreateTicket = isAdmin || hasAnyPermission([
-    "tickets.create",
-    "tickets.manage",
-  ]);
 
   const [templates, setTemplates] = useState<TicketTemplate[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -200,8 +190,8 @@ export default function TicketTemplatesPage() {
   const [ticketTags, setTicketTags] = useState<TaxonomyItem[]>([]);
 
   const [search, setSearch] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
@@ -209,14 +199,17 @@ export default function TicketTemplatesPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState("");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [priority, setPriority] = useState<TicketTemplatePriority>("medium");
   const [status, setStatus] = useState<TicketTemplateStatus>("open");
+  const [priority, setPriority] = useState<TicketTemplatePriority>("medium");
+  const [category, setCategory] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
+  const [company, setCompany] = useState("Intern");
+  const [department, setDepartment] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -240,14 +233,36 @@ export default function TicketTemplatesPage() {
       void loadOrganization();
     }
 
-    window.addEventListener("ticketTemplatesUpdated", handleTemplatesUpdated);
-    window.addEventListener("companiesUpdated", handleCompaniesUpdated);
-    window.addEventListener("departmentsUpdated", handleDepartmentsUpdated);
+    window.addEventListener(
+      "ticketTemplatesUpdated",
+      handleTemplatesUpdated,
+    );
+
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated,
+    );
+
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated,
+    );
 
     return () => {
-      window.removeEventListener("ticketTemplatesUpdated", handleTemplatesUpdated);
-      window.removeEventListener("companiesUpdated", handleCompaniesUpdated);
-      window.removeEventListener("departmentsUpdated", handleDepartmentsUpdated);
+      window.removeEventListener(
+        "ticketTemplatesUpdated",
+        handleTemplatesUpdated,
+      );
+
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated,
+      );
+
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated,
+      );
     };
   }, []);
 
@@ -261,13 +276,16 @@ export default function TicketTemplatesPage() {
     const nextTicketCategories: TaxonomyItem[] = [];
     const nextTags: TaxonomyItem[] = [];
 
-    for (const [index, result] of requests.entries()) {
+    for (const [
+      index,
+      result,
+    ] of requests.entries()) {
       if (result.status !== "fulfilled" || !result.value.ok) {
         continue;
       }
 
       const data = await result.value.json();
-      const items = Array.isArray(data) ? data : [];
+      const items: TaxonomyItem[] = Array.isArray(data) ? data : [];
 
       if (index === 0) {
         nextTicketCategories.push(...items);
@@ -280,18 +298,18 @@ export default function TicketTemplatesPage() {
       nextTicketCategories.filter((item) => item.isActive !== false),
     );
 
-    const uniqueTags = Array.from(
-      new Map(
-        nextTags
-          .filter((item) => item.isActive !== false)
-          .map((item) => [
-            item.name,
-            item,
-          ]),
-      ).values(),
+    setTicketTags(
+      Array.from(
+        new Map(
+          nextTags
+            .filter((item) => item.isActive !== false)
+            .map((item) => [
+              item.name,
+              item,
+            ]),
+        ).values(),
+      ),
     );
-
-    setTicketTags(uniqueTags);
   }
 
   async function loadOrganization() {
@@ -307,7 +325,10 @@ export default function TicketTemplatesPage() {
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
-      console.error("Organisation konnte nicht geladen werden:", loadError);
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError,
+      );
     }
   }
 
@@ -332,6 +353,7 @@ export default function TicketTemplatesPage() {
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
       console.error(loadError);
+
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -348,30 +370,36 @@ export default function TicketTemplatesPage() {
     }
 
     return (
-      companies.find((item) => item.id === nextCompanyId)?.name ||
-      "Intern"
+      companies.find((nextCompany) => nextCompany.id === nextCompanyId)
+        ?.name || "Intern"
     );
   }
 
   function getDepartmentName(nextDepartmentId?: string) {
     if (!nextDepartmentId) {
-      return "";
+      return "Keine Abteilung";
     }
 
     return (
-      departments.find((item) => item.id === nextDepartmentId)?.name ||
-      ""
+      departments.find(
+        (nextDepartment) => nextDepartment.id === nextDepartmentId,
+      )?.name || "Keine Abteilung"
     );
   }
 
   const categoryOptions = useMemo(
     () =>
       ticketCategories
-        .map((item) => ({
-          id: item.id,
-          value: getTaxonomyLabel(item, ticketCategories),
-          label: getTaxonomyLabel(item, ticketCategories),
-        }))
+        .map((item) => {
+          const label = getTaxonomyLabel(item, ticketCategories);
+
+          return {
+            id: item.id,
+            value: label,
+            label,
+          };
+        })
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       ticketCategories,
@@ -386,112 +414,162 @@ export default function TicketTemplatesPage() {
           value: item.name,
           label: item.name,
         }))
+        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       ticketTags,
     ],
   );
 
-  const activeCompanies = useMemo(
-    () => companies.filter((company) => company.status === "active"),
-    [
-      companies,
-    ],
-  );
-
-  const activeDepartments = useMemo(
-    () => departments.filter((department) => department.status === "active"),
-    [
-      departments,
-    ],
-  );
-
-  const selectableDepartments = useMemo(() => {
-    const source = activeDepartments.length > 0
-      ? activeDepartments
-      : departments;
-
+  const departmentOptions = useMemo(() => {
     if (!companyId) {
-      return source;
+      return departments;
     }
 
-    return source.filter((department) => department.companyId === companyId);
+    return departments.filter(
+      (nextDepartment) => nextDepartment.companyId === companyId,
+    );
   }, [
-    activeDepartments,
     departments,
     companyId,
   ]);
 
-  const filteredDepartmentOptions = useMemo(() => {
+  const filteredDepartments = useMemo(() => {
     if (!companyFilter) {
       return departments;
     }
 
-    return departments.filter((department) => department.companyId === companyFilter);
+    return departments.filter(
+      (nextDepartment) => nextDepartment.companyId === companyFilter,
+    );
   }, [
     departments,
     companyFilter,
   ]);
 
-  function handleCompanyChange(nextCompanyId: string) {
-    setCompanyId(nextCompanyId);
+  const filteredTemplates = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-    const firstDepartment =
-      departments.find(
-        (department) =>
-          department.companyId === nextCompanyId &&
-          department.status === "active",
-      ) ||
-      departments.find((department) => department.companyId === nextCompanyId);
+    return templates.filter((template) => {
+      const companyName = template.company || getCompanyName(template.companyId);
+      const departmentName =
+        template.department || getDepartmentName(template.departmentId);
+      const templateTags = getSafeTags(template.tags);
 
-    setDepartmentId(firstDepartment?.id || "");
-  }
+      const matchesSearch =
+        !query ||
+        [
+          template.id,
+          template.title,
+          template.description,
+          template.status,
+          template.priority,
+          template.category,
+          companyName,
+          departmentName,
+          template.assignedTo,
+          templateTags.join(" "),
+          template.createdAt,
+          template.updatedAt,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      const matchesStatus =
+        !statusFilter ||
+        template.status === statusFilter;
+
+      const matchesPriority =
+        !priorityFilter ||
+        template.priority === priorityFilter;
+
+      const matchesCategory =
+        !categoryFilter ||
+        template.category === categoryFilter;
+
+      const matchesTag =
+        !tagFilter ||
+        templateTags.includes(tagFilter);
+
+      const matchesCompany =
+        !companyFilter ||
+        template.companyId === companyFilter;
+
+      const matchesDepartment =
+        !departmentFilter ||
+        template.departmentId === departmentFilter;
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority &&
+        matchesCategory &&
+        matchesTag &&
+        matchesCompany &&
+        matchesDepartment
+      );
+    });
+  }, [
+    templates,
+    search,
+    statusFilter,
+    priorityFilter,
+    categoryFilter,
+    tagFilter,
+    companyFilter,
+    departmentFilter,
+    companies,
+    departments,
+  ]);
+
+  const openTemplates = useMemo(
+    () => templates.filter((template) => template.status === "open"),
+    [
+      templates,
+    ],
+  );
+
+  const inProgressTemplates = useMemo(
+    () => templates.filter((template) => template.status === "in_progress"),
+    [
+      templates,
+    ],
+  );
+
+  const closedTemplates = useMemo(
+    () => templates.filter((template) => template.status === "closed"),
+    [
+      templates,
+    ],
+  );
+
+  const urgentTemplates = useMemo(
+    () =>
+      templates.filter(
+        (template) =>
+          template.priority === "urgent" ||
+          template.priority === "high",
+      ),
+    [
+      templates,
+    ],
+  );
 
   function resetForm() {
-    const firstCompany = activeCompanies[0] || companies[0];
-
-    const firstDepartment =
-      departments.find(
-        (department) =>
-          department.companyId === firstCompany?.id &&
-          department.status === "active",
-      ) ||
-      departments.find((department) => department.companyId === firstCompany?.id) ||
-      departments[0];
-
-    setEditingId("");
+    setEditingTemplateId("");
     setTitle("");
     setDescription("");
-    setCategory(categoryOptions[0]?.value || "");
-    setPriority("medium");
     setStatus("open");
-    setCompanyId(
-      isAdmin || canManageTemplates
-        ? firstCompany?.id || ""
-        : user?.companyId || "",
-    );
-    setDepartmentId(
-      isAdmin || canManageTemplates
-        ? firstDepartment?.id || ""
-        : user?.departmentId || "",
-    );
+    setPriority("medium");
+    setCategory(categoryOptions[0]?.value || "");
+    setCompanyId("");
+    setDepartmentId("");
+    setCompany("Intern");
+    setDepartment("");
     setAssignedTo("");
     setSelectedTags([]);
-  }
-
-  function openCreateForm() {
-    if (!ticketTemplatesEnabled) {
-      alert("Ticket-Vorlagen sind in den Einstellungen deaktiviert.");
-      return;
-    }
-
-    if (!canCreateTemplate) {
-      alert("Du hast keine Berechtigung, Vorlagen zu erstellen.");
-      return;
-    }
-
-    resetForm();
-    setModalOpen(true);
   }
 
   function closeModal() {
@@ -499,28 +577,68 @@ export default function TicketTemplatesPage() {
     resetForm();
   }
 
-  function startEditTemplate(template: TicketTemplate) {
-    if (!ticketTemplatesEnabled) {
-      alert("Ticket-Vorlagen sind in den Einstellungen deaktiviert.");
+  function openCreateForm() {
+    if (!canCreate()) {
+      alert("Du hast keine Berechtigung, Vorlagen zu erstellen.");
       return;
     }
 
-    if (!canEditTemplate) {
+    resetForm();
+
+    const firstCompany = companies[0];
+    const firstDepartment = departments.find(
+      (nextDepartment) => nextDepartment.companyId === firstCompany?.id,
+    );
+
+    setCompanyId(firstCompany?.id || "");
+    setDepartmentId(firstDepartment?.id || "");
+    setCompany(firstCompany?.name || "Intern");
+    setDepartment(firstDepartment?.name || "");
+    setModalOpen(true);
+  }
+
+  function startEditTemplate(template: TicketTemplate) {
+    if (!canEdit()) {
       alert("Du hast keine Berechtigung, Vorlagen zu bearbeiten.");
       return;
     }
 
-    setEditingId(template.id);
-    setTitle(template.title);
-    setDescription(template.description);
+    setEditingTemplateId(template.id);
+    setTitle(template.title || "");
+    setDescription(template.description || "");
+    setStatus(template.status || "open");
+    setPriority(template.priority || "medium");
     setCategory(template.category || categoryOptions[0]?.value || "");
-    setPriority(template.priority);
-    setStatus(template.status);
     setCompanyId(template.companyId || "");
     setDepartmentId(template.departmentId || "");
+    setCompany(template.company || getCompanyName(template.companyId));
+    setDepartment(template.department || getDepartmentName(template.departmentId));
     setAssignedTo(template.assignedTo || "");
-    setSelectedTags(formatTags(template.tags));
+    setSelectedTags(getSafeTags(template.tags));
     setModalOpen(true);
+  }
+
+  function handleCompanyChange(nextCompanyId: string) {
+    const selectedCompany = companies.find(
+      (nextCompany) => nextCompany.id === nextCompanyId,
+    );
+    const firstDepartment = departments.find(
+      (nextDepartment) => nextDepartment.companyId === nextCompanyId,
+    );
+
+    setCompanyId(nextCompanyId);
+    setDepartmentId(firstDepartment?.id || "");
+    setCompany(selectedCompany?.name || "Intern");
+    setDepartment(firstDepartment?.name || "");
+  }
+
+  function handleDepartmentChange(nextDepartmentId: string) {
+    const selectedDepartment = departments.find(
+      (nextDepartment) => nextDepartment.id === nextDepartmentId,
+    );
+
+    setDepartmentId(nextDepartmentId);
+    setDepartment(selectedDepartment?.name || "");
   }
 
   function toggleTag(tag: string) {
@@ -536,120 +654,16 @@ export default function TicketTemplatesPage() {
     });
   }
 
-  function userCanSeeTemplate(template: TicketTemplate) {
-    if (isAdmin || canManageTemplates) {
-      return true;
-    }
-
-    if (!user) {
-      return false;
-    }
-
-    if (user.departmentId) {
-      return template.departmentId === user.departmentId;
-    }
-
-    if (user.companyId) {
-      return template.companyId === user.companyId;
-    }
-
-    return false;
-  }
-
-  const visibleTemplates = useMemo(
-    () => templates.filter(userCanSeeTemplate),
-    [
-      templates,
-      user,
-      isAdmin,
-      canManageTemplates,
-    ],
-  );
-
-  const filteredTemplates = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return visibleTemplates.filter((template) => {
-      const templateCompany = template.company || getCompanyName(template.companyId);
-      const templateDepartment = template.department || getDepartmentName(template.departmentId);
-      const templateTags = formatTags(template.tags);
-
-      const matchesSearch =
-        !query ||
-        [
-          template.id,
-          template.title,
-          template.description,
-          template.category,
-          template.status,
-          template.priority,
-          templateCompany,
-          templateDepartment,
-          template.assignedTo,
-          templateTags.join(" "),
-          template.createdAt,
-          template.updatedAt,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-
-      const matchesPriority = !priorityFilter || template.priority === priorityFilter;
-      const matchesStatus = !statusFilter || template.status === statusFilter;
-      const matchesCategory = !categoryFilter || template.category === categoryFilter;
-      const matchesTag = !tagFilter || templateTags.includes(tagFilter);
-      const matchesCompany = !companyFilter || template.companyId === companyFilter;
-      const matchesDepartment = !departmentFilter || template.departmentId === departmentFilter;
-
-      return (
-        matchesSearch &&
-        matchesPriority &&
-        matchesStatus &&
-        matchesCategory &&
-        matchesTag &&
-        matchesCompany &&
-        matchesDepartment
-      );
-    });
-  }, [
-    visibleTemplates,
-    search,
-    priorityFilter,
-    statusFilter,
-    categoryFilter,
-    tagFilter,
-    companyFilter,
-    departmentFilter,
-    companies,
-    departments,
-  ]);
-
-  const highPriorityCount = visibleTemplates.filter(
-    (template) =>
-      template.priority === "high" ||
-      template.priority === "urgent",
-  ).length;
-
-  const openCount = visibleTemplates.filter(
-    (template) => template.status === "open",
-  ).length;
-
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!ticketTemplatesEnabled) {
-      alert("Ticket-Vorlagen sind in den Einstellungen deaktiviert.");
-      return;
-    }
-
-    if (!canCreateTemplate && !editingId) {
-      alert("Du hast keine Berechtigung, Vorlagen zu erstellen.");
-      return;
-    }
-
-    if (!canEditTemplate && editingId) {
+    if (editingTemplateId && !canEdit()) {
       alert("Du hast keine Berechtigung, Vorlagen zu bearbeiten.");
+      return;
+    }
+
+    if (!editingTemplateId && !canCreate()) {
+      alert("Du hast keine Berechtigung, Vorlagen zu erstellen.");
       return;
     }
 
@@ -663,53 +677,47 @@ export default function TicketTemplatesPage() {
       return;
     }
 
-    const selectedCompanyName = getCompanyName(companyId);
-    const selectedDepartmentName = getDepartmentName(departmentId);
-
-    const templateData = {
-      title: title.trim(),
-      description: description.trim(),
-      category: category.trim(),
-      priority,
-      status,
-      companyId,
-      departmentId,
-      company: selectedCompanyName,
-      department: selectedDepartmentName,
-      assignedTo: assignedTo.trim(),
-      tags: selectedTags,
-    };
-
     try {
       setSaving(true);
       setMessage("");
       setError("");
 
-      if (editingId) {
-        const updatedTemplate = await ticketTemplateRepository.update(
-          editingId,
-          templateData,
-        );
+      const payload = {
+        title: title.trim(),
+        description: description.trim(),
+        status,
+        priority,
+        category: category.trim(),
+        companyId,
+        departmentId,
+        company: company.trim() || getCompanyName(companyId),
+        department: department.trim() || (departmentId ? getDepartmentName(departmentId) : ""),
+        assignedTo: assignedTo.trim(),
+        tags: selectedTags,
+      };
 
-        if (updatedTemplate) {
-          saveTicketTemplateUpdatedActivity(updatedTemplate);
-        }
+      if (editingTemplateId) {
+        await ticketTemplateRepository.update(
+          editingTemplateId,
+          payload,
+        );
 
         closeModal();
         await loadData();
+
         setMessage("Vorlage wurde gespeichert.");
         return;
       }
 
-      const createdTemplate = await ticketTemplateRepository.create(templateData);
-
-      saveTicketTemplateCreatedActivity(createdTemplate);
+      await ticketTemplateRepository.create(payload);
 
       closeModal();
       await loadData();
+
       setMessage("Vorlage wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -721,17 +729,14 @@ export default function TicketTemplatesPage() {
   }
 
   async function handleDeleteTemplate(template: TicketTemplate) {
-    if (!ticketTemplatesEnabled) {
-      alert("Ticket-Vorlagen sind in den Einstellungen deaktiviert.");
-      return;
-    }
-
-    if (!canDeleteTemplate) {
+    if (!canDelete()) {
       alert("Du hast keine Berechtigung, Vorlagen zu löschen.");
       return;
     }
 
-    const confirmed = confirm(`Vorlage "${template.title}" wirklich löschen?`);
+    const confirmed = confirm(
+      `Ticket-Vorlage "${template.title}" wirklich löschen?`,
+    );
 
     if (!confirmed) {
       return;
@@ -741,12 +746,13 @@ export default function TicketTemplatesPage() {
       setMessage("");
       setError("");
 
-      saveTicketTemplateDeletedActivity(template);
       await ticketTemplateRepository.delete(template.id);
       await loadData();
+
       setMessage("Vorlage wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
+
       setError(
         deleteError instanceof Error
           ? deleteError.message
@@ -755,94 +761,53 @@ export default function TicketTemplatesPage() {
     }
   }
 
-  async function createTicketFromTemplate(template: TicketTemplate) {
-    if (!ticketTemplatesEnabled) {
-      alert("Ticket-Vorlagen sind in den Einstellungen deaktiviert.");
-      return;
-    }
-
-    if (!canCreateTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu erstellen.");
-      return;
-    }
-
-    if (!template.category) {
-      alert("Die Vorlage hat keine gültige Kategorie.");
-      return;
-    }
-
-    try {
-      setMessage("");
-      setError("");
-
-      const createdTicket = await ticketRepository.create({
-        title: template.title,
-        description: template.description,
-        status: template.status,
-        priority: template.priority,
-        category: template.category,
-        companyId: template.companyId || "",
-        departmentId: template.departmentId || "",
-        company: template.company || "Intern",
-        department: template.department || "",
-        assignedTo: template.assignedTo || "",
-        createdBy: user?.name || "System",
-        tags: formatTags(template.tags),
-      });
-
-      saveTicketCreatedFromTemplateActivity(template, createdTicket);
-      setMessage(`Ticket #${createdTicket.id} wurde aus Vorlage erstellt.`);
-    } catch (createError) {
-      console.error(createError);
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : "Ticket konnte nicht erstellt werden.",
-      );
-    }
-  }
-
   function resetFilters() {
     setSearch("");
-    setPriorityFilter("");
     setStatusFilter("");
+    setPriorityFilter("");
     setCategoryFilter("");
     setTagFilter("");
     setCompanyFilter("");
     setDepartmentFilter("");
   }
 
-  if (!ticketTemplatesEnabled) {
+  function renderActions(template: TicketTemplate) {
     return (
-      <div className="space-y-8">
-        <PageHero
-          eyebrow="Tickets"
-          title="Ticket-Vorlagen deaktiviert"
-          description="Ticket-Vorlagen sind aktuell in den Einstellungen deaktiviert."
-          actions={
-            <Link
-              href="/admin/settings"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Zu den Einstellungen
-            </Link>
-          }
-        />
+      <div className="flex flex-wrap gap-2">
+        {canEdit() && (
+          <button
+            type="button"
+            onClick={() => startEditTemplate(template)}
+            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+          >
+            Bearbeiten
+          </button>
+        )}
+
+        {canDelete() && (
+          <button
+            type="button"
+            onClick={() => void handleDeleteTemplate(template)}
+            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+          >
+            Löschen
+          </button>
+        )}
       </div>
     );
   }
 
-  if (!canViewTemplates) {
+  if (!ticketTemplatesEnabled) {
     return (
       <div className="space-y-8">
-        <PageHero
-          eyebrow="Tickets"
-          title="Keine Berechtigung"
-          description="Du hast keine Berechtigung, Ticket-Vorlagen zu sehen."
-          actions={
+        <EmptyState
+          icon="🧾"
+          title="Ticket-Vorlagen deaktiviert"
+          description="Dieses Modul ist aktuell in den Einstellungen deaktiviert."
+          action={
             <Link
               href="/tickets"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
             >
               Zurück zu Tickets
             </Link>
@@ -856,32 +821,34 @@ export default function TicketTemplatesPage() {
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title={editingId ? "Vorlage bearbeiten" : "Vorlage erstellen"}
-        description="Kategorien und Tags kommen aus dem Admin Backend."
-        maxWidth="5xl"
         onClose={closeModal}
+        title={editingTemplateId ? "Vorlage bearbeiten" : "Vorlage erstellen"}
+        description="Ticket-Vorlagen speichern Standardwerte für neue Supportfälle."
+        size="2xl"
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
-              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition"
+              disabled={saving}
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
             >
               Abbrechen
             </button>
+
             <button
               type="submit"
               form="ticket-template-form"
               disabled={saving}
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl hover:opacity-90 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
               {saving
                 ? "Speichert..."
-                : editingId
-                  ? "Änderungen speichern"
+                : editingTemplateId
+                  ? "Vorlage speichern"
                   : "Vorlage erstellen"}
             </button>
-          </div>
+          </>
         }
       >
         <form
@@ -890,22 +857,38 @@ export default function TicketTemplatesPage() {
           className="space-y-6"
         >
           <div>
-            <label className="block mb-2 font-medium">
+            <label className="block mb-2 font-bold">
               Titel
             </label>
+
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-              placeholder="Kurzer Titel"
+              placeholder="z. B. Neuer Arbeitsplatz"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-bold">
+              Beschreibung
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={5}
+              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
+              placeholder="Standardbeschreibung für das Ticket..."
             />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div>
-              <label className="block mb-2 font-medium">
+              <label className="block mb-2 font-bold">
                 Kategorie
               </label>
+
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
@@ -914,6 +897,7 @@ export default function TicketTemplatesPage() {
                 <option value="">
                   Kategorie auswählen
                 </option>
+
                 {categoryOptions.map((option) => (
                   <option
                     key={option.id}
@@ -922,28 +906,25 @@ export default function TicketTemplatesPage() {
                     {option.label}
                   </option>
                 ))}
+
+                {categoryOptions.length === 0 && (
+                  <option value="" disabled>
+                    Bitte zuerst eine aktive Ticket-Kategorie im Admin Backend anlegen.
+                  </option>
+                )}
               </select>
             </div>
 
             <div>
-              <label className="block mb-2 font-medium">
-                Zugewiesen an
-              </label>
-              <input
-                value={assignedTo}
-                onChange={(event) => setAssignedTo(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Name oder Team"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
+              <label className="block mb-2 font-bold">
                 Status
               </label>
+
               <select
                 value={status}
-                onChange={(event) => setStatus(event.target.value as TicketTemplateStatus)}
+                onChange={(event) =>
+                  setStatus(event.target.value as TicketTemplateStatus)
+                }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {statusOptions.map((option) => (
@@ -958,12 +939,15 @@ export default function TicketTemplatesPage() {
             </div>
 
             <div>
-              <label className="block mb-2 font-medium">
+              <label className="block mb-2 font-bold">
                 Priorität
               </label>
+
               <select
                 value={priority}
-                onChange={(event) => setPriority(event.target.value as TicketTemplatePriority)}
+                onChange={(event) =>
+                  setPriority(event.target.value as TicketTemplatePriority)
+                }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 {priorityOptions.map((option) => (
@@ -978,48 +962,63 @@ export default function TicketTemplatesPage() {
             </div>
 
             <div>
-              <label className="block mb-2 font-medium">
+              <label className="block mb-2 font-bold">
+                Zugewiesen an
+              </label>
+
+              <input
+                value={assignedTo}
+                onChange={(event) => setAssignedTo(event.target.value)}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                placeholder="Name oder Team"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-bold">
                 Firma
               </label>
+
               <select
                 value={companyId}
                 onChange={(event) => handleCompanyChange(event.target.value)}
-                disabled={!isAdmin && !canManageTemplates}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
                   Intern
                 </option>
-                {(activeCompanies.length > 0 ? activeCompanies : companies).map((item) => (
+
+                {companies.map((nextCompany) => (
                   <option
-                    key={item.id}
-                    value={item.id}
+                    key={nextCompany.id}
+                    value={nextCompany.id}
                   >
-                    {item.name}
+                    {nextCompany.name}
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block mb-2 font-medium">
+              <label className="block mb-2 font-bold">
                 Abteilung
               </label>
+
               <select
                 value={departmentId}
-                onChange={(event) => setDepartmentId(event.target.value)}
-                disabled={!isAdmin && !canManageTemplates}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                onChange={(event) => handleDepartmentChange(event.target.value)}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
                 <option value="">
-                  Nicht zugeordnet
+                  Keine Abteilung
                 </option>
-                {selectableDepartments.map((item) => (
+
+                {departmentOptions.map((nextDepartment) => (
                   <option
-                    key={item.id}
-                    value={item.id}
+                    key={nextDepartment.id}
+                    value={nextDepartment.id}
                   >
-                    {item.name}
+                    {nextDepartment.name}
                   </option>
                 ))}
               </select>
@@ -1027,26 +1026,13 @@ export default function TicketTemplatesPage() {
           </div>
 
           <div>
-            <label className="block mb-2 font-medium">
-              Beschreibung
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={5}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
-              placeholder="Beschreibung der Vorlage..."
-            />
-          </div>
-
-          <div>
-            <label className="block mb-3 font-medium">
+            <label className="block mb-3 font-bold">
               Tags
             </label>
 
             {tagOptions.length === 0 ? (
               <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                Noch keine Ticket-Tags im Admin Backend vorhanden.
+                Noch keine globalen oder Ticket-Tags im Admin Backend vorhanden.
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -1058,9 +1044,9 @@ export default function TicketTemplatesPage() {
                       key={option.id}
                       type="button"
                       onClick={() => toggleTag(option.value)}
-                      className={`px-4 py-2 rounded-xl border transition ${
+                      className={`px-4 py-2 rounded-xl border transition font-bold ${
                         active
-                          ? "app-accent-bg text-white border-transparent app-brand-shadow"
+                          ? "app-accent-bg text-white app-brand-shadow"
                           : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                       }`}
                     >
@@ -1074,530 +1060,638 @@ export default function TicketTemplatesPage() {
         </form>
       </AppModal>
 
+      <div>
+        <Link
+          href="/tickets"
+          className="inline-flex items-center gap-2 bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+        >
+          ← Zurück zu Tickets
+        </Link>
+      </div>
+
       <PageHero
         eyebrow="Tickets"
         title="Ticket-Vorlagen"
-        description="Wiederkehrende Ticket-Typen als Vorlage speichern und daraus Tickets erstellen."
+        description="Wiederverwendbare Vorlagen für Supportfälle aus PostgreSQL verwalten."
         badges={[
           {
-            label: `${visibleTemplates.length} Vorlagen`,
+            label: `${templates.length} Vorlagen`,
           },
           {
-            label: `${categoryOptions.length} Kategorien`,
+            label: `${openTemplates.length} offen`,
           },
           {
-            label: `${tagOptions.length} Tags`,
+            label: `${closedTemplates.length} geschlossen`,
+          },
+          {
+            label: `${filteredTemplates.length} sichtbar`,
           },
         ]}
         actions={
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/tickets"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+          <>
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
             >
-              Zurück zu Tickets
-            </Link>
+              Aktualisieren
+            </button>
 
-            {canCreateTemplate && (
+            {canCreate() && (
               <button
                 type="button"
                 onClick={openCreateForm}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
               >
                 Vorlage erstellen
               </button>
             )}
-          </div>
+          </>
         }
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Ticket-Vorlagen werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Ticket-Vorlagen werden geladen..."
+          description="Vorlagen, Kategorien, Tags und Organisation werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Ticket-Vorlagen konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard
-          label="Vorlagen gesamt"
-          value={visibleTemplates.length}
-          description="Alle sichtbaren Vorlagen"
-          icon="📋"
-          active={!statusFilter && !priorityFilter && !categoryFilter && !tagFilter}
-          onClick={resetFilters}
-        />
-        <StatCard
-          label="Offen"
-          value={openCount}
-          description="Vorlagen mit Status offen"
-          icon="📌"
-          tone="blue"
-          active={statusFilter === "open"}
-          onClick={() => setStatusFilter("open")}
-        />
-        <StatCard
-          label="Hoch/Dringend"
-          value={highPriorityCount}
-          description="Priorität hoch oder dringend"
-          icon="⚡"
-          tone="orange"
-          active={priorityFilter === "high" || priorityFilter === "urgent"}
-          onClick={() => setPriorityFilter("high")}
-        />
-        <StatCard
-          label="Gefiltert"
-          value={filteredTemplates.length}
-          description="Nach Suche und Filtern"
-          icon="🔎"
-          tone="indigo"
-        />
-      </div>
-
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-5">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-xl font-semibold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Suche nach Titel, Beschreibung, Kategorie, Firma, Abteilung oder Tag.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white"
-                  : "bg-zinc-100 hover:bg-zinc-200"
-              }`}
-            >
-              Karten
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white"
-                  : "bg-zinc-100 hover:bg-zinc-200"
-              }`}
-            >
-              Tabelle
-            </button>
-            <button
-              type="button"
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard
+              label="Vorlagen gesamt"
+              value={templates.length}
+              description="Alle Ticket-Vorlagen"
+              icon="🧾"
+              active={
+                !statusFilter &&
+                !priorityFilter &&
+                !categoryFilter &&
+                !tagFilter &&
+                !search
+              }
               onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-            >
-              Zurücksetzen
-            </button>
+            />
+
+            <StatCard
+              label="Offen"
+              value={openTemplates.length}
+              description="Standardstatus offen"
+              icon="📬"
+              tone="blue"
+              active={statusFilter === "open"}
+              onClick={() => setStatusFilter("open")}
+            />
+
+            <StatCard
+              label="In Bearbeitung"
+              value={inProgressTemplates.length}
+              description="Startet in Bearbeitung"
+              icon="⏳"
+              tone="orange"
+              active={statusFilter === "in_progress"}
+              onClick={() => setStatusFilter("in_progress")}
+            />
+
+            <StatCard
+              label="Hoch/Dringend"
+              value={urgentTemplates.length}
+              description={`${closedTemplates.length} geschlossen`}
+              icon="⚡"
+              tone="red"
+              active={priorityFilter === "urgent"}
+              onClick={() => setPriorityFilter("urgent")}
+            />
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4">
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Vorlagen durchsuchen..."
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-          />
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <select
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Kategorien
-            </option>
-            {categoryOptions.map((option) => (
-              <option
-                key={option.id}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <div className="relative">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Suche & Filter
+                  </h2>
 
-          <select
-            value={tagFilter}
-            onChange={(event) => setTagFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Tags
-            </option>
-            {tagOptions.map((option) => (
-              <option
-                key={option.id}
-                value={option.value}
-              >
-                #{option.label}
-              </option>
-            ))}
-          </select>
+                  <p className="text-zinc-500 mt-1">
+                    Suche nach Titel, Beschreibung, Kategorie, Tags, Firma oder Zuweisung.
+                  </p>
+                </div>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-            {statusOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`px-4 py-2 rounded-xl transition font-medium ${
+                      viewMode === "cards"
+                        ? "app-accent-bg text-white app-brand-shadow"
+                        : "bg-zinc-100 hover:bg-zinc-200"
+                    }`}
+                  >
+                    Karten
+                  </button>
 
-          <select
-            value={priorityFilter}
-            onChange={(event) => setPriorityFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Prioritäten
-            </option>
-            {priorityOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`px-4 py-2 rounded-xl transition font-medium ${
+                      viewMode === "table"
+                        ? "app-accent-bg text-white app-brand-shadow"
+                        : "bg-zinc-100 hover:bg-zinc-200"
+                    }`}
+                  >
+                    Tabelle
+                  </button>
 
-          <select
-            value={companyFilter}
-            onChange={(event) => {
-              setCompanyFilter(event.target.value);
-              setDepartmentFilter("");
-            }}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Firmen
-            </option>
-            {companies.map((item) => (
-              <option
-                key={item.id}
-                value={item.id}
-              >
-                {item.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={departmentFilter}
-            onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white xl:col-span-2"
-          >
-            <option value="">
-              Alle Abteilungen
-            </option>
-            {filteredDepartmentOptions.map((item) => (
-              <option
-                key={item.id}
-                value={item.id}
-              >
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <p className="text-sm text-zinc-500">
-          {filteredTemplates.length} von {visibleTemplates.length} Vorlagen gefunden.
-        </p>
-      </div>
-
-      {filteredTemplates.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <p className="text-zinc-500">
-            Keine Vorlagen gefunden.
-          </p>
-        </div>
-      )}
-
-      {viewMode === "cards" && filteredTemplates.length > 0 && (
-        <div className="grid gap-4">
-          {filteredTemplates.map((template) => {
-            const templateCompany = template.company || getCompanyName(template.companyId);
-            const templateDepartment = template.department || getDepartmentName(template.departmentId);
-            const templateTags = formatTags(template.tags);
-
-            return (
-              <div
-                key={template.id}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(template.status)}`}>
-                        {getStatusLabel(template.status)}
-                      </span>
-                      <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(template.priority)}`}>
-                        {getPriorityLabel(template.priority)}
-                      </span>
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        {template.category}
-                      </span>
-                      <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">
-                        {templateCompany}
-                      </span>
-                      <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
-                        {templateDepartment}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl font-bold mt-4">
-                      {template.title}
-                    </h2>
-
-                    <p className="text-zinc-500 mt-2">
-                      {template.description || "Keine Beschreibung"}
-                    </p>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {templateTags.length === 0 && (
-                        <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
-                          Keine Tags
-                        </span>
-                      )}
-
-                      {templateTags.map((tag, index) => (
-                        <span
-                          key={`${template.id}-${tag}-${index}`}
-                          className="text-xs bg-zinc-50 border border-zinc-200 text-zinc-700 px-3 py-1 rounded-full"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap gap-6 text-sm text-zinc-500 mt-5">
-                      <p>
-                        Erstellt: {template.createdAt}
-                      </p>
-                      <p>
-                        Aktualisiert: {template.updatedAt}
-                      </p>
-                      {template.assignedTo && (
-                        <p>
-                          Zuständig: {template.assignedTo}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3 justify-end shrink-0">
-                    {canCreateTicket && (
-                      <button
-                        type="button"
-                        onClick={() => void createTicketFromTemplate(template)}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
-                      >
-                        Ticket erstellen
-                      </button>
-                    )}
-
-                    {canEditTemplate && (
-                      <button
-                        type="button"
-                        onClick={() => startEditTemplate(template)}
-                        className="bg-white border border-zinc-200 px-4 py-2 rounded-xl hover:bg-zinc-100 transition"
-                      >
-                        Bearbeiten
-                      </button>
-                    )}
-
-                    {canDeleteTemplate && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteTemplate(template)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                      >
-                        Löschen
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                  >
+                    Zurücksetzen
+                  </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {viewMode === "table" && filteredTemplates.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="px-5 py-4 font-semibold">
-                    Vorlage
-                  </th>
-                  <th className="px-5 py-4 font-semibold">
-                    Kategorie
-                  </th>
-                  <th className="px-5 py-4 font-semibold">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 font-semibold">
-                    Priorität
-                  </th>
-                  <th className="px-5 py-4 font-semibold">
-                    Organisation
-                  </th>
-                  <th className="px-5 py-4 font-semibold">
-                    Tags
-                  </th>
-                  <th className="px-5 py-4 font-semibold text-right">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-6">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Vorlagen suchen..."
+                />
 
-              <tbody>
-                {filteredTemplates.map((template) => {
-                  const templateCompany = template.company || getCompanyName(template.companyId);
-                  const templateDepartment = template.department || getDepartmentName(template.departmentId);
-                  const templateTags = formatTags(template.tags);
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Status
+                  </option>
 
-                  return (
-                    <tr
-                      key={template.id}
-                      className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50"
+                  {statusOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
                     >
-                      <td className="px-5 py-4 align-top min-w-[280px]">
-                        <p className="font-semibold">
-                          {template.title}
-                        </p>
-                        <p className="text-zinc-500 mt-1 line-clamp-2">
-                          {template.description || "Keine Beschreibung"}
-                        </p>
-                      </td>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
 
-                      <td className="px-5 py-4 align-top text-zinc-500 min-w-[220px]">
-                        {template.category}
-                      </td>
+                <select
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value)}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Prioritäten
+                  </option>
 
-                      <td className="px-5 py-4 align-top">
-                        <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(template.status)}`}>
-                          {getStatusLabel(template.status)}
-                        </span>
-                      </td>
+                  {priorityOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
 
-                      <td className="px-5 py-4 align-top">
-                        <span className={`text-xs px-3 py-1 rounded-full ${getPriorityClass(template.priority)}`}>
-                          {getPriorityLabel(template.priority)}
-                        </span>
-                      </td>
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Kategorien
+                  </option>
 
-                      <td className="px-5 py-4 align-top text-zinc-500">
-                        {templateCompany}
-                        <br />
-                        {templateDepartment}
-                      </td>
+                  {categoryOptions.map((option) => (
+                    <option
+                      key={option.id}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
 
-                      <td className="px-5 py-4 align-top min-w-[220px]">
-                        <div className="flex flex-wrap gap-2">
-                          {templateTags.length === 0 && (
-                            <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
-                              Keine Tags
-                            </span>
-                          )}
+                <select
+                  value={tagFilter}
+                  onChange={(event) => setTagFilter(event.target.value)}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Tags
+                  </option>
 
-                          {templateTags.map((tag, index) => (
+                  {tagOptions.map((option) => (
+                    <option
+                      key={option.id}
+                      value={option.value}
+                    >
+                      #{option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={companyFilter}
+                  onChange={(event) => {
+                    setCompanyFilter(event.target.value);
+                    setDepartmentFilter("");
+                  }}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Firmen
+                  </option>
+
+                  {companies.map((nextCompany) => (
+                    <option
+                      key={nextCompany.id}
+                      value={nextCompany.id}
+                    >
+                      {nextCompany.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={departmentFilter}
+                  onChange={(event) =>
+                    setDepartmentFilter(event.target.value)
+                  }
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Abteilungen
+                  </option>
+
+                  {filteredDepartments.map((nextDepartment) => (
+                    <option
+                      key={nextDepartment.id}
+                      value={nextDepartment.id}
+                    >
+                      {nextDepartment.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 mt-5">
+                <span className="text-sm text-zinc-500">
+                  {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
+                </span>
+
+                {search && (
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    Suche: {search}
+                  </span>
+                )}
+
+                {statusFilter && (
+                  <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                    Status: {getTemplateStatusLabel(statusFilter)}
+                  </span>
+                )}
+
+                {priorityFilter && (
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    Priorität: {getTemplatePriorityLabel(priorityFilter)}
+                  </span>
+                )}
+
+                {categoryFilter && (
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    Kategorie: {categoryFilter}
+                  </span>
+                )}
+
+                {tagFilter && (
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    Tag: #{tagFilter}
+                  </span>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {filteredTemplates.length === 0 && (
+            <EmptyState
+              icon="🧾"
+              title="Keine Vorlagen gefunden"
+              description="Erstelle eine neue Vorlage oder passe die Filter an."
+              action={
+                canCreate() ? (
+                  <button
+                    type="button"
+                    onClick={openCreateForm}
+                    className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+                  >
+                    Vorlage erstellen
+                  </button>
+                ) : undefined
+              }
+            />
+          )}
+
+          {filteredTemplates.length > 0 && viewMode === "cards" && (
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {filteredTemplates.map((template) => {
+                const templateTags = getSafeTags(template.tags);
+                const companyName =
+                  template.company || getCompanyName(template.companyId);
+                const departmentName =
+                  template.department || getDepartmentName(template.departmentId);
+
+                return (
+                  <article
+                    key={template.id}
+                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
+                  >
+                    <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                    <div className="relative">
+                      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap gap-2">
                             <span
-                              key={`${template.id}-${tag}-${index}`}
-                              className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full"
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${getTemplateStatusClass(
+                                template.status,
+                              )}`}
                             >
-                              #{tag}
+                              {getTemplateStatusLabel(template.status)}
                             </span>
-                          ))}
+
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${getTemplatePriorityClass(
+                                template.priority,
+                              )}`}
+                            >
+                              {getTemplatePriorityLabel(template.priority)}
+                            </span>
+
+                            {template.category && (
+                              <button
+                                type="button"
+                                onClick={() => setCategoryFilter(template.category)}
+                                className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold"
+                              >
+                                {template.category}
+                              </button>
+                            )}
+                          </div>
+
+                          <h2 className="text-2xl font-black tracking-[-0.03em] mt-5">
+                            {template.title}
+                          </h2>
+
+                          <p className="text-zinc-500 mt-3 line-clamp-3 leading-7 whitespace-pre-wrap">
+                            {template.description || "Keine Beschreibung vorhanden."}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2 mt-5">
+                            {templateTags.length === 0 && (
+                              <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
+                                Keine Tags
+                              </span>
+                            )}
+
+                            {templateTags.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setTagFilter(tag)}
+                                className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                              >
+                                #{tag}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </td>
 
-                      <td className="px-5 py-4 align-top">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {canCreateTicket && (
-                            <button
-                              type="button"
-                              onClick={() => void createTicketFromTemplate(template)}
-                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
-                            >
-                              Ticket erstellen
-                            </button>
-                          )}
+                        {renderActions(template)}
+                      </div>
 
-                          {canEditTemplate && (
-                            <button
-                              type="button"
-                              onClick={() => startEditTemplate(template)}
-                              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
-                            >
-                              Bearbeiten
-                            </button>
-                          )}
-
-                          {canDeleteTemplate && (
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteTemplate(template)}
-                              className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
-                            >
-                              Löschen
-                            </button>
-                          )}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-6 pt-5 border-t border-zinc-100 text-sm">
+                        <div className="bg-zinc-50 rounded-2xl p-4">
+                          <p className="text-xs text-zinc-500">
+                            Firma
+                          </p>
+                          <p className="font-black text-zinc-950 mt-1">
+                            {companyName}
+                          </p>
                         </div>
-                      </td>
+
+                        <div className="bg-zinc-50 rounded-2xl p-4">
+                          <p className="text-xs text-zinc-500">
+                            Abteilung
+                          </p>
+                          <p className="font-black text-zinc-950 mt-1">
+                            {departmentName}
+                          </p>
+                        </div>
+
+                        <div className="bg-zinc-50 rounded-2xl p-4">
+                          <p className="text-xs text-zinc-500">
+                            Zugewiesen
+                          </p>
+                          <p className="font-black text-zinc-950 mt-1">
+                            {template.assignedTo || "-"}
+                          </p>
+                        </div>
+
+                        <div className="bg-zinc-50 rounded-2xl p-4">
+                          <p className="text-xs text-zinc-500">
+                            Aktualisiert
+                          </p>
+                          <p className="font-black text-zinc-950 mt-1">
+                            {formatDate(template.updatedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )}
+
+          {filteredTemplates.length > 0 && viewMode === "table" && (
+            <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-zinc-50 border-b border-zinc-200">
+                    <tr>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Vorlage
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Status
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Priorität
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Kategorie
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Organisation
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Tags
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Zugewiesen
+                      </th>
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                        Aktionen
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+
+                  <tbody className="divide-y divide-zinc-100">
+                    {filteredTemplates.map((template) => {
+                      const templateTags = getSafeTags(template.tags);
+                      const companyName =
+                        template.company || getCompanyName(template.companyId);
+                      const departmentName =
+                        template.department ||
+                        getDepartmentName(template.departmentId);
+
+                      return (
+                        <tr
+                          key={template.id}
+                          className="hover:bg-zinc-50 transition"
+                        >
+                          <td className="px-5 py-4 align-top min-w-[300px]">
+                            <p className="font-black text-zinc-950">
+                              {template.title}
+                            </p>
+
+                            <p className="text-sm text-zinc-500 mt-1 line-clamp-2 whitespace-pre-wrap">
+                              {template.description || "Keine Beschreibung vorhanden."}
+                            </p>
+
+                            <p className="text-xs text-zinc-400 mt-2">
+                              ID: {template.id}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${getTemplateStatusClass(
+                                template.status,
+                              )}`}
+                            >
+                              {getTemplateStatusLabel(template.status)}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${getTemplatePriorityClass(
+                                template.priority,
+                              )}`}
+                            >
+                              {getTemplatePriorityLabel(template.priority)}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            {template.category ? (
+                              <button
+                                type="button"
+                                onClick={() => setCategoryFilter(template.category)}
+                                className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold"
+                              >
+                                {template.category}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-zinc-400">
+                                Nicht gesetzt
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            <p className="font-medium">
+                              {companyName}
+                            </p>
+                            <p className="text-sm text-zinc-500">
+                              {departmentName}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            <div className="flex flex-wrap gap-2">
+                              {templateTags.length === 0 && (
+                                <span className="text-xs bg-zinc-100 text-zinc-500 px-3 py-1 rounded-full">
+                                  Keine Tags
+                                </span>
+                              )}
+
+                              {templateTags.map((tag) => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setTagFilter(tag)}
+                                  className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                                >
+                                  #{tag}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                            {template.assignedTo || "-"}
+                          </td>
+
+                          <td className="px-5 py-4 align-top">
+                            {renderActions(template)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
 }
-
-
-
-

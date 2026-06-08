@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import EmptyState from "../../components/EmptyState";
+import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
 import StatCard from "../../components/StatCard";
 import {
@@ -36,13 +38,7 @@ type FileEntry = {
   file: StoredFile;
 };
 
-type ViewMode = "table" | "cards";
-
 function formatFileSize(size: number) {
-  if (!Number.isFinite(size) || size <= 0) {
-    return "0 B";
-  }
-
   if (size < 1024) {
     return `${size} B`;
   }
@@ -52,135 +48,6 @@ function formatFileSize(size: number) {
   }
 
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function getFileIcon(type?: string) {
-  const normalizedType = String(type || "").toLowerCase();
-
-  if (normalizedType.includes("pdf")) {
-    return "📕";
-  }
-
-  if (normalizedType.includes("image")) {
-    return "🖼️";
-  }
-
-  if (
-    normalizedType.includes("word") ||
-    normalizedType.includes("document")
-  ) {
-    return "📘";
-  }
-
-  if (
-    normalizedType.includes("excel") ||
-    normalizedType.includes("spreadsheet")
-  ) {
-    return "📗";
-  }
-
-  if (
-    normalizedType.includes("zip") ||
-    normalizedType.includes("compressed")
-  ) {
-    return "🗜️";
-  }
-
-  if (normalizedType.includes("text")) {
-    return "📝";
-  }
-
-  return "📄";
-}
-
-function getFileTypeLabel(type?: string) {
-  const normalizedType = String(type || "").toLowerCase();
-
-  if (normalizedType.includes("pdf")) {
-    return "PDF";
-  }
-
-  if (normalizedType.includes("image")) {
-    return "Bild";
-  }
-
-  if (
-    normalizedType.includes("word") ||
-    normalizedType.includes("document")
-  ) {
-    return "Dokument";
-  }
-
-  if (
-    normalizedType.includes("excel") ||
-    normalizedType.includes("spreadsheet")
-  ) {
-    return "Tabelle";
-  }
-
-  if (
-    normalizedType.includes("zip") ||
-    normalizedType.includes("compressed")
-  ) {
-    return "Archiv";
-  }
-
-  if (normalizedType.includes("text")) {
-    return "Text";
-  }
-
-  return "Datei";
-}
-
-function getFileTypeClass(type?: string) {
-  const normalizedType = String(type || "").toLowerCase();
-
-  if (normalizedType.includes("pdf")) {
-    return "bg-red-50 text-red-700 border-red-100";
-  }
-
-  if (normalizedType.includes("image")) {
-    return "bg-blue-50 text-blue-700 border-blue-100";
-  }
-
-  if (
-    normalizedType.includes("word") ||
-    normalizedType.includes("document")
-  ) {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
-
-  if (
-    normalizedType.includes("excel") ||
-    normalizedType.includes("spreadsheet")
-  ) {
-    return "bg-green-50 text-green-700 border-green-100";
-  }
-
-  if (
-    normalizedType.includes("zip") ||
-    normalizedType.includes("compressed")
-  ) {
-    return "bg-orange-50 text-orange-700 border-orange-100";
-  }
-
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
-}
-
-function getGroupClass(key: string) {
-  if (key.startsWith("wiki-")) {
-    return "bg-indigo-50 text-indigo-700 border-indigo-100";
-  }
-
-  if (key.startsWith("ticket-")) {
-    return "bg-orange-50 text-orange-700 border-orange-100";
-  }
-
-  if (key.startsWith("news-")) {
-    return "bg-blue-50 text-blue-700 border-blue-100";
-  }
-
-  return "bg-zinc-100 text-zinc-700 border-zinc-200";
 }
 
 function getKeyLabel(
@@ -205,22 +72,6 @@ function getKeyLabel(
   return key;
 }
 
-function getKeyTypeLabel(key: string) {
-  if (key.startsWith("wiki-")) {
-    return "Wiki";
-  }
-
-  if (key.startsWith("ticket-")) {
-    return "Ticket";
-  }
-
-  if (key.startsWith("news-")) {
-    return "News";
-  }
-
-  return "Gruppe";
-}
-
 function getKeyHref(key: string) {
   if (key.startsWith("wiki-")) {
     return `/wiki/${encodeURIComponent(key.replace("wiki-", ""))}`;
@@ -235,6 +86,62 @@ function getKeyHref(key: string) {
   }
 
   return "";
+}
+
+function getFileIcon(file: StoredFile) {
+  const type = String(file.type || "");
+
+  if (type.startsWith("image/")) {
+    return "🖼️";
+  }
+
+  if (type.includes("pdf")) {
+    return "📕";
+  }
+
+  if (type.includes("spreadsheet") || type.includes("excel")) {
+    return "📊";
+  }
+
+  if (type.includes("word") || type.includes("document")) {
+    return "📄";
+  }
+
+  if (type.includes("zip") || type.includes("archive")) {
+    return "📦";
+  }
+
+  return "📎";
+}
+
+function getFileTypeLabel(file: StoredFile) {
+  const type = String(file.type || "");
+
+  if (!type) {
+    return "Datei";
+  }
+
+  if (type.startsWith("image/")) {
+    return "Bild";
+  }
+
+  if (type.includes("pdf")) {
+    return "PDF";
+  }
+
+  if (type.includes("spreadsheet") || type.includes("excel")) {
+    return "Tabelle";
+  }
+
+  if (type.includes("word") || type.includes("document")) {
+    return "Dokument";
+  }
+
+  if (type.includes("zip") || type.includes("archive")) {
+    return "Archiv";
+  }
+
+  return type;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -256,13 +163,10 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export default function FilesPage() {
   const [fileMap, setFileMap] = useState<Record<string, StoredFile[]>>({});
   const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
-
   const [search, setSearch] = useState("");
   const [keyFilter, setKeyFilter] = useState("");
   const [uploadKey, setUploadKey] = useState("");
   const [customUploadKey, setCustomUploadKey] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -282,6 +186,7 @@ export default function FilesPage() {
       "filesUpdated",
       handleFilesUpdated,
     );
+
     window.addEventListener(
       "wikiPagesUpdated",
       handleWikiPagesUpdated,
@@ -292,6 +197,7 @@ export default function FilesPage() {
         "filesUpdated",
         handleFilesUpdated,
       );
+
       window.removeEventListener(
         "wikiPagesUpdated",
         handleWikiPagesUpdated,
@@ -304,9 +210,7 @@ export default function FilesPage() {
       const nextWikiPages = await wikiRepository.list();
 
       setWikiPages(
-        Array.isArray(nextWikiPages)
-          ? nextWikiPages
-          : [],
+        Array.isArray(nextWikiPages) ? nextWikiPages : [],
       );
     } catch (loadError) {
       console.error(
@@ -329,19 +233,12 @@ export default function FilesPage() {
         wikiRepository.list(),
       ]);
 
-      const normalizedFileMap =
-        nextFileMap && typeof nextFileMap === "object"
-          ? nextFileMap
-          : {};
-
-      setFileMap(normalizedFileMap);
+      setFileMap(nextFileMap || {});
       setWikiPages(
-        Array.isArray(nextWikiPages)
-          ? nextWikiPages
-          : [],
+        Array.isArray(nextWikiPages) ? nextWikiPages : [],
       );
 
-      const keys = Object.keys(normalizedFileMap);
+      const keys = Object.keys(nextFileMap || {});
 
       if (keys.length > 0 && !uploadKey) {
         setUploadKey(keys[0]);
@@ -395,7 +292,6 @@ export default function FilesPage() {
         [
           entry.key,
           label,
-          getKeyTypeLabel(entry.key),
           entry.file.name,
           entry.file.type,
           entry.file.size,
@@ -418,47 +314,17 @@ export default function FilesPage() {
 
   const totalFiles = entries.length;
 
-  const totalSize = useMemo(
-    () =>
-      entries.reduce(
-        (sum, entry) => sum + (entry.file.size || 0),
-        0,
-      ),
-    [
-      entries,
-    ],
+  const totalSize = entries.reduce(
+    (sum, entry) => sum + (entry.file.size || 0),
+    0,
   );
 
-  const imageFiles = useMemo(
-    () =>
-      entries.filter((entry) =>
-        String(entry.file.type || "").startsWith("image/"),
-      ),
-    [
-      entries,
-    ],
+  const imageFiles = entries.filter((entry) =>
+    String(entry.file.type || "").startsWith("image/"),
   );
 
-  const documentFiles = useMemo(
-    () =>
-      entries.filter(
-        (entry) =>
-          !String(entry.file.type || "").startsWith("image/"),
-      ),
-    [
-      entries,
-    ],
-  );
-
-  const largestFile = useMemo(
-    () =>
-      [...entries].sort(
-        (first, second) =>
-          (second.file.size || 0) - (first.file.size || 0),
-      )[0],
-    [
-      entries,
-    ],
+  const documentFiles = entries.filter((entry) =>
+    !String(entry.file.type || "").startsWith("image/"),
   );
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -473,9 +339,7 @@ export default function FilesPage() {
       return;
     }
 
-    const targetKey =
-      customUploadKey.trim() ||
-      uploadKey.trim();
+    const targetKey = customUploadKey.trim() || uploadKey.trim();
 
     if (!targetKey) {
       alert("Bitte einen Datei-Schlüssel auswählen oder eingeben.");
@@ -488,17 +352,14 @@ export default function FilesPage() {
       for (const file of selectedFiles) {
         const data = await readFileAsDataUrl(file);
 
-        await fileRepository.addToKey(
-          targetKey,
-          {
-            name: file.name,
-            type: file.type || "application/octet-stream",
-            size: file.size,
-            data,
-            uploadedAt: new Date().toLocaleString(),
-            uploadedBy: "System",
-          },
-        );
+        await fileRepository.addToKey(targetKey, {
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          size: file.size,
+          data,
+          uploadedAt: new Date().toLocaleString(),
+          uploadedBy: "System",
+        });
 
         void activityRepository.create({
           type: "created",
@@ -553,10 +414,7 @@ export default function FilesPage() {
     }
 
     try {
-      await fileRepository.deleteFromKey(
-        entry.key,
-        entry.index,
-      );
+      await fileRepository.deleteFromKey(entry.key, entry.index);
 
       void activityRepository.create({
         type: "deleted",
@@ -645,23 +503,21 @@ export default function FilesPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Dateiablage"
+        eyebrow="Velunis Dateien"
         title="Dateien"
-        description="Zentrale Dateiübersicht für Wiki, Tickets, News und weitere Dateigruppen im Velunis Workspace."
+        description="Uploads und Anhänge aus Wiki, Tickets und News zentral durchsuchen und verwalten."
         badges={[
           {
             label: `${totalFiles} Dateien`,
           },
           {
-            label: `${formatFileSize(totalSize)} Gesamtgröße`,
+            label: formatFileSize(totalSize),
+          },
+          {
+            label: `${imageFiles.length} Bilder`,
           },
           {
             label: `${keys.length} Gruppen`,
-          },
-          {
-            label: largestFile
-              ? `Größte: ${largestFile.file.name}`
-              : "Noch keine Dateien",
           },
         ]}
         actions={
@@ -676,93 +532,189 @@ export default function FilesPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Dateien werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Dateien werden geladen..."
+          description="Dateigruppen, Anhänge und Wiki-Zuordnungen werden vorbereitet."
+        />
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Dateien konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard
-          label="Dateien"
-          value={totalFiles}
-          description={`${keys.length} Gruppen`}
-          icon="📁"
-          active={!search && !keyFilter}
-          onClick={resetFilters}
-        />
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard
+              label="Dateien"
+              value={totalFiles}
+              description="Alle gespeicherten Uploads"
+              icon="📁"
+              active={!keyFilter && !search}
+              onClick={resetFilters}
+            />
 
-        <StatCard
-          label="Gesamtgröße"
-          value={formatFileSize(totalSize)}
-          description="Alle gespeicherten Dateien"
-          icon="💾"
-          tone="blue"
-        />
+            <StatCard
+              label="Speicher"
+              value={formatFileSize(totalSize)}
+              description="Gesamte Dateigröße"
+              icon="📦"
+              tone="indigo"
+            />
 
-        <StatCard
-          label="Bilder"
-          value={imageFiles.length}
-          description="Bilddateien"
-          icon="🖼️"
-          tone="indigo"
-          active={search === "image"}
-          onClick={() => setSearch("image")}
-        />
+            <StatCard
+              label="Bilder"
+              value={imageFiles.length}
+              description={`${documentFiles.length} weitere Dateien`}
+              icon="🖼️"
+              tone="blue"
+              active={search === "image/"}
+              onClick={() => setSearch("image/")}
+            />
 
-        <StatCard
-          label="Dokumente"
-          value={documentFiles.length}
-          description="Nicht-Bild-Dateien"
-          icon="📄"
-          tone="purple"
-        />
-      </div>
+            <StatCard
+              label="Gruppen"
+              value={keys.length}
+              description="Datei-Schlüssel"
+              icon="🗂️"
+              tone="green"
+            />
+          </div>
 
-      {canEdit() && (
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
-          <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+          {canEdit() && (
+            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <div className="relative">
-            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-              <div>
-                <h2 className="text-2xl font-bold">
-                  Datei hochladen
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Dateien werden einer Gruppe zugeordnet und in PostgreSQL gespeichert.
-                </p>
+              <div className="relative">
+                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                  <div>
+                    <h2 className="text-2xl font-black">
+                      Datei hochladen
+                    </h2>
+
+                    <p className="text-zinc-500 mt-1">
+                      Dateien werden einer Gruppe zugeordnet und in PostgreSQL gespeichert.
+                    </p>
+                  </div>
+
+                  {uploading && (
+                    <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                      Upload läuft...
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
+                  <div>
+                    <label className="block mb-2 font-bold">
+                      Vorhandene Gruppe
+                    </label>
+
+                    <select
+                      value={uploadKey}
+                      onChange={(event) => setUploadKey(event.target.value)}
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                    >
+                      <option value="">
+                        Gruppe auswählen
+                      </option>
+
+                      {keys.map((key) => (
+                        <option
+                          key={key}
+                          value={key}
+                        >
+                          {getKeyLabel(key, wikiPages)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-bold">
+                      Oder neue Gruppe
+                    </label>
+
+                    <input
+                      value={customUploadKey}
+                      onChange={(event) =>
+                        setCustomUploadKey(event.target.value)
+                      }
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                      placeholder="z. B. wiki-startseite"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block mb-2 font-bold">
+                      Datei
+                    </label>
+
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(event) => void handleFileChange(event)}
+                      disabled={uploading}
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus disabled:opacity-50 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Suche & Filter
+                  </h2>
+
+                  <p className="text-zinc-500 mt-1">
+                    Suche nach Dateiname, Typ, Gruppe oder Upload-Information.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                >
+                  Zurücksetzen
+                </button>
               </div>
 
-              <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-                Upload
-              </span>
-            </div>
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Dateien suchen..."
+                />
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
-              <div>
-                <label className="block mb-2 font-medium">
-                  Vorhandene Gruppe
-                </label>
                 <select
-                  value={uploadKey}
-                  onChange={(event) => setUploadKey(event.target.value)}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                  value={keyFilter}
+                  onChange={(event) => setKeyFilter(event.target.value)}
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   <option value="">
-                    Gruppe auswählen
+                    Alle Gruppen
                   </option>
 
                   {keys.map((key) => (
@@ -776,410 +728,162 @@ export default function FilesPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block mb-2 font-medium">
-                  Oder neue Gruppe
-                </label>
-                <input
-                  value={customUploadKey}
-                  onChange={(event) => setCustomUploadKey(event.target.value)}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                  placeholder="z. B. wiki-startseite"
-                />
-              </div>
+              <div className="flex flex-wrap items-center gap-3 mt-5">
+                <span className="text-sm text-zinc-500">
+                  {filteredEntries.length} von {totalFiles} Dateien gefunden.
+                </span>
 
-              <div>
-                <label className="block mb-2 font-medium">
-                  Datei
-                </label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(event) => void handleFileChange(event)}
-                  disabled={uploading}
-                  className="w-full border border-dashed border-zinc-300 rounded-2xl px-5 py-4 bg-white disabled:opacity-50"
-                />
+                {search && (
+                  <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                    Suche: {search}
+                  </span>
+                )}
+
+                {keyFilter && (
+                  <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                    Gruppe: {getKeyLabel(keyFilter, wikiPages)}
+                  </span>
+                )}
               </div>
             </div>
+          </section>
 
-            {uploading && (
-              <div className="mt-5 app-accent-soft app-accent-text rounded-2xl p-4 font-medium">
-                Upload läuft...
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Suche nach Dateiname, Typ, Gruppe oder Upload-Information.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Karten
-            </button>
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-            >
-              Zurücksetzen
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Dateien suchen..."
-          />
-
-          <select
-            value={keyFilter}
-            onChange={(event) => setKeyFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Gruppen
-            </option>
-
-            {keys.map((key) => (
-              <option
-                key={key}
-                value={key}
-              >
-                {getKeyLabel(key, wikiPages)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredEntries.length} von {totalFiles} Dateien gefunden.
-          </span>
-
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
-            </span>
+          {filteredEntries.length === 0 && (
+            <EmptyState
+              icon="📁"
+              title="Keine Dateien gefunden"
+              description="Lade Dateien hoch oder passe die Filter an."
+            />
           )}
 
-          {keyFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Gruppe: {getKeyLabel(keyFilter, wikiPages)}
-            </span>
-          )}
-        </div>
-      </section>
+          {filteredEntries.length > 0 && (
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {filteredEntries.map((entry) => {
+                const href = getKeyHref(entry.key);
 
-      {!loading && filteredEntries.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-            🔎
-          </div>
+                return (
+                  <article
+                    key={`${entry.key}-${entry.index}-${entry.file.name}`}
+                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
+                  >
+                    <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <h2 className="text-xl font-semibold mt-5">
-            Keine Dateien gefunden
-          </h2>
-          <p className="text-zinc-500 mt-2">
-            Lade Dateien hoch oder passe die Filter an.
-          </p>
-        </div>
-      )}
+                    <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                            {getKeyLabel(entry.key, wikiPages)}
+                          </span>
 
-      {viewMode === "table" && filteredEntries.length > 0 && (
-        <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Datei
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Gruppe
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Typ
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Größe
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Upload
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
+                          <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
+                            {getFileTypeLabel(entry.file)}
+                          </span>
+                        </div>
 
-              <tbody className="divide-y divide-zinc-100">
-                {filteredEntries.map((entry) => {
-                  const href = getKeyHref(entry.key);
-
-                  return (
-                    <tr
-                      key={`${entry.key}-${entry.index}-${entry.file.name}`}
-                      className="hover:bg-zinc-50 transition"
-                    >
-                      <td className="px-5 py-4 align-top min-w-[280px]">
-                        <div className="flex items-start gap-3">
-                          <div className="h-11 w-11 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl shrink-0">
-                            {getFileIcon(entry.file.type)}
+                        <div className="flex items-start gap-4 mt-5">
+                          <div className="h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl shrink-0">
+                            {getFileIcon(entry.file)}
                           </div>
 
                           <div className="min-w-0">
-                            <p className="font-black text-zinc-950 line-clamp-1">
+                            <h2 className="text-2xl font-black tracking-[-0.03em] text-zinc-950 break-words">
                               {entry.file.name}
-                            </p>
-                            <p className="text-xs text-zinc-400 mt-1 break-all">
+                            </h2>
+
+                            <p className="text-zinc-500 mt-2 break-all">
                               {entry.file.type || "application/octet-stream"}
                             </p>
                           </div>
                         </div>
-                      </td>
 
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getGroupClass(
-                            entry.key,
-                          )}`}
-                        >
-                          {getKeyTypeLabel(entry.key)}
-                        </span>
-                        <p className="text-sm text-zinc-500 mt-2 line-clamp-1">
-                          {getKeyLabel(entry.key, wikiPages)}
-                        </p>
-                      </td>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5 text-sm">
+                          <div className="bg-zinc-50 rounded-2xl p-4">
+                            <p className="text-xs text-zinc-500">
+                              Größe
+                            </p>
+                            <p className="font-black text-zinc-950 mt-1">
+                              {formatFileSize(entry.file.size)}
+                            </p>
+                          </div>
 
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getFileTypeClass(
-                            entry.file.type,
-                          )}`}
-                        >
-                          {getFileTypeLabel(entry.file.type)}
-                        </span>
-                      </td>
+                          <div className="bg-zinc-50 rounded-2xl p-4">
+                            <p className="text-xs text-zinc-500">
+                              Hochgeladen
+                            </p>
+                            <p className="font-black text-zinc-950 mt-1">
+                              {entry.file.uploadedAt || "-"}
+                            </p>
+                          </div>
 
-                      <td className="px-5 py-4 align-top text-zinc-500">
-                        {formatFileSize(entry.file.size)}
-                      </td>
-
-                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
-                        <p>
-                          {entry.file.uploadedAt || "-"}
-                        </p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          {entry.file.uploadedBy || "System"}
-                        </p>
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          {href && (
-                            <Link
-                              href={href}
-                              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-                            >
-                              Quelle
-                            </Link>
-                          )}
-
-                          {entry.file.data && (
-                            <a
-                              href={entry.file.data}
-                              download={entry.file.name}
-                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
-                            >
-                              Download
-                            </a>
-                          )}
-
-                          {canDelete() && (
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteFile(entry)}
-                              className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                            >
-                              Löschen
-                            </button>
-                          )}
+                          <div className="bg-zinc-50 rounded-2xl p-4">
+                            <p className="text-xs text-zinc-500">
+                              Von
+                            </p>
+                            <p className="font-black text-zinc-950 mt-1">
+                              {entry.file.uploadedBy || "System"}
+                            </p>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+                      </div>
 
-      {viewMode === "cards" && filteredEntries.length > 0 && (
-        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {filteredEntries.map((entry) => {
-            const href = getKeyHref(entry.key);
+                      <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
+                        {href && (
+                          <Link
+                            href={href}
+                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow text-center"
+                          >
+                            Quelle öffnen
+                          </Link>
+                        )}
 
-            return (
-              <article
-                key={`${entry.key}-${entry.index}-${entry.file.name}`}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+                        {entry.file.data && (
+                          <a
+                            href={entry.file.data}
+                            download={entry.file.name}
+                            className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-bold text-center"
+                          >
+                            Download
+                          </a>
+                        )}
+
+                        {canDelete() && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteFile(entry)}
+                            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                          >
+                            Löschen
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )}
+
+          {keyFilter && canDelete() && (
+            <section className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+              <h2 className="text-2xl font-black text-red-700">
+                Dateigruppe löschen
+              </h2>
+
+              <p className="text-red-700/80 mt-2 leading-7">
+                Du filterst gerade nach der Gruppe "{keyFilter}". Du kannst alle Dateien dieser Gruppe löschen.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => void handleDeleteKey(keyFilter)}
+                className="mt-5 bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition font-bold"
               >
-                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getGroupClass(
-                          entry.key,
-                        )}`}
-                      >
-                        {getKeyLabel(entry.key, wikiPages)}
-                      </span>
-
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getFileTypeClass(
-                          entry.file.type,
-                        )}`}
-                      >
-                        {getFileTypeLabel(entry.file.type)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-start gap-4 mt-4">
-                      <div className="h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl shrink-0">
-                        {getFileIcon(entry.file.type)}
-                      </div>
-
-                      <div className="min-w-0">
-                        <h2 className="text-2xl font-black line-clamp-2">
-                          {entry.file.name}
-                        </h2>
-                        <p className="text-zinc-500 mt-2 break-all">
-                          {entry.file.type || "application/octet-stream"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 shrink-0">
-                    {href && (
-                      <Link
-                        href={href}
-                        className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-                      >
-                        Quelle
-                      </Link>
-                    )}
-
-                    {entry.file.data && (
-                      <a
-                        href={entry.file.data}
-                        download={entry.file.name}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
-                      >
-                        Download
-                      </a>
-                    )}
-
-                    {canDelete() && (
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteFile(entry)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                      >
-                        Löschen
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Größe
-                    </p>
-                    <p className="font-bold mt-1">
-                      {formatFileSize(entry.file.size)}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Hochgeladen
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {entry.file.uploadedAt || "-"}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Von
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {entry.file.uploadedBy || "System"}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
-
-      {keyFilter && canDelete() && (
-        <section className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-red-700">
-            Dateigruppe löschen
-          </h2>
-          <p className="text-red-600 mt-2">
-            Du filterst gerade nach der Gruppe „{keyFilter}“. Du kannst alle Dateien dieser Gruppe löschen.
-          </p>
-
-          <button
-            type="button"
-            onClick={() => void handleDeleteKey(keyFilter)}
-            className="mt-5 bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition font-bold"
-          >
-            Ganze Gruppe löschen
-          </button>
-        </section>
+                Ganze Gruppe löschen
+              </button>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
 }
-

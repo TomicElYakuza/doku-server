@@ -7,12 +7,16 @@ import {
   useState,
 } from "react";
 
+import EmptyState from "../../components/EmptyState";
+import LoadingState from "../../components/LoadingState";
+import PageHero from "../../components/PageHero";
+import StatCard from "../../components/StatCard";
 import {
-  ticketRepository,
-} from "../../lib/ticketRepository";
+  useFeatureFlags,
+} from "../../hooks/useFeatureFlags";
 import {
-  newsRepository,
-} from "../../lib/newsRepository";
+  adminUserRepository,
+} from "../../lib/adminUserRepository";
 import {
   appSettingsRepository,
 } from "../../lib/appSettingsRepository";
@@ -20,20 +24,19 @@ import {
   companyRepository,
 } from "../../lib/companyRepository";
 import {
-  adminUserRepository,
-} from "../../lib/adminUserRepository";
-import {
   getCachedCurrentUser,
   loadCurrentUser,
 } from "../../lib/currentUserRepository";
 import {
-  useFeatureFlags,
-} from "../../hooks/useFeatureFlags";
-import PageHero from "../../components/PageHero";
-import StatCard from "../../components/StatCard";
+  newsRepository,
+} from "../../lib/newsRepository";
+import {
+  ticketRepository,
+} from "../../lib/ticketRepository";
 import type {
-  Ticket,
-} from "../../types/ticket";
+  Company,
+  Department,
+} from "../../types/company";
 import type {
   NewsPost,
 } from "../../types/news";
@@ -41,9 +44,8 @@ import type {
   AppSettings,
 } from "../../types/settings";
 import type {
-  Company,
-  Department,
-} from "../../types/company";
+  Ticket,
+} from "../../types/ticket";
 import type {
   AdminUser,
   User,
@@ -138,6 +140,18 @@ function getHealthClass(health: HealthState | null) {
   return "bg-red-50 text-red-700 border border-red-100";
 }
 
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    return new Date(value).toLocaleString("de-AT");
+  } catch {
+    return value;
+  }
+}
+
 export default function DashboardPage() {
   const {
     ticketTemplatesEnabled,
@@ -168,7 +182,7 @@ export default function DashboardPage() {
         cache: "no-store",
       });
 
-      const data = (await response.json()) as HealthState;
+      const data = await response.json() as HealthState;
 
       setHealth(data);
     } catch (healthError) {
@@ -213,7 +227,9 @@ export default function DashboardPage() {
       setNewsPosts(Array.isArray(nextNewsPosts) ? nextNewsPosts : []);
       setSettings(nextSettings);
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      setDepartments(
+        Array.isArray(nextDepartments) ? nextDepartments : [],
+      );
       setUsers(Array.isArray(nextUsers) ? nextUsers : []);
 
       await loadHealth();
@@ -350,7 +366,7 @@ export default function DashboardPage() {
         title: "Ticket-Vorlagen",
         description: "Vorlagen für wiederkehrende Fälle",
         href: "/tickets/templates",
-        icon: "🧩",
+        icon: "🧾",
       });
     }
 
@@ -364,437 +380,495 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Velunis Workspace"
-        title={`Willkommen zurück, ${currentUser?.name || "Dashboard"}`}
-        description={`Deine Übersicht für ${
-          settings.appName || "Intranet"
-        } · ${
-          settings.companyName || "Velunis"
-        }. Hier siehst du offene Arbeit, wichtige News und den aktuellen Systemstatus.`}
+        eyebrow={settings.companyName || "Velunis Workspace"}
+        title={`Willkommen${currentUser?.name ? `, ${currentUser.name}` : ""}`}
+        description="Dein zentraler Überblick über Tickets, News, Organisation und Systemstatus."
         badges={[
           {
             label: getRoleLabel(currentUser?.role),
           },
           {
-            label: currentUser?.company || "Velunis",
+            label: `${openTickets.length} offene Tickets`,
           },
           {
-            label: currentUser?.department || "Keine Abteilung",
+            label: `${pinnedNews.length} fixierte News`,
           },
           {
-            label: `Datenbank: ${getHealthLabel(health)}`,
+            label: getHealthLabel(health),
           },
         ]}
         actions={
-          <button
-            type="button"
-            onClick={() => void loadDashboard()}
-            className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
-          >
-            Aktualisieren
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void loadDashboard()}
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+            >
+              Aktualisieren
+            </button>
+
+            {userIsAdmin && (
+              <Link
+                href="/admin"
+                className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
+              >
+                Admin Backend
+              </Link>
+            )}
+          </>
         }
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Dashboard wird geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Dashboard wird geladen..."
+          description="Tickets, News, Organisation und Systemstatus werden vorbereitet."
+        />
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Dashboard konnte nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadDashboard()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard
-          label="Offene Tickets"
-          value={openTickets.length}
-          description="Nicht geschlossene Tickets"
-          icon="🎫"
-          tone="blue"
-        />
+      {!loading && !error && (
+        <>
+          {userIsAdmin ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <StatCard
+                label="Offene Tickets"
+                value={openTickets.length}
+                description={`${closedTickets.length} geschlossen`}
+                icon="🎫"
+                tone="orange"
+              />
 
-        <StatCard
-          label="Hoch / Dringend"
-          value={urgentTickets.length}
-          description="Tickets mit erhöhter Priorität"
-          icon="⚡"
-          tone="orange"
-        />
+              <StatCard
+                label="Benutzer"
+                value={activeUsers.length}
+                description={`${users.length} Benutzer gesamt`}
+                icon="👥"
+                tone="blue"
+              />
 
-        <StatCard
-          label="News"
-          value={newsPosts.length}
-          description={`${pinnedNews.length} fixiert`}
-          icon="📰"
-          tone="indigo"
-        />
+              <StatCard
+                label="Organisation"
+                value={companies.length}
+                description={`${departments.length} Abteilungen`}
+                icon="🏢"
+                tone="indigo"
+              />
 
-        {userIsAdmin ? (
-          <StatCard
-            label="Benutzer"
-            value={activeUsers.length}
-            description={`${users.length} insgesamt`}
-            icon="👥"
-            tone="purple"
-          />
-        ) : (
-          <StatCard
-            label="Organisation"
-            value={companies.length + departments.length}
-            description="Firmen & Abteilungen"
-            icon="🏢"
-            tone="purple"
-          />
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm xl:col-span-2">
-          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Schnellzugriff
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Häufige Bereiche direkt öffnen.
-              </p>
-            </div>
-
-            <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-              {quickLinks.length} Bereiche
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {quickLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="group relative overflow-hidden border border-zinc-200 bg-white rounded-3xl p-5 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
-              >
-                <div className="absolute -right-12 -top-12 h-28 w-28 rounded-full app-accent-bg opacity-10 blur-2xl" />
-
-                <div className="relative flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl shrink-0">
-                    {item.icon}
-                  </div>
-
-                  <div>
-                    <h3 className="font-black text-zinc-950 group-hover:app-accent-text transition">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm text-zinc-500 mt-2">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Ticket-Fortschritt
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Geschlossene Tickets im Verhältnis zu allen Tickets.
-              </p>
-            </div>
-
-            <span className="rounded-full app-accent-bg text-white px-3 py-1 text-xs font-black app-brand-shadow">
-              {ticketCompletionPercent}%
-            </span>
-          </div>
-
-          <div className="mt-7">
-            <div className="h-3 rounded-full bg-zinc-100 overflow-hidden">
-              <div
-                className="h-full rounded-full app-accent-bg"
-                style={{
-                  width: `${ticketCompletionPercent}%`,
-                }}
+              <StatCard
+                label="Datenbank"
+                value={getHealthLabel(health)}
+                description={health?.database || "PostgreSQL"}
+                icon={health?.ok ? "✅" : "⚠️"}
+                tone={health?.ok ? "green" : "red"}
               />
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              <StatCard
+                label="Meine Tickets"
+                value={myTickets.length}
+                description="Zugeordnet oder erstellt"
+                icon="👤"
+                tone="blue"
+              />
 
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="bg-zinc-50 rounded-2xl p-4">
-                <p className="text-xs text-zinc-500">
-                  Geschlossen
-                </p>
-                <p className="text-2xl font-black mt-1">
-                  {closedTickets.length}
-                </p>
-              </div>
+              <StatCard
+                label="Offene Tickets"
+                value={openTickets.length}
+                description={`${urgentTickets.length} wichtig`}
+                icon="🎫"
+                tone="orange"
+              />
 
-              <div className="bg-zinc-50 rounded-2xl p-4">
-                <p className="text-xs text-zinc-500">
-                  Gesamt
-                </p>
-                <p className="text-2xl font-black mt-1">
-                  {tickets.length}
-                </p>
-              </div>
-            </div>
-          </div>
+              <StatCard
+                label="News"
+                value={newsPosts.length}
+                description={`${pinnedNews.length} fixiert`}
+                icon="📰"
+                tone="indigo"
+              />
 
-          <div className="mt-6 border-t border-zinc-100 pt-5 space-y-3">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-500">
-                Firmen
-              </span>
-              <span className="font-bold">
-                {companies.length}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-500">
-                Abteilungen
-              </span>
-              <span className="font-bold">
-                {departments.length}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-zinc-500">
-                Datenbank
-              </span>
-              <span
-                className={`text-xs px-3 py-1 rounded-full ${getHealthClass(
-                  health,
-                )}`}
-              >
-                {getHealthLabel(health)}
-              </span>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Deine Tickets
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Tickets, die dir zugeordnet sind oder von dir erstellt wurden.
-              </p>
-            </div>
-
-            <Link
-              href="/tickets"
-              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
-            >
-              Alle Tickets
-            </Link>
-          </div>
-
-          {myTickets.length === 0 && (
-            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-              <h3 className="font-bold">
-                Aktuell keine direkt zugeordneten Tickets.
-              </h3>
-              <p className="text-zinc-500 mt-2">
-                Neue oder zugewiesene Tickets erscheinen hier automatisch.
-              </p>
+              <StatCard
+                label="Datenbank"
+                value={getHealthLabel(health)}
+                description={health?.database || "PostgreSQL"}
+                icon={health?.ok ? "✅" : "⚠️"}
+                tone={health?.ok ? "green" : "red"}
+              />
             </div>
           )}
 
-          <div className="space-y-3">
-            {myTickets.slice(0, 5).map((ticket) => (
-              <Link
-                key={ticket.id}
-                href={`/tickets/${ticket.id}`}
-                className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
-              >
-                <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(
-                      ticket.status,
-                    )}`}
-                  >
-                    {getTicketStatusLabel(ticket.status)}
-                  </span>
+          <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-8">
+            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(
-                      ticket.priority,
-                    )}`}
-                  >
-                    {getTicketPriorityLabel(ticket.priority)}
+              <div className="relative">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+                  <div>
+                    <h2 className="text-2xl font-black">
+                      Schnellzugriff
+                    </h2>
+
+                    <p className="text-zinc-500 mt-1">
+                      Häufige Bereiche direkt öffnen.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                    {quickLinks.length} Bereiche
                   </span>
                 </div>
 
-                <h3 className="font-black mt-3 line-clamp-1">
-                  #{ticket.id} · {ticket.title}
-                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  {quickLinks.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="group border border-zinc-200 rounded-3xl p-5 hover:border-indigo-200 hover:shadow-md transition bg-white"
+                    >
+                      <div className="h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
+                        {item.icon}
+                      </div>
 
-                <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
-                  {ticket.description || "Keine Beschreibung vorhanden."}
+                      <h3 className="font-black text-zinc-950 mt-4 group-hover:app-accent-text transition">
+                        {item.title}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2 leading-7">
+                        {item.description}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+              <div className="relative">
+                <h2 className="text-2xl font-black">
+                  Ticket-Fortschritt
+                </h2>
+
+                <p className="text-zinc-500 mt-1">
+                  Geschlossene Tickets im Verhältnis zu allen Tickets.
                 </p>
-              </Link>
-            ))}
-          </div>
-        </section>
 
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Aktuelle News
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Wichtige Meldungen und neue Beiträge.
-              </p>
-            </div>
+                <div className="mt-7">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-5xl font-black tracking-[-0.06em] text-zinc-950">
+                        {ticketCompletionPercent}%
+                      </p>
 
-            <Link
-              href="/news"
-              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
-            >
-              Alle News
-            </Link>
-          </div>
+                      <p className="text-zinc-500 mt-1">
+                        abgeschlossen
+                      </p>
+                    </div>
 
-          {latestNews.length === 0 && (
-            <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-              <h3 className="font-bold">
-                Noch keine News vorhanden.
-              </h3>
-              <p className="text-zinc-500 mt-2">
-                Neue interne Beiträge erscheinen hier.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {latestNews.map((post) => {
-              const category = getPostCategory(post);
-
-              return (
-                <Link
-                  key={post.id}
-                  href={`/news/${post.id}`}
-                  className="block border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    {category && (
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full ${getCategoryClass(
-                          category,
-                        )}`}
-                      >
-                        {category}
-                      </span>
-                    )}
-
-                    {post.pinned && (
-                      <span className="text-xs app-accent-bg text-white px-3 py-1 rounded-full">
-                        Fixiert
-                      </span>
-                    )}
+                    <span
+                      className={`px-4 py-2 rounded-full text-sm font-bold ${getHealthClass(
+                        health,
+                      )}`}
+                    >
+                      {getHealthLabel(health)}
+                    </span>
                   </div>
 
-                  <h3 className="font-black mt-3 line-clamp-1">
-                    {post.title}
-                  </h3>
+                  <div className="h-4 bg-zinc-100 rounded-full overflow-hidden mt-6">
+                    <div
+                      className="h-full app-accent-bg rounded-full transition-all"
+                      style={{
+                        width: `${ticketCompletionPercent}%`,
+                      }}
+                    />
+                  </div>
 
-                  <p className="text-sm text-zinc-500 mt-2 line-clamp-2">
-                    {post.description || "Keine Beschreibung vorhanden."}
+                  <div className="grid grid-cols-2 gap-4 mt-6">
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Geschlossen
+                      </p>
+                      <p className="font-black text-2xl mt-1">
+                        {closedTickets.length}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Gesamt
+                      </p>
+                      <p className="font-black text-2xl mt-1">
+                        {tickets.length}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Firmen
+                      </p>
+                      <p className="font-black text-2xl mt-1">
+                        {companies.length}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">
+                        Abteilungen
+                      </p>
+                      <p className="font-black text-2xl mt-1">
+                        {departments.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+              <div className="relative">
+                <div className="flex items-start justify-between gap-5">
+                  <div>
+                    <h2 className="text-2xl font-black">
+                      Deine Tickets
+                    </h2>
+
+                    <p className="text-zinc-500 mt-1">
+                      Tickets, die dir zugeordnet sind oder von dir erstellt wurden.
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/tickets"
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold shrink-0"
+                  >
+                    Alle Tickets
+                  </Link>
+                </div>
+
+                {myTickets.length === 0 && (
+                  <div className="mt-6">
+                    <EmptyState
+                      icon="🎫"
+                      title="Aktuell keine direkt zugeordneten Tickets"
+                      description="Neue oder zugewiesene Tickets erscheinen hier automatisch."
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-3 mt-6">
+                  {myTickets.slice(0, 5).map((ticket) => (
+                    <Link
+                      key={ticket.id}
+                      href={`/tickets/${ticket.id}`}
+                      className="block border border-zinc-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-zinc-50 transition"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full font-bold ${getTicketStatusClass(
+                            ticket.status,
+                          )}`}
+                        >
+                          {getTicketStatusLabel(ticket.status)}
+                        </span>
+
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full font-bold ${getTicketPriorityClass(
+                            ticket.priority,
+                          )}`}
+                        >
+                          {getTicketPriorityLabel(ticket.priority)}
+                        </span>
+                      </div>
+
+                      <h3 className="font-black text-zinc-950 mt-3 line-clamp-1">
+                        #{ticket.id} · {ticket.title}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2 line-clamp-2">
+                        {ticket.description || "Keine Beschreibung vorhanden."}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+              <div className="relative">
+                <div className="flex items-start justify-between gap-5">
+                  <div>
+                    <h2 className="text-2xl font-black">
+                      Aktuelle News
+                    </h2>
+
+                    <p className="text-zinc-500 mt-1">
+                      Wichtige Meldungen und neue Beiträge.
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/news"
+                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold shrink-0"
+                  >
+                    Alle News
+                  </Link>
+                </div>
+
+                {latestNews.length === 0 && (
+                  <div className="mt-6">
+                    <EmptyState
+                      icon="📰"
+                      title="Noch keine News vorhanden"
+                      description="Neue interne Beiträge erscheinen hier."
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-3 mt-6">
+                  {latestNews.map((post) => {
+                    const category = getPostCategory(post);
+
+                    return (
+                      <Link
+                        key={post.id}
+                        href={`/news/${post.id}`}
+                        className="block border border-zinc-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-zinc-50 transition"
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          {category && (
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full font-bold ${getCategoryClass(
+                                category,
+                              )}`}
+                            >
+                              {category}
+                            </span>
+                          )}
+
+                          {post.pinned && (
+                            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                              Fixiert
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="font-black text-zinc-950 mt-3 line-clamp-1">
+                          {post.title}
+                        </h3>
+
+                        <p className="text-zinc-500 mt-2 line-clamp-2">
+                          {post.description || "Keine Beschreibung vorhanden."}
+                        </p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Letzte Tickets
+                  </h2>
+
+                  <p className="text-zinc-500 mt-1">
+                    Neueste Tickets im System.
                   </p>
+                </div>
+
+                <Link
+                  href="/tickets"
+                  className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+                >
+                  Tickets öffnen
                 </Link>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Letzte Tickets
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Neueste Tickets im System.
-            </p>
-          </div>
-
-          <Link
-            href="/tickets"
-            className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow font-bold"
-          >
-            Tickets öffnen
-          </Link>
-        </div>
-
-        {latestTickets.length === 0 && (
-          <div className="border border-dashed border-zinc-200 rounded-3xl p-8 text-center">
-            <h3 className="font-bold">
-              Noch keine Tickets vorhanden.
-            </h3>
-            <p className="text-zinc-500 mt-2">
-              Neue Tickets erscheinen hier automatisch.
-            </p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {latestTickets.map((ticket) => (
-            <Link
-              key={ticket.id}
-              href={`/tickets/${ticket.id}`}
-              className="border border-zinc-100 rounded-2xl p-4 hover:bg-zinc-50 transition"
-            >
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`text-xs px-3 py-1 rounded-full ${getTicketStatusClass(
-                    ticket.status,
-                  )}`}
-                >
-                  {getTicketStatusLabel(ticket.status)}
-                </span>
-
-                <span
-                  className={`text-xs px-3 py-1 rounded-full ${getTicketPriorityClass(
-                    ticket.priority,
-                  )}`}
-                >
-                  {getTicketPriorityLabel(ticket.priority)}
-                </span>
               </div>
 
-              <h3 className="font-black mt-3 line-clamp-1">
-                #{ticket.id} · {ticket.title}
-              </h3>
+              {latestTickets.length === 0 && (
+                <div className="mt-6">
+                  <EmptyState
+                    icon="🎫"
+                    title="Noch keine Tickets vorhanden"
+                    description="Neue Tickets erscheinen hier automatisch."
+                  />
+                </div>
+              )}
 
-              <p className="text-sm text-zinc-500 mt-2">
-                {ticket.company || "Intern"} · {ticket.department || "Keine Abteilung"}
-              </p>
-            </Link>
-          ))}
-        </div>
-      </section>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-6">
+                {latestTickets.map((ticket) => (
+                  <Link
+                    key={ticket.id}
+                    href={`/tickets/${ticket.id}`}
+                    className="border border-zinc-200 rounded-3xl p-5 hover:border-indigo-200 hover:shadow-md transition bg-white"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full font-bold ${getTicketStatusClass(
+                          ticket.status,
+                        )}`}
+                      >
+                        {getTicketStatusLabel(ticket.status)}
+                      </span>
+
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full font-bold ${getTicketPriorityClass(
+                          ticket.priority,
+                        )}`}
+                      >
+                        {getTicketPriorityLabel(ticket.priority)}
+                      </span>
+                    </div>
+
+                    <h3 className="font-black text-zinc-950 mt-4 line-clamp-1">
+                      #{ticket.id} · {ticket.title}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500 mt-3">
+                      {ticket.company || "Intern"} ·{" "}
+                      {ticket.department || "Keine Abteilung"}
+                    </p>
+
+                    <p className="text-xs text-zinc-400 mt-3">
+                      Aktualisiert: {formatDate(ticket.updatedAt)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
-
-
-

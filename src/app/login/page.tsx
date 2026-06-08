@@ -3,7 +3,6 @@
 import {
   FormEvent,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 import {
@@ -11,28 +10,16 @@ import {
 } from "next/navigation";
 
 import {
+  appSettingsRepository,
+} from "../../lib/appSettingsRepository";
+import {
   getCachedCurrentUser,
   loadCurrentUser,
   loginCurrentUser,
 } from "../../lib/currentUserRepository";
-import {
-  appSettingsRepository,
-} from "../../lib/appSettingsRepository";
 import type {
   AppSettings,
 } from "../../types/settings";
-
-function getVersionLabel(settings: AppSettings) {
-  return settings.appVersion || settings.version || "0.1.0";
-}
-
-function getCompanyLabel(settings: AppSettings) {
-  return settings.companyName || "Velunis";
-}
-
-function getAppLabel(settings: AppSettings) {
-  return settings.appName || "Intranet";
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,7 +29,6 @@ export default function LoginPage() {
   );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
@@ -63,10 +49,7 @@ export default function LoginPage() {
 
       setSettings(nextSettings);
 
-      if (
-        currentUser ||
-        getCachedCurrentUser()
-      ) {
+      if (currentUser || getCachedCurrentUser()) {
         router.push("/dashboard");
       }
     } catch (loadError) {
@@ -78,27 +61,6 @@ export default function LoginPage() {
       setCheckingSession(false);
     }
   }
-
-  const versionLabel = useMemo(
-    () => getVersionLabel(settings),
-    [
-      settings,
-    ],
-  );
-
-  const companyLabel = useMemo(
-    () => getCompanyLabel(settings),
-    [
-      settings,
-    ],
-  );
-
-  const appLabel = useMemo(
-    () => getAppLabel(settings),
-    [
-      settings,
-    ],
-  );
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -140,241 +102,224 @@ export default function LoginPage() {
 
   if (checkingSession) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.18),transparent_34%),linear-gradient(135deg,#020617,#0f172a_45%,#111827)] text-white flex items-center justify-center px-6">
-        <div className="text-center">
-          <div className="mx-auto h-14 w-14 rounded-3xl bg-white/10 border border-white/10 flex items-center justify-center shadow-2xl">
-            <div className="h-6 w-6 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6 overflow-hidden relative">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.35),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.25),transparent_30%)]" />
+        <div className="absolute -left-32 top-20 h-72 w-72 rounded-full app-accent-bg opacity-20 blur-3xl" />
+        <div className="absolute -right-32 bottom-20 h-80 w-80 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+        <section className="relative bg-white/10 border border-white/10 rounded-3xl p-8 shadow-2xl backdrop-blur-xl max-w-md w-full text-center">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-white text-zinc-950 flex items-center justify-center">
+            <span className="h-6 w-6 rounded-full border-2 border-current border-t-transparent animate-spin" />
           </div>
 
-          <h1 className="text-2xl font-black mt-6">
-            Anmeldung wird geprüft
+          <h1 className="text-2xl font-black tracking-[-0.03em] mt-6">
+            Anmeldung wird geprüft...
           </h1>
 
-          <p className="text-white/60 mt-2">
-            Dein Velunis Workspace wird vorbereitet.
+          <p className="text-white/60 mt-2 leading-7">
+            Deine aktuelle Sitzung wird vorbereitet.
           </p>
-        </div>
+        </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.22),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(147,51,234,0.16),transparent_34%),linear-gradient(135deg,#020617,#0f172a_48%,#111827)] text-white">
-      <div className="min-h-screen grid grid-cols-1 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="relative hidden xl:flex flex-col justify-between overflow-hidden p-10 2xl:p-14">
-          <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
-          <div className="absolute right-8 top-1/3 h-72 w-72 rounded-full bg-purple-500/10 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
+    <main className="min-h-screen bg-zinc-950 text-white overflow-hidden relative">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.32),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.22),transparent_32%)]" />
+      <div className="absolute -left-36 top-20 h-80 w-80 rounded-full app-accent-bg opacity-20 blur-3xl" />
+      <div className="absolute right-0 top-1/3 h-72 w-72 rounded-full bg-white opacity-5 blur-3xl" />
+      <div className="absolute -right-32 bottom-16 h-96 w-96 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <div className="relative">
-            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/10 px-4 py-3 shadow-2xl backdrop-blur">
-              <div className="h-10 w-10 rounded-2xl bg-white text-zinc-950 flex items-center justify-center font-black">
-                V
+      <div className="relative min-h-screen grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="hidden xl:flex flex-col justify-between p-12 2xl:p-16">
+          <div>
+            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/10 px-4 py-3 backdrop-blur-xl">
+              <div className="h-11 w-11 rounded-2xl bg-white text-zinc-950 flex items-center justify-center font-black shadow-lg">
+                {(settings.companyName || "V").slice(0, 1).toUpperCase()}
               </div>
 
               <div>
-                <p className="text-xs uppercase tracking-[0.22em] text-white/50 font-black">
-                  {companyLabel}
+                <p className="text-sm text-white/60">
+                  {settings.companyName || "Intern"}
                 </p>
                 <p className="font-black">
-                  {appLabel}
+                  {settings.appName || "Intranet"}
                 </p>
               </div>
             </div>
 
-            <div className="mt-16 max-w-3xl">
-              <p className="inline-flex rounded-full bg-white/10 border border-white/10 px-4 py-2 text-sm text-white/70 font-bold">
-                DMS · Tickets · Wiki · Intranet
+            <div className="max-w-3xl mt-20">
+              <p className="inline-flex rounded-full bg-white/10 border border-white/10 px-4 py-2 text-sm font-bold text-white/80">
+                Velunis Workspace
               </p>
 
-              <h1 className="text-6xl 2xl:text-7xl font-black tracking-[-0.06em] mt-7 leading-[0.9]">
-                Willkommen im Velunis Workspace.
+              <h1 className="text-6xl 2xl:text-7xl font-black tracking-[-0.08em] leading-[0.95] mt-6">
+                Alles intern.
+                <br />
+                Zentral.
+                <br />
+                Übersichtlich.
               </h1>
 
-              <p className="text-xl text-white/65 mt-7 leading-8 max-w-2xl">
-                Zentrales System für Dokumentation, Tickets, News, Dateien und interne Abläufe.
+              <p className="text-xl text-white/65 leading-9 max-w-2xl mt-8">
+                Zentrales System für Dokumentation, Tickets, News, Dateien
+                und interne Abläufe.
               </p>
             </div>
           </div>
 
-          <div className="relative grid grid-cols-1 2xl:grid-cols-3 gap-5">
-            <div className="rounded-3xl bg-white/10 border border-white/10 p-6 backdrop-blur shadow-2xl">
-              <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl">
+          <div className="grid grid-cols-3 gap-4 max-w-4xl">
+            <article className="bg-white/10 border border-white/10 rounded-3xl p-5 backdrop-blur-xl">
+              <div className="text-2xl">
                 📚
               </div>
-              <h2 className="text-xl font-black mt-5">
+              <h2 className="font-black mt-4">
                 Wiki
               </h2>
-              <p className="text-white/60 mt-2">
-                Wissen, Anleitungen und Dokumentation zentral verwalten.
+              <p className="text-white/55 text-sm leading-6 mt-2">
+                Wissen und Anleitungen zentral verwalten.
               </p>
-            </div>
+            </article>
 
-            <div className="rounded-3xl bg-white/10 border border-white/10 p-6 backdrop-blur shadow-2xl">
-              <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl">
+            <article className="bg-white/10 border border-white/10 rounded-3xl p-5 backdrop-blur-xl">
+              <div className="text-2xl">
                 🎫
               </div>
-              <h2 className="text-xl font-black mt-5">
+              <h2 className="font-black mt-4">
                 Tickets
               </h2>
-              <p className="text-white/60 mt-2">
-                Aufgaben, Supportfälle und Zuständigkeiten nachvollziehbar bearbeiten.
+              <p className="text-white/55 text-sm leading-6 mt-2">
+                Aufgaben und Supportfälle nachvollziehbar bearbeiten.
               </p>
-            </div>
+            </article>
 
-            <div className="rounded-3xl bg-white/10 border border-white/10 p-6 backdrop-blur shadow-2xl">
-              <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl">
+            <article className="bg-white/10 border border-white/10 rounded-3xl p-5 backdrop-blur-xl">
+              <div className="text-2xl">
                 📰
               </div>
-              <h2 className="text-xl font-black mt-5">
+              <h2 className="font-black mt-4">
                 News
               </h2>
-              <p className="text-white/60 mt-2">
-                Interne Informationen schnell, sichtbar und strukturiert teilen.
+              <p className="text-white/55 text-sm leading-6 mt-2">
+                Interne Informationen schnell teilen.
               </p>
-            </div>
+            </article>
           </div>
         </section>
 
-        <section className="relative flex items-center justify-center px-5 py-10 xl:px-10">
-          <div className="absolute inset-0 xl:hidden bg-[radial-gradient(circle_at_top,rgba(79,70,229,0.24),transparent_34%)]" />
+        <section className="flex items-center justify-center p-6 sm:p-10">
+          <div className="w-full max-w-xl">
+            <div className="xl:hidden mb-8">
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/10 px-4 py-3 backdrop-blur-xl">
+                <div className="h-11 w-11 rounded-2xl bg-white text-zinc-950 flex items-center justify-center font-black shadow-lg">
+                  {(settings.companyName || "V").slice(0, 1).toUpperCase()}
+                </div>
 
-          <div className="relative w-full max-w-xl">
-            <div className="xl:hidden mb-8 text-center">
-              <div className="mx-auto h-16 w-16 rounded-3xl bg-white text-zinc-950 flex items-center justify-center font-black text-2xl shadow-2xl">
-                V
-              </div>
-
-              <p className="text-xs uppercase tracking-[0.22em] text-white/50 font-black mt-5">
-                {companyLabel}
-              </p>
-
-              <h1 className="text-4xl font-black tracking-[-0.04em] mt-2">
-                {appLabel}
-              </h1>
-            </div>
-
-            <div className="rounded-[2rem] bg-white text-zinc-950 border border-white/20 shadow-2xl overflow-hidden">
-              <div className="relative p-8 md:p-10 border-b border-zinc-100 overflow-hidden">
-                <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
-                <div className="absolute right-10 bottom-0 h-28 w-28 rounded-full bg-purple-500/10 blur-2xl" />
-
-                <div className="relative">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 text-indigo-700 px-4 py-2 text-sm font-black">
-                    <span className="h-2 w-2 rounded-full bg-indigo-600" />
-                    Sicherer Login
-                  </div>
-
-                  <h2 className="text-4xl font-black tracking-[-0.04em] mt-6">
-                    Willkommen zurück
-                  </h2>
-
-                  <p className="text-zinc-500 mt-3">
-                    Melde dich mit deinem Benutzername und Passwort an.
+                <div>
+                  <p className="text-sm text-white/60">
+                    {settings.companyName || "Intern"}
+                  </p>
+                  <p className="font-black">
+                    {settings.appName || "Intranet"}
                   </p>
                 </div>
               </div>
+            </div>
 
-              <form
-                onSubmit={(event) => void handleSubmit(event)}
-                className="p-8 md:p-10 space-y-5"
-              >
+            <div className="bg-white text-zinc-950 rounded-[2rem] p-8 sm:p-10 shadow-2xl border border-white/20 overflow-hidden relative">
+              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+              <div className="absolute -left-20 -bottom-20 h-44 w-44 rounded-full app-accent-bg opacity-5 blur-3xl" />
+
+              <div className="relative">
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <p className="text-sm font-black app-accent-text uppercase tracking-[0.2em]">
+                      Willkommen zurück
+                    </p>
+
+                    <h1 className="text-4xl font-black tracking-[-0.06em] mt-3">
+                      Login
+                    </h1>
+
+                    <p className="text-zinc-500 leading-7 mt-3">
+                      Melde dich mit Benutzername und Passwort an.
+                    </p>
+                  </div>
+
+                  <div className="hidden sm:flex h-14 w-14 rounded-2xl app-accent-soft app-accent-text items-center justify-center text-2xl shrink-0">
+                    🔐
+                  </div>
+                </div>
+
                 {error && (
-                  <div className="bg-red-50 border border-red-100 text-red-700 rounded-3xl p-5">
-                    <p className="font-bold">
-                      Login nicht möglich
-                    </p>
-                    <p className="text-sm mt-1">
-                      {error}
-                    </p>
+                  <div className="bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4 mt-8 font-bold">
+                    {error}
                   </div>
                 )}
 
-                <div>
-                  <label
-                    htmlFor="username"
-                    className="block mb-2 font-bold"
-                  >
-                    Benutzername
-                  </label>
-
-                  <input
-                    id="username"
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    autoComplete="username"
-                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus transition"
-                    placeholder="Benutzername"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="password"
-                    className="block mb-2 font-bold"
-                  >
-                    Passwort
-                  </label>
-
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete="current-password"
-                    className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus transition"
-                    placeholder="Passwort"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white px-5 py-4 rounded-2xl font-black shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 transition disabled:opacity-50"
+                <form
+                  onSubmit={(event) => void handleSubmit(event)}
+                  className="space-y-5 mt-8"
                 >
-                  {loading
-                    ? "Anmeldung läuft..."
-                    : "Einloggen"}
-                </button>
+                  <div>
+                    <label className="block mb-2 font-bold">
+                      Benutzername
+                    </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Session
-                    </p>
-                    <p className="font-bold mt-1">
-                      60 Minuten Inaktivität
-                    </p>
+                    <input
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      autoComplete="username"
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                      placeholder="admin"
+                    />
                   </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Version
-                    </p>
-                    <p className="font-bold mt-1">
-                      {settings.showVersion === false
-                        ? "Ausgeblendet"
-                        : versionLabel}
-                    </p>
+                  <div>
+                    <label className="block mb-2 font-bold">
+                      Passwort
+                    </label>
+
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete="current-password"
+                      className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                      placeholder="Passwort"
+                    />
                   </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full app-accent-bg text-white px-5 py-4 rounded-2xl transition disabled:opacity-50 font-black app-brand-shadow flex items-center justify-center gap-3"
+                  >
+                    {loading && (
+                      <span className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    )}
+
+                    {loading ? "Anmeldung läuft..." : "Einloggen"}
+                  </button>
+                </form>
+
+                <div className="mt-8 bg-zinc-50 border border-zinc-100 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-500 leading-7">
+                    Du wirst nach ungefähr 60 Minuten Inaktivität automatisch
+                    abgemeldet.
+                  </p>
                 </div>
-              </form>
-            </div>
 
-            <p className="text-center text-white/45 text-sm mt-6">
-              {companyLabel} · {appLabel}
-              {settings.showVersion !== false && (
-                <>
-                  {" "}
-                  · Version {versionLabel}
-                </>
-              )}
-            </p>
+                <p className="text-xs text-zinc-400 mt-6">
+                  {settings.appName || "Intranet"} {" · "} Version{" "}
+                  {settings.appVersion || settings.version || "0.1.0"}
+                </p>
+              </div>
+            </div>
           </div>
         </section>
       </div>
     </main>
   );
 }
-
-

@@ -7,13 +7,15 @@ import {
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
+import PageHero from "../../../components/PageHero";
+import StatCard from "../../../components/StatCard";
 import {
   companyRepository,
 } from "../../../lib/companyRepository";
-import {
-  canManageCompanies,
-  canViewAdmin,
-} from "../../../lib/permissions";
 import {
   saveCompanyCreatedActivity,
   saveCompanyDeletedActivity,
@@ -22,10 +24,10 @@ import {
   saveDepartmentDeletedActivity,
   saveDepartmentUpdatedActivity,
 } from "../../../lib/organizationActivityHelpers";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import AppModal from "../../../components/AppModal";
-import PageHero from "../../../components/PageHero";
-import StatCard from "../../../components/StatCard";
+import {
+  canManageCompanies,
+  canViewAdmin,
+} from "../../../lib/permissions";
 import type {
   Company,
   CompanyStatus,
@@ -80,29 +82,14 @@ function getStatusClass(status: string) {
   return "bg-zinc-100 text-zinc-700 border-zinc-200";
 }
 
-function getStatusTone(status: string) {
-  if (status === "active") {
-    return "green";
-  }
-
-  if (status === "inactive") {
-    return "orange";
-  }
-
-  return "zinc";
-}
-
 export default function AdminCompaniesPage() {
   const [mounted, setMounted] = useState(false);
-
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-
   const [formMode, setFormMode] = useState<FormMode>("");
   const [editingCompanyId, setEditingCompanyId] = useState("");
   const [editingDepartmentId, setEditingDepartmentId] = useState("");
@@ -110,12 +97,14 @@ export default function AdminCompaniesPage() {
   const [companyName, setCompanyName] = useState("");
   const [companySlug, setCompanySlug] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
-  const [companyStatus, setCompanyStatus] = useState<CompanyStatus>("active");
+  const [companyStatus, setCompanyStatus] =
+    useState<CompanyStatus>("active");
 
   const [departmentCompanyId, setDepartmentCompanyId] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [departmentSlug, setDepartmentSlug] = useState("");
-  const [departmentDescription, setDepartmentDescription] = useState("");
+  const [departmentDescription, setDepartmentDescription] =
+    useState("");
   const [departmentStatus, setDepartmentStatus] =
     useState<DepartmentStatus>("active");
 
@@ -140,6 +129,7 @@ export default function AdminCompaniesPage() {
       "companiesUpdated",
       handleCompaniesUpdated,
     );
+
     window.addEventListener(
       "departmentsUpdated",
       handleDepartmentsUpdated,
@@ -150,6 +140,7 @@ export default function AdminCompaniesPage() {
         "companiesUpdated",
         handleCompaniesUpdated,
       );
+
       window.removeEventListener(
         "departmentsUpdated",
         handleDepartmentsUpdated,
@@ -171,7 +162,9 @@ export default function AdminCompaniesPage() {
       ]);
 
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      setDepartments(
+        Array.isArray(nextDepartments) ? nextDepartments : [],
+      );
     } catch (loadError) {
       console.error(loadError);
 
@@ -247,6 +240,7 @@ export default function AdminCompaniesPage() {
     }
 
     resetForms();
+
     setEditingCompanyId(company.id);
     setCompanyName(company.name);
     setCompanySlug(company.slug);
@@ -262,6 +256,7 @@ export default function AdminCompaniesPage() {
     }
 
     resetForms();
+
     setEditingDepartmentId(department.id);
     setDepartmentCompanyId(department.companyId);
     setDepartmentName(department.name);
@@ -368,14 +363,20 @@ export default function AdminCompaniesPage() {
   );
 
   const activeDepartments = useMemo(
-    () => departments.filter((department) => department.status === "active"),
+    () =>
+      departments.filter(
+        (department) => department.status === "active",
+      ),
     [
       departments,
     ],
   );
 
   const inactiveDepartments = useMemo(
-    () => departments.filter((department) => department.status === "inactive"),
+    () =>
+      departments.filter(
+        (department) => department.status === "inactive",
+      ),
     [
       departments,
     ],
@@ -411,15 +412,16 @@ export default function AdminCompaniesPage() {
       setError("");
 
       if (editingCompanyId) {
-        const updatedCompany = await companyRepository.updateCompany(
-          editingCompanyId,
-          {
-            name: companyName.trim(),
-            slug: nextSlug,
-            description: companyDescription.trim(),
-            status: companyStatus,
-          },
-        );
+        const updatedCompany =
+          await companyRepository.updateCompany(
+            editingCompanyId,
+            {
+              name: companyName.trim(),
+              slug: nextSlug,
+              description: companyDescription.trim(),
+              status: companyStatus,
+            },
+          );
 
         if (updatedCompany) {
           saveCompanyUpdatedActivity(updatedCompany);
@@ -431,12 +433,13 @@ export default function AdminCompaniesPage() {
         return;
       }
 
-      const createdCompany = await companyRepository.createCompany({
-        name: companyName.trim(),
-        slug: nextSlug,
-        description: companyDescription.trim(),
-        status: companyStatus,
-      });
+      const createdCompany =
+        await companyRepository.createCompany({
+          name: companyName.trim(),
+          slug: nextSlug,
+          description: companyDescription.trim(),
+          status: companyStatus,
+        });
 
       saveCompanyCreatedActivity(createdCompany);
 
@@ -569,6 +572,7 @@ export default function AdminCompaniesPage() {
       setError("");
 
       saveCompanyDeletedActivity(company);
+
       await companyRepository.deleteCompany(company.id);
       await loadData();
 
@@ -635,10 +639,10 @@ export default function AdminCompaniesPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Firmen & Abteilungen"
-        description="Du hast keine Berechtigung für die Organisationsverwaltung."
+        title="Organisation nicht verfügbar"
+        description="Du hast keine Berechtigung, Firmen und Abteilungen zu verwalten."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -649,7 +653,7 @@ export default function AdminCompaniesPage() {
         open={formMode === "company"}
         onClose={closeModal}
         title={editingCompanyId ? "Firma bearbeiten" : "Firma erstellen"}
-        description="Firmen werden direkt in PostgreSQL gespeichert."
+        description="Firmen bilden die oberste Organisationsebene."
         footer={
           <>
             <button
@@ -686,6 +690,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Name
               </label>
+
               <input
                 value={companyName}
                 onChange={(event) => {
@@ -706,6 +711,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Slug
               </label>
+
               <input
                 value={companySlug}
                 onChange={(event) =>
@@ -720,6 +726,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Status
               </label>
+
               <select
                 value={companyStatus}
                 onChange={(event) =>
@@ -743,9 +750,12 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
+
               <textarea
                 value={companyDescription}
-                onChange={(event) => setCompanyDescription(event.target.value)}
+                onChange={(event) =>
+                  setCompanyDescription(event.target.value)
+                }
                 rows={4}
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
                 placeholder="Beschreibung..."
@@ -800,6 +810,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Firma
               </label>
+
               <select
                 value={departmentCompanyId}
                 onChange={(event) =>
@@ -826,6 +837,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Name
               </label>
+
               <input
                 value={departmentName}
                 onChange={(event) => {
@@ -846,6 +858,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Slug
               </label>
+
               <input
                 value={departmentSlug}
                 onChange={(event) =>
@@ -860,10 +873,13 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Status
               </label>
+
               <select
                 value={departmentStatus}
                 onChange={(event) =>
-                  setDepartmentStatus(event.target.value as DepartmentStatus)
+                  setDepartmentStatus(
+                    event.target.value as DepartmentStatus,
+                  )
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
               >
@@ -883,6 +899,7 @@ export default function AdminCompaniesPage() {
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
+
               <textarea
                 value={departmentDescription}
                 onChange={(event) =>
@@ -951,30 +968,35 @@ export default function AdminCompaniesPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Organisation wird geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Organisation wird geladen..."
+          description="Firmen, Abteilungen und Zuordnungen werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Organisation konnte nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1002,7 +1024,7 @@ export default function AdminCompaniesPage() {
           label="Abteilungen"
           value={departments.length}
           description={`${activeDepartments.length} aktiv`}
-          icon="🧭"
+          icon="🧩"
           tone="indigo"
         />
 
@@ -1010,482 +1032,526 @@ export default function AdminCompaniesPage() {
           label="Archiviert"
           value={archivedCompanies.length}
           description={`${inactiveDepartments.length} Abteilungen inaktiv`}
-          icon="🗄️"
+          icon="🗄️"
           tone="orange"
           active={statusFilter === "archived"}
           onClick={() => setStatusFilter("archived")}
         />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Suche nach Firmen, Abteilungen, Slugs, Status oder Beschreibung.
-            </p>
-          </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
+        <div className="relative">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-black">
+                Suche & Filter
+              </h2>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Karten
-            </button>
+              <p className="text-zinc-500 mt-1">
+                Suche nach Firmen, Abteilungen, Slugs, Status oder Beschreibung.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-            >
-              Zurücksetzen
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Organisation suchen..."
-          />
-
-          <select
-            value={companyFilter}
-            onChange={(event) => setCompanyFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Firmen
-            </option>
-
-            {companies.map((company) => (
-              <option
-                key={company.id}
-                value={company.id}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "table"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
               >
-                {company.name}
+                Tabelle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "cards"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Karten
+              </button>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              >
+                Zurücksetzen
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Organisation suchen..."
+            />
+
+            <select
+              value={companyFilter}
+              onChange={(event) => setCompanyFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Firmen
               </option>
-            ))}
-          </select>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-            <option value="active">
-              Aktiv
-            </option>
-            <option value="inactive">
-              Inaktiv
-            </option>
-            <option value="archived">
-              Archiviert
-            </option>
-          </select>
-        </div>
+              {companies.map((company) => (
+                <option
+                  key={company.id}
+                  value={company.id}
+                >
+                  {company.name}
+                </option>
+              ))}
+            </select>
 
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredCompanies.length} Firmen und {filteredDepartments.length} Abteilungen gefunden.
-          </span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Status
+              </option>
+              <option value="active">
+                Aktiv
+              </option>
+              <option value="inactive">
+                Inaktiv
+              </option>
+              <option value="archived">
+                Archiviert
+              </option>
+            </select>
+          </div>
 
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="text-sm text-zinc-500">
+              {filteredCompanies.length} Firmen und {filteredDepartments.length} Abteilungen gefunden.
             </span>
-          )}
 
-          {companyFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Firma: {getCompanyName(companyFilter)}
-            </span>
-          )}
+            {search && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Suche: {search}
+              </span>
+            )}
 
-          {statusFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Status: {getStatusLabel(statusFilter)}
-            </span>
-          )}
+            {companyFilter && (
+              <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                Firma: {getCompanyName(companyFilter)}
+              </span>
+            )}
+
+            {statusFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Status: {getStatusLabel(statusFilter)}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {viewMode === "table" && (
-        <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Typ
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Name
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Firma
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Slug
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Beschreibung
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
+      {!loading &&
+        !error &&
+        filteredCompanies.length === 0 &&
+        filteredDepartments.length === 0 && (
+          <EmptyState
+            icon="🏢"
+            title="Keine Organisationseinträge gefunden"
+            description="Passe Suche oder Filter an, oder lege eine neue Firma beziehungsweise Abteilung an."
+            action={
+              canManageCompanies() ? (
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={openCompanyCreateForm}
+                    className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+                  >
+                    Firma erstellen
+                  </button>
 
-              <tbody className="divide-y divide-zinc-100">
-                {filteredCompanies.length === 0 &&
-                  filteredDepartments.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-5 py-10 text-center text-zinc-500"
-                      >
-                        Keine Organisationseinträge gefunden.
+                  <button
+                    type="button"
+                    onClick={openDepartmentCreateForm}
+                    className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition font-bold"
+                  >
+                    Abteilung erstellen
+                  </button>
+                </div>
+              ) : undefined
+            }
+          />
+        )}
+
+      {viewMode === "table" &&
+        (filteredCompanies.length > 0 ||
+          filteredDepartments.length > 0) && (
+          <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-zinc-50 border-b border-zinc-200">
+                  <tr>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Typ
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Name
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Firma
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Slug
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Status
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Beschreibung
+                    </th>
+                    <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                      Aktionen
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-zinc-100">
+                  {filteredCompanies.map((company) => (
+                    <tr
+                      key={`company-${company.id}`}
+                      className="hover:bg-zinc-50 transition"
+                    >
+                      <td className="px-5 py-4 align-top">
+                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                          Firma
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        <p className="font-black text-zinc-950">
+                          {company.name}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          {getCompanyDepartmentCount(company.id)} Abteilungen
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                        —
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                        {company.slug}
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                            company.status,
+                          )}`}
+                        >
+                          {getStatusLabel(company.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500 max-w-sm">
+                        <p className="line-clamp-2">
+                          {company.description ||
+                            "Keine Beschreibung vorhanden."}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        {canManageCompanies() && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditCompany(company)}
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+                            >
+                              Bearbeiten
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleDeleteCompany(company)
+                              }
+                              className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                            >
+                              Löschen
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
-                  )}
+                  ))}
 
-                {filteredCompanies.map((company) => (
-                  <tr
-                    key={`company-${company.id}`}
-                    className="hover:bg-zinc-50 transition"
-                  >
-                    <td className="px-5 py-4 align-top">
-                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                        Firma
-                      </span>
-                    </td>
+                  {filteredDepartments.map((department) => (
+                    <tr
+                      key={`department-${department.id}`}
+                      className="hover:bg-zinc-50 transition"
+                    >
+                      <td className="px-5 py-4 align-top">
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
+                          Abteilung
+                        </span>
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      <p className="font-black text-zinc-950">
-                        {company.name}
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        {getCompanyDepartmentCount(company.id)} Abteilungen
-                      </p>
-                    </td>
+                      <td className="px-5 py-4 align-top">
+                        <p className="font-black text-zinc-950">
+                          {department.name}
+                        </p>
+                      </td>
 
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500">
-                      —
-                    </td>
-
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500">
-                      {company.slug}
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                          company.status,
-                        )}`}
-                      >
-                        {getStatusLabel(company.status)}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500 max-w-sm">
-                      <p className="line-clamp-2">
-                        {company.description || "Keine Beschreibung vorhanden."}
-                      </p>
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      {canManageCompanies() && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditCompany(company)}
-                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
-                          >
-                            Bearbeiten
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteCompany(company)}
-                            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                          >
-                            Löschen
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredDepartments.map((department) => (
-                  <tr
-                    key={`department-${department.id}`}
-                    className="hover:bg-zinc-50 transition"
-                  >
-                    <td className="px-5 py-4 align-top">
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
-                        Abteilung
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      <p className="font-black text-zinc-950">
-                        {department.name}
-                      </p>
-                    </td>
-
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500">
-                      {getCompanyName(department.companyId)}
-                    </td>
-
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500">
-                      {department.slug}
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                          department.status,
-                        )}`}
-                      >
-                        {getStatusLabel(department.status)}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 align-top text-sm text-zinc-500 max-w-sm">
-                      <p className="line-clamp-2">
-                        {department.description || "Keine Beschreibung vorhanden."}
-                      </p>
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      {canManageCompanies() && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditDepartment(department)}
-                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
-                          >
-                            Bearbeiten
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteDepartment(department)}
-                            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                          >
-                            Löschen
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {viewMode === "cards" && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <section className="space-y-4">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black">
-                  Firmen
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Mandanten und Organisationen.
-                </p>
-              </div>
-
-              <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-                {filteredCompanies.length}
-              </span>
-            </div>
-
-            {filteredCompanies.length === 0 && (
-              <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-                <p className="text-zinc-500">
-                  Keine Firmen gefunden.
-                </p>
-              </div>
-            )}
-
-            {filteredCompanies.map((company) => (
-              <article
-                key={company.id}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                          company.status,
-                        )}`}
-                      >
-                        {getStatusLabel(company.status)}
-                      </span>
-
-                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                        {getCompanyDepartmentCount(company.id)} Abteilungen
-                      </span>
-                    </div>
-
-                    <h3 className="text-2xl font-black mt-4 line-clamp-1">
-                      {company.name}
-                    </h3>
-
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
-                      {company.description || "Keine Beschreibung vorhanden."}
-                    </p>
-
-                    <p className="text-sm text-zinc-400 mt-4">
-                      Slug: {company.slug}
-                    </p>
-                  </div>
-
-                  {canManageCompanies() && (
-                    <div className="flex flex-wrap gap-3 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEditCompany(company)}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
-                      >
-                        Bearbeiten
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteCompany(company)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                      >
-                        Löschen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black">
-                  Abteilungen
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Teams innerhalb der Firmen.
-                </p>
-              </div>
-
-              <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
-                {filteredDepartments.length}
-              </span>
-            </div>
-
-            {filteredDepartments.length === 0 && (
-              <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-                <p className="text-zinc-500">
-                  Keine Abteilungen gefunden.
-                </p>
-              </div>
-            )}
-
-            {filteredDepartments.map((department) => (
-              <article
-                key={department.id}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                          department.status,
-                        )}`}
-                      >
-                        {getStatusLabel(department.status)}
-                      </span>
-
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
                         {getCompanyName(department.companyId)}
-                      </span>
-                    </div>
+                      </td>
 
-                    <h3 className="text-2xl font-black mt-4 line-clamp-1">
-                      {department.name}
-                    </h3>
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                        {department.slug}
+                      </td>
 
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
-                      {department.description || "Keine Beschreibung vorhanden."}
-                    </p>
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                            department.status,
+                          )}`}
+                        >
+                          {getStatusLabel(department.status)}
+                        </span>
+                      </td>
 
-                    <p className="text-sm text-zinc-400 mt-4">
-                      Slug: {department.slug}
-                    </p>
-                  </div>
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500 max-w-sm">
+                        <p className="line-clamp-2">
+                          {department.description ||
+                            "Keine Beschreibung vorhanden."}
+                        </p>
+                      </td>
 
-                  {canManageCompanies() && (
-                    <div className="flex flex-wrap gap-3 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEditDepartment(department)}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
-                      >
-                        Bearbeiten
-                      </button>
+                      <td className="px-5 py-4 align-top">
+                        {canManageCompanies() && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                startEditDepartment(department)
+                              }
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+                            >
+                              Bearbeiten
+                            </button>
 
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteDepartment(department)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
-                      >
-                        Löschen
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleDeleteDepartment(department)
+                              }
+                              className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                            >
+                              Löschen
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
-        </div>
-      )}
+        )}
+
+      {viewMode === "cards" &&
+        (filteredCompanies.length > 0 ||
+          filteredDepartments.length > 0) && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <section className="space-y-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Firmen
+                  </h2>
+                  <p className="text-zinc-500 mt-1">
+                    Mandanten und Organisationen.
+                  </p>
+                </div>
+
+                <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                  {filteredCompanies.length}
+                </span>
+              </div>
+
+              {filteredCompanies.length === 0 && (
+                <EmptyState
+                  icon="🏢"
+                  title="Keine Firmen gefunden"
+                  description="Passe Suche oder Filter an, um wieder Firmen zu sehen."
+                />
+              )}
+
+              {filteredCompanies.map((company) => (
+                <article
+                  key={company.id}
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
+                >
+                  <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                  <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                            company.status,
+                          )}`}
+                        >
+                          {getStatusLabel(company.status)}
+                        </span>
+
+                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                          {getCompanyDepartmentCount(company.id)} Abteilungen
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl font-black mt-4 line-clamp-1">
+                        {company.name}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2 line-clamp-2">
+                        {company.description ||
+                          "Keine Beschreibung vorhanden."}
+                      </p>
+
+                      <p className="text-sm text-zinc-400 mt-4">
+                        Slug: {company.slug}
+                      </p>
+                    </div>
+
+                    {canManageCompanies() && (
+                      <div className="flex flex-wrap gap-3 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditCompany(company)}
+                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+                        >
+                          Bearbeiten
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleDeleteCompany(company)
+                          }
+                          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Abteilungen
+                  </h2>
+                  <p className="text-zinc-500 mt-1">
+                    Teams innerhalb der Firmen.
+                  </p>
+                </div>
+
+                <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
+                  {filteredDepartments.length}
+                </span>
+              </div>
+
+              {filteredDepartments.length === 0 && (
+                <EmptyState
+                  icon="🧩"
+                  title="Keine Abteilungen gefunden"
+                  description="Passe Suche oder Filter an, um wieder Abteilungen zu sehen."
+                />
+              )}
+
+              {filteredDepartments.map((department) => (
+                <article
+                  key={department.id}
+                  className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
+                >
+                  <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                  <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                            department.status,
+                          )}`}
+                        >
+                          {getStatusLabel(department.status)}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                          {getCompanyName(department.companyId)}
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl font-black mt-4 line-clamp-1">
+                        {department.name}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2 line-clamp-2">
+                        {department.description ||
+                          "Keine Beschreibung vorhanden."}
+                      </p>
+
+                      <p className="text-sm text-zinc-400 mt-4">
+                        Slug: {department.slug}
+                      </p>
+                    </div>
+
+                    {canManageCompanies() && (
+                      <div className="flex flex-wrap gap-3 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditDepartment(department)}
+                          className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
+                        >
+                          Bearbeiten
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleDeleteDepartment(department)
+                          }
+                          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition font-bold"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </section>
+          </div>
+        )}
     </div>
   );
 }
-
-
-

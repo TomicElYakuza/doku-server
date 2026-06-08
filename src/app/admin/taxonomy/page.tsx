@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import {
   FormEvent,
   useEffect,
@@ -7,6 +8,12 @@ import {
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import AppModal from "../../../components/AppModal";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
+import PageHero from "../../../components/PageHero";
+import StatCard from "../../../components/StatCard";
 import {
   canManageSystem,
   canViewAdmin,
@@ -14,10 +21,6 @@ import {
 import {
   taxonomyRepository,
 } from "../../../lib/taxonomyRepository";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import AppModal from "../../../components/AppModal";
-import PageHero from "../../../components/PageHero";
-import StatCard from "../../../components/StatCard";
 import type {
   TaxonomyItem,
   TaxonomyStatus,
@@ -25,8 +28,14 @@ import type {
   TaxonomyType,
 } from "../../../types/taxonomy";
 
-type FormMode = "create" | "edit" | "";
-type ViewMode = "table" | "cards";
+type FormMode =
+  | "create"
+  | "edit"
+  | "";
+
+type ViewMode =
+  | "table"
+  | "cards";
 
 type TargetOption = {
   value: TaxonomyTarget;
@@ -50,20 +59,17 @@ const targetOptions: TargetOption[] = [
   {
     value: "ticket",
     label: "Tickets",
-    description:
-      "Kategorien für Ticket-Erstellung, Ticket-Filter und Ticket-Struktur.",
+    description: "Kategorien für Ticket-Erstellung, Ticket-Filter und Ticket-Struktur.",
   },
   {
     value: "wiki",
     label: "Wiki",
-    description:
-      "Kategorien für Wiki-Seiten, Dokumentation und Wissensbereiche.",
+    description: "Kategorien für Wiki-Seiten, Dokumentation und Wissensbereiche.",
   },
   {
     value: "global",
     label: "Global",
-    description:
-      "Globale Tags, die in mehreren Modulen verwendet werden können.",
+    description: "Globale Tags, die in mehreren Modulen verwendet werden können.",
   },
 ];
 
@@ -71,14 +77,12 @@ const typeOptions: TypeOption[] = [
   {
     value: "category",
     label: "Kategorie",
-    description:
-      "Hierarchische Kategorie, optional mit Parent-Struktur.",
+    description: "Hierarchische Kategorie, optional mit Parent-Struktur.",
   },
   {
     value: "tag",
     label: "Tag",
-    description:
-      "Schlagwort zur schnellen Zuordnung und Filterung.",
+    description: "Schlagwort zur schnellen Zuordnung und Filterung.",
   },
 ];
 
@@ -86,20 +90,17 @@ const statusOptions: StatusOption[] = [
   {
     value: "active",
     label: "Aktiv",
-    description:
-      "Kann in Dropdowns und Filtern verwendet werden.",
+    description: "Kann in Dropdowns und Filtern verwendet werden.",
   },
   {
     value: "inactive",
     label: "Inaktiv",
-    description:
-      "Bleibt gespeichert, wird aber nicht aktiv angeboten.",
+    description: "Bleibt gespeichert, wird aber nicht aktiv angeboten.",
   },
   {
     value: "archived",
     label: "Archiviert",
-    description:
-      "Historischer Eintrag, nicht mehr für neue Zuordnungen gedacht.",
+    description: "Historischer Eintrag, nicht mehr für neue Zuordnungen gedacht.",
   },
 ];
 
@@ -181,33 +182,34 @@ function getTypeClass(type: TaxonomyType | string) {
 }
 
 function sortTaxonomyItems(items: TaxonomyItem[]) {
-  return [...items].sort((first, second) => {
-    const targetCompare = first.target.localeCompare(second.target);
+  return [
+    ...items,
+  ].sort((a, b) => {
+    const targetCompare = a.target.localeCompare(b.target);
 
     if (targetCompare !== 0) {
       return targetCompare;
     }
 
-    const typeCompare = first.type.localeCompare(second.type);
+    const typeCompare = a.type.localeCompare(b.type);
 
     if (typeCompare !== 0) {
       return typeCompare;
     }
 
-    const sortCompare = first.sortOrder - second.sortOrder;
+    const sortCompare = a.sortOrder - b.sortOrder;
 
     if (sortCompare !== 0) {
       return sortCompare;
     }
 
-    return first.name.localeCompare(second.name);
+    return a.name.localeCompare(b.name);
   });
 }
 
 export default function AdminTaxonomyPage() {
   const [mounted, setMounted] = useState(false);
   const [items, setItems] = useState<TaxonomyItem[]>([]);
-
   const [search, setSearch] = useState("");
   const [targetFilter, setTargetFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -306,7 +308,7 @@ export default function AdminTaxonomyPage() {
 
     resetForm();
     setTarget(nextTarget);
-    setType(nextTarget === "global" ? "tag" : nextType);
+    setType(nextType);
     setFormMode("create");
   }
 
@@ -323,46 +325,27 @@ export default function AdminTaxonomyPage() {
     setSlug(item.slug);
     setDescription(item.description || "");
     setParentId(item.parentId || "");
-    setSortOrder(item.sortOrder);
+    setSortOrder(item.sortOrder || 0);
     setStatus(item.status);
     setFormMode("edit");
   }
 
   const categoryItems = useMemo(
-    () =>
-      items.filter((item) => item.type === "category"),
+    () => items.filter((item) => item.type === "category"),
     [
       items,
     ],
   );
 
   const tagItems = useMemo(
-    () =>
-      items.filter((item) => item.type === "tag"),
+    () => items.filter((item) => item.type === "tag"),
     [
       items,
     ],
   );
 
   const activeItems = useMemo(
-    () =>
-      items.filter((item) => item.status === "active"),
-    [
-      items,
-    ],
-  );
-
-  const inactiveItems = useMemo(
-    () =>
-      items.filter((item) => item.status === "inactive"),
-    [
-      items,
-    ],
-  );
-
-  const archivedItems = useMemo(
-    () =>
-      items.filter((item) => item.status === "archived"),
+    () => items.filter((item) => item.status === "active"),
     [
       items,
     ],
@@ -420,18 +403,22 @@ export default function AdminTaxonomyPage() {
   );
 
   const filterParentOptions = useMemo(
-    () =>
-      items.filter((item) => item.type === "category"),
+    () => items.filter((item) => item.type === "category"),
     [
       items,
     ],
   );
 
   const filteredItems = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search
+      .trim()
+      .toLowerCase();
 
     return items.filter((item) => {
-      const pathLabel = taxonomyRepository.getPathLabel(item.id, items);
+      const pathLabel = taxonomyRepository.getPathLabel(
+        item.id,
+        items,
+      );
       const parent = items.find(
         (parentItem) => parentItem.id === item.parentId,
       );
@@ -520,7 +507,10 @@ export default function AdminTaxonomyPage() {
       return;
     }
 
-    const nextParentId = type === "category" ? parentId : "";
+    const nextParentId =
+      type === "category"
+        ? parentId
+        : "";
 
     const payload = {
       type,
@@ -539,10 +529,14 @@ export default function AdminTaxonomyPage() {
       setError("");
 
       if (editingId) {
-        await taxonomyRepository.update(editingId, payload);
+        await taxonomyRepository.update(
+          editingId,
+          payload,
+        );
 
         closeModal();
         await loadItems();
+
         setMessage("Eintrag wurde gespeichert.");
         return;
       }
@@ -551,6 +545,7 @@ export default function AdminTaxonomyPage() {
 
       closeModal();
       await loadItems();
+
       setMessage("Eintrag wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
@@ -609,10 +604,10 @@ export default function AdminTaxonomyPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Kategorien & Tags"
-        description="Du hast keine Berechtigung für die Taxonomie-Verwaltung."
+        title="Kategorien & Tags nicht verfügbar"
+        description="Du hast keine Berechtigung, Taxonomie-Einträge zu sehen."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -622,19 +617,16 @@ export default function AdminTaxonomyPage() {
       <AppModal
         open={Boolean(formMode)}
         onClose={closeModal}
-        title={
-          editingId
-            ? "Eintrag bearbeiten"
-            : "Eintrag erstellen"
-        }
-        description="Kategorien und Tags werden zentral in PostgreSQL gespeichert."
+        title={editingId ? "Eintrag bearbeiten" : "Eintrag erstellen"}
+        description="Kategorien und Tags steuern Dropdowns, Filter und strukturierte Zuordnung."
+        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
               disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
             >
               Abbrechen
             </button>
@@ -659,17 +651,16 @@ export default function AdminTaxonomyPage() {
           onSubmit={(event) => void handleSubmit(event)}
           className="space-y-8"
         >
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Ziel & Typ
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Lege fest, wo der Eintrag verwendet wird.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Ziel & Typ
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <p className="text-zinc-500 mt-1">
+              Lege fest, wo der Eintrag verwendet wird.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
               {targetOptions.map((option) => {
                 const active = target === option.value;
 
@@ -690,16 +681,17 @@ export default function AdminTaxonomyPage() {
                     }}
                     className={`text-left border rounded-3xl p-5 transition ${
                       active
-                        ? "app-accent-bg text-white app-brand-shadow border-transparent"
+                        ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <h4 className="font-black">
+                    <p className="font-black">
                       {option.label}
-                    </h4>
+                    </p>
+
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/75" : "text-zinc-500"
+                        active ? "text-white/70" : "text-zinc-500"
                       }`}
                     >
                       {option.description}
@@ -709,7 +701,7 @@ export default function AdminTaxonomyPage() {
               })}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
               {typeOptions.map((option) => {
                 const active = type === option.value;
                 const disabled =
@@ -734,12 +726,13 @@ export default function AdminTaxonomyPage() {
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <h4 className="font-black">
+                    <p className="font-black">
                       {option.label}
-                    </h4>
+                    </p>
+
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/75" : "text-zinc-500"
+                        active ? "text-white/70" : "text-zinc-500"
                       }`}
                     >
                       {disabled
@@ -752,21 +745,17 @@ export default function AdminTaxonomyPage() {
             </div>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Stammdaten
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Name, Slug, Parent und Sortierung für Dropdowns und Filter.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Stammdaten
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Name
                 </label>
+
                 <input
                   value={name}
                   onChange={(event) => {
@@ -784,9 +773,10 @@ export default function AdminTaxonomyPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Slug
                 </label>
+
                 <input
                   value={slug}
                   onChange={(event) =>
@@ -798,9 +788,10 @@ export default function AdminTaxonomyPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Sortierung
                 </label>
+
                 <input
                   type="number"
                   value={sortOrder}
@@ -813,9 +804,10 @@ export default function AdminTaxonomyPage() {
               </div>
 
               <div>
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Parent
                 </label>
+
                 <select
                   value={parentId}
                   onChange={(event) => setParentId(event.target.value)}
@@ -842,9 +834,10 @@ export default function AdminTaxonomyPage() {
               </div>
 
               <div className="xl:col-span-2">
-                <label className="block mb-2 font-medium">
+                <label className="block mb-2 font-bold">
                   Beschreibung
                 </label>
+
                 <textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
@@ -856,17 +849,12 @@ export default function AdminTaxonomyPage() {
             </div>
           </section>
 
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-xl font-black">
-                Status
-              </h3>
-              <p className="text-zinc-500 mt-1">
-                Aktive Einträge werden in Formularen und Filtern angeboten.
-              </p>
-            </div>
+          <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
+            <h3 className="text-xl font-black">
+              Status
+            </h3>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
               {statusOptions.map((option) => {
                 const active = status === option.value;
 
@@ -881,12 +869,13 @@ export default function AdminTaxonomyPage() {
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <h4 className="font-black">
+                    <p className="font-black">
                       {option.label}
-                    </h4>
+                    </p>
+
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/75" : "text-zinc-500"
+                        active ? "text-white/70" : "text-zinc-500"
                       }`}
                     >
                       {option.description}
@@ -902,7 +891,7 @@ export default function AdminTaxonomyPage() {
       <PageHero
         eyebrow="Velunis Admin"
         title="Kategorien & Tags"
-        description="Zentrale Taxonomie für Tickets, Wiki und globale Tags. Kategorien können hierarchisch aufgebaut werden."
+        description="Zentrale Taxonomie für Tickets, Wiki-Seiten und globale Tags verwalten."
         badges={[
           {
             label: `${items.length} Einträge`,
@@ -951,30 +940,35 @@ export default function AdminTaxonomyPage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Kategorien & Tags werden geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Kategorien & Tags werden geladen..."
+          description="Taxonomie-Einträge, Parent-Strukturen und Filter werden vorbereitet."
+        />
       )}
 
       {message && (
-        <div className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-medium">
+        <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
+          <p className="text-green-700 font-bold">
             {message}
           </p>
-        </div>
+        </section>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Kategorien & Tags konnten nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadItems()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut laden
+            </button>
+          }
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
@@ -982,14 +976,8 @@ export default function AdminTaxonomyPage() {
           label="Gesamt"
           value={items.length}
           description="Alle Einträge"
-          icon="🗂️"
-          active={
-            !targetFilter &&
-            !typeFilter &&
-            !statusFilter &&
-            !parentFilter &&
-            !search
-          }
+          icon="🗂️"
+          active={!targetFilter && !typeFilter && !statusFilter}
           onClick={resetFilters}
         />
 
@@ -1044,7 +1032,7 @@ export default function AdminTaxonomyPage() {
         <StatCard
           label="Aktiv"
           value={activeItems.length}
-          description={`${inactiveItems.length} inaktiv · ${archivedItems.length} archiviert`}
+          description="In Dropdowns nutzbar"
           icon="✅"
           tone="green"
           active={statusFilter === "active"}
@@ -1052,181 +1040,200 @@ export default function AdminTaxonomyPage() {
         />
       </div>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              Suche & Filter
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Suche nach Name, Slug, Beschreibung, Ziel, Typ oder Parent-Pfad.
-            </p>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+        <div className="relative">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-black">
+                Suche & Filter
+              </h2>
+
+              <p className="text-zinc-500 mt-1">
+                Suche nach Name, Slug, Beschreibung, Ziel, Typ oder Parent-Pfad.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "table"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Tabelle
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-4 py-2 rounded-xl transition font-medium ${
+                  viewMode === "cards"
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                }`}
+              >
+                Karten
+              </button>
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              >
+                Zurücksetzen
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "table"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
-            >
-              Tabelle
-            </button>
+          <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 mt-6">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+              placeholder="Kategorien & Tags suchen..."
+            />
 
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-xl transition font-medium ${
-                viewMode === "cards"
-                  ? "app-accent-bg text-white app-brand-shadow"
-                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-              }`}
+            <select
+              value={targetFilter}
+              onChange={(event) => setTargetFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              Karten
-            </button>
+              <option value="">
+                Alle Ziele
+              </option>
 
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+              {targetOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              Zurücksetzen
-            </button>
+              <option value="">
+                Alle Typen
+              </option>
+
+              {typeOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Status
+              </option>
+
+              {statusOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={parentFilter}
+              onChange={(event) => setParentFilter(event.target.value)}
+              className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+            >
+              <option value="">
+                Alle Parents
+              </option>
+
+              {filterParentOptions.map((item) => (
+                <option
+                  key={item.id}
+                  value={item.id}
+                >
+                  {taxonomyRepository.getPathLabel(item.id, items)}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 mt-6">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="xl:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-            placeholder="Kategorien & Tags suchen..."
-          />
-
-          <select
-            value={targetFilter}
-            onChange={(event) => setTargetFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Ziele
-            </option>
-
-            {targetOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Typen
-            </option>
-
-            {typeOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Status
-            </option>
-
-            {statusOptions.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={parentFilter}
-            onChange={(event) => setParentFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-          >
-            <option value="">
-              Alle Parents
-            </option>
-
-            {filterParentOptions.map((item) => (
-              <option
-                key={item.id}
-                value={item.id}
-              >
-                {taxonomyRepository.getPathLabel(item.id, items)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mt-5">
-          <span className="text-sm text-zinc-500">
-            {filteredItems.length} von {items.length} Einträgen gefunden.
-          </span>
-
-          {search && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Suche: {search}
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="text-sm text-zinc-500">
+              {filteredItems.length} von {items.length} Einträgen gefunden.
             </span>
-          )}
 
-          {targetFilter && (
-            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-              Ziel: {getTargetLabel(targetFilter)}
-            </span>
-          )}
+            {search && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Suche: {search}
+              </span>
+            )}
 
-          {typeFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Typ: {getTypeLabel(typeFilter)}
-            </span>
-          )}
+            {targetFilter && (
+              <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                Ziel: {getTargetLabel(targetFilter)}
+              </span>
+            )}
 
-          {statusFilter && (
-            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-              Status: {getStatusLabel(statusFilter)}
-            </span>
-          )}
+            {typeFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Typ: {getTypeLabel(typeFilter)}
+              </span>
+            )}
+
+            {statusFilter && (
+              <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+                Status: {getStatusLabel(statusFilter)}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {filteredItems.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
-            🔎
-          </div>
+      {!loading && !error && filteredItems.length === 0 && (
+        <EmptyState
+          icon="🗂️"
+          title="Keine Einträge gefunden"
+          description="Erstelle einen Eintrag oder passe die Filter an."
+          action={
+            canManageSystem() ? (
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => openCreateForm("ticket", "category")}
+                  className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+                >
+                  Kategorie erstellen
+                </button>
 
-          <h2 className="text-xl font-semibold mt-5">
-            Keine Einträge gefunden
-          </h2>
-          <p className="text-zinc-500 mt-2">
-            Erstelle einen Eintrag oder passe die Filter an.
-          </p>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => openCreateForm("global", "tag")}
+                  className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition font-bold"
+                >
+                  Tag erstellen
+                </button>
+              </div>
+            ) : undefined
+          }
+        />
       )}
 
       {viewMode === "table" && filteredItems.length > 0 && (
@@ -1239,16 +1246,16 @@ export default function AdminTaxonomyPage() {
                     Eintrag
                   </th>
                   <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Ziel / Typ
+                    Ziel
                   </th>
                   <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Pfad
-                  </th>
-                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
-                    Parent
+                    Typ
                   </th>
                   <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Status
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Parent
                   </th>
                   <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                     Sortierung
@@ -1264,11 +1271,9 @@ export default function AdminTaxonomyPage() {
                   const parent = items.find(
                     (parentItem) => parentItem.id === item.parentId,
                   );
-                  const pathLabel =
-                    taxonomyRepository.getPathLabel(item.id, items) ||
-                    item.name;
-                  const children = items.filter(
-                    (currentItem) => currentItem.parentId === item.id,
+                  const pathLabel = taxonomyRepository.getPathLabel(
+                    item.id,
+                    items,
                   );
 
                   return (
@@ -1276,49 +1281,38 @@ export default function AdminTaxonomyPage() {
                       key={item.id}
                       className="hover:bg-zinc-50 transition"
                     >
-                      <td className="px-5 py-4 align-top">
+                      <td className="px-5 py-4 align-top min-w-[280px]">
                         <p className="font-black text-zinc-950">
                           {item.name}
                         </p>
-                        <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
+
+                        <p className="text-sm text-zinc-500 mt-1">
                           {item.description || "Keine Beschreibung vorhanden."}
                         </p>
+
                         <p className="text-xs text-zinc-400 mt-1">
-                          Slug: {item.slug}
+                          {item.slug} · {pathLabel || item.name}
                         </p>
                       </td>
 
                       <td className="px-5 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full border font-bold ${getTargetClass(
-                              item.target,
-                            )}`}
-                          >
-                            {getTargetLabel(item.target)}
-                          </span>
-
-                          <span
-                            className={`text-xs px-3 py-1 rounded-full border font-bold ${getTypeClass(
-                              item.type,
-                            )}`}
-                          >
-                            {getTypeLabel(item.type)}
-                          </span>
-                        </div>
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getTargetClass(
+                            item.target,
+                          )}`}
+                        >
+                          {getTargetLabel(item.target)}
+                        </span>
                       </td>
 
-                      <td className="px-5 py-4 align-top text-sm text-zinc-600">
-                        {pathLabel}
-                      </td>
-
-                      <td className="px-5 py-4 align-top text-sm text-zinc-600">
-                        {parent?.name || "-"}
-                        {children.length > 0 && (
-                          <p className="text-xs text-zinc-400 mt-1">
-                            {children.length} Untereinträge
-                          </p>
-                        )}
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getTypeClass(
+                            item.type,
+                          )}`}
+                        >
+                          {getTypeLabel(item.type)}
+                        </span>
                       </td>
 
                       <td className="px-5 py-4 align-top">
@@ -1331,7 +1325,11 @@ export default function AdminTaxonomyPage() {
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 align-top text-sm text-zinc-600">
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
+                        {parent?.name || "-"}
+                      </td>
+
+                      <td className="px-5 py-4 align-top text-sm text-zinc-500">
                         {item.sortOrder}
                       </td>
 
@@ -1341,7 +1339,7 @@ export default function AdminTaxonomyPage() {
                             <button
                               type="button"
                               onClick={() => startEditItem(item)}
-                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                              className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                             >
                               Bearbeiten
                             </button>
@@ -1366,14 +1364,15 @@ export default function AdminTaxonomyPage() {
       )}
 
       {viewMode === "cards" && filteredItems.length > 0 && (
-        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {filteredItems.map((item) => {
             const parent = items.find(
               (parentItem) => parentItem.id === item.parentId,
             );
-            const pathLabel =
-              taxonomyRepository.getPathLabel(item.id, items) ||
-              item.name;
+            const pathLabel = taxonomyRepository.getPathLabel(
+              item.id,
+              items,
+            );
             const children = items.filter(
               (currentItem) => currentItem.parentId === item.id,
             );
@@ -1381,9 +1380,11 @@ export default function AdminTaxonomyPage() {
             return (
               <article
                 key={item.id}
-                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
               >
-                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+                <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                <div className="relative flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
                       <span
@@ -1417,13 +1418,57 @@ export default function AdminTaxonomyPage() {
                       )}
                     </div>
 
-                    <h2 className="text-2xl font-black mt-4 line-clamp-1">
+                    <h2 className="text-2xl font-black mt-4">
                       {item.name}
                     </h2>
 
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
+                    <p className="text-zinc-500 mt-2">
                       {item.description || "Keine Beschreibung vorhanden."}
                     </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-zinc-500 mt-5">
+                      <p>
+                        Slug:{" "}
+                        <span className="font-mono text-zinc-700">
+                          {item.slug}
+                        </span>
+                      </p>
+
+                      <p>
+                        Pfad:{" "}
+                        <span className="text-zinc-700">
+                          {pathLabel || item.name}
+                        </span>
+                      </p>
+
+                      <p>
+                        Parent:{" "}
+                        <span className="text-zinc-700">
+                          {parent?.name || "-"}
+                        </span>
+                      </p>
+
+                      <p>
+                        Sortierung:{" "}
+                        <span className="text-zinc-700">
+                          {item.sortOrder}
+                        </span>
+                      </p>
+
+                      <p>
+                        Erstellt:{" "}
+                        <span className="text-zinc-700">
+                          {item.createdAt}
+                        </span>
+                      </p>
+
+                      <p>
+                        Aktualisiert:{" "}
+                        <span className="text-zinc-700">
+                          {item.updatedAt}
+                        </span>
+                      </p>
+                    </div>
                   </div>
 
                   {canManageSystem() && (
@@ -1431,7 +1476,7 @@ export default function AdminTaxonomyPage() {
                       <button
                         type="button"
                         onClick={() => startEditItem(item)}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                       >
                         Bearbeiten
                       </button>
@@ -1446,72 +1491,43 @@ export default function AdminTaxonomyPage() {
                     </div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-6">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Slug
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {item.slug}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Pfad
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {pathLabel}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Parent
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {parent?.name || "-"}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Sortierung
-                    </p>
-                    <p className="font-bold mt-1">
-                      {item.sortOrder}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Erstellt
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {item.createdAt || "-"}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Aktualisiert
-                    </p>
-                    <p className="font-bold mt-1 line-clamp-1">
-                      {item.updatedAt || "-"}
-                    </p>
-                  </div>
-                </div>
               </article>
             );
           })}
         </section>
       )}
+
+      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+        <div className="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+          <div>
+            <h2 className="text-2xl font-black">
+              Nächster Schritt
+            </h2>
+
+            <p className="text-zinc-500 mt-2">
+              Diese Kategorien und Tags werden in Ticket-Erstellung, Ticket-Bearbeitung, Wiki-Erstellung und Wiki-Bearbeitung als Dropdowns verwendet.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/tickets"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Tickets öffnen
+            </Link>
+
+            <Link
+              href="/wiki"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+            >
+              Wiki öffnen
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
-
-
-
