@@ -1,4 +1,4 @@
-export async function requestJson<T>(
+﻿export async function requestJson<T>(
   url: string,
   options?: RequestInit
 ): Promise<T> {

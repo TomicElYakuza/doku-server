@@ -1,4 +1,4 @@
-export type WikiPage = {
+﻿export type WikiPage = {
   slug: string;
   title: string;
   description: string;

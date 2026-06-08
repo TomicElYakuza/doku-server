@@ -7,6 +7,8 @@ import {
 } from "react";
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import EmptyState from "../../../components/EmptyState";
+import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
 import {
@@ -92,8 +94,22 @@ function getNullableClass(nullable: string) {
   return "bg-blue-50 text-blue-700 border-blue-100";
 }
 
+function toSafeText(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value);
+}
+
 function formatNumber(value: string | number) {
-  return Number(value || 0).toLocaleString("de-AT");
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return "0";
+  }
+
+  return numberValue.toLocaleString("de-AT");
 }
 
 function formatDate(value?: string | null) {
@@ -181,7 +197,8 @@ export default function AdminDatabasePage() {
 
   const missingExpectedTables = useMemo(
     () =>
-      status?.checks.expectedTables.filter((check) => !check.exists) || [],
+      status?.checks.expectedTables.filter((check) => !check.exists) ||
+      [],
     [
       status,
     ],
@@ -189,7 +206,8 @@ export default function AdminDatabasePage() {
 
   const missingTaxonomyColumns = useMemo(
     () =>
-      status?.checks.taxonomyColumns.filter((check) => !check.exists) || [],
+      status?.checks.taxonomyColumns.filter((check) => !check.exists) ||
+      [],
     [
       status,
     ],
@@ -197,7 +215,9 @@ export default function AdminDatabasePage() {
 
   const missingAdminModuleColumns = useMemo(
     () =>
-      status?.checks.adminModuleColumns.filter((check) => !check.exists) || [],
+      status?.checks.adminModuleColumns.filter(
+        (check) => !check.exists,
+      ) || [],
     [
       status,
     ],
@@ -225,7 +245,7 @@ export default function AdminDatabasePage() {
     }
 
     return status.columns.filter(
-      (column) => column.table_name === selectedTable,
+      (column) => toSafeText(column.table_name) === selectedTable,
     );
   }, [
     status,
@@ -244,7 +264,7 @@ export default function AdminDatabasePage() {
         return true;
       }
 
-      return table.table_name.toLowerCase().includes(query);
+      return toSafeText(table.table_name).toLowerCase().includes(query);
     });
   }, [
     status,
@@ -266,6 +286,7 @@ export default function AdminDatabasePage() {
         column.is_nullable,
         column.column_default,
       ]
+        .map(toSafeText)
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -284,9 +305,11 @@ export default function AdminDatabasePage() {
     }
 
     return status.indexes.filter((index) => {
+      const indexTableName = toSafeText(index.tablename);
+
       const matchesTable =
         !selectedTable ||
-        index.tablename === selectedTable;
+        indexTableName === selectedTable;
 
       const matchesSearch =
         !query ||
@@ -295,6 +318,7 @@ export default function AdminDatabasePage() {
           index.indexname,
           index.indexdef,
         ]
+          .map(toSafeText)
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -313,48 +337,69 @@ export default function AdminDatabasePage() {
     setSearch("");
   }
 
+  function handleBackToTables() {
+    setSelectedTable("");
+    setSectionMode("tables");
+    setViewMode("table");
+  }
+
+  function handleShowColumns(tableName: unknown) {
+    setSelectedTable(toSafeText(tableName));
+    setSectionMode("columns");
+  }
+
   function renderCheckGroup(
     title: string,
     checks: CheckItem[],
     type: "table" | "column",
   ) {
+    const existingCount = checks.filter((check) => check.exists).length;
+    const allExisting = checks.every((check) => check.exists);
+
     return (
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-black">
-              {title}
-            </h3>
-            <p className="text-zinc-500 mt-1">
-              {checks.filter((check) => check.exists).length} von {checks.length} vorhanden.
-            </p>
-          </div>
+      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+        <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-          <span
-            className={`text-xs px-3 py-1 rounded-full border font-bold ${
-              checks.every((check) => check.exists)
-                ? "bg-green-50 text-green-700 border-green-100"
-                : "bg-red-50 text-red-700 border-red-100"
-            }`}
-          >
-            {checks.every((check) => check.exists) ? "OK" : "Prüfen"}
-          </span>
-        </div>
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-black">
+                {title}
+              </h3>
 
-        <div className="flex flex-wrap gap-2 mt-5">
-          {checks.map((check) => (
+              <p className="text-zinc-500 mt-1">
+                {existingCount} von {checks.length} vorhanden.
+              </p>
+            </div>
+
             <span
-              key={`${title}-${check.tableName || check.columnName}`}
-              className={`text-xs px-3 py-2 rounded-full border font-bold ${getCheckClass(
-                check.exists,
+              className={`text-xs px-3 py-1 rounded-full border font-bold ${getCheckClass(
+                allExisting,
               )}`}
             >
-              {type === "table"
-                ? check.tableName
-                : check.columnName}
-              : {check.exists ? "OK" : "Fehlt"}
+              {allExisting ? "OK" : "Prüfen"}
             </span>
-          ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-5">
+            {checks.map((check) => {
+              const label =
+                type === "table"
+                  ? check.tableName
+                  : check.columnName;
+
+              return (
+                <span
+                  key={`${title}-${label}`}
+                  className={`text-xs px-3 py-2 rounded-xl border font-medium ${getCheckClass(
+                    check.exists,
+                  )}`}
+                >
+                  {label}: {check.exists ? "OK" : "Fehlt"}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </section>
     );
@@ -367,10 +412,10 @@ export default function AdminDatabasePage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Datenbank"
-        description="Du hast keine Berechtigung für den Datenbankstatus."
+        title="Datenbank nicht verfügbar"
+        description="Du hast keine Berechtigung, den Datenbankstatus zu sehen."
         backHref="/admin"
-        backLabel="Zum Admin Dashboard"
+        backLabel="Zurück zum Admin Dashboard"
       />
     );
   }
@@ -378,12 +423,12 @@ export default function AdminDatabasePage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Velunis Admin"
+        eyebrow="Admin Backend"
         title="Datenbank"
         description="PostgreSQL-Status, Tabellen, Spalten, Indexe und Systemchecks ohne sensible Zugangsdaten."
         badges={[
           {
-            label: status?.ok ? "Verbunden" : "Nicht verbunden",
+            label: status?.database.schema || "public",
           },
           {
             label: `${status?.tables.length || 0} Tabellen`,
@@ -392,7 +437,10 @@ export default function AdminDatabasePage() {
             label: `${formatNumber(totalRows)} Datensätze`,
           },
           {
-            label: `${missingCount} fehlende Checks`,
+            label:
+              missingCount === 0
+                ? "Systemchecks OK"
+                : `${missingCount} Prüfungen offen`,
           },
         ]}
         actions={
@@ -407,22 +455,27 @@ export default function AdminDatabasePage() {
       />
 
       {loading && (
-        <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <p className="text-zinc-500">
-            Datenbankstatus wird geladen...
-          </p>
-        </div>
+        <LoadingState
+          title="Datenbankstatus wird geladen..."
+          description="Tabellen, Spalten, Indexe und Systemchecks werden vorbereitet."
+        />
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-red-700">
-            Fehler
-          </h2>
-          <p className="text-red-600 mt-2">
-            {error}
-          </p>
-        </div>
+        <EmptyState
+          icon="⚠️"
+          title="Datenbankstatus konnte nicht geladen werden"
+          description={error}
+          action={
+            <button
+              type="button"
+              onClick={() => void loadStatus()}
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+            >
+              Erneut prüfen
+            </button>
+          }
+        />
       )}
 
       {status && (
@@ -430,143 +483,149 @@ export default function AdminDatabasePage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <StatCard
               label="Status"
-              value={status.ok ? "Online" : "Fehler"}
-              description={`${status.responseTimeMs} ms Antwortzeit`}
-              icon="🧬"
+              value={status.ok ? "Verbunden" : "Fehler"}
+              description={status.status}
+              icon={status.ok ? "✅" : "⚠️"}
               tone={status.ok ? "green" : "red"}
             />
 
             <StatCard
               label="Tabellen"
               value={status.tables.length}
-              description={`${status.columns.length} Spalten`}
-              icon="📋"
+              description="Gefundene Tabellen"
+              icon="🗄️"
               tone="blue"
               active={sectionMode === "tables"}
               onClick={() => setSectionMode("tables")}
             />
 
             <StatCard
+              label="Spalten"
+              value={status.columns.length}
+              description="Gefundene Spalten"
+              icon="🧱"
+              tone="purple"
+              active={sectionMode === "columns"}
+              onClick={() => setSectionMode("columns")}
+            />
+
+            <StatCard
               label="Indexe"
               value={status.indexes.length}
-              description="PostgreSQL Index-Struktur"
-              icon="⚡"
+              description="Gefundene Indexdefinitionen"
+              icon="🔎"
               tone="indigo"
               active={sectionMode === "indexes"}
               onClick={() => setSectionMode("indexes")}
             />
-
-            <StatCard
-              label="Checks"
-              value={missingCount === 0 ? "OK" : missingCount}
-              description={
-                missingCount === 0
-                  ? "Alle erwarteten Werte vorhanden"
-                  : "Fehlende Tabellen oder Spalten"
-              }
-              icon="✅"
-              tone={missingCount === 0 ? "green" : "orange"}
-            />
           </div>
 
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-              <div>
-                <h2 className="text-2xl font-bold">
-                  Verbindung
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Statusinformationen ohne Host, Benutzername oder Passwort.
-                </p>
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Verbindung
+                  </h2>
+
+                  <p className="text-zinc-500 mt-1">
+                    Statusinformationen ohne Host, Benutzername oder Passwort.
+                  </p>
+                </div>
+
+                <span
+                  className={`text-sm px-4 py-2 rounded-full border font-bold ${getStatusClass(
+                    status.ok,
+                  )}`}
+                >
+                  {status.ok ? "Verbunden" : "Fehler"}
+                </span>
               </div>
 
-              <span
-                className={`text-sm px-4 py-2 rounded-full border font-bold ${getStatusClass(
-                  status.ok,
-                )}`}
-              >
-                {status.ok ? "Verbunden" : "Fehler"}
-              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Datenbank
+                  </p>
+                  <p className="font-black mt-1 break-all">
+                    {status.database.name || "-"}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Schema
+                  </p>
+                  <p className="font-black mt-1">
+                    {status.database.schema || "public"}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Datenbankzeit
+                  </p>
+                  <p className="font-black mt-1">
+                    {formatDate(status.database.time)}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Letzte Prüfung
+                  </p>
+                  <p className="font-black mt-1">
+                    {formatDate(status.checkedAt)}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Antwortzeit
+                  </p>
+                  <p className="font-black mt-1">
+                    {status.responseTimeMs} ms
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Migrationen
+                  </p>
+                  <p className="font-black mt-1">
+                    {status.migrations.hasMigrationTable
+                      ? "Erkannt"
+                      : "Nicht erkannt"}
+                  </p>
+                </div>
+
+                <div className="md:col-span-2 bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    PostgreSQL-Version
+                  </p>
+                  <p className="font-black mt-1 break-words">
+                    {status.database.version || "-"}
+                  </p>
+                </div>
+              </div>
+
+              {status.message && (
+                <div className="mt-6 bg-zinc-50 border border-zinc-100 rounded-2xl p-4 text-zinc-600">
+                  {status.message}
+                </div>
+              )}
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 mt-6">
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Datenbank
-                </p>
-                <p className="font-black mt-1 line-clamp-1">
-                  {status.database.name || "-"}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Schema
-                </p>
-                <p className="font-black mt-1">
-                  {status.database.schema || "public"}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Datenbankzeit
-                </p>
-                <p className="font-black mt-1 line-clamp-1">
-                  {formatDate(status.database.time)}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Letzte Prüfung
-                </p>
-                <p className="font-black mt-1 line-clamp-1">
-                  {formatDate(status.checkedAt)}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Antwortzeit
-                </p>
-                <p className="font-black mt-1">
-                  {status.responseTimeMs} ms
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-3xl p-5">
-                <p className="text-xs text-zinc-500">
-                  Migrationen
-                </p>
-                <p className="font-black mt-1">
-                  {status.migrations.hasMigrationTable ? "Erkannt" : "Nicht erkannt"}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-zinc-50 rounded-3xl p-5 mt-4">
-              <p className="text-xs text-zinc-500">
-                PostgreSQL-Version
-              </p>
-              <p className="font-semibold mt-1 break-words">
-                {status.database.version || "-"}
-              </p>
-            </div>
-
-            {status.message && (
-              <div className="bg-amber-50 border border-amber-100 rounded-3xl p-5 mt-4 text-amber-800">
-                {status.message}
-              </div>
-            )}
           </section>
 
-          <section className="space-y-5">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <section className="space-y-6">
+            <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
               <div>
                 <h2 className="text-2xl font-black">
                   Systemchecks
                 </h2>
+
                 <p className="text-zinc-500 mt-1">
                   Erwartete Tabellen und wichtige Spalten für Taxonomie, Admin-Module und Rollen-Vorlagen.
                 </p>
@@ -579,11 +638,13 @@ export default function AdminDatabasePage() {
                     : "bg-red-50 text-red-700 border-red-100"
                 }`}
               >
-                {missingCount === 0 ? "Alles vorhanden" : `${missingCount} fehlen`}
+                {missingCount === 0
+                  ? "Alles vorhanden"
+                  : `${missingCount} fehlen`}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {renderCheckGroup(
                 "Erwartete Tabellen",
                 status.checks.expectedTables,
@@ -608,118 +669,198 @@ export default function AdminDatabasePage() {
                 "column",
               )}
             </div>
+
+            {missingCount > 0 && (
+              <div className="bg-red-50 border border-red-100 rounded-3xl p-6 text-red-700">
+                <h3 className="font-black">
+                  Offene Prüfungen
+                </h3>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4 text-sm">
+                  {missingExpectedTables.length > 0 && (
+                    <div>
+                      <p className="font-bold">
+                        Fehlende Tabellen
+                      </p>
+                      <p className="mt-1">
+                        {missingExpectedTables
+                          .map((check) => check.tableName)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  {missingTaxonomyColumns.length > 0 && (
+                    <div>
+                      <p className="font-bold">
+                        Fehlende Taxonomie-Spalten
+                      </p>
+                      <p className="mt-1">
+                        {missingTaxonomyColumns
+                          .map((check) => check.columnName)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  {missingAdminModuleColumns.length > 0 && (
+                    <div>
+                      <p className="font-bold">
+                        Fehlende Admin-Modul-Spalten
+                      </p>
+                      <p className="mt-1">
+                        {missingAdminModuleColumns
+                          .map((check) => check.columnName)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  {missingRoleTemplateColumns.length > 0 && (
+                    <div>
+                      <p className="font-bold">
+                        Fehlende Rollen-Vorlagen-Spalten
+                      </p>
+                      <p className="mt-1">
+                        {missingRoleTemplateColumns
+                          .map((check) => check.columnName)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-              <div>
-                <h2 className="text-2xl font-bold">
-                  Tabellen, Spalten & Indexe
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Übersicht über vorhandene Tabellen, Struktur und Indexdefinitionen.
-                </p>
-              </div>
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("table")}
-                  className={`px-4 py-2 rounded-xl transition font-medium ${
-                    viewMode === "table"
-                      ? "app-accent-bg text-white app-brand-shadow"
-                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-                  }`}
-                >
-                  Tabelle
-                </button>
+            <div className="relative">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Tabellen, Spalten & Indexe
+                  </h2>
 
-                <button
-                  type="button"
-                  onClick={() => setViewMode("cards")}
-                  className={`px-4 py-2 rounded-xl transition font-medium ${
-                    viewMode === "cards"
-                      ? "app-accent-bg text-white app-brand-shadow"
-                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
-                  }`}
-                >
-                  Karten
-                </button>
+                  <p className="text-zinc-500 mt-1">
+                    Übersicht über vorhandene Tabellen, Struktur und Indexdefinitionen.
+                  </p>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
-                >
-                  Filter zurücksetzen
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Suchen..."
-              />
-
-              <select
-                value={selectedTable}
-                onChange={(event) => setSelectedTable(event.target.value)}
-                className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-              >
-                <option value="">
-                  Alle Tabellen
-                </option>
-
-                {status.tables.map((table) => (
-                  <option
-                    key={table.table_name}
-                    value={table.table_name}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`px-4 py-2 rounded-xl transition font-medium ${
+                      viewMode === "table"
+                        ? "app-accent-bg text-white app-brand-shadow"
+                        : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                    }`}
                   >
-                    {table.table_name}
+                    Tabelle
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`px-4 py-2 rounded-xl transition font-medium ${
+                      viewMode === "cards"
+                        ? "app-accent-bg text-white app-brand-shadow"
+                        : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+                    }`}
+                  >
+                    Karten
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
+                  >
+                    Filter zurücksetzen
+                  </button>
+
+                  {sectionMode !== "tables" && (
+                    <button
+                      type="button"
+                      onClick={handleBackToTables}
+                      className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
+                    >
+                      Zurück zu Tabellen
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Suchen..."
+                />
+
+                <select
+                  value={selectedTable}
+                  onChange={(event) => setSelectedTable(event.target.value)}
+                  className="md:col-span-2 border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Alle Tabellen
                   </option>
-                ))}
-              </select>
 
-              <select
-                value={sectionMode}
-                onChange={(event) =>
-                  setSectionMode(event.target.value as SectionMode)
-                }
-                className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-              >
-                <option value="tables">
-                  Tabellen
-                </option>
-                <option value="columns">
-                  Spalten
-                </option>
-                <option value="indexes">
-                  Indexe
-                </option>
-              </select>
-            </div>
+                  {status.tables.map((table) => (
+                    <option
+                      key={toSafeText(table.table_name)}
+                      value={toSafeText(table.table_name)}
+                    >
+                      {toSafeText(table.table_name)}
+                    </option>
+                  ))}
+                </select>
 
-            <div className="flex flex-wrap items-center gap-3 mt-5">
-              <span className="text-sm text-zinc-500">
-                {sectionMode === "tables" && `${filteredTables.length} Tabellen sichtbar.`}
-                {sectionMode === "columns" && `${filteredColumns.length} Spalten sichtbar.`}
-                {sectionMode === "indexes" && `${filteredIndexes.length} Indexe sichtbar.`}
-              </span>
+                <select
+                  value={sectionMode}
+                  onChange={(event) =>
+                    setSectionMode(event.target.value as SectionMode)
+                  }
+                  className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="tables">
+                    Tabellen
+                  </option>
+                  <option value="columns">
+                    Spalten
+                  </option>
+                  <option value="indexes">
+                    Indexe
+                  </option>
+                </select>
+              </div>
 
-              {search && (
-                <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                  Suche: {search}
+              <div className="flex flex-wrap gap-2 mt-5">
+                <span className="text-xs bg-zinc-100 text-zinc-600 px-3 py-2 rounded-xl font-bold">
+                  {sectionMode === "tables" &&
+                    `${filteredTables.length} Tabellen sichtbar.`}
+                  {sectionMode === "columns" &&
+                    `${filteredColumns.length} Spalten sichtbar.`}
+                  {sectionMode === "indexes" &&
+                    `${filteredIndexes.length} Indexe sichtbar.`}
                 </span>
-              )}
 
-              {selectedTable && (
-                <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                  Tabelle: {selectedTable}
-                </span>
-              )}
+                {search && (
+                  <span className="text-xs app-accent-soft app-accent-text px-3 py-2 rounded-xl font-bold">
+                    Suche: {search}
+                  </span>
+                )}
+
+                {selectedTable && (
+                  <span className="text-xs app-accent-soft app-accent-text px-3 py-2 rounded-xl font-bold">
+                    Tabelle: {selectedTable}
+                  </span>
+                )}
+              </div>
             </div>
           </section>
 
@@ -744,11 +885,11 @@ export default function AdminDatabasePage() {
                   <tbody className="divide-y divide-zinc-100">
                     {filteredTables.map((table) => (
                       <tr
-                        key={table.table_name}
-                        className="hover:bg-zinc-50 transition"
+                        key={toSafeText(table.table_name)}
+                        className="hover:bg-zinc-50/70 transition"
                       >
                         <td className="px-5 py-4 font-black text-zinc-950">
-                          {table.table_name}
+                          {toSafeText(table.table_name)}
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500">
@@ -758,11 +899,8 @@ export default function AdminDatabasePage() {
                         <td className="px-5 py-4">
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedTable(table.table_name);
-                              setSectionMode("columns");
-                            }}
-                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                            onClick={() => handleShowColumns(table.table_name)}
+                            className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                           >
                             Spalten anzeigen
                           </button>
@@ -774,9 +912,21 @@ export default function AdminDatabasePage() {
                       <tr>
                         <td
                           colSpan={3}
-                          className="px-5 py-10 text-center text-zinc-500"
+                          className="px-5 py-10"
                         >
-                          Keine Tabellen gefunden.
+                          <div className="text-center">
+                            <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
+                              🗄️
+                            </div>
+
+                            <p className="font-black text-zinc-950 mt-4">
+                              Keine Tabellen gefunden
+                            </p>
+
+                            <p className="text-zinc-500 mt-1">
+                              Passe Suche oder Filter an, um wieder Ergebnisse zu sehen.
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -813,35 +963,37 @@ export default function AdminDatabasePage() {
                   <tbody className="divide-y divide-zinc-100">
                     {filteredColumns.map((column) => (
                       <tr
-                        key={`${column.table_name}-${column.column_name}`}
-                        className="hover:bg-zinc-50 transition"
+                        key={`${toSafeText(column.table_name)}-${toSafeText(
+                          column.column_name,
+                        )}`}
+                        className="hover:bg-zinc-50/70 transition"
                       >
                         <td className="px-5 py-4 font-medium text-zinc-900">
-                          {column.table_name}
+                          {toSafeText(column.table_name)}
                         </td>
 
                         <td className="px-5 py-4 font-black text-zinc-950">
-                          {column.column_name}
+                          {toSafeText(column.column_name)}
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500">
-                          {column.data_type}
+                          {toSafeText(column.data_type)}
                         </td>
 
                         <td className="px-5 py-4">
                           <span
                             className={`text-xs px-3 py-1 rounded-full border font-bold ${getNullableClass(
-                              column.is_nullable,
+                              toSafeText(column.is_nullable),
                             )}`}
                           >
-                            {column.is_nullable}
+                            {toSafeText(column.is_nullable) || "-"}
                           </span>
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500 max-w-md">
-                          <p className="line-clamp-2">
-                            {column.column_default || "-"}
-                          </p>
+                          <span className="break-all">
+                            {toSafeText(column.column_default) || "-"}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -850,9 +1002,21 @@ export default function AdminDatabasePage() {
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-5 py-10 text-center text-zinc-500"
+                          className="px-5 py-10"
                         >
-                          Keine Spalten gefunden.
+                          <div className="text-center">
+                            <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
+                              🧱
+                            </div>
+
+                            <p className="font-black text-zinc-950 mt-4">
+                              Keine Spalten gefunden
+                            </p>
+
+                            <p className="text-zinc-500 mt-1">
+                              Wähle eine andere Tabelle oder ändere den Suchbegriff.
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -883,21 +1047,23 @@ export default function AdminDatabasePage() {
                   <tbody className="divide-y divide-zinc-100">
                     {filteredIndexes.map((index) => (
                       <tr
-                        key={`${index.tablename}-${index.indexname}`}
-                        className="hover:bg-zinc-50 transition"
+                        key={`${toSafeText(index.tablename)}-${toSafeText(
+                          index.indexname,
+                        )}`}
+                        className="hover:bg-zinc-50/70 transition"
                       >
                         <td className="px-5 py-4 font-medium text-zinc-900">
-                          {index.tablename}
+                          {toSafeText(index.tablename)}
                         </td>
 
                         <td className="px-5 py-4 font-black text-zinc-950">
-                          {index.indexname}
+                          {toSafeText(index.indexname)}
                         </td>
 
                         <td className="px-5 py-4 text-zinc-500 max-w-3xl">
-                          <p className="line-clamp-3 font-mono text-xs">
-                            {index.indexdef}
-                          </p>
+                          <code className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-lg break-all">
+                            {toSafeText(index.indexdef)}
+                          </code>
                         </td>
                       </tr>
                     ))}
@@ -906,9 +1072,21 @@ export default function AdminDatabasePage() {
                       <tr>
                         <td
                           colSpan={3}
-                          className="px-5 py-10 text-center text-zinc-500"
+                          className="px-5 py-10"
                         >
-                          Keine Indexe gefunden.
+                          <div className="text-center">
+                            <div className="mx-auto h-12 w-12 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-xl">
+                              🔎
+                            </div>
+
+                            <p className="font-black text-zinc-950 mt-4">
+                              Keine Indexe gefunden
+                            </p>
+
+                            <p className="text-zinc-500 mt-1">
+                              Für die aktuelle Auswahl wurden keine Indexdefinitionen gefunden.
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -919,33 +1097,32 @@ export default function AdminDatabasePage() {
           )}
 
           {viewMode === "cards" && (
-            <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {sectionMode === "tables" &&
                 filteredTables.map((table) => (
                   <article
-                    key={table.table_name}
-                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+                    key={toSafeText(table.table_name)}
+                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                          Tabelle
-                        </span>
-                        <h3 className="text-2xl font-black mt-4">
-                          {table.table_name}
-                        </h3>
-                        <p className="text-zinc-500 mt-2">
-                          {formatNumber(table.row_count)} Datensätze
-                        </p>
-                      </div>
+                    <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+                    <div className="relative">
+                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                        Tabelle
+                      </span>
+
+                      <h3 className="text-2xl font-black mt-4">
+                        {toSafeText(table.table_name)}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2">
+                        {formatNumber(table.row_count)} Datensätze
+                      </p>
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedTable(table.table_name);
-                          setSectionMode("columns");
-                        }}
-                        className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow font-bold"
+                        onClick={() => handleShowColumns(table.table_name)}
+                        className="mt-5 app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow"
                       >
                         Spalten
                       </button>
@@ -956,57 +1133,101 @@ export default function AdminDatabasePage() {
               {sectionMode === "columns" &&
                 filteredColumns.map((column) => (
                   <article
-                    key={`${column.table_name}-${column.column_name}`}
-                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+                    key={`${toSafeText(column.table_name)}-${toSafeText(
+                      column.column_name,
+                    )}`}
+                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
                   >
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                        {column.table_name}
-                      </span>
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getNullableClass(
-                          column.is_nullable,
-                        )}`}
-                      >
-                        NULL: {column.is_nullable}
-                      </span>
-                    </div>
+                    <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                    <h3 className="text-2xl font-black mt-4">
-                      {column.column_name}
-                    </h3>
-                    <p className="text-zinc-500 mt-2">
-                      Typ: {column.data_type}
-                    </p>
-                    <p className="text-sm text-zinc-400 mt-3 break-words">
-                      Default: {column.column_default || "-"}
-                    </p>
+                    <div className="relative">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                          {toSafeText(column.table_name)}
+                        </span>
+
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getNullableClass(
+                            toSafeText(column.is_nullable),
+                          )}`}
+                        >
+                          NULL: {toSafeText(column.is_nullable) || "-"}
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl font-black mt-4">
+                        {toSafeText(column.column_name)}
+                      </h3>
+
+                      <p className="text-zinc-500 mt-2">
+                        Typ: {toSafeText(column.data_type)}
+                      </p>
+
+                      <p className="text-sm text-zinc-400 mt-3 break-all">
+                        Default: {toSafeText(column.column_default) || "-"}
+                      </p>
+                    </div>
                   </article>
                 ))}
 
               {sectionMode === "indexes" &&
                 filteredIndexes.map((index) => (
                   <article
-                    key={`${index.tablename}-${index.indexname}`}
-                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm"
+                    key={`${toSafeText(index.tablename)}-${toSafeText(
+                      index.indexname,
+                    )}`}
+                    className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative"
                   >
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
-                        {index.tablename}
-                      </span>
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                        Index
-                      </span>
-                    </div>
+                    <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                    <h3 className="text-xl font-black mt-4">
-                      {index.indexname}
-                    </h3>
-                    <p className="text-xs text-zinc-500 mt-3 font-mono break-words">
-                      {index.indexdef}
-                    </p>
+                    <div className="relative">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+                          {toSafeText(index.tablename)}
+                        </span>
+
+                        <span className="text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full font-bold">
+                          Index
+                        </span>
+                      </div>
+
+                      <h3 className="text-2xl font-black mt-4">
+                        {toSafeText(index.indexname)}
+                      </h3>
+
+                      <p className="text-sm text-zinc-500 mt-3 break-all leading-7">
+                        {toSafeText(index.indexdef)}
+                      </p>
+                    </div>
                   </article>
                 ))}
+
+              {sectionMode === "tables" &&
+                filteredTables.length === 0 && (
+                  <EmptyState
+                    icon="🗄️"
+                    title="Keine Tabellen gefunden"
+                    description="Passe Suche oder Filter an, um wieder Ergebnisse zu sehen."
+                  />
+                )}
+
+              {sectionMode === "columns" &&
+                filteredColumns.length === 0 && (
+                  <EmptyState
+                    icon="🧱"
+                    title="Keine Spalten gefunden"
+                    description="Wähle eine andere Tabelle oder ändere den Suchbegriff."
+                  />
+                )}
+
+              {sectionMode === "indexes" &&
+                filteredIndexes.length === 0 && (
+                  <EmptyState
+                    icon="🔎"
+                    title="Keine Indexe gefunden"
+                    description="Für die aktuelle Auswahl wurden keine Indexdefinitionen gefunden."
+                  />
+                )}
             </section>
           )}
         </>

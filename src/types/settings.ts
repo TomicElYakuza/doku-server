@@ -55,3 +55,4 @@ export type AppSettings = {
 };
 
 export type AppSettingsUpdateInput = Partial<AppSettings>;
+

@@ -1,4 +1,4 @@
-export type CompanyStatus =
+﻿export type CompanyStatus =
   | "active"
   | "inactive"
   | "archived";

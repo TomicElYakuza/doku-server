@@ -1,4 +1,4 @@
-export type AdminModuleCategory =
+﻿export type AdminModuleCategory =
   | "admin"
   | "content"
   | "tickets"

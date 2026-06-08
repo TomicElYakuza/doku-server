@@ -647,3 +647,4 @@ export default function NewsLandingPage() {
     </div>
   );
 }
+

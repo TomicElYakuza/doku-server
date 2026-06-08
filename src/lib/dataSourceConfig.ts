@@ -1,4 +1,4 @@
-export type AppDataSource =
+﻿export type AppDataSource =
   "postgresql";
 
 export function getDataSource(): AppDataSource {

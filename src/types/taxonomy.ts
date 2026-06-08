@@ -1,4 +1,4 @@
-export type TaxonomyType = "category" | "tag";
+﻿export type TaxonomyType = "category" | "tag";
 
 export type TaxonomyTarget =
   | "ticket"

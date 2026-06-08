@@ -17,3 +17,4 @@ export default function WikiLayout({
     </div>
   );
 }
+

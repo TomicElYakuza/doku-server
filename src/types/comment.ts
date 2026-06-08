@@ -1,4 +1,4 @@
-export type Comment = {
+﻿export type Comment = {
   id: string;
   entityType: string;
   entityId: string;

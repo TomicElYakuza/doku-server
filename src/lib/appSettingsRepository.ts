@@ -279,3 +279,4 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
 };
 
 export const appSettingsRepository = postgresAppSettingsRepository;
+

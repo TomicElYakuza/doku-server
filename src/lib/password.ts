@@ -1,4 +1,4 @@
-import {
+﻿import {
   randomBytes,
   scrypt as scryptCallback,
   timingSafeEqual,

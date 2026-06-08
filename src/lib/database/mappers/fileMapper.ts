@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   StoredFile,
 } from "../../../types/file";
 

@@ -1,4 +1,4 @@
-import type { NewsPost } from "../../../types/news";
+﻿import type { NewsPost } from "../../../types/news";
 
 export type NewsRow = {
   id: number | string;

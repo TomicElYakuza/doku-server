@@ -1,4 +1,4 @@
-export type StoredFile = {
+﻿export type StoredFile = {
   name: string;
   type: string;
   size: number;

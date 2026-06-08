@@ -1,4 +1,4 @@
-import type { TaxonomyItem } from "../../../types/taxonomy";
+﻿import type { TaxonomyItem } from "../../../types/taxonomy";
 
 export type TaxonomyItemRow = {
   id: string;

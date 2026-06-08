@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { query, queryOne } from "../../../lib/database/db";
 import {
   mapNewsRow,

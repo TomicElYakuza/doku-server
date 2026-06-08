@@ -1,4 +1,4 @@
-export type TicketTemplateStatus =
+﻿export type TicketTemplateStatus =
   | "open"
   | "in_progress"
   | "waiting"

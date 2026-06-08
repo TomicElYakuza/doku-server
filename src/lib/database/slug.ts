@@ -1,4 +1,4 @@
-export function createSlug(
+﻿export function createSlug(
   value: string
 ) {
   return value

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   UserSettings,
   UserSettingsUpdateInput,
 } from "../types/userSettings";

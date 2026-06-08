@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AppAccentColor,
   AppTheme,
 } from "./settings";

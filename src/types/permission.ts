@@ -1,4 +1,4 @@
-export type PermissionScopeType =
+﻿export type PermissionScopeType =
   | "global"
   | "company"
   | "department"
