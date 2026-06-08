@@ -1092,7 +1092,7 @@ export default function TicketsPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
-                  Allgemein
+                  Nicht zugeordnet
                 </option>
                 {departmentOptions.map((nextDepartment) => (
                   <option
@@ -1637,4 +1637,5 @@ export default function TicketsPage() {
     </div>
   );
 }
+
 

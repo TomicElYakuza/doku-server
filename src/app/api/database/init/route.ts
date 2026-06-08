@@ -1,4 +1,4 @@
-import {
+﻿import {
   NextResponse,
 } from "next/server";
 import {
@@ -42,7 +42,7 @@ export async function POST() {
     if (!currentUser || currentUser.role !== "admin") {
       return NextResponse.json(
         {
-          message: "Nur Administratoren dürfen die Datenbankinitialisierung ausführen.",
+          message: "Nur Administratoren dÃ¼rfen die Datenbankinitialisierung ausfÃ¼hren.",
         },
         {
           status: 403,
@@ -93,7 +93,7 @@ export async function POST() {
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         last_login_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -106,7 +106,7 @@ export async function POST() {
         permission_key TEXT NOT NULL UNIQUE,
         label TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
-        category TEXT NOT NULL DEFAULT 'Allgemein',
+        category TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
@@ -155,7 +155,7 @@ export async function POST() {
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         assigned_to TEXT NOT NULL DEFAULT '',
         created_by TEXT NOT NULL DEFAULT 'System',
         tags TEXT[] NOT NULL DEFAULT '{}',
@@ -175,7 +175,7 @@ export async function POST() {
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         assigned_to TEXT NOT NULL DEFAULT '',
         tags TEXT[] NOT NULL DEFAULT '{}',
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -192,7 +192,7 @@ export async function POST() {
         excerpt TEXT NOT NULL DEFAULT '',
         company TEXT NOT NULL DEFAULT 'Intern',
         category TEXT NOT NULL,
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         author TEXT NOT NULL DEFAULT 'System',
         tags TEXT[] NOT NULL DEFAULT '{}',
         content TEXT NOT NULL DEFAULT '',
@@ -262,7 +262,7 @@ export async function POST() {
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         metadata JSONB NOT NULL DEFAULT '{}',
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
@@ -282,7 +282,7 @@ export async function POST() {
         company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
         department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
         company TEXT NOT NULL DEFAULT 'Intern',
-        department TEXT NOT NULL DEFAULT 'Allgemein',
+        department TEXT NOT NULL DEFAULT '',
         metadata JSONB NOT NULL DEFAULT '{}',
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
@@ -345,7 +345,7 @@ export async function POST() {
         title TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         href TEXT NOT NULL,
-        icon TEXT NOT NULL DEFAULT '🧩',
+        icon TEXT NOT NULL DEFAULT 'ðŸ§©',
         category TEXT NOT NULL DEFAULT 'admin',
         badge_label TEXT NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
@@ -504,7 +504,7 @@ export async function POST() {
 
     await query(`
       ALTER TABLE activities
-      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'Allgemein';
+      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT '';
     `);
 
     await query(`
@@ -534,7 +534,7 @@ export async function POST() {
 
     await query(`
       ALTER TABLE activity_logs
-      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'Allgemein';
+      ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT '';
     `);
 
     await query(`
@@ -672,7 +672,7 @@ export async function POST() {
           'Benutzerverwaltung',
           'Benutzer, Rollen, Login-Daten, Status und Organisationszuordnung verwalten.',
           '/admin/users',
-          '👥',
+          'ðŸ‘¥',
           'admin',
           'Benutzer',
           10,
@@ -685,7 +685,7 @@ export async function POST() {
           'Berechtigungen',
           'Rollen, Firmenrechte, Abteilungsrechte und einzelne Benutzerrechte zentral verwalten.',
           '/admin/permissions',
-          '🔐',
+          'ðŸ”',
           'admin',
           'Rechte',
           20,
@@ -696,9 +696,9 @@ export async function POST() {
         (
           'role-templates',
           'Rollen-Vorlagen',
-          'Standardrechte für Rollen vorbereiten und verwalten.',
+          'Standardrechte fÃ¼r Rollen vorbereiten und verwalten.',
           '/admin/role-templates',
-          '🧬',
+          'ðŸ§¬',
           'admin',
           'Rollen',
           25,
@@ -711,7 +711,7 @@ export async function POST() {
           'Firmen & Abteilungen',
           'Firmenstruktur und Abteilungen zentral konfigurieren.',
           '/admin/companies',
-          '🏢',
+          'ðŸ¢',
           'admin',
           'Organisation',
           30,
@@ -724,7 +724,7 @@ export async function POST() {
           'Kategorien & Tags',
           'Ticket- und Wiki-Kategorien als Baum sowie globale Tags verwalten.',
           '/admin/taxonomy',
-          '🏷️',
+          'ðŸ·ï¸',
           'admin',
           'Taxonomie',
           40,
@@ -737,7 +737,7 @@ export async function POST() {
           'Admin-Module',
           'Admin-Module zentral verwalten, aktivieren, ausblenden und sortieren.',
           '/admin/modules',
-          '🧩',
+          'ðŸ§©',
           'system',
           'Module',
           45,
@@ -748,9 +748,9 @@ export async function POST() {
         (
           'database',
           'Datenbankstatus',
-          'PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prüfen.',
+          'PostgreSQL-Verbindung, Tabellen, Taxonomie-Spalten und Migration-Status prÃ¼fen.',
           '/admin/database',
-          '🗄️',
+          'ðŸ—„ï¸',
           'system',
           'Status',
           50,
@@ -761,9 +761,9 @@ export async function POST() {
         (
           'news',
           'News-Verwaltung',
-          'Neuigkeiten erstellen, bearbeiten, fixieren und löschen.',
+          'Neuigkeiten erstellen, bearbeiten, fixieren und lÃ¶schen.',
           '/admin/news',
-          '📰',
+          'ðŸ“°',
           'content',
           'News',
           60,
@@ -774,9 +774,9 @@ export async function POST() {
         (
           'ticket-templates',
           'Ticket-Vorlagen',
-          'Wiederverwendbare Vorlagen für Supportprozesse verwalten.',
+          'Wiederverwendbare Vorlagen fÃ¼r Supportprozesse verwalten.',
           '/tickets/templates',
-          '📋',
+          'ðŸ“‹',
           'tickets',
           'Vorlagen',
           70,
@@ -787,9 +787,9 @@ export async function POST() {
         (
           'settings',
           'Systemeinstellungen',
-          'App-Name, globale Oberfläche, Features und Standardrollen konfigurieren.',
+          'App-Name, globale OberflÃ¤che, Features und Standardrollen konfigurieren.',
           '/admin/settings',
-          '⚙️',
+          'âš™ï¸',
           'system',
           'System',
           80,
@@ -799,12 +799,12 @@ export async function POST() {
         ),
         (
           'activity',
-          'Aktivitätsprotokoll',
-          'Systemaktivitäten und Benutzeraktionen nachvollziehen.',
+          'AktivitÃ¤tsprotokoll',
+          'SystemaktivitÃ¤ten und Benutzeraktionen nachvollziehen.',
           '/activity',
-          '🕓',
+          'ðŸ•“',
           'system',
-          'Aktivität',
+          'AktivitÃ¤t',
           90,
           TRUE,
           TRUE,
@@ -828,7 +828,7 @@ export async function POST() {
         (
           'employee-default',
           'Mitarbeiter Standard',
-          'Standardrechte für normale Mitarbeiter.',
+          'Standardrechte fÃ¼r normale Mitarbeiter.',
           'employee',
           ARRAY[
             'dashboard.view',
@@ -845,7 +845,7 @@ export async function POST() {
         (
           'department-lead-default',
           'Abteilungsleiter Standard',
-          'Standardrechte für Abteilungsleiter.',
+          'Standardrechte fÃ¼r Abteilungsleiter.',
           'department_lead',
           ARRAY[
             'dashboard.view',
@@ -865,7 +865,7 @@ export async function POST() {
         (
           'admin-default',
           'Administrator Standard',
-          'Vollzugriff für Administratoren.',
+          'Vollzugriff fÃ¼r Administratoren.',
           'admin',
           ARRAY[
             'dashboard.view',

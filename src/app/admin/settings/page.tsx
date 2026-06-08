@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -85,15 +85,15 @@ const listViewOptions: ListViewOption[] = [
     value: "table",
     label: "Tabelle",
     description:
-      "Listen werden standardmäßig als Tabelle angezeigt.",
-    icon: "▦",
+      "Listen werden standardmÃ¤ÃŸig als Tabelle angezeigt.",
+    icon: "â–¦",
   },
   {
     value: "cards",
     label: "Karten",
     description:
-      "Listen werden standardmäßig als Karten angezeigt.",
-    icon: "▣",
+      "Listen werden standardmÃ¤ÃŸig als Karten angezeigt.",
+    icon: "â–£",
   },
 ];
 
@@ -306,7 +306,7 @@ export default function AdminSettingsPage() {
 
   async function handleReset() {
     const confirmed = confirm(
-      "Systemeinstellungen wirklich auf Standard zurücksetzen?",
+      "Systemeinstellungen wirklich auf Standard zurÃ¼cksetzen?",
     );
 
     if (!confirmed) {
@@ -320,14 +320,14 @@ export default function AdminSettingsPage() {
 
       await resetSettings();
 
-      setMessage("Systemeinstellungen wurden zurückgesetzt.");
+      setMessage("Systemeinstellungen wurden zurÃ¼ckgesetzt.");
     } catch (resetError) {
       console.error(resetError);
 
       setError(
         resetError instanceof Error
           ? resetError.message
-          : "Systemeinstellungen konnten nicht zurückgesetzt werden.",
+          : "Systemeinstellungen konnten nicht zurÃ¼ckgesetzt werden.",
       );
     } finally {
       setSaving(false);
@@ -356,7 +356,7 @@ export default function AdminSettingsPage() {
     return (
       <AccessDeniedCard
         title="Systemeinstellungen"
-        description="Du hast keine Berechtigung für die Systemeinstellungen."
+        description="Du hast keine Berechtigung fÃ¼r die Systemeinstellungen."
         backHref="/admin"
         backLabel="Zum Admin Dashboard"
       />
@@ -368,7 +368,7 @@ export default function AdminSettingsPage() {
       <PageHero
         eyebrow="Velunis Admin"
         title="Systemeinstellungen"
-        description="Globale App-Defaults für Name, Version, Features, Listenansichten und neue Benutzer verwalten."
+        description="Globale App-Defaults fÃ¼r Name, Version, Features, Listenansichten und neue Benutzer verwalten."
         badges={[
           {
             label: form.companyName || "Velunis",
@@ -391,7 +391,7 @@ export default function AdminSettingsPage() {
               disabled={saving || loading}
               className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition disabled:opacity-50 font-bold"
             >
-              Zurücksetzen
+              ZurÃ¼cksetzen
             </button>
 
             <button
@@ -438,7 +438,7 @@ export default function AdminSettingsPage() {
           label="App"
           value={form.appName || "Intranet"}
           description={form.companyName || "Velunis"}
-          icon="✨"
+          icon="âœ¨"
           tone="blue"
         />
 
@@ -450,7 +450,7 @@ export default function AdminSettingsPage() {
               ? "Wird angezeigt"
               : "Wird ausgeblendet"
           }
-          icon="🏷️"
+          icon="ðŸ·ï¸"
           tone="indigo"
         />
 
@@ -458,15 +458,15 @@ export default function AdminSettingsPage() {
           label="Features"
           value={`${enabledFeatureCount}/3`}
           description="Aktive Funktionsbereiche"
-          icon="⚙️"
+          icon="âš™ï¸"
           tone="green"
         />
 
         <StatCard
           label="Standardrolle"
           value={getRoleLabel(form.defaultUserRole)}
-          description="Für neue Benutzer"
-          icon="👤"
+          description="FÃ¼r neue Benutzer"
+          icon="ðŸ‘¤"
           tone="purple"
         />
       </div>
@@ -479,7 +479,7 @@ export default function AdminSettingsPage() {
         <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
             <h2 className="text-2xl font-bold">
-              Allgemeine App-Daten
+              App-Daten
             </h2>
             <p className="text-zinc-500 mt-1">
               Name, Firma und Version der Anwendung.
@@ -531,7 +531,7 @@ export default function AdminSettingsPage() {
               <div className="flex items-end">
                 <ToggleCard
                   title="Version anzeigen"
-                  description="Zeigt die App-Version in der Oberfläche an."
+                  description="Zeigt die App-Version in der OberflÃ¤che an."
                   checked={form.showVersion}
                   onChange={(checked) =>
                     updateField("showVersion", checked)
@@ -564,7 +564,7 @@ export default function AdminSettingsPage() {
                   {form.showVersion && (
                     <>
                       {" "}
-                      · v{form.appVersion || "0.1.0"}
+                      Â· v{form.appVersion || "0.1.0"}
                     </>
                   )}
                 </p>
@@ -578,7 +578,7 @@ export default function AdminSettingsPage() {
             Standardansichten
           </h2>
           <p className="text-zinc-500 mt-1">
-            Globale Defaults für Listen, Tabellen und Filter.
+            Globale Defaults fÃ¼r Listen, Tabellen und Filter.
           </p>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
@@ -675,7 +675,7 @@ export default function AdminSettingsPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-8">
             <ToggleCard
-              title="Geschlossene Tickets standardmäßig ausblenden"
+              title="Geschlossene Tickets standardmÃ¤ÃŸig ausblenden"
               description="Neue Benutzer sehen geschlossene Tickets nicht automatisch."
               checked={form.hideClosedTicketsByDefault}
               onChange={(checked) =>
@@ -752,7 +752,7 @@ export default function AdminSettingsPage() {
 
             <ToggleCard
               title="Ticket-Vorlagen"
-              description="Aktiviert Vorlagen für wiederkehrende Tickets."
+              description="Aktiviert Vorlagen fÃ¼r wiederkehrende Tickets."
               checked={form.enableTicketTemplates}
               onChange={(checked) =>
                 updateField("enableTicketTemplates", checked)
@@ -760,7 +760,7 @@ export default function AdminSettingsPage() {
             />
 
             <ToggleCard
-              title="Aktivitätsprotokoll"
+              title="AktivitÃ¤tsprotokoll"
               description="Aktiviert das Systemprotokoll im Intranet."
               checked={form.enableActivityLog}
               onChange={(checked) =>
@@ -775,7 +775,7 @@ export default function AdminSettingsPage() {
             Benutzer
           </h2>
           <p className="text-zinc-500 mt-1">
-            Standardwerte für neue Benutzer.
+            Standardwerte fÃ¼r neue Benutzer.
           </p>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
@@ -816,10 +816,10 @@ export default function AdminSettingsPage() {
           <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
               <h2 className="text-2xl font-bold">
-                Persönliche Darstellung
+                PersÃ¶nliche Darstellung
               </h2>
               <p className="text-zinc-500 mt-1">
-                Theme, Akzentfarbe und kompakter Modus werden pro Benutzer in den persönlichen Einstellungen verwaltet.
+                Theme, Akzentfarbe und kompakter Modus werden pro Benutzer in den persÃ¶nlichen Einstellungen verwaltet.
               </p>
             </div>
 
@@ -827,7 +827,7 @@ export default function AdminSettingsPage() {
               href="/settings"
               className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow text-center"
             >
-              Persönliche Einstellungen öffnen
+              PersÃ¶nliche Einstellungen Ã¶ffnen
             </Link>
           </div>
         </section>
@@ -841,7 +841,7 @@ export default function AdminSettingsPage() {
             disabled={saving}
             className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
           >
-            Änderungen verwerfen
+            Ã„nderungen verwerfen
           </button>
 
           <button
@@ -850,7 +850,7 @@ export default function AdminSettingsPage() {
             disabled={saving || loading}
             className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
           >
-            Auf Standard zurücksetzen
+            Auf Standard zurÃ¼cksetzen
           </button>
 
           <button

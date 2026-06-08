@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -659,7 +659,7 @@ export default function TicketTemplatesPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswählen.");
+      alert("Bitte eine Kategorie auswÃ¤hlen.");
       return;
     }
 
@@ -727,11 +727,11 @@ export default function TicketTemplatesPage() {
     }
 
     if (!canDeleteTemplate) {
-      alert("Du hast keine Berechtigung, Vorlagen zu löschen.");
+      alert("Du hast keine Berechtigung, Vorlagen zu lÃ¶schen.");
       return;
     }
 
-    const confirmed = confirm(`Vorlage "${template.title}" wirklich löschen?`);
+    const confirmed = confirm(`Vorlage "${template.title}" wirklich lÃ¶schen?`);
 
     if (!confirmed) {
       return;
@@ -744,13 +744,13 @@ export default function TicketTemplatesPage() {
       saveTicketTemplateDeletedActivity(template);
       await ticketTemplateRepository.delete(template.id);
       await loadData();
-      setMessage("Vorlage wurde gelöscht.");
+      setMessage("Vorlage wurde gelÃ¶scht.");
     } catch (deleteError) {
       console.error(deleteError);
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Vorlage konnte nicht gelöscht werden.",
+          : "Vorlage konnte nicht gelÃ¶scht werden.",
       );
     }
   }
@@ -767,7 +767,7 @@ export default function TicketTemplatesPage() {
     }
 
     if (!template.category) {
-      alert("Die Vorlage hat keine gültige Kategorie.");
+      alert("Die Vorlage hat keine gÃ¼ltige Kategorie.");
       return;
     }
 
@@ -844,7 +844,7 @@ export default function TicketTemplatesPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              Zurück zu Tickets
+              ZurÃ¼ck zu Tickets
             </Link>
           }
         />
@@ -878,7 +878,7 @@ export default function TicketTemplatesPage() {
               {saving
                 ? "Speichert..."
                 : editingId
-                  ? "Änderungen speichern"
+                  ? "Ã„nderungen speichern"
                   : "Vorlage erstellen"}
             </button>
           </div>
@@ -912,7 +912,7 @@ export default function TicketTemplatesPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
               >
                 <option value="">
-                  Kategorie auswählen
+                  Kategorie auswÃ¤hlen
                 </option>
                 {categoryOptions.map((option) => (
                   <option
@@ -959,7 +959,7 @@ export default function TicketTemplatesPage() {
 
             <div>
               <label className="block mb-2 font-medium">
-                Priorität
+                PrioritÃ¤t
               </label>
               <select
                 value={priority}
@@ -1012,7 +1012,7 @@ export default function TicketTemplatesPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
-                  Allgemein
+                  Nicht zugeordnet
                 </option>
                 {selectableDepartments.map((item) => (
                   <option
@@ -1095,7 +1095,7 @@ export default function TicketTemplatesPage() {
               href="/tickets"
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
             >
-              Zurück zu Tickets
+              ZurÃ¼ck zu Tickets
             </Link>
 
             {canCreateTemplate && (
@@ -1143,7 +1143,7 @@ export default function TicketTemplatesPage() {
           label="Vorlagen gesamt"
           value={visibleTemplates.length}
           description="Alle sichtbaren Vorlagen"
-          icon="📋"
+          icon="ðŸ“‹"
           active={!statusFilter && !priorityFilter && !categoryFilter && !tagFilter}
           onClick={resetFilters}
         />
@@ -1151,7 +1151,7 @@ export default function TicketTemplatesPage() {
           label="Offen"
           value={openCount}
           description="Vorlagen mit Status offen"
-          icon="📌"
+          icon="ðŸ“Œ"
           tone="blue"
           active={statusFilter === "open"}
           onClick={() => setStatusFilter("open")}
@@ -1159,8 +1159,8 @@ export default function TicketTemplatesPage() {
         <StatCard
           label="Hoch/Dringend"
           value={highPriorityCount}
-          description="Priorität hoch oder dringend"
-          icon="⚡"
+          description="PrioritÃ¤t hoch oder dringend"
+          icon="âš¡"
           tone="orange"
           active={priorityFilter === "high" || priorityFilter === "urgent"}
           onClick={() => setPriorityFilter("high")}
@@ -1169,7 +1169,7 @@ export default function TicketTemplatesPage() {
           label="Gefiltert"
           value={filteredTemplates.length}
           description="Nach Suche und Filtern"
-          icon="🔎"
+          icon="ðŸ”Ž"
           tone="indigo"
         />
       </div>
@@ -1213,7 +1213,7 @@ export default function TicketTemplatesPage() {
               onClick={resetFilters}
               className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
             >
-              Zurücksetzen
+              ZurÃ¼cksetzen
             </button>
           </div>
         </div>
@@ -1287,7 +1287,7 @@ export default function TicketTemplatesPage() {
             className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
           >
             <option value="">
-              Alle Prioritäten
+              Alle PrioritÃ¤ten
             </option>
             {priorityOptions.map((option) => (
               <option
@@ -1418,7 +1418,7 @@ export default function TicketTemplatesPage() {
                       </p>
                       {template.assignedTo && (
                         <p>
-                          Zuständig: {template.assignedTo}
+                          ZustÃ¤ndig: {template.assignedTo}
                         </p>
                       )}
                     </div>
@@ -1451,7 +1451,7 @@ export default function TicketTemplatesPage() {
                         onClick={() => void handleDeleteTemplate(template)}
                         className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                       >
-                        Löschen
+                        LÃ¶schen
                       </button>
                     )}
                   </div>
@@ -1478,7 +1478,7 @@ export default function TicketTemplatesPage() {
                     Status
                   </th>
                   <th className="px-5 py-4 font-semibold">
-                    Priorität
+                    PrioritÃ¤t
                   </th>
                   <th className="px-5 py-4 font-semibold">
                     Organisation
@@ -1581,7 +1581,7 @@ export default function TicketTemplatesPage() {
                               onClick={() => void handleDeleteTemplate(template)}
                               className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-500 transition"
                             >
-                              Löschen
+                              LÃ¶schen
                             </button>
                           )}
                         </div>
