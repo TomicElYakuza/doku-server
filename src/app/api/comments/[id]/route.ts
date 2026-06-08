@@ -1,12 +1,8 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
+import { queryOne } from "../../../../lib/database/db";
 import {
-  queryOne,
-} from "../../../../lib/database/db";
-
-import {
+  getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../lib/serverPermissions";
@@ -23,84 +19,78 @@ type CommentEntityRow = {
   entity_id: string;
 };
 
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
     return 403;
   }
 
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }
 
-function getDeletePermissionsForEntity(
-  entityType?: string
-) {
+function getDeletePermissionsForEntity(entityType?: string) {
   if (entityType === "ticket") {
     return [
       "tickets.edit",
+      "tickets.close",
       "tickets.delete",
-      "tickets.manage",
+      "settings.manage",
     ];
   }
 
   if (entityType === "wiki") {
-    return [
-      "wiki.edit",
-      "wiki.delete",
-      "wiki.manage",
-    ];
+    return ["wiki.edit", "wiki.delete", "settings.manage"];
   }
 
   if (entityType === "news") {
-    return [
-      "news.edit",
-      "news.delete",
-      "news.manage",
-    ];
+    return ["news.edit", "news.delete", "settings.manage"];
   }
 
-  return [
-    "tickets.manage",
-    "wiki.manage",
-    "news.manage",
-  ];
+  return ["settings.manage"];
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const {
-      id,
-    } =
-      await context.params;
+    const currentUser = await getCurrentServerUser();
 
-    const current =
-      await queryOne<CommentEntityRow>(
-        `
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    const { id } = await context.params;
+    const decodedId = normalizeText(decodeURIComponent(id));
+
+    if (!decodedId) {
+      return NextResponse.json(
+        {
+          message: "Kommentar-ID ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const current = await queryOne<CommentEntityRow>(
+      `
         SELECT
           id,
           entity_type,
@@ -108,70 +98,62 @@ export async function DELETE(
         FROM comments
         WHERE id = $1
         LIMIT 1
-        `,
-        [
-          id,
-        ]
-      );
+      `,
+      [decodedId],
+    );
 
     if (!current) {
       return NextResponse.json(
         {
-          message:
-            "Kommentar nicht gefunden.",
+          message: "Kommentar nicht gefunden.",
         },
         {
-          status:
-            404,
-        }
+          status: 404,
+        },
       );
     }
 
     await requireAnyServerPermission(
-      getDeletePermissionsForEntity(
-        current.entity_type
-      )
+      getDeletePermissionsForEntity(current.entity_type),
     );
 
-    await queryOne(
+    const deleted = await queryOne<{ id: string }>(
       `
-      DELETE FROM comments
-      WHERE id = $1
-      RETURNING id
+        DELETE FROM comments
+        WHERE id = $1
+        RETURNING id
       `,
-      [
-        id,
-      ]
+      [decodedId],
     );
+
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          message: "Kommentar nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
 
     return NextResponse.json({
-      ok:
-        true,
+      ok: true,
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Kommentar konnte nicht gelöscht werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Kommentar konnte nicht gelöscht werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

@@ -150,7 +150,7 @@ export default function WikiDetailPage() {
   const canManageWiki =
     isAdmin ||
     hasAnyPermission([
-      "wiki.manage",
+      "wiki.edit",
     ]);
 
   const canViewWiki =

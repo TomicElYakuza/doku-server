@@ -1,22 +1,15 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  query,
-  queryOne,
-} from "../../../lib/database/db";
+import { query, queryOne } from "../../../lib/database/db";
 import {
   mapTicketRow,
+  type TicketRow,
 } from "../../../lib/database/mappers/ticketMapper";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
-import type {
-  TicketRow,
-} from "../../../lib/database/mappers/ticketMapper";
 
 type CreateTicketBody = {
   title?: string;
@@ -41,66 +34,32 @@ const allowedStatusValues = [
   "closed",
 ];
 
-const allowedPriorityValues = [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-];
+const allowedPriorityValues = ["low", "medium", "high", "urgent"];
 
-function getErrorStatus(error: unknown) {
-  if (isPermissionError(error)) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
-  if (isPermissionError(error)) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error
-    ? error.message
-    : fallback;
-}
-
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-function normalizeNullableId(value?: string) {
+function normalizeNullableId(value?: string | null) {
   const normalized = normalizeText(value);
 
   return normalized || null;
 }
 
-function normalizeStatus(value?: string) {
+function normalizeStatus(value?: string | null) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return "open";
-  }
-
-  if (!allowedStatusValues.includes(normalized)) {
+  if (!normalized || !allowedStatusValues.includes(normalized)) {
     return "open";
   }
 
   return normalized;
 }
 
-function normalizePriority(value?: string) {
+function normalizePriority(value?: string | null) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return "medium";
-  }
-
-  if (!allowedPriorityValues.includes(normalized)) {
+  if (!normalized || !allowedPriorityValues.includes(normalized)) {
     return "medium";
   }
 
@@ -113,26 +72,28 @@ function normalizeTags(tags?: string[]) {
   }
 
   return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
+    new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)),
   );
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
 }
 
 export async function GET(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "tickets.view",
-      "tickets.manage",
-      "tickets.create",
-      "tickets.edit",
-      "tickets.assign",
-      "tickets.close",
-      "tickets.delete",
-    ]);
-
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -146,14 +107,24 @@ export async function GET(request: Request) {
       );
     }
 
-    const url = new URL(request.url);
+    await requireAnyServerPermission([
+      "tickets.view",
+      "tickets.create",
+      "tickets.edit",
+      "tickets.assign",
+      "tickets.close",
+      "tickets.delete",
+      "admin.view",
+    ]);
 
-    const status = url.searchParams.get("status");
-    const priority = url.searchParams.get("priority");
-    const category = url.searchParams.get("category");
-    const tag = url.searchParams.get("tag");
-    const companyId = url.searchParams.get("companyId");
-    const departmentId = url.searchParams.get("departmentId");
+    const url = new URL(request.url);
+    const status = normalizeText(url.searchParams.get("status"));
+    const priority = normalizeText(url.searchParams.get("priority"));
+    const category = normalizeText(url.searchParams.get("category"));
+    const tag = normalizeText(url.searchParams.get("tag"));
+    const companyId = normalizeText(url.searchParams.get("companyId"));
+    const departmentId = normalizeText(url.searchParams.get("departmentId"));
+    const hideClosed = url.searchParams.get("hideClosed");
 
     const params: unknown[] = [];
     const whereParts: string[] = [];
@@ -188,6 +159,10 @@ export async function GET(request: Request) {
       whereParts.push(`department_id = $${params.length}`);
     }
 
+    if (hideClosed === "true") {
+      whereParts.push(`status <> 'closed'`);
+    }
+
     if (currentUser.role !== "admin") {
       if (currentUser.departmentId) {
         params.push(currentUser.departmentId);
@@ -201,9 +176,7 @@ export async function GET(request: Request) {
     }
 
     const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
     const rows = await query<TicketRow>(
       `
@@ -236,14 +209,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        message: getErrorMessage(
-          error,
-          "Tickets konnten nicht geladen werden.",
-        ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(error, "Tickets konnten nicht geladen werden."),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -254,11 +221,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "tickets.create",
-      "tickets.manage",
-    ]);
-
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -271,6 +233,8 @@ export async function POST(request: Request) {
         },
       );
     }
+
+    await requireAnyServerPermission(["tickets.create", "settings.manage"]);
 
     const body = (await request.json()) as CreateTicketBody;
 
@@ -296,7 +260,7 @@ export async function POST(request: Request) {
     if (!category) {
       return NextResponse.json(
         {
-          message: "Kategorie ist erforderlich.",
+          message: "Ticket-Kategorie ist erforderlich.",
         },
         {
           status: 400,
@@ -322,10 +286,7 @@ export async function POST(request: Request) {
       ? normalizeText(body.department)
       : currentUser.department || "";
 
-    const createdBy =
-      normalizeText(body.createdBy) ||
-      currentUser.name ||
-      "System";
+    const createdBy = normalizeText(body.createdBy) || currentUser.name || "System";
 
     const row = await queryOne<TicketRow>(
       `
@@ -344,18 +305,9 @@ export async function POST(request: Request) {
           tags
         )
         VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9,
-          $10,
-          $11,
-          $12
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11, $12
         )
         RETURNING
           id,
@@ -401,25 +353,16 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
-      mapTicketRow(row),
-      {
-        status: 201,
-      },
-    );
+    return NextResponse.json(mapTicketRow(row), {
+      status: 201,
+    });
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: getErrorMessage(
-          error,
-          "Ticket konnte nicht erstellt werden.",
-        ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(error, "Ticket konnte nicht erstellt werden."),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

@@ -44,7 +44,11 @@ export type TicketTemplateRow = {
   updated_at: string;
 };
 
-function normalizeText(value: unknown) {
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function normalizeText(value: string | null) {
   return String(value || "").trim();
 }
 
@@ -53,17 +57,15 @@ function normalizeTags(tags: string[] | null) {
     return [];
   }
 
-  return tags
-    .map((tag) => String(tag || "").trim())
-    .filter(Boolean);
+  return Array.from(
+    new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)),
+  );
 }
 
-export function mapTicketRow(
-  row: TicketRow,
-): Ticket {
+export function mapTicketRow(row: TicketRow): Ticket {
   return {
     id: String(row.id),
-    title: normalizeText(row.title),
+    title: row.title,
     description: normalizeText(row.description),
     status: row.status as TicketStatus,
     priority: row.priority as TicketPriority,
@@ -75,17 +77,15 @@ export function mapTicketRow(
     assignedTo: normalizeText(row.assigned_to),
     createdBy: normalizeText(row.created_by),
     tags: normalizeTags(row.tags),
-    createdAt: new Date(row.created_at).toLocaleString(),
-    updatedAt: new Date(row.updated_at).toLocaleString(),
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
   };
 }
 
-export function mapTicketTemplateRow(
-  row: TicketTemplateRow,
-): TicketTemplate {
+export function mapTicketTemplateRow(row: TicketTemplateRow): TicketTemplate {
   return {
-    id: normalizeText(row.id),
-    title: normalizeText(row.title),
+    id: row.id,
+    title: row.title,
     description: normalizeText(row.description),
     status: row.status as TicketTemplateStatus,
     priority: row.priority as TicketTemplatePriority,
@@ -96,7 +96,7 @@ export function mapTicketTemplateRow(
     department: normalizeText(row.department),
     assignedTo: normalizeText(row.assigned_to),
     tags: normalizeTags(row.tags),
-    createdAt: new Date(row.created_at).toLocaleString(),
-    updatedAt: new Date(row.updated_at).toLocaleString(),
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
   };
 }

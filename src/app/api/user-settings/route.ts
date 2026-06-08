@@ -1,11 +1,9 @@
-﻿import {
-  NextResponse,
-} from "next/server";
-import {
-  queryOne,
-} from "../../../lib/database/db";
+﻿import { NextResponse } from "next/server";
+
+import { query, queryOne } from "../../../lib/database/db";
 import {
   getCurrentServerUser,
+  isPermissionError,
 } from "../../../lib/serverPermissions";
 
 type UserSettingsRow = {
@@ -21,6 +19,10 @@ type UserSettingsUpdateBody = {
   accentColor?: string;
   compactMode?: boolean;
 };
+
+const DEFAULT_THEME = "modern";
+const DEFAULT_ACCENT_COLOR = "velunis";
+const DEFAULT_COMPACT_MODE = false;
 
 function mapUserSettingsRow(row: UserSettingsRow) {
   return {
@@ -45,7 +47,7 @@ function normalizeTheme(value?: string) {
     return "system";
   }
 
-  return "modern";
+  return DEFAULT_THEME;
 }
 
 function normalizeAccentColor(value?: string) {
@@ -58,16 +60,90 @@ function normalizeAccentColor(value?: string) {
     value === "purple" ||
     value === "indigo" ||
     value === "emerald" ||
-    value === "amber" ||
-    value === "zinc"
+    value === "amber"
   ) {
     return value;
   }
 
-  return "velunis";
+  return DEFAULT_ACCENT_COLOR;
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function ensureUserSettingsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id UUID PRIMARY KEY REFERENCES admin_users(id) ON DELETE CASCADE,
+      theme TEXT NOT NULL DEFAULT 'modern',
+      accent_color TEXT NOT NULL DEFAULT 'velunis',
+      compact_mode BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'modern'
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT 'velunis'
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS compact_mode BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ALTER COLUMN theme SET DEFAULT 'modern'
+  `);
+
+  await query(`
+    ALTER TABLE user_settings
+    ALTER COLUMN accent_color SET DEFAULT 'velunis'
+  `);
+
+  await query(`
+    UPDATE user_settings
+    SET
+      theme = CASE
+        WHEN theme IN ('modern', 'light', 'dark', 'system') THEN theme
+        ELSE 'modern'
+      END,
+      accent_color = CASE
+        WHEN accent_color IN ('velunis', 'blue', 'green', 'red', 'orange', 'purple', 'indigo', 'emerald', 'amber') THEN accent_color
+        ELSE 'velunis'
+      END,
+      compact_mode = COALESCE(compact_mode, FALSE),
+      updated_at = NOW()
+  `);
 }
 
 async function ensureUserSettings(userId: string) {
+  await ensureUserSettingsTable();
+
   return queryOne<UserSettingsRow>(
     `
       INSERT INTO user_settings (
@@ -76,14 +152,17 @@ async function ensureUserSettings(userId: string) {
         accent_color,
         compact_mode
       )
-      VALUES (
-        $1,
-        'modern',
-        'velunis',
-        false
-      )
+      VALUES ($1, $2, $3, $4)
       ON CONFLICT (user_id) DO UPDATE SET
-        user_id = EXCLUDED.user_id
+        theme = CASE
+          WHEN user_settings.theme IN ('modern', 'light', 'dark', 'system') THEN user_settings.theme
+          ELSE EXCLUDED.theme
+        END,
+        accent_color = CASE
+          WHEN user_settings.accent_color IN ('velunis', 'blue', 'green', 'red', 'orange', 'purple', 'indigo', 'emerald', 'amber') THEN user_settings.accent_color
+          ELSE EXCLUDED.accent_color
+        END,
+        compact_mode = COALESCE(user_settings.compact_mode, EXCLUDED.compact_mode)
       RETURNING
         user_id,
         theme,
@@ -93,6 +172,9 @@ async function ensureUserSettings(userId: string) {
     `,
     [
       userId,
+      DEFAULT_THEME,
+      DEFAULT_ACCENT_COLOR,
+      DEFAULT_COMPACT_MODE,
     ],
   );
 }
@@ -131,14 +213,14 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        message: "Benutzereinstellungen konnten nicht geladen werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Benutzereinstellungen konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
@@ -193,10 +275,10 @@ export async function PATCH(request: Request) {
       [
         body.theme !== undefined
           ? normalizeTheme(body.theme)
-          : current.theme,
+          : normalizeTheme(current.theme),
         body.accentColor !== undefined
           ? normalizeAccentColor(body.accentColor)
-          : current.accent_color,
+          : normalizeAccentColor(current.accent_color),
         typeof body.compactMode === "boolean"
           ? body.compactMode
           : current.compact_mode,
@@ -221,14 +303,14 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Benutzereinstellungen konnten nicht gespeichert werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Benutzereinstellungen konnten nicht gespeichert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }

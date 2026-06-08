@@ -1,202 +1,113 @@
 ﻿import { NextResponse } from "next/server";
-import { query, queryOne } from "../../../lib/database/db";
-import { createSlug } from "../../../lib/database/slug";
+
 import {
-  mapTaxonomyItemRow,
-  type TaxonomyItemRow,
-} from "../../../lib/database/mappers/taxonomyMapper";
+  createTaxonomyItem,
+  listTaxonomyItems,
+} from "../../../lib/database/taxonomyStore";
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+import type { TaxonomyCreateInput } from "../../../types/taxonomy";
 
-type CreateTaxonomyBody = {
-  type?: string;
-  target?: string;
-  name?: string;
-  slug?: string;
-  description?: string;
-  parentId?: string;
-  sortOrder?: number;
-  status?: string;
-};
-
-function normalizeType(value?: string) {
-  if (value === "category" || value === "tag") {
-    return value;
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
   }
 
-  return "category";
-}
-
-function normalizeTarget(value?: string) {
   if (
-    value === "ticket" ||
-    value === "wiki" ||
-    value === "news" ||
-    value === "global"
+    error instanceof Error &&
+    (error.message === "Name ist erforderlich." ||
+      error.message === "Parent-Eintrag wurde nicht gefunden." ||
+      error.message ===
+        "Parent-Eintrag muss denselben Typ und dasselbe Ziel haben.")
   ) {
-    return value;
+    return 400;
   }
 
-  return "ticket";
+  return 500;
 }
 
-function normalizeStatus(value?: string) {
-  if (value === "active" || value === "inactive" || value === "archived") {
-    return value;
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
   }
 
-  return "active";
+  return error instanceof Error ? error.message : fallback;
 }
 
 export async function GET(request: Request) {
   try {
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const url = new URL(request.url);
 
-    const type = url.searchParams.get("type");
-    const target = url.searchParams.get("target");
-    const status = url.searchParams.get("status");
-    const parentId = url.searchParams.get("parentId");
+    const items = await listTaxonomyItems({
+      type: url.searchParams.get("type"),
+      target: url.searchParams.get("target"),
+      status: url.searchParams.get("status"),
+      parentId: url.searchParams.get("parentId"),
+    });
 
-    const params: unknown[] = [];
-    const whereParts: string[] = [];
-
-    if (type) {
-      params.push(type);
-      whereParts.push(`type = $${params.length}`);
-    }
-
-    if (target) {
-      params.push(target);
-      whereParts.push(`target = $${params.length}`);
-    }
-
-    if (status) {
-      params.push(status);
-      whereParts.push(`status = $${params.length}`);
-    }
-
-    if (parentId) {
-      params.push(parentId);
-      whereParts.push(`parent_id = $${params.length}`);
-    }
-
-    const whereSql =
-      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
-
-    const rows = await query<TaxonomyItemRow>(
-      `
-        SELECT
-          id,
-          type,
-          target,
-          name,
-          slug,
-          description,
-          parent_id,
-          sort_order,
-          status,
-          created_at,
-          updated_at
-        FROM taxonomy_items
-        ${whereSql}
-        ORDER BY target ASC, type ASC, sort_order ASC, name ASC
-      `,
-      params,
-    );
-
-    return NextResponse.json(rows.map(mapTaxonomyItemRow));
+    return NextResponse.json(items);
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: "Taxonomie konnte nicht geladen werden.",
+        message: getErrorMessage(
+          error,
+          "Taxonomie konnte nicht geladen werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as CreateTaxonomyBody;
+    await requireAnyServerPermission([
+      "taxonomy.manage",
+      "settings.manage",
+      "admin.view",
+    ]);
 
-    const name = body.name?.trim();
+    const body = (await request.json()) as TaxonomyCreateInput;
+    const item = await createTaxonomyItem(body);
 
-    if (!name) {
-      return NextResponse.json(
-        { message: "Name ist erforderlich." },
-        { status: 400 },
-      );
-    }
-
-    const type = normalizeType(body.type);
-    const target = normalizeTarget(body.target);
-    const slug = body.slug?.trim() ? createSlug(body.slug) : createSlug(name);
-
-    const row = await queryOne<TaxonomyItemRow>(
-      `
-        INSERT INTO taxonomy_items (
-          type,
-          target,
-          name,
-          slug,
-          description,
-          parent_id,
-          sort_order,
-          status
-        )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          NULLIF($6, ''),
-          $7,
-          $8
-        )
-        RETURNING
-          id,
-          type,
-          target,
-          name,
-          slug,
-          description,
-          parent_id,
-          sort_order,
-          status,
-          created_at,
-          updated_at
-      `,
-      [
-        type,
-        target,
-        name,
-        slug,
-        body.description?.trim() || "",
-        body.parentId || "",
-        Number(body.sortOrder || 0),
-        normalizeStatus(body.status),
-      ],
-    );
-
-    if (!row) {
-      return NextResponse.json(
-        { message: "Taxonomie-Eintrag konnte nicht erstellt werden." },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(mapTaxonomyItemRow(row), { status: 201 });
+    return NextResponse.json(item, {
+      status: 201,
+    });
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: "Taxonomie-Eintrag konnte nicht erstellt werden.",
+        message: getErrorMessage(
+          error,
+          "Taxonomie-Eintrag konnte nicht erstellt werden.",
+        ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }

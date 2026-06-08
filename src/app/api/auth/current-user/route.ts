@@ -1,56 +1,61 @@
-﻿import {
-  cookies,
-} from "next/headers";
+﻿import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-import {
-  NextResponse,
-} from "next/server";
+import { queryOne } from "../../../../lib/database/db";
+import { mapAdminUserRow } from "../../../../lib/database/mappers/adminUserMapper";
+import type { AdminUserRow } from "../../../../lib/database/mappers/adminUserMapper";
 
-import {
-  queryOne,
-} from "../../../../lib/database/db";
+const AUTH_COOKIE_NAME = "dms_user_email";
 
-import {
-  mapAdminUserRow,
-} from "../../../../lib/database/mappers/adminUserMapper";
+type CurrentUserRow = AdminUserRow & {
+  username: string | null;
+  password_hash: string | null;
+  password_must_change: boolean;
+};
 
-import type {
-  AdminUserRow,
-} from "../../../../lib/database/mappers/adminUserMapper";
+function clearAuthCookie(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  cookieStore.set(AUTH_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
 
-const AUTH_COOKIE_NAME =
-  "dms_user_email";
+function mapCurrentUser(row: CurrentUserRow) {
+  const adminUser = mapAdminUserRow(row);
 
-type CurrentUserRow =
-  AdminUserRow & {
-    password_must_change: boolean;
+  return {
+    id: adminUser.id,
+    name: adminUser.name,
+    email: adminUser.email,
+    role: adminUser.role,
+    status: adminUser.status,
+    companyId: adminUser.companyId,
+    departmentId: adminUser.departmentId,
+    company: adminUser.company,
+    department: adminUser.department,
+    username: row.username || "",
+    passwordMustChange: Boolean(row.password_must_change),
+    hasPassword: Boolean(row.password_hash),
   };
+}
 
 export async function GET() {
   try {
-    const cookieStore =
-      await cookies();
-
-    const rawEmail =
-      cookieStore.get(
-        AUTH_COOKIE_NAME
-      )?.value;
+    const cookieStore = await cookies();
+    const rawEmail = cookieStore.get(AUTH_COOKIE_NAME)?.value;
 
     if (!rawEmail) {
       return NextResponse.json({
-        user:
-          null,
+        user: null,
       });
     }
 
-    const email =
-      decodeURIComponent(
-        rawEmail
-      );
+    const email = decodeURIComponent(rawEmail);
 
-    const row =
-      await queryOne<CurrentUserRow>(
-        `
+    const row = await queryOne<CurrentUserRow>(
+      `
         SELECT
           id,
           name,
@@ -69,81 +74,34 @@ export async function GET() {
           password_must_change
         FROM admin_users
         WHERE LOWER(email) = LOWER($1)
-        AND status = 'active'
+          AND status = 'active'
         LIMIT 1
-        `,
-        [
-          email,
-        ]
-      );
+      `,
+      [email],
+    );
 
     if (!row) {
-      cookieStore.delete(
-        AUTH_COOKIE_NAME
-      );
+      clearAuthCookie(cookieStore);
 
       return NextResponse.json({
-        user:
-          null,
+        user: null,
       });
     }
 
-    const adminUser =
-      mapAdminUserRow(
-        row
-      );
-
     return NextResponse.json({
-      user: {
-        id:
-          adminUser.id,
-
-        name:
-          adminUser.name,
-
-        email:
-          adminUser.email,
-
-        role:
-          adminUser.role,
-
-        companyId:
-          adminUser.companyId,
-
-        departmentId:
-          adminUser.departmentId,
-
-        company:
-          adminUser.company,
-
-        department:
-          adminUser.department,
-
-        passwordMustChange:
-          Boolean(
-            row.password_must_change
-          ),
-      },
+      user: mapCurrentUser(row),
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          "Aktueller Benutzer konnte nicht geladen werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: "Aktueller Benutzer konnte nicht geladen werden.",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          500,
-      }
+        status: 500,
+      },
     );
   }
 }

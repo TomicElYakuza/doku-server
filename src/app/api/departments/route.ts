@@ -1,29 +1,14 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  query,
-  queryOne,
-} from "../../../lib/database/db";
-
-import {
-  createSlug,
-} from "../../../lib/database/slug";
-
-import {
-  mapDepartmentRow,
-} from "../../../lib/database/mappers/companyMapper";
-
+import { query, queryOne } from "../../../lib/database/db";
+import { mapDepartmentRow } from "../../../lib/database/mappers/companyMapper";
+import { createSlug } from "../../../lib/database/slug";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
-
-import type {
-  DepartmentRow,
-} from "../../../lib/database/mappers/companyMapper";
+import type { DepartmentRow } from "../../../lib/database/mappers/companyMapper";
 
 type CreateDepartmentBody = {
   companyId?: string;
@@ -33,130 +18,94 @@ type CreateDepartmentBody = {
   status?: string;
 };
 
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
+}
+
+function normalizeStatus(value?: string | null) {
+  const status = normalizeText(value);
+
+  if (status === "inactive") {
+    return "inactive";
+  }
+
+  if (status === "archived") {
+    return "archived";
+  }
+
+  return "active";
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
     return 403;
   }
 
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }
 
-export async function GET(
-  request: Request
-) {
+export async function GET(request: Request) {
   try {
-    const currentUser =
-      await getCurrentServerUser();
+    const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nicht angemeldet.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            401,
-        }
+          status: 401,
+        },
       );
     }
 
-    const url =
-      new URL(
-        request.url
-      );
+    await requireAnyServerPermission([
+      "organization.view",
+      "organization.manage",
+      "departments.manage",
+      "admin.view",
+      "users.view",
+    ]);
 
-    const companyId =
-      url.searchParams.get(
-        "companyId"
-      );
+    const url = new URL(request.url);
+    const companyId = normalizeText(url.searchParams.get("companyId"));
+    const onlyActive = url.searchParams.get("active") === "true";
 
-    const onlyActive =
-      url.searchParams.get(
-        "active"
-      ) === "true";
-
-    const params: unknown[] =
-      [];
-
-    const whereParts: string[] =
-      [];
+    const params: unknown[] = [];
+    const whereParts: string[] = [];
 
     if (companyId) {
-      params.push(
-        companyId
-      );
-
-      whereParts.push(
-        `company_id = $${params.length}`
-      );
+      params.push(companyId);
+      whereParts.push(`company_id = $${params.length}`);
     }
 
     if (onlyActive) {
-      params.push(
-        "active"
-      );
-
-      whereParts.push(
-        `status = $${params.length}`
-      );
+      params.push("active");
+      whereParts.push(`status = $${params.length}`);
     }
 
     if (currentUser.role !== "admin") {
-      if (currentUser.departmentId) {
-        params.push(
-          currentUser.departmentId
-        );
-
-        whereParts.push(
-          `id = $${params.length}`
-        );
-      } else if (currentUser.companyId) {
-        params.push(
-          currentUser.companyId
-        );
-
-        whereParts.push(
-          `company_id = $${params.length}`
-        );
+      if (currentUser.companyId) {
+        params.push(currentUser.companyId);
+        whereParts.push(`company_id = $${params.length}`);
       } else {
-        whereParts.push(
-          "1 = 0"
-        );
+        whereParts.push("1 = 0");
       }
     }
 
     const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    const rows =
-      await query<DepartmentRow>(
-        `
+    const rows = await query<DepartmentRow>(
+      `
         SELECT
           id,
           company_id,
@@ -169,115 +118,91 @@ export async function GET(
         FROM departments
         ${whereSql}
         ORDER BY name ASC
-        `,
-        params
-      );
+      `,
+      params,
+    );
 
-    return NextResponse.json(
-      rows.map(
-        mapDepartmentRow
-      )
-    );
+    return NextResponse.json(rows.map(mapDepartmentRow));
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Abteilungen konnten nicht geladen werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Abteilungen konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "organization.manage",
-      "departments.manage",
-    ]);
+    const currentUser = await getCurrentServerUser();
 
-    const currentUser =
-      await getCurrentServerUser();
-
-    if (
-      !currentUser ||
-      currentUser.role !== "admin"
-    ) {
+    if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nur Administratoren dürfen Abteilungen erstellen.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            403,
-        }
+          status: 401,
+        },
       );
     }
 
-    const body =
-      await request.json() as CreateDepartmentBody;
+    await requireAnyServerPermission([
+      "organization.manage",
+      "departments.manage",
+      "settings.manage",
+    ]);
 
-    const name =
-      body.name?.trim();
+    if (currentUser.role !== "admin") {
+      return NextResponse.json(
+        {
+          message: "Nur Administratoren dürfen Abteilungen erstellen.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    const body = (await request.json()) as CreateDepartmentBody;
+    const name = normalizeText(body.name);
+    const companyId = normalizeText(body.companyId);
 
     if (!name) {
       return NextResponse.json(
         {
-          message:
-            "Name ist erforderlich.",
+          message: "Name ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    if (!body.companyId) {
+    if (!companyId) {
       return NextResponse.json(
         {
-          message:
-            "Firma ist erforderlich.",
+          message: "Firma ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    const slug =
-      body.slug?.trim()
-        ? createSlug(
-            body.slug
-          )
-        : createSlug(
-            name
-          );
+    const slug = body.slug ? createSlug(body.slug) : createSlug(name);
 
-    const row =
-      await queryOne<DepartmentRow>(
-        `
+    const row = await queryOne<DepartmentRow>(
+      `
         INSERT INTO departments (
           company_id,
           name,
@@ -285,13 +210,7 @@ export async function POST(
           description,
           status
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5
-        )
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING
           id,
           company_id,
@@ -301,64 +220,44 @@ export async function POST(
           status,
           created_at,
           updated_at
-        `,
-        [
-          body.companyId,
-          name,
-          slug,
-          body.description?.trim() ||
-            "",
-          body.status ||
-            "active",
-        ]
-      );
+      `,
+      [
+        companyId,
+        name,
+        slug,
+        normalizeText(body.description),
+        normalizeStatus(body.status),
+      ],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Abteilung konnte nicht erstellt werden.",
+          message: "Abteilung konnte nicht erstellt werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
-    return NextResponse.json(
-      mapDepartmentRow(
-        row
-      ),
-      {
-        status:
-          201,
-      }
-    );
+    return NextResponse.json(mapDepartmentRow(row), {
+      status: 201,
+    });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Abteilung konnte nicht erstellt werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Abteilung konnte nicht erstellt werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

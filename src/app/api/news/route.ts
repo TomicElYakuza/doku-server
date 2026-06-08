@@ -1,9 +1,13 @@
 ﻿import { NextResponse } from "next/server";
+
 import { query, queryOne } from "../../../lib/database/db";
+import { mapNewsRow } from "../../../lib/database/mappers/newsMapper";
 import {
-  mapNewsRow,
-  type NewsRow,
-} from "../../../lib/database/mappers/newsMapper";
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../lib/serverPermissions";
+import type { NewsRow } from "../../../lib/database/mappers/newsMapper";
 
 type CreateNewsPostBody = {
   id?: string;
@@ -15,7 +19,7 @@ type CreateNewsPostBody = {
   pinned?: boolean;
 };
 
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
@@ -33,10 +37,46 @@ function createNewsId(title: string) {
   return `${slug || "news"}-${Date.now()}`;
 }
 
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url);
+    const currentUser = await getCurrentServerUser();
 
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission([
+      "news.view",
+      "news.create",
+      "news.edit",
+      "news.delete",
+      "admin.view",
+    ]);
+
+    const url = new URL(request.url);
     const category = url.searchParams.get("category");
     const pinned = url.searchParams.get("pinned");
 
@@ -81,40 +121,68 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        message: "News konnten nicht geladen werden.",
+        message: getErrorMessage(error, "News konnten nicht geladen werden."),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission([
+      "news.create",
+      "settings.manage",
+    ]);
+
     const body = (await request.json()) as CreateNewsPostBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
     const description = normalizeText(body.description);
     const content = String(body.content || "");
-    const author = normalizeText(body.author) || "System";
+    const author = normalizeText(body.author) || currentUser.name || "System";
     const pinned = Boolean(body.pinned);
 
     if (!title) {
       return NextResponse.json(
-        { message: "Titel ist erforderlich." },
-        { status: 400 },
+        {
+          message: "Titel ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
       );
     }
 
     if (!category) {
       return NextResponse.json(
-        { message: "Kategorie ist erforderlich." },
-        { status: 400 },
+        {
+          message: "Kategorie ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
       );
     }
 
-    const id = body.id?.trim() || createNewsId(title);
+    const id = normalizeText(body.id) || createNewsId(title);
 
     const row = await queryOne<NewsRow>(
       `
@@ -127,15 +195,7 @@ export async function POST(request: Request) {
           author,
           pinned
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7
-        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING
           id,
           title,
@@ -147,26 +207,42 @@ export async function POST(request: Request) {
           created_at,
           updated_at
       `,
-      [id, title, description, content, category, author, pinned],
+      [
+        id,
+        title,
+        description,
+        content,
+        category,
+        author,
+        pinned,
+      ],
     );
 
     if (!row) {
       return NextResponse.json(
-        { message: "News konnte nicht erstellt werden." },
-        { status: 500 },
+        {
+          message: "News konnte nicht erstellt werden.",
+        },
+        {
+          status: 500,
+        },
       );
     }
 
-    return NextResponse.json(mapNewsRow(row), { status: 201 });
+    return NextResponse.json(mapNewsRow(row), {
+      status: 201,
+    });
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: "News konnte nicht erstellt werden.",
+        message: getErrorMessage(error, "News konnte nicht erstellt werden."),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }

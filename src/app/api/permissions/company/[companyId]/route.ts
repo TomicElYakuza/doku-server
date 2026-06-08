@@ -1,11 +1,9 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
 import {
-  query,
-} from "../../../../../lib/database/db";
-
+  listCompanyPermissionKeys,
+  saveCompanyPermissionKeys,
+} from "../../../../../lib/database/permissionStore";
 import {
   isPermissionError,
   requireAnyServerPermission,
@@ -21,183 +19,85 @@ type SaveCompanyPermissionsBody = {
   permissionKeys?: string[];
 };
 
-type CompanyPermissionRow = {
-  permission_key: string;
-};
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
 
-function createPermissionId(
-  companyId: string,
-  permissionKey: string
-) {
-  return [
-    "company",
-    companyId,
-    permissionKey,
-  ]
-    .join("_")
-    .replace(
-      /[^a-zA-Z0-9_.-]/g,
-      "_"
-    );
+  return 500;
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext
-) {
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "admin.view",
     ]);
 
-    const {
-      companyId,
-    } =
-      await context.params;
-
-    const rows =
-      await query<CompanyPermissionRow>(
-        `
-        SELECT
-          permission_key
-        FROM company_permissions
-        WHERE company_id = $1
-        ORDER BY permission_key ASC
-        `,
-        [
-          companyId,
-        ]
-      );
-
-    return NextResponse.json(
-      rows.map(
-        (row) =>
-          row.permission_key
-      )
+    const { companyId } = await context.params;
+    const permissionKeys = await listCompanyPermissionKeys(
+      decodeURIComponent(companyId),
     );
+
+    return NextResponse.json(permissionKeys);
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          isPermissionError(
-            error
-          )
-            ? "Keine Berechtigung."
-            : "Firmenberechtigungen konnten nicht geladen werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Firmenberechtigungen konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          isPermissionError(
-            error
-          )
-            ? 403
-            : 500,
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function PUT(
-  request: Request,
-  context: RouteContext
-) {
+export async function PUT(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission([
-      "users.manage_permissions",
-    ]);
+    await requireAnyServerPermission(["users.manage_permissions"]);
 
-    const {
-      companyId,
-    } =
-      await context.params;
+    const { companyId } = await context.params;
+    const body = (await request.json()) as SaveCompanyPermissionsBody;
+    const permissionKeys = Array.isArray(body.permissionKeys)
+      ? body.permissionKeys
+      : [];
 
-    const body =
-      await request.json() as SaveCompanyPermissionsBody;
-
-    const permissionKeys =
-      Array.isArray(
-        body.permissionKeys
-      )
-        ? body.permissionKeys
-        : [];
-
-    await query(
-      `
-      DELETE FROM company_permissions
-      WHERE company_id = $1
-      `,
-      [
-        companyId,
-      ]
+    await saveCompanyPermissionKeys(
+      decodeURIComponent(companyId),
+      permissionKeys,
     );
-
-    for (const permissionKey of permissionKeys) {
-      await query(
-        `
-        INSERT INTO company_permissions (
-          id,
-          company_id,
-          permission_key
-        )
-        VALUES (
-          $1,
-          $2,
-          $3
-        )
-        ON CONFLICT (company_id, permission_key)
-        DO NOTHING
-        `,
-        [
-          createPermissionId(
-            companyId,
-            permissionKey
-          ),
-          companyId,
-          permissionKey,
-        ]
-      );
-    }
 
     return NextResponse.json({
-      ok:
-        true,
+      ok: true,
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          isPermissionError(
-            error
-          )
-            ? "Keine Berechtigung."
-            : "Firmenberechtigungen konnten nicht gespeichert werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Firmenberechtigungen konnten nicht gespeichert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          isPermissionError(
-            error
-          )
-            ? 403
-            : 500,
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

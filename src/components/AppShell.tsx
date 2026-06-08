@@ -73,7 +73,7 @@ const navigationItems: NavigationItem[] = [
     category: "overview",
     permissionAny: [
       "news.view",
-      "news.manage",
+      "news.edit",
     ],
   },
   {
@@ -83,7 +83,7 @@ const navigationItems: NavigationItem[] = [
     category: "management",
     permissionAny: [
       "wiki.view",
-      "wiki.manage",
+      "wiki.edit",
     ],
   },
   {
@@ -93,7 +93,7 @@ const navigationItems: NavigationItem[] = [
     category: "management",
     permissionAny: [
       "files.view",
-      "files.manage",
+      "files.upload",
     ],
   },
   {
@@ -103,7 +103,7 @@ const navigationItems: NavigationItem[] = [
     category: "management",
     permissionAny: [
       "tickets.view",
-      "tickets.manage",
+      "tickets.edit",
     ],
   },
   {

@@ -1,11 +1,5 @@
-﻿import {
-  getCachedCurrentUser,
-} from "./currentUserRepository";
-
-import type {
-  User,
-  UserRole,
-} from "../types/user";
+﻿import { getCachedCurrentUser } from "./currentUserRepository";
+import type { User, UserRole } from "../types/user";
 
 export type PermissionKey =
   | "*"
@@ -14,30 +8,24 @@ export type PermissionKey =
   | "news.create"
   | "news.edit"
   | "news.delete"
-  | "news.manage"
   | "wiki.view"
   | "wiki.create"
   | "wiki.edit"
   | "wiki.delete"
-  | "wiki.manage"
   | "tickets.view"
   | "tickets.create"
   | "tickets.edit"
   | "tickets.assign"
   | "tickets.close"
   | "tickets.delete"
-  | "tickets.manage"
   | "tickets.templates.view"
   | "tickets.templates.create"
   | "tickets.templates.edit"
   | "tickets.templates.delete"
-  | "tickets.templates.manage"
   | "files.view"
   | "files.upload"
   | "files.delete"
-  | "files.manage"
   | "activity.view"
-  | "activity.manage"
   | "settings.view"
   | "settings.manage"
   | "users.view"
@@ -48,7 +36,9 @@ export type PermissionKey =
   | "organization.view"
   | "organization.manage"
   | "companies.manage"
-  | "departments.manage";
+  | "departments.manage"
+  | "admin.view"
+  | "taxonomy.manage";
 
 export type PermissionContext = {
   companyId?: string;
@@ -61,31 +51,22 @@ export function getCurrentUser() {
 }
 
 export function getCurrentUserRole(): UserRole {
-  return getCachedCurrentUser()?.role ||
-    "employee";
+  return getCachedCurrentUser()?.role || "employee";
 }
 
-export function isAdmin(
-  user: User | null = getCachedCurrentUser()
-) {
+export function isAdmin(user: User | null = getCachedCurrentUser()) {
   return user?.role === "admin";
 }
 
-export function isDepartmentLead(
-  user: User | null = getCachedCurrentUser()
-) {
+export function isDepartmentLead(user: User | null = getCachedCurrentUser()) {
   return user?.role === "department_lead";
 }
 
-export function isEmployee(
-  user: User | null = getCachedCurrentUser()
-) {
+export function isEmployee(user: User | null = getCachedCurrentUser()) {
   return user?.role === "employee";
 }
 
-export function getRoleLabel(
-  role?: string
-) {
+export function getRoleLabel(role?: string) {
   if (role === "admin") {
     return "Administrator";
   }
@@ -97,9 +78,7 @@ export function getRoleLabel(
   return "Mitarbeiter";
 }
 
-export function getRoleDescription(
-  role?: string
-) {
+export function getRoleDescription(role?: string) {
   if (role === "admin") {
     return "Hat vollständigen Zugriff auf alle Bereiche, Einstellungen und Admin-Funktionen.";
   }
@@ -116,13 +95,9 @@ export function canViewAdmin() {
 }
 
 export function canViewActivity() {
-  const role =
-    getCurrentUserRole();
+  const role = getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "department_lead"
-  );
+  return role === "admin" || role === "department_lead";
 }
 
 export function canManageSettings() {
@@ -154,23 +129,15 @@ export function canManageSystem() {
 }
 
 export function canCreate() {
-  const role =
-    getCurrentUserRole();
+  const role = getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "department_lead"
-  );
+  return role === "admin" || role === "department_lead";
 }
 
 export function canEdit() {
-  const role =
-    getCurrentUserRole();
+  const role = getCurrentUserRole();
 
-  return (
-    role === "admin" ||
-    role === "department_lead"
-  );
+  return role === "admin" || role === "department_lead";
 }
 
 export function canDelete() {
@@ -179,7 +146,7 @@ export function canDelete() {
 
 export function canViewCompanyScope(
   companyId?: string,
-  user: User | null = getCachedCurrentUser()
+  user: User | null = getCachedCurrentUser(),
 ) {
   if (!user) {
     return false;
@@ -198,7 +165,7 @@ export function canViewCompanyScope(
 
 export function canViewDepartmentScope(
   departmentId?: string,
-  user: User | null = getCachedCurrentUser()
+  user: User | null = getCachedCurrentUser(),
 ) {
   if (!user) {
     return false;
@@ -217,7 +184,7 @@ export function canViewDepartmentScope(
 
 export function canEditDepartmentScope(
   departmentId?: string,
-  user: User | null = getCachedCurrentUser()
+  user: User | null = getCachedCurrentUser(),
 ) {
   if (!user) {
     return false;
@@ -228,18 +195,13 @@ export function canEditDepartmentScope(
   }
 
   if (user.role === "department_lead") {
-    return (
-      !departmentId ||
-      user.departmentId === departmentId
-    );
+    return !departmentId || user.departmentId === departmentId;
   }
 
   return false;
 }
 
-export function getRoleHierarchyValue(
-  role?: string
-) {
+export function getRoleHierarchyValue(role?: string) {
   if (role === "admin") {
     return 3;
   }
@@ -253,14 +215,9 @@ export function getRoleHierarchyValue(
 
 export function roleIsAtLeast(
   currentRole: string | undefined,
-  requiredRole: UserRole
+  requiredRole: UserRole,
 ) {
   return (
-    getRoleHierarchyValue(
-      currentRole
-    ) >=
-    getRoleHierarchyValue(
-      requiredRole
-    )
+    getRoleHierarchyValue(currentRole) >= getRoleHierarchyValue(requiredRole)
   );
 }

@@ -1,12 +1,8 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
+import { queryOne } from "../../../../lib/database/db";
 import {
-  queryOne,
-} from "../../../../lib/database/db";
-
-import {
+  getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../lib/serverPermissions";
@@ -17,106 +13,98 @@ type RouteContext = {
   }>;
 };
 
-function getErrorStatus(
-  error: unknown
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
     return 403;
   }
 
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     await requireAnyServerPermission([
-      "activity.manage",
+      "activity.view",
+      "settings.manage",
+      "admin.view",
     ]);
 
-    const {
-      id,
-    } =
-      await context.params;
+    const { id } = await context.params;
+    const decodedId = normalizeText(decodeURIComponent(id));
 
-    const row =
-      await queryOne<{
-        id: string;
-      }>(
-        `
+    if (!decodedId) {
+      return NextResponse.json(
+        {
+          message: "Aktivitäts-ID ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const row = await queryOne<{ id: string }>(
+      `
         DELETE FROM activities
         WHERE id = $1
         RETURNING id
-        `,
-        [
-          id,
-        ]
-      );
+      `,
+      [decodedId],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Aktivität nicht gefunden.",
+          message: "Aktivität nicht gefunden.",
         },
         {
-          status:
-            404,
-        }
+          status: 404,
+        },
       );
     }
 
     return NextResponse.json({
-      ok:
-        true,
+      ok: true,
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Aktivität konnte nicht gelöscht werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Aktivität konnte nicht gelöscht werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

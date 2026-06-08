@@ -1,6 +1,4 @@
-﻿import {
-  requestJson,
-} from "./apiClient";
+﻿import { requestJson } from "./apiClient";
 import type {
   AppAccentColor,
   AppSettings,
@@ -8,9 +6,7 @@ import type {
   AppTheme,
   SidebarPosition,
 } from "../types/settings";
-import type {
-  UserRole,
-} from "../types/user";
+import type { UserRole } from "../types/user";
 
 export type AppSettingsRepository = {
   get: () => Promise<AppSettings>;
@@ -83,13 +79,10 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   },
 
   async save(settings: AppSettingsUpdateInput) {
-    const updatedSettings = await requestJson<AppSettings>(
-      "/api/app-settings",
-      {
-        method: "PATCH",
-        body: JSON.stringify(settings),
-      },
-    );
+    const updatedSettings = await requestJson<AppSettings>("/api/app-settings", {
+      method: "PATCH",
+      body: JSON.stringify(settings),
+    });
 
     dispatchSettingsUpdated();
 
@@ -101,8 +94,9 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
   },
 
   async reset() {
-    const updatedSettings =
-      await postgresAppSettingsRepository.save(defaultSettings);
+    const updatedSettings = await requestJson<AppSettings>("/api/app-settings", {
+      method: "DELETE",
+    });
 
     dispatchSettingsUpdated();
 
@@ -166,7 +160,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       return "Lila";
     }
 
-    return "Neutral";
+    return "Velunis Blau/Lila";
   },
 
   getSidebarPositionLabel(position: SidebarPosition | string) {
@@ -217,10 +211,6 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
         label: "Velunis Blau/Lila",
       },
       {
-        value: "zinc",
-        label: "Neutral",
-      },
-      {
         value: "blue",
         label: "Blau",
       },
@@ -239,6 +229,10 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
       {
         value: "amber",
         label: "Amber",
+      },
+      {
+        value: "orange",
+        label: "Orange",
       },
       {
         value: "red",
@@ -279,4 +273,3 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
 };
 
 export const appSettingsRepository = postgresAppSettingsRepository;
-

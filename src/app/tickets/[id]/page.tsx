@@ -224,7 +224,7 @@ export default function TicketDetailPage() {
   const canManageTickets =
     isAdmin ||
     hasAnyPermission([
-      "tickets.manage",
+      "tickets.edit",
     ]);
 
   const canViewTickets =

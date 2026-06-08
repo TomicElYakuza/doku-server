@@ -1,107 +1,51 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  query,
-} from "../../../lib/database/db";
-
+import { listPermissions } from "../../../lib/database/permissionStore";
 import {
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
 
-type PermissionRow = {
-  id: string;
-  permission_key: string;
-  label: string;
-  description: string;
-  category: string;
-  created_at: string;
-  updated_at: string;
-};
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
 
-function mapPermissionRow(
-  row: PermissionRow
-) {
-  return {
-    id:
-      row.id,
+  return 500;
+}
 
-    permissionKey:
-      row.permission_key,
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
 
-    label:
-      row.label,
-
-    description:
-      row.description,
-
-    category:
-      row.category,
-
-    createdAt:
-      row.created_at,
-
-    updatedAt:
-      row.updated_at,
-  };
+  return error instanceof Error ? error.message : fallback;
 }
 
 export async function GET() {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "admin.view",
     ]);
 
-    const rows =
-      await query<PermissionRow>(
-        `
-        SELECT
-          id,
-          permission_key,
-          label,
-          description,
-          category,
-          created_at,
-          updated_at
-        FROM permissions
-        ORDER BY category ASC, label ASC
-        `
-      );
+    const permissions = await listPermissions();
 
-    return NextResponse.json(
-      rows.map(
-        mapPermissionRow
-      )
-    );
+    return NextResponse.json(permissions);
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          isPermissionError(
-            error
-          )
-            ? "Keine Berechtigung."
-            : "Berechtigungen konnten nicht geladen werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Berechtigungen konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          isPermissionError(
-            error
-          )
-            ? 403
-            : 500,
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

@@ -1,25 +1,15 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  query,
-  queryOne,
-} from "../../../lib/database/db";
-
+import { query, queryOne } from "../../../lib/database/db";
 import {
   mapCommentRow,
+  type CommentRow,
 } from "../../../lib/database/mappers/commentMapper";
-
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
-
-import type {
-  CommentRow,
-} from "../../../lib/database/mappers/commentMapper";
 
 type CreateCommentBody = {
   entityType?: string;
@@ -28,183 +18,130 @@ type CreateCommentBody = {
   content?: string;
 };
 
-function getErrorStatus(
-  error: unknown
-) {
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
+}
+
+function normalizeEntityType(value?: string | null) {
+  const entityType = normalizeText(value).toLowerCase();
+
   if (
-    isPermissionError(
-      error
-    )
+    entityType === "ticket" ||
+    entityType === "wiki" ||
+    entityType === "news"
   ) {
+    return entityType;
+  }
+
+  return "";
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
     return 403;
   }
 
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-) {
-  if (
-    isPermissionError(
-      error
-    )
-  ) {
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error
-    ? error.message
-    : fallback;
+  return error instanceof Error ? error.message : fallback;
 }
 
-function getViewPermissionsForEntity(
-  entityType?: string
-) {
+function getViewPermissionsForEntity(entityType?: string) {
   if (entityType === "ticket") {
-    return [
-      "tickets.view",
-      "tickets.manage",
-    ];
+    return ["tickets.view", "tickets.edit", "tickets.delete", "admin.view"];
   }
 
   if (entityType === "wiki") {
-    return [
-      "wiki.view",
-      "wiki.manage",
-    ];
+    return ["wiki.view", "wiki.edit", "wiki.delete", "admin.view"];
   }
 
   if (entityType === "news") {
-    return [
-      "news.view",
-      "news.manage",
-    ];
+    return ["news.view", "news.edit", "news.delete", "admin.view"];
   }
 
   return [
     "tickets.view",
-    "tickets.manage",
     "wiki.view",
-    "wiki.manage",
     "news.view",
-    "news.manage",
     "activity.view",
-    "activity.manage",
+    "admin.view",
+    "settings.manage",
   ];
 }
 
-function getCreatePermissionsForEntity(
-  entityType?: string
-) {
+function getCreatePermissionsForEntity(entityType?: string) {
   if (entityType === "ticket") {
-    return [
-      "tickets.edit",
-      "tickets.manage",
-    ];
+    return ["tickets.edit", "tickets.close", "settings.manage"];
   }
 
   if (entityType === "wiki") {
-    return [
-      "wiki.edit",
-      "wiki.manage",
-    ];
+    return ["wiki.edit", "settings.manage"];
   }
 
   if (entityType === "news") {
-    return [
-      "news.edit",
-      "news.manage",
-    ];
+    return ["news.edit", "settings.manage"];
   }
 
-  return [
-    "tickets.edit",
-    "tickets.manage",
-    "wiki.edit",
-    "wiki.manage",
-    "news.edit",
-    "news.manage",
-  ];
+  return ["settings.manage", "admin.view"];
 }
 
-export async function GET(
-  request: Request
-) {
+export async function GET(request: Request) {
   try {
-    const currentUser =
-      await getCurrentServerUser();
+    const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nicht angemeldet.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            401,
-        }
+          status: 401,
+        },
       );
     }
 
-    const url =
-      new URL(
-        request.url
+    const url = new URL(request.url);
+    const rawEntityType = url.searchParams.get("entityType");
+    const entityType = rawEntityType ? normalizeEntityType(rawEntityType) : "";
+    const entityId = normalizeText(url.searchParams.get("entityId"));
+
+    if (rawEntityType && !entityType) {
+      return NextResponse.json(
+        {
+          message: "Entity-Type ist ungültig.",
+        },
+        {
+          status: 400,
+        },
       );
+    }
 
-    const entityType =
-      url.searchParams.get(
-        "entityType"
-      ) ||
-      "";
+    await requireAnyServerPermission(getViewPermissionsForEntity(entityType));
 
-    const entityId =
-      url.searchParams.get(
-        "entityId"
-      );
-
-    await requireAnyServerPermission(
-      getViewPermissionsForEntity(
-        entityType
-      )
-    );
-
-    const params: unknown[] =
-      [];
-
-    const whereParts: string[] =
-      [];
+    const params: unknown[] = [];
+    const whereParts: string[] = [];
 
     if (entityType) {
-      params.push(
-        entityType
-      );
-
-      whereParts.push(
-        `entity_type = $${params.length}`
-      );
+      params.push(entityType);
+      whereParts.push(`entity_type = $${params.length}`);
     }
 
     if (entityId) {
-      params.push(
-        entityId
-      );
-
-      whereParts.push(
-        `entity_id = $${params.length}`
-      );
+      params.push(entityId);
+      whereParts.push(`entity_id = $${params.length}`);
     }
 
     const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    const rows =
-      await query<CommentRow>(
-        `
+    const rows = await query<CommentRow>(
+      `
         SELECT
           id,
           entity_type,
@@ -215,126 +152,95 @@ export async function GET(
         FROM comments
         ${whereSql}
         ORDER BY created_at DESC
-        `,
-        params
-      );
+      `,
+      params,
+    );
 
-    return NextResponse.json(
-      rows.map(
-        mapCommentRow
-      )
-    );
+    return NextResponse.json(rows.map(mapCommentRow));
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Kommentare konnten nicht geladen werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Kommentare konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    const currentUser =
-      await getCurrentServerUser();
+    const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
         {
-          message:
-            "Nicht angemeldet.",
+          message: "Nicht angemeldet.",
         },
         {
-          status:
-            401,
-        }
+          status: 401,
+        },
       );
     }
 
-    const body =
-      await request.json() as CreateCommentBody;
+    const body = (await request.json()) as CreateCommentBody;
 
-    if (!body.entityType) {
+    const entityType = normalizeEntityType(body.entityType);
+    const entityId = normalizeText(body.entityId);
+    const content = normalizeText(body.content);
+    const author = normalizeText(body.author) || currentUser.name || "Unbekannt";
+
+    if (!entityType) {
       return NextResponse.json(
         {
-          message:
-            "Entity-Type ist erforderlich.",
+          message: "Entity-Type ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    if (!body.entityId) {
+    if (!entityId) {
       return NextResponse.json(
         {
-          message:
-            "Entity-ID ist erforderlich.",
+          message: "Entity-ID ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    if (!body.content?.trim()) {
+    if (!content) {
       return NextResponse.json(
         {
-          message:
-            "Kommentar ist erforderlich.",
+          message: "Kommentar ist erforderlich.",
         },
         {
-          status:
-            400,
-        }
+          status: 400,
+        },
       );
     }
 
-    await requireAnyServerPermission(
-      getCreatePermissionsForEntity(
-        body.entityType
-      )
-    );
+    await requireAnyServerPermission(getCreatePermissionsForEntity(entityType));
 
-    const row =
-      await queryOne<CommentRow>(
-        `
+    const row = await queryOne<CommentRow>(
+      `
         INSERT INTO comments (
           entity_type,
           entity_id,
           author,
           content
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4
-        )
+        VALUES ($1, $2, $3, $4)
         RETURNING
           id,
           entity_type,
@@ -342,63 +248,38 @@ export async function POST(
           author,
           content,
           created_at
-        `,
-        [
-          body.entityType,
-          body.entityId,
-          body.author ||
-            currentUser.name ||
-            "Unbekannt",
-          body.content.trim(),
-        ]
-      );
+      `,
+      [entityType, entityId, author, content],
+    );
 
     if (!row) {
       return NextResponse.json(
         {
-          message:
-            "Kommentar konnte nicht gespeichert werden.",
+          message: "Kommentar konnte nicht gespeichert werden.",
         },
         {
-          status:
-            500,
-        }
+          status: 500,
+        },
       );
     }
 
-    return NextResponse.json(
-      mapCommentRow(
-        row
-      ),
-      {
-        status:
-          201,
-      }
-    );
+    return NextResponse.json(mapCommentRow(row), {
+      status: 201,
+    });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          getErrorMessage(
-            error,
-            "Kommentar konnte nicht gespeichert werden."
-          ),
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Kommentar konnte nicht gespeichert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          getErrorStatus(
-            error
-          ),
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

@@ -269,7 +269,7 @@ export default function WikiSidebar() {
   const canManageWiki =
     isAdmin ||
     hasAnyPermission([
-      "wiki.manage",
+      "wiki.edit",
       "wiki.create",
       "wiki.edit",
       "wiki.delete",

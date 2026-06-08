@@ -1,11 +1,9 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
 import {
-  query,
-} from "../../../../../lib/database/db";
-
+  listUserPermissions,
+  saveUserPermissions,
+} from "../../../../../lib/database/permissionStore";
 import {
   isPermissionError,
   requireAnyServerPermission,
@@ -17,15 +15,6 @@ type RouteContext = {
   }>;
 };
 
-type UserPermissionRow = {
-  id: string;
-  user_id: string;
-  permission_key: string;
-  scope_type: string;
-  scope_id: string;
-  created_at: string;
-};
-
 type SaveUserPermissionsBody = {
   permissions?: Array<{
     permissionKey?: string;
@@ -34,235 +23,78 @@ type SaveUserPermissionsBody = {
   }>;
 };
 
-function mapUserPermissionRow(
-  row: UserPermissionRow
-) {
-  return {
-    id:
-      row.id,
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
 
-    userId:
-      row.user_id,
-
-    permissionKey:
-      row.permission_key,
-
-    scopeType:
-      row.scope_type,
-
-    scopeId:
-      row.scope_id,
-
-    createdAt:
-      row.created_at,
-  };
+  return 500;
 }
 
-function createPermissionId(
-  userId: string,
-  permissionKey: string,
-  scopeType: string,
-  scopeId: string
-) {
-  return [
-    "user",
-    userId,
-    permissionKey,
-    scopeType,
-    scopeId,
-  ]
-    .join("_")
-    .replace(
-      /[^a-zA-Z0-9_.-]/g,
-      "_"
-    );
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext
-) {
+export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "admin.view",
     ]);
 
-    const {
-      userId,
-    } =
-      await context.params;
+    const { userId } = await context.params;
+    const permissions = await listUserPermissions(decodeURIComponent(userId));
 
-    const rows =
-      await query<UserPermissionRow>(
-        `
-        SELECT
-          id,
-          user_id,
-          permission_key,
-          scope_type,
-          scope_id,
-          created_at
-        FROM user_permissions
-        WHERE user_id = $1
-        ORDER BY permission_key ASC
-        `,
-        [
-          userId,
-        ]
-      );
-
-    return NextResponse.json(
-      rows.map(
-        mapUserPermissionRow
-      )
-    );
+    return NextResponse.json(permissions);
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          isPermissionError(
-            error
-          )
-            ? "Keine Berechtigung."
-            : "Benutzerberechtigungen konnten nicht geladen werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Benutzerberechtigungen konnten nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          isPermissionError(
-            error
-          )
-            ? 403
-            : 500,
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function PUT(
-  request: Request,
-  context: RouteContext
-) {
+export async function PUT(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission([
-      "users.manage_permissions",
-    ]);
+    await requireAnyServerPermission(["users.manage_permissions"]);
 
-    const {
-      userId,
-    } =
-      await context.params;
+    const { userId } = await context.params;
+    const body = (await request.json()) as SaveUserPermissionsBody;
+    const permissions = Array.isArray(body.permissions) ? body.permissions : [];
 
-    const body =
-      await request.json() as SaveUserPermissionsBody;
-
-    const permissions =
-      Array.isArray(
-        body.permissions
-      )
-        ? body.permissions
-        : [];
-
-    await query(
-      `
-      DELETE FROM user_permissions
-      WHERE user_id = $1
-      `,
-      [
-        userId,
-      ]
-    );
-
-    for (const permission of permissions) {
-      const permissionKey =
-        permission.permissionKey ||
-        "";
-
-      if (!permissionKey) {
-        continue;
-      }
-
-      const scopeType =
-        permission.scopeType ||
-        "global";
-
-      const scopeId =
-        permission.scopeId ||
-        "";
-
-      await query(
-        `
-        INSERT INTO user_permissions (
-          id,
-          user_id,
-          permission_key,
-          scope_type,
-          scope_id
-        )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5
-        )
-        ON CONFLICT (user_id, permission_key, scope_type, scope_id)
-        DO NOTHING
-        `,
-        [
-          createPermissionId(
-            userId,
-            permissionKey,
-            scopeType,
-            scopeId
-          ),
-          userId,
-          permissionKey,
-          scopeType,
-          scopeId,
-        ]
-      );
-    }
+    await saveUserPermissions(decodeURIComponent(userId), permissions);
 
     return NextResponse.json({
-      ok:
-        true,
+      ok: true,
     });
   } catch (error) {
-    console.error(
-      error
-    );
+    console.error(error);
 
     return NextResponse.json(
       {
-        message:
-          isPermissionError(
-            error
-          )
-            ? "Keine Berechtigung."
-            : "Benutzerberechtigungen konnten nicht gespeichert werden.",
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Benutzerberechtigungen konnten nicht gespeichert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status:
-          isPermissionError(
-            error
-          )
-            ? 403
-            : 500,
-      }
+        status: getErrorStatus(error),
+      },
     );
   }
 }

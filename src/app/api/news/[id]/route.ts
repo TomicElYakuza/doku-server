@@ -1,6 +1,12 @@
 ﻿import { NextResponse } from "next/server";
+
 import { queryOne } from "../../../../lib/database/db";
 import { mapNewsRow } from "../../../../lib/database/mappers/newsMapper";
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
 import type { NewsRow } from "../../../../lib/database/mappers/newsMapper";
 
 type RouteContext = {
@@ -22,35 +28,76 @@ function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-) {
-  try {
-    const { id } = await context.params;
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
 
-    const row = await queryOne<NewsRow>(
-      `
-        SELECT
-          id,
-          title,
-          description,
-          content,
-          category,
-          author,
-          pinned,
-          created_at,
-          updated_at
-        FROM news_posts
-        WHERE id = $1
-      `,
-      [decodeURIComponent(id)],
-    );
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function findNewsPost(id: string) {
+  return queryOne<NewsRow>(
+    `
+      SELECT
+        id,
+        title,
+        description,
+        content,
+        category,
+        author,
+        pinned,
+        created_at,
+        updated_at
+      FROM news_posts
+      WHERE id = $1
+    `,
+    [id],
+  );
+}
+
+export async function GET(_request: Request, context: RouteContext) {
+  try {
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission([
+      "news.view",
+      "news.create",
+      "news.edit",
+      "news.delete",
+      "admin.view",
+    ]);
+
+    const { id } = await context.params;
+    const row = await findNewsPost(decodeURIComponent(id));
 
     if (!row) {
       return NextResponse.json(
-        { message: "News nicht gefunden." },
-        { status: 404 },
+        {
+          message: "News nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
       );
     }
 
@@ -60,72 +107,80 @@ export async function GET(
 
     return NextResponse.json(
       {
-        message: "News konnte nicht geladen werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(error, "News konnte nicht geladen werden."),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
+    const currentUser = await getCurrentServerUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission([
+      "news.edit",
+      "settings.manage",
+    ]);
+
     const { id } = await context.params;
     const decodedId = decodeURIComponent(id);
     const body = (await request.json()) as UpdateNewsPostBody;
 
-    const current = await queryOne<NewsRow>(
-      `
-        SELECT
-          id,
-          title,
-          description,
-          content,
-          category,
-          author,
-          pinned,
-          created_at,
-          updated_at
-        FROM news_posts
-        WHERE id = $1
-      `,
-      [decodedId],
-    );
+    const current = await findNewsPost(decodedId);
 
     if (!current) {
       return NextResponse.json(
-        { message: "News nicht gefunden." },
-        { status: 404 },
+        {
+          message: "News nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
       );
     }
 
     const nextTitle =
-      body.title !== undefined
-        ? normalizeText(body.title)
-        : current.title;
+      body.title !== undefined ? normalizeText(body.title) : current.title;
 
     const nextCategory =
       body.category !== undefined
         ? normalizeText(body.category)
-        : current.category || "";
+        : current.category;
 
     if (!nextTitle) {
       return NextResponse.json(
-        { message: "Titel ist erforderlich." },
-        { status: 400 },
+        {
+          message: "Titel ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
       );
     }
 
     if (!nextCategory) {
       return NextResponse.json(
-        { message: "Kategorie ist erforderlich." },
-        { status: 400 },
+        {
+          message: "Kategorie ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
       );
     }
 
@@ -162,19 +217,21 @@ export async function PATCH(
           : current.content || "",
         nextCategory,
         body.author !== undefined
-          ? normalizeText(body.author) || "System"
+          ? normalizeText(body.author) || currentUser.name || "System"
           : current.author || "System",
-        typeof body.pinned === "boolean"
-          ? body.pinned
-          : current.pinned,
+        typeof body.pinned === "boolean" ? body.pinned : current.pinned,
         decodedId,
       ],
     );
 
     if (!row) {
       return NextResponse.json(
-        { message: "News konnte nicht aktualisiert werden." },
-        { status: 500 },
+        {
+          message: "News konnte nicht aktualisiert werden.",
+        },
+        {
+          status: 500,
+        },
       );
     }
 
@@ -184,25 +241,41 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: "News konnte nicht aktualisiert werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "News konnte nicht aktualisiert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const { id } = await context.params;
+    const currentUser = await getCurrentServerUser();
 
-    await queryOne(
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission([
+      "news.delete",
+      "settings.manage",
+    ]);
+
+    const { id } = await context.params;
+    const deleted = await queryOne<{ id: string }>(
       `
         DELETE FROM news_posts
         WHERE id = $1
@@ -211,19 +284,31 @@ export async function DELETE(
       [decodeURIComponent(id)],
     );
 
-    return NextResponse.json({ ok: true });
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          message: "News nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+    });
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: "News konnte nicht gelöscht werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(error, "News konnte nicht gelöscht werden."),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
-      { status: 500 },
+      {
+        status: getErrorStatus(error),
+      },
     );
   }
 }

@@ -1,6 +1,4 @@
-﻿import type {
-  WikiPage,
-} from "../../../types/wiki";
+﻿import type { WikiPage } from "../../../types/wiki";
 
 export type WikiPageRow = {
   id: string;
@@ -18,8 +16,8 @@ export type WikiPageRow = {
   updated_at: string;
 };
 
-function normalizeText(value: unknown) {
-  return String(value || "").trim();
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
 }
 
 function normalizeTags(tags: string[] | null) {
@@ -27,29 +25,34 @@ function normalizeTags(tags: string[] | null) {
     return [];
   }
 
-  return tags
-    .map((tag) => String(tag || "").trim())
-    .filter(Boolean);
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => String(tag).trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
-export function mapWikiPageRow(
-  row: WikiPageRow,
-): WikiPage {
+function normalizeText(value: string | null) {
+  return String(value || "").trim();
+}
+
+export function mapWikiPageRow(row: WikiPageRow): WikiPage {
   const description = normalizeText(row.description);
-  const excerpt = normalizeText(row.excerpt) || description;
 
   return {
-    slug: normalizeText(row.slug),
-    title: normalizeText(row.title),
+    slug: row.slug,
+    title: row.title,
     description,
-    excerpt,
+    excerpt: normalizeText(row.excerpt) || description,
     company: normalizeText(row.company) || "Intern",
     category: normalizeText(row.category),
     department: normalizeText(row.department),
-    author: normalizeText(row.author) || "System",
+    author: normalizeText(row.author) || "Unbekannt",
     tags: normalizeTags(row.tags),
-    content: String(row.content || ""),
-    createdAt: new Date(row.created_at).toLocaleString(),
-    updatedAt: new Date(row.updated_at).toLocaleString(),
+    content: row.content || "",
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
   };
 }

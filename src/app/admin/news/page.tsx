@@ -104,7 +104,7 @@ export default function AdminNewsPage() {
   const canManageNews =
     isAdmin ||
     hasAnyPermission([
-      "news.manage",
+      "news.edit",
     ]);
 
   const canCreateNews =

@@ -1,19 +1,16 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  queryOne,
-} from "../../../../lib/database/db";
-import {
-  createSlug,
-} from "../../../../lib/database/slug";
+import { queryOne } from "../../../../lib/database/db";
 import {
   mapWikiPageRow,
+  type WikiPageRow,
 } from "../../../../lib/database/mappers/wikiMapper";
-import type {
-  WikiPageRow,
-} from "../../../../lib/database/mappers/wikiMapper";
+import { createSlug } from "../../../../lib/database/slug";
+import {
+  getCurrentServerUser,
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
 
 type RouteContext = {
   params: Promise<{
@@ -34,58 +31,115 @@ type UpdateWikiPageBody = {
   content?: string;
 };
 
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-function normalizeTags(tags?: string[]) {
-  if (!Array.isArray(tags)) {
-    return [];
+function normalizeTags(value: unknown, fallback: string[]) {
+  if (!Array.isArray(value)) {
+    return fallback;
   }
 
   return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
+    new Set(value.map((tag) => String(tag).trim()).filter(Boolean)),
   );
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-) {
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function findWikiPage(slug: string) {
+  return queryOne<WikiPageRow>(
+    `
+      SELECT
+        id,
+        slug,
+        title,
+        description,
+        excerpt,
+        company,
+        category,
+        department,
+        author,
+        tags,
+        content,
+        created_at,
+        updated_at
+      FROM wiki_pages
+      WHERE slug = $1
+      LIMIT 1
+    `,
+    [slug],
+  );
+}
+
+async function saveWikiVersion(row: WikiPageRow) {
+  await queryOne<{ id: string }>(
+    `
+      INSERT INTO wiki_versions (
+        wiki_slug,
+        title,
+        description,
+        company,
+        category,
+        department,
+        tags,
+        content
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id
+    `,
+    [
+      row.slug,
+      row.title || "",
+      row.description || "",
+      row.company || "Intern",
+      row.category || "",
+      row.department || "",
+      Array.isArray(row.tags) ? row.tags : [],
+      row.content || "",
+    ],
+  );
+}
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
-    const {
-      slug,
-    } = await context.params;
+    const currentUser = await getCurrentServerUser();
 
-    const decodedSlug = decodeURIComponent(slug);
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
 
-    const row = await queryOne<WikiPageRow>(
-      `
-        SELECT
-          id,
-          slug,
-          title,
-          description,
-          excerpt,
-          company,
-          category,
-          department,
-          author,
-          tags,
-          content,
-          created_at,
-          updated_at
-        FROM wiki_pages
-        WHERE slug = $1
-      `,
-      [
-        decodedSlug,
-      ],
-    );
+    await requireAnyServerPermission([
+      "wiki.view",
+      "wiki.create",
+      "wiki.edit",
+      "wiki.delete",
+      "admin.view",
+    ]);
+
+    const { slug } = await context.params;
+    const row = await findWikiPage(decodeURIComponent(slug));
 
     if (!row) {
       return NextResponse.json(
@@ -104,54 +158,41 @@ export async function GET(
 
     return NextResponse.json(
       {
-        message: "Wiki-Seite konnte nicht geladen werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Wiki-Seite konnte nicht geladen werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
 }
 
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const {
-      slug,
-    } = await context.params;
+    const currentUser = await getCurrentServerUser();
 
-    const decodedSlug = decodeURIComponent(slug);
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission(["wiki.edit", "settings.manage"]);
+
+    const { slug } = await context.params;
+    const currentSlug = decodeURIComponent(slug);
     const body = (await request.json()) as UpdateWikiPageBody;
 
-    const current = await queryOne<WikiPageRow>(
-      `
-        SELECT
-          id,
-          slug,
-          title,
-          description,
-          excerpt,
-          company,
-          category,
-          department,
-          author,
-          tags,
-          content,
-          created_at,
-          updated_at
-        FROM wiki_pages
-        WHERE slug = $1
-      `,
-      [
-        decodedSlug,
-      ],
-    );
+    const current = await findWikiPage(currentSlug);
 
     if (!current) {
       return NextResponse.json(
@@ -164,15 +205,15 @@ export async function PATCH(
       );
     }
 
+    await saveWikiVersion(current);
+
     const nextTitle =
-      body.title !== undefined
-        ? normalizeText(body.title)
-        : normalizeText(current.title);
+      body.title !== undefined ? normalizeText(body.title) : current.title;
 
     const nextCategory =
       body.category !== undefined
         ? normalizeText(body.category)
-        : normalizeText(current.category || "");
+        : current.category || "";
 
     if (!nextTitle) {
       return NextResponse.json(
@@ -196,43 +237,44 @@ export async function PATCH(
       );
     }
 
-    const nextSlug = body.slug?.trim()
-      ? createSlug(body.slug)
-      : current.slug;
+    const nextSlug =
+      body.slug !== undefined
+        ? createSlug(normalizeText(body.slug) || nextTitle)
+        : current.slug;
+
+    if (nextSlug !== current.slug) {
+      const slugExists = await queryOne<{ slug: string }>(
+        `
+          SELECT slug
+          FROM wiki_pages
+          WHERE slug = $1
+            AND slug <> $2
+          LIMIT 1
+        `,
+        [nextSlug, current.slug],
+      );
+
+      if (slugExists) {
+        return NextResponse.json(
+          {
+            message: "Eine Wiki-Seite mit diesem Slug existiert bereits.",
+          },
+          {
+            status: 409,
+          },
+        );
+      }
+    }
 
     const nextDescription =
       body.description !== undefined
         ? normalizeText(body.description)
-        : normalizeText(current.description || "");
+        : current.description || "";
 
     const nextExcerpt =
       body.excerpt !== undefined
-        ? normalizeText(body.excerpt)
-        : normalizeText(current.excerpt || current.description || "");
-
-    const nextCompany =
-      body.company !== undefined
-        ? normalizeText(body.company) || "Intern"
-        : normalizeText(current.company || "") || "Intern";
-
-    const nextDepartment =
-      body.department !== undefined
-        ? normalizeText(body.department)
-        : normalizeText(current.department || "");
-
-    const nextAuthor =
-      body.author !== undefined
-        ? normalizeText(body.author) || "System"
-        : normalizeText(current.author || "") || "System";
-
-    const nextTags = Array.isArray(body.tags)
-      ? normalizeTags(body.tags)
-      : current.tags || [];
-
-    const nextContent =
-      body.content !== undefined
-        ? String(body.content || "")
-        : current.content || "";
+        ? normalizeText(body.excerpt) || nextDescription
+        : current.excerpt || nextDescription;
 
     const row = await queryOne<WikiPageRow>(
       `
@@ -270,13 +312,21 @@ export async function PATCH(
         nextTitle,
         nextDescription,
         nextExcerpt,
-        nextCompany,
+        body.company !== undefined
+          ? normalizeText(body.company) || currentUser.company || "Intern"
+          : current.company || "Intern",
         nextCategory,
-        nextDepartment,
-        nextAuthor,
-        nextTags,
-        nextContent,
-        decodedSlug,
+        body.department !== undefined
+          ? normalizeText(body.department)
+          : current.department || "",
+        body.author !== undefined
+          ? normalizeText(body.author) || currentUser.name || "System"
+          : current.author || "System",
+        normalizeTags(body.tags, Array.isArray(current.tags) ? current.tags : []),
+        body.content !== undefined
+          ? String(body.content || "")
+          : current.content || "",
+        currentSlug,
       ],
     );
 
@@ -297,40 +347,58 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: "Wiki-Seite konnte nicht aktualisiert werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Wiki-Seite konnte nicht aktualisiert werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const {
-      slug,
-    } = await context.params;
+    const currentUser = await getCurrentServerUser();
 
+    if (!currentUser) {
+      return NextResponse.json(
+        {
+          message: "Nicht angemeldet.",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    await requireAnyServerPermission(["wiki.delete", "settings.manage"]);
+
+    const { slug } = await context.params;
     const decodedSlug = decodeURIComponent(slug);
 
-    await queryOne(
+    const deleted = await queryOne<{ slug: string }>(
       `
         DELETE FROM wiki_pages
         WHERE slug = $1
-        RETURNING id
+        RETURNING slug
       `,
-      [
-        decodedSlug,
-      ],
+      [decodedSlug],
     );
+
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          message: "Wiki-Seite nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
 
     return NextResponse.json({
       ok: true,
@@ -340,14 +408,14 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        message: "Wiki-Seite konnte nicht gelöscht werden.",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Wiki-Seite konnte nicht gelöscht werden.",
+        ),
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }

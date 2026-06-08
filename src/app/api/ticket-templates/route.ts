@@ -1,25 +1,15 @@
-﻿import {
-  randomUUID,
-} from "crypto";
-import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  query,
-  queryOne,
-} from "../../../lib/database/db";
+import { query, queryOne } from "../../../lib/database/db";
 import {
   mapTicketTemplateRow,
+  type TicketTemplateRow,
 } from "../../../lib/database/mappers/ticketMapper";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
-import type {
-  TicketTemplateRow,
-} from "../../../lib/database/mappers/ticketMapper";
 
 type CreateTicketTemplateBody = {
   title?: string;
@@ -36,43 +26,20 @@ type CreateTicketTemplateBody = {
 };
 
 const allowedStatusValues = [
-  "active",
-  "inactive",
+  "open",
+  "in_progress",
+  "waiting",
+  "done",
+  "closed",
 ];
 
-const allowedPriorityValues = [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-];
+const allowedPriorityValues = ["low", "medium", "high", "urgent"];
 
-function getErrorStatus(error: unknown) {
-  if (isPermissionError(error)) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
-  if (isPermissionError(error)) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error
-    ? error.message
-    : fallback;
-}
-
-function normalizeText(value?: string) {
+function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-function normalizeNullableId(value?: string) {
+function normalizeNullableId(value?: string | null) {
   const normalized = normalizeText(value);
 
   return normalized || null;
@@ -81,12 +48,8 @@ function normalizeNullableId(value?: string) {
 function normalizeStatus(value?: string) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return "active";
-  }
-
-  if (!allowedStatusValues.includes(normalized)) {
-    return "active";
+  if (!normalized || !allowedStatusValues.includes(normalized)) {
+    return "open";
   }
 
   return normalized;
@@ -95,11 +58,7 @@ function normalizeStatus(value?: string) {
 function normalizePriority(value?: string) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return "medium";
-  }
-
-  if (!allowedPriorityValues.includes(normalized)) {
+  if (!normalized || !allowedPriorityValues.includes(normalized)) {
     return "medium";
   }
 
@@ -112,23 +71,28 @@ function normalizeTags(tags?: string[]) {
   }
 
   return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
+    new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)),
   );
 }
 
-export async function GET() {
-  try {
-    await requireAnyServerPermission([
-      "tickets.view",
-      "tickets.create",
-      "tickets.edit",
-      "tickets.manage",
-    ]);
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
 
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+export async function GET(request: Request) {
+  try {
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -142,8 +106,55 @@ export async function GET() {
       );
     }
 
+    await requireAnyServerPermission([
+      "tickets.templates.view",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+      "tickets.view",
+      "admin.view",
+    ]);
+
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const priority = url.searchParams.get("priority");
+    const category = url.searchParams.get("category");
+    const tag = url.searchParams.get("tag");
+    const companyId = url.searchParams.get("companyId");
+    const departmentId = url.searchParams.get("departmentId");
+
     const params: unknown[] = [];
     const whereParts: string[] = [];
+
+    if (status) {
+      params.push(status);
+      whereParts.push(`status = $${params.length}`);
+    }
+
+    if (priority) {
+      params.push(priority);
+      whereParts.push(`priority = $${params.length}`);
+    }
+
+    if (category) {
+      params.push(category);
+      whereParts.push(`category = $${params.length}`);
+    }
+
+    if (tag) {
+      params.push(tag);
+      whereParts.push(`$${params.length} = ANY(tags)`);
+    }
+
+    if (companyId) {
+      params.push(companyId);
+      whereParts.push(`company_id = $${params.length}`);
+    }
+
+    if (departmentId) {
+      params.push(departmentId);
+      whereParts.push(`department_id = $${params.length}`);
+    }
 
     if (currentUser.role !== "admin") {
       if (currentUser.departmentId) {
@@ -152,15 +163,11 @@ export async function GET() {
       } else if (currentUser.companyId) {
         params.push(currentUser.companyId);
         whereParts.push(`company_id = $${params.length}`);
-      } else {
-        whereParts.push("1 = 0");
       }
     }
 
     const whereSql =
-      whereParts.length > 0
-        ? `WHERE ${whereParts.join(" AND ")}`
-        : "";
+      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
     const rows = await query<TicketTemplateRow>(
       `
@@ -181,7 +188,7 @@ export async function GET() {
           updated_at
         FROM ticket_templates
         ${whereSql}
-        ORDER BY created_at DESC
+        ORDER BY updated_at DESC
       `,
       params,
     );
@@ -196,10 +203,7 @@ export async function GET() {
           error,
           "Ticket-Vorlagen konnten nicht geladen werden.",
         ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -210,11 +214,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireAnyServerPermission([
-      "tickets.create",
-      "tickets.manage",
-    ]);
-
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -228,6 +227,11 @@ export async function POST(request: Request) {
       );
     }
 
+    await requireAnyServerPermission([
+      "tickets.templates.create",
+      "settings.manage",
+    ]);
+
     const body = (await request.json()) as CreateTicketTemplateBody;
 
     const title = normalizeText(body.title);
@@ -235,7 +239,6 @@ export async function POST(request: Request) {
     const description = normalizeText(body.description);
     const status = normalizeStatus(body.status);
     const priority = normalizePriority(body.priority);
-    const assignedTo = normalizeText(body.assignedTo);
     const tags = normalizeTags(body.tags);
 
     if (!title) {
@@ -281,7 +284,6 @@ export async function POST(request: Request) {
     const row = await queryOne<TicketTemplateRow>(
       `
         INSERT INTO ticket_templates (
-          id,
           title,
           description,
           status,
@@ -295,18 +297,9 @@ export async function POST(request: Request) {
           tags
         )
         VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9,
-          $10,
-          $11,
-          $12
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11
         )
         RETURNING
           id,
@@ -325,7 +318,6 @@ export async function POST(request: Request) {
           updated_at
       `,
       [
-        randomUUID(),
         title,
         description,
         status,
@@ -335,7 +327,7 @@ export async function POST(request: Request) {
         departmentId,
         company,
         department,
-        assignedTo,
+        normalizeText(body.assignedTo),
         tags,
       ],
     );
@@ -351,12 +343,9 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
-      mapTicketTemplateRow(row),
-      {
-        status: 201,
-      },
-    );
+    return NextResponse.json(mapTicketTemplateRow(row), {
+      status: 201,
+    });
   } catch (error) {
     console.error(error);
 
@@ -366,10 +355,7 @@ export async function POST(request: Request) {
           error,
           "Ticket-Vorlage konnte nicht erstellt werden.",
         ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

@@ -1,21 +1,15 @@
-﻿import {
-  NextResponse,
-} from "next/server";
+﻿import { NextResponse } from "next/server";
 
-import {
-  queryOne,
-} from "../../../../lib/database/db";
+import { queryOne } from "../../../../lib/database/db";
 import {
   mapTicketTemplateRow,
+  type TicketTemplateRow,
 } from "../../../../lib/database/mappers/ticketMapper";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../lib/serverPermissions";
-import type {
-  TicketTemplateRow,
-} from "../../../../lib/database/mappers/ticketMapper";
 
 type RouteContext = {
   params: Promise<{
@@ -37,42 +31,17 @@ type UpdateTicketTemplateBody = {
   tags?: string[];
 };
 
-type CurrentServerUser = Awaited<
-  ReturnType<typeof getCurrentServerUser>
->;
+type ServerUser = NonNullable<Awaited<ReturnType<typeof getCurrentServerUser>>>;
 
 const allowedStatusValues = [
-  "active",
-  "inactive",
+  "open",
+  "in_progress",
+  "waiting",
+  "done",
+  "closed",
 ];
 
-const allowedPriorityValues = [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-];
-
-function getErrorStatus(error: unknown) {
-  if (isPermissionError(error)) {
-    return 403;
-  }
-
-  return 500;
-}
-
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
-  if (isPermissionError(error)) {
-    return "Keine Berechtigung.";
-  }
-
-  return error instanceof Error
-    ? error.message
-    : fallback;
-}
+const allowedPriorityValues = ["low", "medium", "high", "urgent"];
 
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
@@ -84,34 +53,20 @@ function normalizeNullableId(value?: string | null) {
   return normalized || null;
 }
 
-function normalizeStatus(
-  value: string | undefined,
-  fallback: string,
-) {
+function normalizeStatus(value: string | undefined, fallback: string) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return fallback;
-  }
-
-  if (!allowedStatusValues.includes(normalized)) {
+  if (!normalized || !allowedStatusValues.includes(normalized)) {
     return fallback;
   }
 
   return normalized;
 }
 
-function normalizePriority(
-  value: string | undefined,
-  fallback: string,
-) {
+function normalizePriority(value: string | undefined, fallback: string) {
   const normalized = normalizeText(value);
 
-  if (!normalized) {
-    return fallback;
-  }
-
-  if (!allowedPriorityValues.includes(normalized)) {
+  if (!normalized || !allowedPriorityValues.includes(normalized)) {
     return fallback;
   }
 
@@ -124,22 +79,30 @@ function normalizeTags(tags?: string[]) {
   }
 
   return Array.from(
-    new Set(
-      tags
-        .map((tag) => String(tag).trim())
-        .filter(Boolean),
-    ),
+    new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)),
   );
 }
 
-function userCanAccessTemplate(
-  currentUser: CurrentServerUser,
-  template: TicketTemplateRow,
-) {
-  if (!currentUser) {
-    return false;
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
   }
 
+  return 500;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+function userCanAccessTemplate(
+  currentUser: ServerUser,
+  template: TicketTemplateRow,
+) {
   if (currentUser.role === "admin") {
     return true;
   }
@@ -151,28 +114,41 @@ function userCanAccessTemplate(
     return true;
   }
 
-  if (
-    currentUser.companyId &&
-    template.company_id === currentUser.companyId
-  ) {
+  if (currentUser.companyId && template.company_id === currentUser.companyId) {
     return true;
   }
 
   return false;
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-) {
-  try {
-    await requireAnyServerPermission([
-      "tickets.view",
-      "tickets.create",
-      "tickets.edit",
-      "tickets.manage",
-    ]);
+async function findTicketTemplate(id: string) {
+  return queryOne<TicketTemplateRow>(
+    `
+      SELECT
+        id,
+        title,
+        description,
+        status,
+        priority,
+        category,
+        company_id,
+        department_id,
+        company,
+        department,
+        assigned_to,
+        tags,
+        created_at,
+        updated_at
+      FROM ticket_templates
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [id],
+  );
+}
 
+export async function GET(_request: Request, context: RouteContext) {
+  try {
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -186,34 +162,17 @@ export async function GET(
       );
     }
 
-    const {
-      id,
-    } = await context.params;
+    await requireAnyServerPermission([
+      "tickets.templates.view",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+      "tickets.view",
+      "admin.view",
+    ]);
 
-    const row = await queryOne<TicketTemplateRow>(
-      `
-        SELECT
-          id,
-          title,
-          description,
-          status,
-          priority,
-          category,
-          company_id,
-          department_id,
-          company,
-          department,
-          assigned_to,
-          tags,
-          created_at,
-          updated_at
-        FROM ticket_templates
-        WHERE id = $1
-      `,
-      [
-        id,
-      ],
-    );
+    const { id } = await context.params;
+    const row = await findTicketTemplate(decodeURIComponent(id));
 
     if (!row) {
       return NextResponse.json(
@@ -247,10 +206,7 @@ export async function GET(
           error,
           "Ticket-Vorlage konnte nicht geladen werden.",
         ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -259,16 +215,8 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission([
-      "tickets.edit",
-      "tickets.manage",
-    ]);
-
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -282,36 +230,16 @@ export async function PATCH(
       );
     }
 
-    const {
-      id,
-    } = await context.params;
+    await requireAnyServerPermission([
+      "tickets.templates.edit",
+      "settings.manage",
+    ]);
 
+    const { id } = await context.params;
+    const decodedId = decodeURIComponent(id);
     const body = (await request.json()) as UpdateTicketTemplateBody;
 
-    const current = await queryOne<TicketTemplateRow>(
-      `
-        SELECT
-          id,
-          title,
-          description,
-          status,
-          priority,
-          category,
-          company_id,
-          department_id,
-          company,
-          department,
-          assigned_to,
-          tags,
-          created_at,
-          updated_at
-        FROM ticket_templates
-        WHERE id = $1
-      `,
-      [
-        id,
-      ],
-    );
+    const current = await findTicketTemplate(decodedId);
 
     if (!current) {
       return NextResponse.json(
@@ -338,14 +266,12 @@ export async function PATCH(
     const canChooseScope = currentUser.role === "admin";
 
     const nextTitle =
-      body.title !== undefined
-        ? normalizeText(body.title)
-        : normalizeText(current.title);
+      body.title !== undefined ? normalizeText(body.title) : current.title;
 
     const nextCategory =
       body.category !== undefined
         ? normalizeText(body.category)
-        : normalizeText(current.category);
+        : current.category || "";
 
     if (!nextTitle) {
       return NextResponse.json(
@@ -368,58 +294,6 @@ export async function PATCH(
         },
       );
     }
-
-    const nextDescription =
-      body.description !== undefined
-        ? normalizeText(body.description)
-        : normalizeText(current.description);
-
-    const nextStatus = normalizeStatus(
-      body.status,
-      current.status,
-    );
-
-    const nextPriority = normalizePriority(
-      body.priority,
-      current.priority,
-    );
-
-    const nextCompanyId = canChooseScope
-      ? body.companyId !== undefined
-        ? normalizeNullableId(body.companyId)
-        : current.company_id
-      : current.company_id;
-
-    const nextDepartmentId = canChooseScope
-      ? body.departmentId !== undefined
-        ? normalizeNullableId(body.departmentId)
-        : current.department_id
-      : current.department_id;
-
-    const nextCompany = canChooseScope
-      ? body.company !== undefined
-        ? normalizeText(body.company) || "Intern"
-        : normalizeText(current.company) || "Intern"
-      : normalizeText(current.company) ||
-        currentUser.company ||
-        "Intern";
-
-    const nextDepartment = canChooseScope
-      ? body.department !== undefined
-        ? normalizeText(body.department)
-        : normalizeText(current.department)
-      : normalizeText(current.department) ||
-        currentUser.department ||
-        "";
-
-    const nextAssignedTo =
-      body.assignedTo !== undefined
-        ? normalizeText(body.assignedTo)
-        : normalizeText(current.assigned_to);
-
-    const nextTags = Array.isArray(body.tags)
-      ? normalizeTags(body.tags)
-      : current.tags || [];
 
     const row = await queryOne<TicketTemplateRow>(
       `
@@ -456,17 +330,37 @@ export async function PATCH(
       `,
       [
         nextTitle,
-        nextDescription,
-        nextStatus,
-        nextPriority,
+        body.description !== undefined
+          ? normalizeText(body.description)
+          : current.description || "",
+        normalizeStatus(body.status, current.status),
+        normalizePriority(body.priority, current.priority),
         nextCategory,
-        nextCompanyId,
-        nextDepartmentId,
-        nextCompany,
-        nextDepartment,
-        nextAssignedTo,
-        nextTags,
-        id,
+        canChooseScope
+          ? body.companyId !== undefined
+            ? normalizeNullableId(body.companyId)
+            : current.company_id
+          : current.company_id,
+        canChooseScope
+          ? body.departmentId !== undefined
+            ? normalizeNullableId(body.departmentId)
+            : current.department_id
+          : current.department_id,
+        canChooseScope
+          ? body.company !== undefined
+            ? normalizeText(body.company) || "Intern"
+            : current.company || "Intern"
+          : current.company || currentUser.company || "Intern",
+        canChooseScope
+          ? body.department !== undefined
+            ? normalizeText(body.department)
+            : current.department || ""
+          : current.department || currentUser.department || "",
+        body.assignedTo !== undefined
+          ? normalizeText(body.assignedTo)
+          : current.assigned_to || "",
+        Array.isArray(body.tags) ? normalizeTags(body.tags) : current.tags || [],
+        decodedId,
       ],
     );
 
@@ -491,10 +385,7 @@ export async function PATCH(
           error,
           "Ticket-Vorlage konnte nicht aktualisiert werden.",
         ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -503,16 +394,8 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission([
-      "tickets.edit",
-      "tickets.manage",
-    ]);
-
     const currentUser = await getCurrentServerUser();
 
     if (!currentUser) {
@@ -526,34 +409,15 @@ export async function DELETE(
       );
     }
 
-    const {
-      id,
-    } = await context.params;
+    await requireAnyServerPermission([
+      "tickets.templates.delete",
+      "settings.manage",
+    ]);
 
-    const current = await queryOne<TicketTemplateRow>(
-      `
-        SELECT
-          id,
-          title,
-          description,
-          status,
-          priority,
-          category,
-          company_id,
-          department_id,
-          company,
-          department,
-          assigned_to,
-          tags,
-          created_at,
-          updated_at
-        FROM ticket_templates
-        WHERE id = $1
-      `,
-      [
-        id,
-      ],
-    );
+    const { id } = await context.params;
+    const decodedId = decodeURIComponent(id);
+
+    const current = await findTicketTemplate(decodedId);
 
     if (!current) {
       return NextResponse.json(
@@ -577,15 +441,13 @@ export async function DELETE(
       );
     }
 
-    await queryOne(
+    await queryOne<{ id: string }>(
       `
         DELETE FROM ticket_templates
         WHERE id = $1
         RETURNING id
       `,
-      [
-        id,
-      ],
+      [decodedId],
     );
 
     return NextResponse.json({
@@ -600,10 +462,7 @@ export async function DELETE(
           error,
           "Ticket-Vorlage konnte nicht gelöscht werden.",
         ),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

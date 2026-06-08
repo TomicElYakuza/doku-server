@@ -156,7 +156,7 @@ export default function WikiPageList() {
   const canManageWiki =
     isAdmin ||
     hasAnyPermission([
-      "wiki.manage",
+      "wiki.edit",
     ]);
 
   const canCreateWiki =
