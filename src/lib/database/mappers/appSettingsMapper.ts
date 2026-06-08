@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AppAccentColor,
   AppSettings,
   AppTheme,
@@ -21,7 +21,6 @@ export type AppSettingsRow = {
   sidebar_position: string | null;
   show_version: boolean | null;
   compact_mode: boolean | null;
-  show_demo_hints?: boolean | null;
   enable_ticket_comments: boolean | null;
   enable_ticket_templates: boolean | null;
   enable_activity_log: boolean | null;
@@ -172,7 +171,6 @@ export function mapAppSettingsRow(
     sidebarPosition: normalizeSidebarPosition(row.sidebar_position),
     showVersion: row.show_version ?? true,
     compactMode: row.compact_mode ?? false,
-    showDemoHints: row.show_demo_hints ?? false,
     enableTicketComments: row.enable_ticket_comments ?? true,
     enableTicketTemplates: row.enable_ticket_templates ?? true,
     enableActivityLog: row.enable_activity_log ?? true,

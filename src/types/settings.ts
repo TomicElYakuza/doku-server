@@ -1,4 +1,4 @@
-export type AppTheme =
+﻿export type AppTheme =
   | "modern"
   | "light"
   | "dark"
@@ -42,7 +42,6 @@ export type AppSettings = {
   sidebarPosition: SidebarPosition;
   showVersion: boolean;
   compactMode: boolean;
-  showDemoHints: boolean;
   enableTicketTemplates: boolean;
   enableTicketComments: boolean;
   enableActivityLog: boolean;

@@ -1,4 +1,4 @@
-import {
+﻿import {
   requestJson,
 } from "./apiClient";
 import type {
@@ -61,7 +61,6 @@ const defaultSettings: AppSettings = {
   sidebarPosition: "left",
   showVersion: true,
   compactMode: false,
-  showDemoHints: false,
   enableTicketTemplates: true,
   enableTicketComments: true,
   enableActivityLog: true,
@@ -148,7 +147,7 @@ export const postgresAppSettingsRepository: AppSettingsRepository = {
     }
 
     if (color === "green") {
-      return "Grün";
+      return "GrÃ¼n";
     }
 
     if (color === "amber") {

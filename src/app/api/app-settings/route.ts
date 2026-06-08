@@ -1,4 +1,4 @@
-import {
+﻿import {
   NextResponse,
 } from "next/server";
 import {
@@ -62,7 +62,6 @@ const defaultSettings = {
   sidebarPosition: "left",
   compactMode: false,
   showVersion: true,
-  showDemoHints: false,
   enableTicketComments: true,
   enableTicketTemplates: true,
   enableActivityLog: true,
@@ -84,7 +83,6 @@ function mapSettingsRow(row: AppSettingsRow) {
     sidebarPosition: row.sidebar_position,
     compactMode: row.compact_mode,
     showVersion: row.show_version,
-    showDemoHints: false,
     enableTicketComments: row.enable_ticket_comments,
     enableTicketTemplates: row.enable_ticket_templates,
     enableActivityLog: row.enable_activity_log,
@@ -523,7 +521,7 @@ export async function DELETE() {
       {
         message: getErrorMessage(
           error,
-          "Einstellungen konnten nicht zurückgesetzt werden.",
+          "Einstellungen konnten nicht zurÃ¼ckgesetzt werden.",
         ),
         error:
           error instanceof Error
