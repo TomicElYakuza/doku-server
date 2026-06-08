@@ -86,14 +86,14 @@ const listViewOptions: ListViewOption[] = [
     label: "Tabelle",
     description:
       "Listen werden standardmäßig als Tabelle angezeigt.",
-    icon: "â–¦",
+    icon: "▦",
   },
   {
     value: "cards",
     label: "Karten",
     description:
       "Listen werden standardmäßig als Karten angezeigt.",
-    icon: "â–£",
+    icon: "▣",
   },
 ];
 
@@ -867,6 +867,7 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
+
 
 
 
