@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   FormEvent,
   useEffect,
@@ -12,35 +11,36 @@ import {
   getCachedCurrentUser,
 } from "../../lib/currentUserRepository";
 import {
-  appSettingsRepository,
-} from "../../lib/appSettingsRepository";
-import {
-  userSettingsRepository,
-} from "../../lib/userSettingsRepository";
-import {
   useAppSettings,
 } from "../../hooks/useAppSettings";
 import {
   useUserSettings,
 } from "../../hooks/useUserSettings";
+import {
+  userSettingsRepository,
+} from "../../lib/userSettingsRepository";
 import PageHero from "../../components/PageHero";
 import StatCard from "../../components/StatCard";
 import type {
   AppAccentColor,
   AppTheme,
 } from "../../types/settings";
+import type {
+  User,
+} from "../../types/user";
 
 type ThemeOption = {
   value: AppTheme;
   label: string;
   description: string;
+  icon: string;
 };
 
 type AccentOption = {
   value: AppAccentColor;
   label: string;
   description: string;
-  gradient: string;
+  previewClass: string;
 };
 
 const themeOptions: ThemeOption[] = [
@@ -48,70 +48,86 @@ const themeOptions: ThemeOption[] = [
     value: "modern",
     label: "Modern",
     description:
-      "Velunis Look mit dunkler Navigation und heller Arbeitsfläche.",
+      "Velunis Standard mit moderner Sidebar und klaren Flächen.",
+    icon: "✨",
   },
   {
     value: "light",
     label: "Hell",
     description:
-      "Helle Sidebar, helle Topbar und helle Arbeitsfläche.",
+      "Helle Oberfläche mit leichter Sidebar und viel Weißraum.",
+    icon: "☀️",
   },
   {
     value: "dark",
     label: "Dunkel",
     description:
-      "Dunkle Oberfläche für konzentriertes Arbeiten.",
+      "Dunkle Oberfläche für angenehmes Arbeiten bei wenig Licht.",
+    icon: "🌙",
   },
   {
     value: "system",
     label: "System",
     description:
-      "Folgt automatisch der Systemeinstellung deines Geräts.",
+      "Übernimmt die Darstellung deines Betriebssystems.",
+    icon: "💻",
   },
 ];
 
 const accentOptions: AccentOption[] = [
   {
-    value: "velunis",
-    label: "Velunis Blau/Lila",
-    description: "Empfohlenes Firmenbranding.",
-    gradient: "from-blue-600 via-indigo-600 to-violet-600",
+    value: "zinc",
+    label: "Neutral",
+    description: "Schwarz/Weiß und sehr ruhig.",
+    previewClass: "bg-zinc-900",
   },
   {
     value: "blue",
     label: "Blau",
-    description: "Klar und technisch.",
-    gradient: "from-blue-600 to-blue-700",
-  },
-  {
-    value: "purple",
-    label: "Lila",
-    description: "Modern und kreativ.",
-    gradient: "from-purple-600 to-fuchsia-600",
+    description: "Klar, technisch und professionell.",
+    previewClass: "bg-blue-600",
   },
   {
     value: "indigo",
     label: "Indigo",
-    description: "Ruhig und digital.",
-    gradient: "from-indigo-600 to-indigo-700",
+    description: "Velunis Blau/Lila Richtung.",
+    previewClass: "bg-indigo-600",
+  },
+  {
+    value: "purple",
+    label: "Lila",
+    description: "Modern, digital und markant.",
+    previewClass: "bg-purple-600",
   },
   {
     value: "emerald",
     label: "Emerald",
-    description: "Frisch und statusorientiert.",
-    gradient: "from-emerald-600 to-green-600",
+    description: "Frisch und positiv.",
+    previewClass: "bg-emerald-600",
+  },
+  {
+    value: "green",
+    label: "Grün",
+    description: "Ruhig und statusorientiert.",
+    previewClass: "bg-green-600",
   },
   {
     value: "amber",
     label: "Amber",
     description: "Warm und auffällig.",
-    gradient: "from-amber-500 to-orange-500",
+    previewClass: "bg-amber-500",
   },
   {
-    value: "zinc",
-    label: "Neutral",
-    description: "Minimal ohne starke Markenfarbe.",
-    gradient: "from-zinc-700 to-zinc-950",
+    value: "orange",
+    label: "Orange",
+    description: "Dynamisch und aktiv.",
+    previewClass: "bg-orange-600",
+  },
+  {
+    value: "red",
+    label: "Rot",
+    description: "Stark und signalorientiert.",
+    previewClass: "bg-red-600",
   },
 ];
 
@@ -121,22 +137,6 @@ function getThemeLabel(theme: AppTheme) {
 
 function getAccentLabel(accentColor: AppAccentColor) {
   return userSettingsRepository.getAccentColorLabel(accentColor);
-}
-
-function getThemePreviewClass(theme: AppTheme) {
-  if (theme === "dark") {
-    return "bg-zinc-950 text-white border-zinc-800";
-  }
-
-  if (theme === "light") {
-    return "bg-white text-zinc-950 border-zinc-200";
-  }
-
-  if (theme === "system") {
-    return "bg-gradient-to-br from-white via-zinc-100 to-zinc-950 text-zinc-950 border-zinc-300";
-  }
-
-  return "bg-[#060711] text-white border-white/10";
 }
 
 function getRoleLabel(role?: string) {
@@ -149,6 +149,34 @@ function getRoleLabel(role?: string) {
   }
 
   return "Mitarbeiter";
+}
+
+function getRoleClass(role?: string) {
+  if (role === "admin") {
+    return "bg-red-50 text-red-700 border-red-100";
+  }
+
+  if (role === "department_lead") {
+    return "bg-indigo-50 text-indigo-700 border-indigo-100";
+  }
+
+  return "bg-blue-50 text-blue-700 border-blue-100";
+}
+
+function getDepartmentLabel(user: User | null) {
+  return user?.department || "Keine Abteilung";
+}
+
+function getCompanyLabel(user: User | null) {
+  return user?.company || "Intern";
+}
+
+function getListViewLabel(view?: string) {
+  if (view === "cards") {
+    return "Karten";
+  }
+
+  return "Tabelle";
 }
 
 export default function SettingsPage() {
@@ -164,7 +192,13 @@ export default function SettingsPage() {
     updateSettings,
   } = useUserSettings();
 
-  const [theme, setTheme] = useState<AppTheme>(userSettings.theme);
+  const [currentUser, setCurrentUser] = useState<User | null>(
+    getCachedCurrentUser(),
+  );
+
+  const [theme, setTheme] = useState<AppTheme>(
+    userSettings.theme,
+  );
   const [accentColor, setAccentColor] = useState<AppAccentColor>(
     userSettings.accentColor,
   );
@@ -176,8 +210,6 @@ export default function SettingsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const user = getCachedCurrentUser();
-
   useEffect(() => {
     setTheme(userSettings.theme);
     setAccentColor(userSettings.accentColor);
@@ -186,12 +218,42 @@ export default function SettingsPage() {
     userSettings,
   ]);
 
-  const selectedAccent = useMemo(
+  useEffect(() => {
+    function handleCurrentUserUpdated() {
+      setCurrentUser(getCachedCurrentUser());
+    }
+
+    window.addEventListener(
+      "currentUserUpdated",
+      handleCurrentUserUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "currentUserUpdated",
+        handleCurrentUserUpdated,
+      );
+    };
+  }, []);
+
+  const loading =
+    appSettingsLoading ||
+    userSettingsLoading;
+
+  const hasChanges =
+    theme !== userSettings.theme ||
+    accentColor !== userSettings.accentColor ||
+    compactMode !== userSettings.compactMode;
+
+  const savedSummary = useMemo(
     () =>
-      accentOptions.find((option) => option.value === accentColor) ||
-      accentOptions[0],
+      [
+        getThemeLabel(userSettings.theme),
+        getAccentLabel(userSettings.accentColor),
+        userSettings.compactMode ? "Kompakt" : "Standard",
+      ].join(" · "),
     [
-      accentColor,
+      userSettings,
     ],
   );
 
@@ -209,7 +271,9 @@ export default function SettingsPage() {
         compactMode,
       });
 
-      setMessage("Persönliche Einstellungen wurden gespeichert.");
+      setMessage(
+        "Persönliche Einstellungen wurden gespeichert.",
+      );
     } catch (saveError) {
       console.error(saveError);
 
@@ -231,38 +295,43 @@ export default function SettingsPage() {
     setError("");
   }
 
-  const loading = appSettingsLoading || userSettingsLoading;
-
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Benutzerbereich"
+        eyebrow="Velunis Workspace"
         title="Einstellungen"
-        description="Passe deine persönliche Darstellung, Akzentfarbe und kompakte Ansicht an."
+        description="Persönliche Darstellung, Theme, Akzentfarbe und Kontoinformationen für deinen Benutzer."
         badges={[
           {
-            label: `Theme: ${getThemeLabel(theme)}`,
+            label: getThemeLabel(theme),
           },
           {
-            label: `Akzent: ${getAccentLabel(accentColor)}`,
+            label: getAccentLabel(accentColor),
           },
           {
-            label: compactMode ? "Kompakt" : "Standardabstände",
+            label: compactMode ? "Kompakt" : "Standard",
+          },
+          {
+            label: hasChanges
+              ? "Ungespeicherte Änderungen"
+              : "Gespeichert",
           },
         ]}
         actions={
           <>
-            <Link
-              href="/settings/password"
-              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition"
+            <button
+              type="button"
+              onClick={resetForm}
+              disabled={saving || loading || !hasChanges}
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition disabled:opacity-50 font-bold"
             >
-              Passwort ändern
-            </Link>
+              Änderungen verwerfen
+            </button>
 
             <button
               type="submit"
               form="personal-settings-form"
-              disabled={saving || loading}
+              disabled={saving || loading || !hasChanges}
               className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-bold"
             >
               {saving ? "Speichert..." : "Speichern"}
@@ -289,7 +358,10 @@ export default function SettingsPage() {
 
       {(error || userSettingsError) && (
         <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-red-700 font-medium">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+          <p className="text-red-600 mt-2">
             {error || userSettingsError}
           </p>
         </div>
@@ -297,183 +369,260 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
-          label="Benutzer"
-          value={user?.name || "Unbekannt"}
-          description={getRoleLabel(user?.role)}
-          icon="👤"
-          tone="indigo"
-        />
-        <StatCard
           label="Theme"
           value={getThemeLabel(theme)}
           description="Persönliche Darstellung"
           icon="🎨"
+          tone="indigo"
+        />
+
+        <StatCard
+          label="Akzentfarbe"
+          value={getAccentLabel(accentColor)}
+          description="Buttons, Fokus und Highlights"
+          icon="✨"
           tone="purple"
         />
-        <StatCard
-          label="Akzent"
-          value={getAccentLabel(accentColor)}
-          description="Persönliche Farbe"
-          icon="🌈"
-          tone="blue"
-        />
+
         <StatCard
           label="Layout"
           value={compactMode ? "Kompakt" : "Standard"}
-          description="Abstände im Interface"
-          icon="↔️"
-          tone="orange"
+          description="Abstände und Dichte"
+          icon="📐"
+          tone="blue"
+        />
+
+        <StatCard
+          label="Status"
+          value={hasChanges ? "Offen" : "Aktuell"}
+          description={
+            hasChanges
+              ? "Bitte speichern"
+              : "Keine Änderungen"
+          }
+          icon={hasChanges ? "●" : "✓"}
+          tone={hasChanges ? "orange" : "green"}
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-5">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Mein Konto
-              </h2>
-              <p className="text-zinc-500 mt-1">
-                Deine aktuell angemeldeten Benutzerinformationen.
-              </p>
-            </div>
+      <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+        <aside className="space-y-6">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-            <Link
-              href="/settings/password"
-              className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
-            >
-              Passwort ändern
-            </Link>
-          </div>
+            <div className="relative">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-400 font-black">
+                    Konto
+                  </p>
+                  <h2 className="text-2xl font-black mt-1">
+                    Mein Konto
+                  </h2>
+                  <p className="text-zinc-500 mt-1">
+                    Aktuell angemeldeter Benutzer.
+                  </p>
+                </div>
 
-          <div className="space-y-4 mt-6">
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-xs text-zinc-500">
-                Name
-              </p>
-              <p className="font-bold mt-1">
-                {user?.name || "Unbekannt"}
-              </p>
-            </div>
+                <div className="h-12 w-12 rounded-2xl app-accent-bg text-white flex items-center justify-center text-xl app-brand-shadow">
+                  👤
+                </div>
+              </div>
 
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-xs text-zinc-500">
-                E-Mail
-              </p>
-              <p className="font-bold mt-1 break-all">
-                {user?.email || "Unbekannt"}
-              </p>
-            </div>
+              <div className="space-y-4 mt-6">
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Name
+                  </p>
+                  <p className="font-black mt-1">
+                    {currentUser?.name || "Unbekannt"}
+                  </p>
+                </div>
 
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-xs text-zinc-500">
-                Rolle
-              </p>
-              <p className="font-bold mt-1">
-                {getRoleLabel(user?.role)}
-              </p>
-            </div>
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    E-Mail
+                  </p>
+                  <p className="font-black mt-1 break-all">
+                    {currentUser?.email || "Unbekannt"}
+                  </p>
+                </div>
 
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-xs text-zinc-500">
-                Firma
-              </p>
-              <p className="font-bold mt-1">
-                {user?.company || "Intern"}
-              </p>
-            </div>
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Benutzer-ID
+                  </p>
+                  <p className="font-black mt-1 break-all">
+                    {currentUser?.id || "-"}
+                  </p>
+                </div>
 
-            <div className="bg-zinc-50 rounded-2xl p-4">
-              <p className="text-xs text-zinc-500">
-                Abteilung
-              </p>
-              <p className="font-bold mt-1">
-                {user?.department || "Keine Abteilung"}
-              </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Firma
+                    </p>
+                    <p className="font-black mt-1 line-clamp-1">
+                      {getCompanyLabel(currentUser)}
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 rounded-2xl p-4">
+                    <p className="text-xs text-zinc-500">
+                      Abteilung
+                    </p>
+                    <p className="font-black mt-1 line-clamp-1">
+                      {getDepartmentLabel(currentUser)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <span
+                    className={`text-xs px-3 py-1 rounded-full border font-bold ${getRoleClass(
+                      currentUser?.role,
+                    )}`}
+                  >
+                    {getRoleLabel(currentUser?.role)}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
+              App-Information
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Diese Werte werden zentral durch Administratoren verwaltet.
+            </p>
+
+            <div className="space-y-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  App
+                </p>
+                <p className="font-black mt-1">
+                  {appSettings.appName || "Intranet"}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Firma
+                </p>
+                <p className="font-black mt-1">
+                  {appSettings.companyName || "Velunis"}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Version
+                </p>
+                <p className="font-black mt-1">
+                  {appSettings.showVersion
+                    ? appSettings.appVersion ||
+                      appSettings.version ||
+                      "0.1.0"
+                    : "Ausgeblendet"}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Globale Defaults
+                </p>
+                <p className="font-black mt-1">
+                  Tickets:{" "}
+                  {getListViewLabel(
+                    appSettings.defaultTicketView || "table",
+                  )}
+                </p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  Wiki:{" "}
+                  {getListViewLabel(
+                    appSettings.defaultWikiView || "table",
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+        </aside>
 
         <form
           id="personal-settings-form"
           onSubmit={(event) => void handleSubmit(event)}
-          className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-8 xl:col-span-2"
+          className="space-y-6"
         >
-          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-            <div>
-              <h2 className="text-2xl font-bold">
-                Darstellung
-              </h2>
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
+              Darstellung
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Diese Einstellungen werden dauerhaft für deinen Benutzer gespeichert.
+            </p>
+
+            <div className="mt-6">
+              <h3 className="text-xl font-black">
+                Theme
+              </h3>
               <p className="text-zinc-500 mt-1">
-                Diese Einstellungen gelten nur für deinen Benutzer.
+                Wähle aus, wie hell oder dunkel dein Workspace dargestellt wird.
               </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {themeOptions.map((option) => {
+                  const active = theme === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTheme(option.value)}
+                      className={`text-left border rounded-3xl p-5 transition ${
+                        active
+                          ? "app-accent-bg text-white app-brand-shadow border-transparent"
+                          : "border-zinc-200 bg-white hover:bg-zinc-50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <span className="text-2xl">
+                          {option.icon}
+                        </span>
+
+                        <span>
+                          <span className="block font-black">
+                            {option.label}
+                          </span>
+                          <span
+                            className={`block text-sm mt-2 ${
+                              active
+                                ? "text-white/75"
+                                : "text-zinc-500"
+                            }`}
+                          >
+                            {option.description}
+                          </span>
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          </section>
 
-            <div
-              className={`rounded-3xl bg-gradient-to-br ${selectedAccent.gradient} text-white p-5 min-w-72 app-brand-shadow`}
-            >
-              <p className="text-xs uppercase tracking-[0.22em] font-black text-white/70">
-                Persönliche Vorschau
-              </p>
-              <p className="text-2xl font-black mt-2">
-                Velunis
-              </p>
-              <p className="text-sm text-white/75 mt-1">
-                {selectedAccent.label}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-bold">
-              Theme
-            </h3>
-            <p className="text-sm text-zinc-500 mt-1">
-              Wähle, wie die Oberfläche für dich dargestellt werden soll.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-              {themeOptions.map((option) => {
-                const active = theme === option.value;
-
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setTheme(option.value)}
-                    className={`text-left border rounded-3xl p-5 transition ${
-                      active
-                        ? "app-accent-border app-accent-soft ring-4 ring-indigo-500/10"
-                        : "border-zinc-200 bg-white hover:bg-zinc-50"
-                    }`}
-                  >
-                    <div
-                      className={`h-16 rounded-2xl border mb-4 ${getThemePreviewClass(
-                        option.value,
-                      )}`}
-                    />
-
-                    <h4 className="font-black text-zinc-950">
-                      {option.label}
-                    </h4>
-                    <p className="text-sm text-zinc-500 mt-2">
-                      {option.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-bold">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
               Akzentfarbe
-            </h3>
-            <p className="text-sm text-zinc-500 mt-1">
-              Wird für deine persönlichen Akzente gespeichert.
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Die Akzentfarbe beeinflusst Buttons, Fokuszustände, Highlights und Preview-Flächen.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               {accentOptions.map((option) => {
                 const active = accentColor === option.value;
 
@@ -484,158 +633,155 @@ export default function SettingsPage() {
                     onClick={() => setAccentColor(option.value)}
                     className={`text-left border rounded-3xl p-5 transition ${
                       active
-                        ? "app-accent-border app-accent-soft ring-4 ring-indigo-500/10"
+                        ? "app-accent-bg text-white app-brand-shadow border-transparent"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <div
-                      className={`h-12 rounded-2xl bg-gradient-to-r ${option.gradient} shadow-sm`}
-                    />
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`h-8 w-8 rounded-2xl border border-white/40 shadow-sm ${option.previewClass}`}
+                      />
 
-                    <h4 className="font-black text-zinc-950 mt-4">
-                      {option.label}
-                    </h4>
-                    <p className="text-sm text-zinc-500 mt-1">
+                      <span className="font-black">
+                        {option.label}
+                      </span>
+                    </div>
+
+                    <p
+                      className={`text-sm mt-3 ${
+                        active
+                          ? "text-white/75"
+                          : "text-zinc-500"
+                      }`}
+                    >
                       {option.description}
                     </p>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          <label
-            className={`flex items-start gap-4 rounded-3xl border p-5 transition cursor-pointer ${
-              compactMode
-                ? "app-accent-border app-accent-soft"
-                : "border-zinc-200 bg-white hover:bg-zinc-50"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={compactMode}
-              onChange={(event) => setCompactMode(event.target.checked)}
-              className="h-5 w-5 mt-1 accent-indigo-600"
-            />
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
+              Layout
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Passe die Dichte der Oberfläche an.
+            </p>
 
-            <span>
-              <span className="block font-bold text-zinc-950">
-                Kompakter Modus
+            <label
+              className={`flex items-start gap-4 rounded-3xl border p-5 cursor-pointer transition mt-6 ${
+                compactMode
+                  ? "app-accent-soft app-accent-border"
+                  : "bg-white border-zinc-200 hover:bg-zinc-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={compactMode}
+                onChange={(event) =>
+                  setCompactMode(event.target.checked)
+                }
+                className="h-5 w-5 mt-1 accent-indigo-600"
+              />
+
+              <span>
+                <span className="block font-black text-zinc-950">
+                  Kompakter Modus
+                </span>
+                <span className="block text-sm text-zinc-500 mt-1">
+                  Reduziert vertikale Abstände und macht Listen dichter.
+                </span>
               </span>
-              <span className="block text-sm text-zinc-500 mt-1">
-                Reduziert vertikale Abstände und macht Listen dichter.
-              </span>
-            </span>
-          </label>
+            </label>
+          </section>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-2">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <h2 className="text-2xl font-bold">
+                Vorschau
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                So wirken Theme, Akzentfarbe und Dichte zusammen.
+              </p>
+
+              <div className="mt-6 rounded-3xl app-accent-bg text-white p-6 app-brand-shadow">
+                <p className="text-sm text-white/70">
+                  {appSettings.companyName || "Velunis"}
+                </p>
+                <h3 className="text-3xl font-black mt-2">
+                  {appSettings.appName || "Intranet"}
+                </h3>
+                <p className="text-white/75 mt-3">
+                  {getThemeLabel(theme)} · {getAccentLabel(accentColor)} ·{" "}
+                  {compactMode ? "Kompakt" : "Standard"}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+                  <div className="bg-white/10 border border-white/10 rounded-2xl p-4">
+                    <p className="text-xs text-white/60">
+                      Ansicht
+                    </p>
+                    <p className="font-black mt-1">
+                      {getThemeLabel(theme)}
+                    </p>
+                  </div>
+
+                  <div className="bg-white/10 border border-white/10 rounded-2xl p-4">
+                    <p className="text-xs text-white/60">
+                      Farbe
+                    </p>
+                    <p className="font-black mt-1">
+                      {getAccentLabel(accentColor)}
+                    </p>
+                  </div>
+
+                  <div className="bg-white/10 border border-white/10 rounded-2xl p-4">
+                    <p className="text-xs text-white/60">
+                      Modus
+                    </p>
+                    <p className="font-black mt-1">
+                      {compactMode ? "Kompakt" : "Standard"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Aktuell gespeichert
+                </p>
+                <p className="font-black mt-1">
+                  {savedSummary}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="flex flex-col md:flex-row md:items-center md:justify-end gap-3">
             <button
               type="button"
               onClick={resetForm}
-              disabled={saving}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+              disabled={saving || loading || !hasChanges}
+              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
             >
               Änderungen verwerfen
             </button>
 
             <button
               type="submit"
-              disabled={saving || loading}
-              className="app-accent-bg text-white px-6 py-4 rounded-2xl transition disabled:opacity-50 font-black app-brand-shadow"
+              disabled={saving || loading || !hasChanges}
+              className="app-accent-bg text-white px-6 py-4 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
               {saving
                 ? "Speichert..."
                 : "Persönliche Einstellungen speichern"}
             </button>
-          </div>
-
-          <p className="text-sm text-zinc-500">
-            Aktuell gespeichert:{" "}
-            <span className="font-semibold text-zinc-900">
-              {userSettingsRepository.getThemeLabel(userSettings.theme)}
-            </span>
-            {" · "}
-            <span className="font-semibold text-zinc-900">
-              {userSettingsRepository.getAccentColorLabel(
-                userSettings.accentColor,
-              )}
-            </span>
-            {" · "}
-            <span className="font-semibold text-zinc-900">
-              {userSettings.compactMode ? "Kompakt" : "Standard"}
-            </span>
-          </p>
+          </section>
         </form>
-      </div>
-
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-          <div>
-            <h2 className="text-2xl font-bold">
-              App-Information
-            </h2>
-            <p className="text-zinc-500 mt-1">
-              Diese Werte werden zentral durch Administratoren verwaltet.
-            </p>
-          </div>
-
-          <Link
-            href="/admin/settings"
-            className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-xl hover:bg-zinc-200 transition"
-          >
-            Systemeinstellungen öffnen
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-zinc-50 rounded-3xl p-5">
-            <p className="text-sm text-zinc-500">
-              App
-            </p>
-            <p className="font-bold mt-2">
-              {appSettings.appName || "Intranet"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-3xl p-5">
-            <p className="text-sm text-zinc-500">
-              Firma
-            </p>
-            <p className="font-bold mt-2">
-              {appSettings.companyName || "Velunis"}
-            </p>
-          </div>
-
-          <div className="bg-zinc-50 rounded-3xl p-5">
-            <p className="text-sm text-zinc-500">
-              Version
-            </p>
-            <p className="font-bold mt-2">
-              {appSettings.showVersion
-                ? appSettings.appVersion ||
-                  appSettings.version ||
-                  "0.1.0"
-                : "Ausgeblendet"}
-            </p>
-          </div>
-        </div>
-
-        <p className="text-sm text-zinc-500 mt-5">
-          Systemwerte:{" "}
-          <span className="font-semibold text-zinc-900">
-            {appSettings.appName || "Intranet"}
-          </span>
-          {" · "}
-          <span className="font-semibold text-zinc-900">
-            {appSettings.companyName || "Velunis"}
-          </span>
-          {" · "}
-          <span className="font-semibold text-zinc-900">
-            {appSettingsRepository.getDefaultUserRoleLabel(
-              appSettings.defaultUserRole,
-            )}
-          </span>
-        </p>
       </section>
     </div>
   );

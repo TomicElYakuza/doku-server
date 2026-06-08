@@ -1,23 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import {
   FormEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
+import PageHero from "../../../components/PageHero";
+import StatCard from "../../../components/StatCard";
 import {
   useAppSettings,
 } from "../../../hooks/useAppSettings";
 import {
   canViewAdmin,
 } from "../../../lib/permissions";
-import {
-  appSettingsRepository,
-} from "../../../lib/appSettingsRepository";
-import AccessDeniedCard from "../../../components/AccessDeniedCard";
-import PageHero from "../../../components/PageHero";
-import StatCard from "../../../components/StatCard";
 import type {
   AppDefaultUserRole,
   AppSettings,
@@ -34,6 +33,7 @@ type ListViewOption = {
   value: DefaultListView;
   label: string;
   description: string;
+  icon: string;
 };
 
 type EditableSettings = {
@@ -50,6 +50,13 @@ type EditableSettings = {
   hideClosedTicketsByDefault: boolean;
   ticketsPerPage: number;
   wikiPerPage: number;
+};
+
+type ToggleCardProps = {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
 };
 
 const roleOptions: RoleOption[] = [
@@ -79,12 +86,14 @@ const listViewOptions: ListViewOption[] = [
     label: "Tabelle",
     description:
       "Listen werden standardmäßig als Tabelle angezeigt.",
+    icon: "▦",
   },
   {
     value: "cards",
     label: "Karten",
     description:
       "Listen werden standardmäßig als Karten angezeigt.",
+    icon: "▣",
   },
 ];
 
@@ -139,17 +148,11 @@ function getDefaultEditableSettings(
   return {
     appName: settings.appName || "Intranet",
     companyName: settings.companyName || "Velunis",
-    appVersion:
-      settings.appVersion ||
-      settings.version ||
-      "0.1.0",
+    appVersion: settings.appVersion || settings.version || "0.1.0",
     showVersion: settings.showVersion ?? true,
-    enableTicketComments:
-      settings.enableTicketComments ?? true,
-    enableTicketTemplates:
-      settings.enableTicketTemplates ?? true,
-    enableActivityLog:
-      settings.enableActivityLog ?? true,
+    enableTicketComments: settings.enableTicketComments ?? true,
+    enableTicketTemplates: settings.enableTicketTemplates ?? true,
+    enableActivityLog: settings.enableActivityLog ?? true,
     defaultUserRole: normalizeDefaultUserRole(
       settings.defaultUserRole,
     ),
@@ -181,17 +184,10 @@ function getRoleLabel(role: AppDefaultUserRole) {
 
 function getListViewLabel(view: DefaultListView) {
   return (
-    listViewOptions.find((option) => option.value === view)
-      ?.label || view
+    listViewOptions.find((option) => option.value === view)?.label ||
+    view
   );
 }
-
-type ToggleCardProps = {
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-};
 
 function ToggleCard({
   title,
@@ -201,7 +197,7 @@ function ToggleCard({
 }: ToggleCardProps) {
   return (
     <label
-      className={`flex items-start gap-4 rounded-3xl border p-5 transition cursor-pointer ${
+      className={`flex items-start gap-4 rounded-3xl border p-5 cursor-pointer transition ${
         checked
           ? "app-accent-border app-accent-soft"
           : "border-zinc-200 bg-white hover:bg-zinc-50"
@@ -215,7 +211,7 @@ function ToggleCard({
       />
 
       <span>
-        <span className="block font-bold text-zinc-950">
+        <span className="block font-black text-zinc-950">
           {title}
         </span>
         <span className="block text-sm text-zinc-500 mt-1">
@@ -272,19 +268,13 @@ export default function AdminSettingsPage() {
 
       await updateSettings({
         appName: form.appName.trim() || "Intranet",
-        companyName:
-          form.companyName.trim() || "Velunis",
-        appVersion:
-          form.appVersion.trim() || "0.1.0",
-        version:
-          form.appVersion.trim() || "0.1.0",
+        companyName: form.companyName.trim() || "Velunis",
+        appVersion: form.appVersion.trim() || "0.1.0",
+        version: form.appVersion.trim() || "0.1.0",
         showVersion: form.showVersion,
-        enableTicketComments:
-          form.enableTicketComments,
-        enableTicketTemplates:
-          form.enableTicketTemplates,
-        enableActivityLog:
-          form.enableActivityLog,
+        enableTicketComments: form.enableTicketComments,
+        enableTicketTemplates: form.enableTicketTemplates,
+        enableActivityLog: form.enableActivityLog,
         defaultUserRole: form.defaultUserRole,
         defaultTicketView: form.defaultTicketView,
         defaultWikiView: form.defaultWikiView,
@@ -303,6 +293,7 @@ export default function AdminSettingsPage() {
       setMessage("Systemeinstellungen wurden gespeichert.");
     } catch (saveError) {
       console.error(saveError);
+
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -332,6 +323,7 @@ export default function AdminSettingsPage() {
       setMessage("Systemeinstellungen wurden zurückgesetzt.");
     } catch (resetError) {
       console.error(resetError);
+
       setError(
         resetError instanceof Error
           ? resetError.message
@@ -342,6 +334,20 @@ export default function AdminSettingsPage() {
     }
   }
 
+  const enabledFeatureCount = useMemo(
+    () =>
+      [
+        form.enableTicketComments,
+        form.enableTicketTemplates,
+        form.enableActivityLog,
+      ].filter(Boolean).length,
+    [
+      form.enableTicketComments,
+      form.enableTicketTemplates,
+      form.enableActivityLog,
+    ],
+  );
+
   if (!mounted) {
     return null;
   }
@@ -351,6 +357,8 @@ export default function AdminSettingsPage() {
       <AccessDeniedCard
         title="Systemeinstellungen"
         description="Du hast keine Berechtigung für die Systemeinstellungen."
+        backHref="/admin"
+        backLabel="Zum Admin Dashboard"
       />
     );
   }
@@ -358,18 +366,21 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-8">
       <PageHero
-        eyebrow="Admin Backend"
+        eyebrow="Velunis Admin"
         title="Systemeinstellungen"
-        description="Globale Systemwerte, Features, Standardansichten und Benutzer-Defaults für Velunis zentral konfigurieren."
+        description="Globale App-Defaults für Name, Version, Features, Listenansichten und neue Benutzer verwalten."
         badges={[
           {
-            label: `Firma: ${form.companyName || "Velunis"}`,
+            label: form.companyName || "Velunis",
           },
           {
-            label: `Version ${form.appVersion || "0.1.0"}`,
+            label: `v${form.appVersion || "0.1.0"}`,
           },
           {
-            label: `Standardrolle: ${getRoleLabel(form.defaultUserRole)}`,
+            label: `${enabledFeatureCount}/3 Features aktiv`,
+          },
+          {
+            label: `Tickets: ${getListViewLabel(form.defaultTicketView)}`,
           },
         ]}
         actions={
@@ -378,7 +389,7 @@ export default function AdminSettingsPage() {
               type="button"
               onClick={() => void handleReset()}
               disabled={saving || loading}
-              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition disabled:opacity-50"
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition disabled:opacity-50 font-bold"
             >
               Zurücksetzen
             </button>
@@ -424,32 +435,39 @@ export default function AdminSettingsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
-          label="Firma"
-          value={form.companyName || "Velunis"}
-          description="Globaler Firmenname"
-          icon="✦"
-          tone="indigo"
-        />
-        <StatCard
           label="App"
           value={form.appName || "Intranet"}
-          description="Globaler App-Name"
-          icon="🏢"
-          tone="purple"
+          description={form.companyName || "Velunis"}
+          icon="✨"
+          tone="blue"
         />
+
         <StatCard
           label="Version"
           value={form.appVersion || "0.1.0"}
-          description={form.showVersion ? "Wird angezeigt" : "Ausgeblendet"}
+          description={
+            form.showVersion
+              ? "Wird angezeigt"
+              : "Wird ausgeblendet"
+          }
           icon="🏷️"
-          tone="blue"
+          tone="indigo"
         />
+
+        <StatCard
+          label="Features"
+          value={`${enabledFeatureCount}/3`}
+          description="Aktive Funktionsbereiche"
+          icon="⚙️"
+          tone="green"
+        />
+
         <StatCard
           label="Standardrolle"
           value={getRoleLabel(form.defaultUserRole)}
-          description="Neue Benutzer"
+          description="Für neue Benutzer"
           icon="👤"
-          tone="orange"
+          tone="purple"
         />
       </div>
 
@@ -458,85 +476,101 @@ export default function AdminSettingsPage() {
         onSubmit={(event) => void handleSubmit(event)}
         className="space-y-8"
       >
-        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5 mb-6">
-            <div>
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
+              Allgemeine App-Daten
+            </h2>
+            <p className="text-zinc-500 mt-1">
+              Name, Firma und Version der Anwendung.
+            </p>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-6">
+              <div>
+                <label className="block mb-2 font-medium">
+                  App-Name
+                </label>
+                <input
+                  value={form.appName}
+                  onChange={(event) =>
+                    updateField("appName", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Intranet"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firmenname
+                </label>
+                <input
+                  value={form.companyName}
+                  onChange={(event) =>
+                    updateField("companyName", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Velunis"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Version
+                </label>
+                <input
+                  value={form.appVersion}
+                  onChange={(event) =>
+                    updateField("appVersion", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="0.1.0"
+                />
+              </div>
+
+              <div className="flex items-end">
+                <ToggleCard
+                  title="Version anzeigen"
+                  description="Zeigt die App-Version in der Oberfläche an."
+                  checked={form.showVersion}
+                  onChange={(checked) =>
+                    updateField("showVersion", checked)
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <aside className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
               <h2 className="text-2xl font-bold">
-                Allgemein
+                Vorschau
               </h2>
               <p className="text-zinc-500 mt-1">
-                Name, Firma und Version der Anwendung.
+                So erscheinen Name, Firma und Version.
               </p>
-            </div>
 
-            <div className="rounded-3xl bg-zinc-50 border border-zinc-200 p-4 min-w-64">
-              <p className="text-xs text-zinc-500">
-                Vorschau
-              </p>
-              <p className="font-black text-xl mt-1">
-                {form.companyName || "Velunis"}
-              </p>
-              <p className="text-sm text-zinc-500">
-                {form.appName || "Intranet"} Workspace · v
-                {form.appVersion || "0.1.0"}
-              </p>
+              <div className="mt-6 rounded-3xl app-accent-bg text-white p-6 app-brand-shadow">
+                <p className="text-sm text-white/70">
+                  {form.companyName || "Velunis"}
+                </p>
+                <h3 className="text-3xl font-black mt-2">
+                  {form.appName || "Intranet"}
+                </h3>
+                <p className="text-white/70 mt-3">
+                  Workspace
+                  {form.showVersion && (
+                    <>
+                      {" "}
+                      · v{form.appVersion || "0.1.0"}
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div>
-              <label className="block mb-2 font-medium">
-                App-Name
-              </label>
-              <input
-                value={form.appName}
-                onChange={(event) =>
-                  updateField("appName", event.target.value)
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Intranet"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firmenname
-              </label>
-              <input
-                value={form.companyName}
-                onChange={(event) =>
-                  updateField("companyName", event.target.value)
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Velunis"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Version
-              </label>
-              <input
-                value={form.appVersion}
-                onChange={(event) =>
-                  updateField("appVersion", event.target.value)
-                }
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="0.1.0"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <ToggleCard
-              title="Version anzeigen"
-              description="Zeigt die App-Version in unterstützten Komponenten."
-              checked={form.showVersion}
-              onChange={(checked) =>
-                updateField("showVersion", checked)
-              }
-            />
-          </div>
+          </aside>
         </section>
 
         <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
@@ -547,9 +581,9 @@ export default function AdminSettingsPage() {
             Globale Defaults für Listen, Tabellen und Filter.
           </p>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
             <div>
-              <h3 className="font-bold">
+              <h3 className="text-xl font-black">
                 Ticket-Standardansicht
               </h3>
 
@@ -560,7 +594,7 @@ export default function AdminSettingsPage() {
 
                   return (
                     <button
-                      key={option.value}
+                      key={`ticket-${option.value}`}
                       type="button"
                       onClick={() =>
                         updateField(
@@ -570,14 +604,21 @@ export default function AdminSettingsPage() {
                       }
                       className={`text-left border rounded-3xl p-5 transition ${
                         active
-                          ? "app-accent-border app-accent-soft"
+                          ? "app-accent-bg text-white app-brand-shadow border-transparent"
                           : "border-zinc-200 bg-white hover:bg-zinc-50"
                       }`}
                     >
-                      <h4 className="font-black">
+                      <span className="text-2xl">
+                        {option.icon}
+                      </span>
+                      <h4 className="font-black mt-3">
                         {option.label}
                       </h4>
-                      <p className="text-sm text-zinc-500 mt-2">
+                      <p
+                        className={`text-sm mt-2 ${
+                          active ? "text-white/75" : "text-zinc-500"
+                        }`}
+                      >
                         {option.description}
                       </p>
                     </button>
@@ -587,7 +628,7 @@ export default function AdminSettingsPage() {
             </div>
 
             <div>
-              <h3 className="font-bold">
+              <h3 className="text-xl font-black">
                 Wiki-Standardansicht
               </h3>
 
@@ -598,7 +639,7 @@ export default function AdminSettingsPage() {
 
                   return (
                     <button
-                      key={option.value}
+                      key={`wiki-${option.value}`}
                       type="button"
                       onClick={() =>
                         updateField(
@@ -608,14 +649,21 @@ export default function AdminSettingsPage() {
                       }
                       className={`text-left border rounded-3xl p-5 transition ${
                         active
-                          ? "app-accent-border app-accent-soft"
+                          ? "app-accent-bg text-white app-brand-shadow border-transparent"
                           : "border-zinc-200 bg-white hover:bg-zinc-50"
                       }`}
                     >
-                      <h4 className="font-black">
+                      <span className="text-2xl">
+                        {option.icon}
+                      </span>
+                      <h4 className="font-black mt-3">
                         {option.label}
                       </h4>
-                      <p className="text-sm text-zinc-500 mt-2">
+                      <p
+                        className={`text-sm mt-2 ${
+                          active ? "text-white/75" : "text-zinc-500"
+                        }`}
+                      >
                         {option.description}
                       </p>
                     </button>
@@ -625,10 +673,10 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-8">
             <ToggleCard
-              title="Geschlossene Tickets ausblenden"
-              description="Neue Benutzer sehen geschlossene Tickets standardmäßig nicht."
+              title="Geschlossene Tickets standardmäßig ausblenden"
+              description="Neue Benutzer sehen geschlossene Tickets nicht automatisch."
               checked={form.hideClosedTicketsByDefault}
               onChange={(checked) =>
                 updateField(
@@ -655,6 +703,9 @@ export default function AdminSettingsPage() {
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
               />
+              <p className="text-sm text-zinc-500 mt-2">
+                Erlaubt: 5 bis 100.
+              </p>
             </div>
 
             <div>
@@ -674,6 +725,9 @@ export default function AdminSettingsPage() {
                 }
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
               />
+              <p className="text-sm text-zinc-500 mt-2">
+                Erlaubt: 5 bis 100.
+              </p>
             </div>
           </div>
         </section>
@@ -686,10 +740,10 @@ export default function AdminSettingsPage() {
             Globale Funktionsbereiche aktivieren oder deaktivieren.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-6">
             <ToggleCard
               title="Ticket-Kommentare"
-              description="Kommentare bei Tickets erlauben."
+              description="Aktiviert Kommentare in Tickets."
               checked={form.enableTicketComments}
               onChange={(checked) =>
                 updateField("enableTicketComments", checked)
@@ -698,7 +752,7 @@ export default function AdminSettingsPage() {
 
             <ToggleCard
               title="Ticket-Vorlagen"
-              description="Vorlagen-Modul für wiederkehrende Fälle aktivieren."
+              description="Aktiviert Vorlagen für wiederkehrende Tickets."
               checked={form.enableTicketTemplates}
               onChange={(checked) =>
                 updateField("enableTicketTemplates", checked)
@@ -707,7 +761,7 @@ export default function AdminSettingsPage() {
 
             <ToggleCard
               title="Aktivitätsprotokoll"
-              description="Aktivitäten im System protokollieren und anzeigen."
+              description="Aktiviert das Systemprotokoll im Intranet."
               checked={form.enableActivityLog}
               onChange={(checked) =>
                 updateField("enableActivityLog", checked)
@@ -724,7 +778,7 @@ export default function AdminSettingsPage() {
             Standardwerte für neue Benutzer.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-6">
             {roleOptions.map((option) => {
               const active =
                 form.defaultUserRole === option.value;
@@ -738,14 +792,18 @@ export default function AdminSettingsPage() {
                   }
                   className={`text-left border rounded-3xl p-5 transition ${
                     active
-                      ? "app-accent-border app-accent-soft"
+                      ? "app-accent-bg text-white app-brand-shadow border-transparent"
                       : "border-zinc-200 bg-white hover:bg-zinc-50"
                   }`}
                 >
                   <h3 className="font-black">
                     {option.label}
                   </h3>
-                  <p className="text-sm text-zinc-500 mt-2">
+                  <p
+                    className={`text-sm mt-2 ${
+                      active ? "text-white/75" : "text-zinc-500"
+                    }`}
+                  >
                     {option.description}
                   </p>
                 </button>
@@ -754,56 +812,58 @@ export default function AdminSettingsPage() {
           </div>
         </section>
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+            <div>
+              <h2 className="text-2xl font-bold">
+                Persönliche Darstellung
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Theme, Akzentfarbe und kompakter Modus werden pro Benutzer in den persönlichen Einstellungen verwaltet.
+              </p>
+            </div>
+
+            <Link
+              href="/settings"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow text-center"
+            >
+              Persönliche Einstellungen öffnen
+            </Link>
+          </div>
+        </section>
+
+        <section className="flex flex-col md:flex-row md:items-center md:justify-end gap-3">
           <button
             type="button"
             onClick={() =>
               setForm(getDefaultEditableSettings(settings))
             }
             disabled={saving}
-            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
           >
             Änderungen verwerfen
           </button>
 
-          <div className="flex flex-col md:flex-row gap-3">
-            <button
-              type="button"
-              onClick={() => void handleReset()}
-              disabled={saving || loading}
-              className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
-            >
-              Auf Standard zurücksetzen
-            </button>
+          <button
+            type="button"
+            onClick={() => void handleReset()}
+            disabled={saving || loading}
+            className="bg-white border border-zinc-200 px-6 py-4 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-medium"
+          >
+            Auf Standard zurücksetzen
+          </button>
 
-            <button
-              type="submit"
-              disabled={saving || loading}
-              className="app-accent-bg text-white px-6 py-4 rounded-2xl transition disabled:opacity-50 font-black app-brand-shadow"
-            >
-              {saving
-                ? "Speichert..."
-                : "Systemeinstellungen speichern"}
-            </button>
-          </div>
-        </div>
+          <button
+            type="submit"
+            disabled={saving || loading}
+            className="app-accent-bg text-white px-6 py-4 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
+          >
+            {saving
+              ? "Speichert..."
+              : "Systemeinstellungen speichern"}
+          </button>
+        </section>
       </form>
-
-      <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-2xl font-bold">
-          Persönliche Darstellung
-        </h2>
-        <p className="text-zinc-500 mt-1">
-          Theme, Akzentfarbe und kompakter Modus werden pro Benutzer unter den persönlichen Einstellungen verwaltet.
-        </p>
-
-        <a
-          href="/settings"
-          className="inline-flex mt-5 bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition"
-        >
-          Persönliche Einstellungen öffnen
-        </a>
-      </section>
     </div>
   );
 }

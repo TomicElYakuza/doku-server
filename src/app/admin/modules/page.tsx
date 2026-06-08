@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import AppModal from "../../../components/AppModal";
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import PageHero from "../../../components/PageHero";
@@ -34,12 +35,14 @@ type ModuleForm = {
   isCore: boolean;
 };
 
+type ViewMode = "table" | "cards";
+
 const emptyForm: ModuleForm = {
   key: "",
   title: "",
   description: "",
   href: "",
-  icon: "🧩",
+  icon: "",
   category: "admin",
   badgeLabel: "",
   sortOrder: 0,
@@ -74,20 +77,40 @@ function getCategoryLabel(category: string) {
   );
 }
 
-function getStatusClass(enabled: boolean) {
-  if (enabled) {
-    return "bg-green-50 text-green-700 border border-green-100";
+function getCategoryClass(category: string) {
+  if (category === "admin") {
+    return "bg-red-50 text-red-700 border-red-100";
   }
 
-  return "bg-zinc-100 text-zinc-500 border border-zinc-200";
+  if (category === "content") {
+    return "bg-blue-50 text-blue-700 border-blue-100";
+  }
+
+  if (category === "tickets") {
+    return "bg-orange-50 text-orange-700 border-orange-100";
+  }
+
+  if (category === "system") {
+    return "bg-indigo-50 text-indigo-700 border-indigo-100";
+  }
+
+  return "bg-zinc-100 text-zinc-700 border-zinc-200";
+}
+
+function getStatusClass(enabled: boolean) {
+  if (enabled) {
+    return "bg-green-50 text-green-700 border-green-100";
+  }
+
+  return "bg-zinc-100 text-zinc-500 border-zinc-200";
 }
 
 function getVisibleClass(visible: boolean) {
   if (visible) {
-    return "bg-blue-50 text-blue-700 border border-blue-100";
+    return "bg-blue-50 text-blue-700 border-blue-100";
   }
 
-  return "bg-orange-50 text-orange-700 border border-orange-100";
+  return "bg-orange-50 text-orange-700 border-orange-100";
 }
 
 function normalizeForm(module: AdminModuleConfig): ModuleForm {
@@ -96,7 +119,7 @@ function normalizeForm(module: AdminModuleConfig): ModuleForm {
     title: module.title,
     description: module.description,
     href: module.href,
-    icon: module.icon || "🧩",
+    icon: module.icon || "",
     category: module.category || "admin",
     badgeLabel: module.badgeLabel || "",
     sortOrder: module.sortOrder || 0,
@@ -109,10 +132,12 @@ function normalizeForm(module: AdminModuleConfig): ModuleForm {
 export default function AdminModulesPage() {
   const [mounted, setMounted] = useState(false);
   const [modules, setModules] = useState<AdminModuleConfig[]>([]);
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState("");
@@ -177,13 +202,17 @@ export default function AdminModulesPage() {
 
   function openCreateModal() {
     setEditingKey("");
+
     setForm({
       ...emptyForm,
       sortOrder:
         modules.length > 0
-          ? Math.max(...modules.map((module) => module.sortOrder || 0)) + 10
+          ? Math.max(
+              ...modules.map((module) => module.sortOrder || 0),
+            ) + 10
           : 10,
     });
+
     setModalOpen(true);
   }
 
@@ -232,25 +261,13 @@ export default function AdminModulesPage() {
 
       const matchesStatus =
         !statusFilter ||
-        (
-          statusFilter === "enabled" &&
-          module.isEnabled
-        ) ||
-        (
-          statusFilter === "disabled" &&
-          !module.isEnabled
-        );
+        (statusFilter === "enabled" && module.isEnabled) ||
+        (statusFilter === "disabled" && !module.isEnabled);
 
       const matchesVisibility =
         !visibilityFilter ||
-        (
-          visibilityFilter === "visible" &&
-          module.isVisible
-        ) ||
-        (
-          visibilityFilter === "hidden" &&
-          !module.isVisible
-        );
+        (visibilityFilter === "visible" && module.isVisible) ||
+        (visibilityFilter === "hidden" && !module.isVisible);
 
       return (
         matchesSearch &&
@@ -288,6 +305,8 @@ export default function AdminModulesPage() {
     ],
   );
 
+  const latestModule = modules[0];
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
@@ -315,12 +334,12 @@ export default function AdminModulesPage() {
         const updatedModule = await adminModuleRepository.update(
           editingKey,
           {
-            title: form.title,
-            description: form.description,
-            href: form.href,
-            icon: form.icon,
-            category: form.category,
-            badgeLabel: form.badgeLabel,
+            title: form.title.trim(),
+            description: form.description.trim(),
+            href: form.href.trim(),
+            icon: form.icon.trim(),
+            category: form.category.trim(),
+            badgeLabel: form.badgeLabel.trim(),
             sortOrder: form.sortOrder,
             isEnabled: form.isEnabled,
             isVisible: form.isVisible,
@@ -342,13 +361,13 @@ export default function AdminModulesPage() {
       }
 
       const createdModule = await adminModuleRepository.create({
-        key: form.key,
-        title: form.title,
-        description: form.description,
-        href: form.href,
-        icon: form.icon,
-        category: form.category,
-        badgeLabel: form.badgeLabel,
+        key: form.key.trim(),
+        title: form.title.trim(),
+        description: form.description.trim(),
+        href: form.href.trim(),
+        icon: form.icon.trim(),
+        category: form.category.trim(),
+        badgeLabel: form.badgeLabel.trim(),
         sortOrder: form.sortOrder,
         isEnabled: form.isEnabled,
         isVisible: form.isVisible,
@@ -451,7 +470,9 @@ export default function AdminModulesPage() {
 
   async function deleteModule(module: AdminModuleConfig) {
     if (module.isCore) {
-      alert("Kernmodule können nicht gelöscht werden. Du kannst sie deaktivieren oder ausblenden.");
+      alert(
+        "Kernmodule können nicht gelöscht werden. Du kannst sie deaktivieren oder ausblenden.",
+      );
       return;
     }
 
@@ -492,8 +513,10 @@ export default function AdminModulesPage() {
   if (!canViewAdmin()) {
     return (
       <AccessDeniedCard
-        title="Kein Zugriff"
+        title="Admin-Module"
         description="Du hast keine Berechtigung für die Modulverwaltung."
+        backHref="/admin"
+        backLabel="Zum Admin Dashboard"
       />
     );
   }
@@ -502,16 +525,20 @@ export default function AdminModulesPage() {
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title={editingKey ? "Admin-Modul bearbeiten" : "Admin-Modul erstellen"}
-        description="Diese Einträge steuern später die Modulstruktur im Admin Backend."
-        maxWidth="5xl"
         onClose={closeModal}
+        title={
+          editingKey
+            ? "Admin-Modul bearbeiten"
+            : "Admin-Modul erstellen"
+        }
+        description="Module steuern, was im Admin Dashboard sichtbar, aktiv und verlinkt ist."
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
-              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition"
+              disabled={saving}
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
@@ -520,7 +547,7 @@ export default function AdminModulesPage() {
               type="submit"
               form="admin-module-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
               {saving
                 ? "Speichert..."
@@ -528,172 +555,231 @@ export default function AdminModulesPage() {
                   ? "Änderungen speichern"
                   : "Modul erstellen"}
             </button>
-          </div>
+          </>
         }
       >
         <form
           id="admin-module-form"
           onSubmit={(event) => void handleSubmit(event)}
-          className="space-y-6"
+          className="space-y-8"
         >
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <section className="space-y-5">
             <div>
-              <label className="block mb-2 font-medium">
-                Modul-Key
-              </label>
-              <input
-                value={form.key}
-                onChange={(event) => updateForm("key", event.target.value)}
-                disabled={Boolean(editingKey)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 disabled:bg-zinc-100 disabled:text-zinc-400"
-                placeholder="z. B. users"
-              />
+              <h3 className="text-xl font-black">
+                Stammdaten
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Schlüssel, Titel, Route, Icon, Kategorie und Sortierung.
+              </p>
             </div>
 
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Modul-Key
+                </label>
+                <input
+                  value={form.key}
+                  onChange={(event) =>
+                    updateForm("key", event.target.value)
+                  }
+                  disabled={Boolean(editingKey)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus disabled:bg-zinc-100 disabled:text-zinc-400"
+                  placeholder="z. B. users"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Titel
+                </label>
+                <input
+                  value={form.title}
+                  onChange={(event) =>
+                    updateForm("title", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Benutzerverwaltung"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Link
+                </label>
+                <input
+                  value={form.href}
+                  onChange={(event) =>
+                    updateForm("href", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="/admin/users"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Icon
+                </label>
+                <input
+                  value={form.icon}
+                  onChange={(event) =>
+                    updateForm("icon", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="👥"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Kategorie
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(event) =>
+                    updateForm("category", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  {categoryOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Badge
+                </label>
+                <input
+                  value={form.badgeLabel}
+                  onChange={(event) =>
+                    updateForm("badgeLabel", event.target.value)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="z. B. Benutzer"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Sortierung
+                </label>
+                <input
+                  type="number"
+                  value={form.sortOrder}
+                  onChange={(event) =>
+                    updateForm(
+                      "sortOrder",
+                      Number(event.target.value || 0),
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                />
+              </div>
+
+              <div className="xl:col-span-2">
+                <label className="block mb-2 font-medium">
+                  Beschreibung
+                </label>
+                <textarea
+                  value={form.description}
+                  onChange={(event) =>
+                    updateForm("description", event.target.value)
+                  }
+                  rows={4}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
+                  placeholder="Beschreibung des Moduls..."
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-5">
             <div>
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
-              <input
-                value={form.title}
-                onChange={(event) => updateForm("title", event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Titel"
-              />
+              <h3 className="text-xl font-black">
+                Schalter
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Aktive und sichtbare Module erscheinen im Admin Dashboard.
+              </p>
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Link
-              </label>
-              <input
-                value={form.href}
-                onChange={(event) => updateForm("href", event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="/admin/users"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Icon
-              </label>
-              <input
-                value={form.icon}
-                onChange={(event) => updateForm("icon", event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="🧩"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie
-              </label>
-              <select
-                value={form.category}
-                onChange={(event) => updateForm("category", event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                {categoryOptions.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                  >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Badge
-              </label>
-              <input
-                value={form.badgeLabel}
-                onChange={(event) => updateForm("badgeLabel", event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="z. B. Benutzer"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Sortierung
-              </label>
-              <input
-                type="number"
-                value={form.sortOrder}
-                onChange={(event) => updateForm("sortOrder", Number(event.target.value))}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.isEnabled}
-                  onChange={(event) => updateForm("isEnabled", event.target.checked)}
-                  className="h-5 w-5 mt-1"
+                  onChange={(event) =>
+                    updateForm("isEnabled", event.target.checked)
+                  }
+                  className="h-5 w-5 mt-1 accent-indigo-600"
                 />
+
                 <span>
-                  <span className="block font-medium">
+                  <span className="block font-bold text-zinc-950">
                     Aktiv
+                  </span>
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Modul ist funktional aktiv.
                   </span>
                 </span>
               </label>
 
-              <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-4">
+              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.isVisible}
-                  onChange={(event) => updateForm("isVisible", event.target.checked)}
-                  className="h-5 w-5 mt-1"
+                  onChange={(event) =>
+                    updateForm("isVisible", event.target.checked)
+                  }
+                  className="h-5 w-5 mt-1 accent-indigo-600"
                 />
+
                 <span>
-                  <span className="block font-medium">
+                  <span className="block font-bold text-zinc-950">
                     Sichtbar
+                  </span>
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Modul wird als Karte angezeigt.
                   </span>
                 </span>
               </label>
 
-              <label className="flex items-start gap-3 border border-zinc-200 rounded-2xl p-4">
+              <label className="flex items-start gap-4 border border-zinc-200 rounded-3xl p-5 bg-zinc-50 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.isCore}
-                  onChange={(event) => updateForm("isCore", event.target.checked)}
-                  className="h-5 w-5 mt-1"
+                  onChange={(event) =>
+                    updateForm("isCore", event.target.checked)
+                  }
+                  className="h-5 w-5 mt-1 accent-indigo-600"
                 />
+
                 <span>
-                  <span className="block font-medium">
+                  <span className="block font-bold text-zinc-950">
                     Kernmodul
+                  </span>
+                  <span className="block text-sm text-zinc-500 mt-1">
+                    Kernmodule können nicht gelöscht werden.
                   </span>
                 </span>
               </label>
             </div>
-
-            <div className="xl:col-span-2">
-              <label className="block mb-2 font-medium">
-                Beschreibung
-              </label>
-              <textarea
-                value={form.description}
-                onChange={(event) => updateForm("description", event.target.value)}
-                rows={4}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-none"
-                placeholder="Beschreibung des Moduls..."
-              />
-            </div>
-          </div>
+          </section>
         </form>
       </AppModal>
 
       <PageHero
-        eyebrow="Admin Backend"
+        eyebrow="Velunis Admin"
         title="Admin-Module"
-        description="Verwaltungsbereiche zentral vorbereiten, aktivieren, ausblenden und sortieren."
+        description="Verwaltungsbereiche zentral vorbereiten, aktivieren, ausblenden, sortieren und im Admin Dashboard steuern."
         badges={[
           {
             label: `${modules.length} Module`,
@@ -704,15 +790,30 @@ export default function AdminModulesPage() {
           {
             label: `${hiddenCount} ausgeblendet`,
           },
+          {
+            label: latestModule
+              ? `Neueste: ${latestModule.title}`
+              : "Noch kein Modul",
+          },
         ]}
         actions={
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-          >
-            Modul erstellen
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void loadModules()}
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
+            >
+              Aktualisieren
+            </button>
+
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+            >
+              Modul erstellen
+            </button>
+          </>
         }
       />
 
@@ -748,10 +849,11 @@ export default function AdminModulesPage() {
           label="Module gesamt"
           value={modules.length}
           description="Alle konfigurierten Module"
-          icon="🧩"
-          active={!categoryFilter && !statusFilter && !visibilityFilter}
+          icon="🧭"
+          active={!categoryFilter && !statusFilter && !visibilityFilter && !search}
           onClick={resetFilters}
         />
+
         <StatCard
           label="Aktiv"
           value={enabledCount}
@@ -761,6 +863,7 @@ export default function AdminModulesPage() {
           active={statusFilter === "enabled"}
           onClick={() => setStatusFilter("enabled")}
         />
+
         <StatCard
           label="Ausgeblendet"
           value={hiddenCount}
@@ -770,11 +873,12 @@ export default function AdminModulesPage() {
           active={visibilityFilter === "hidden"}
           onClick={() => setVisibilityFilter("hidden")}
         />
+
         <StatCard
           label="Kernmodule"
           value={coreCount}
           description="Nicht löschbare Module"
-          icon="🔒"
+          icon="🛡️"
           tone="indigo"
         />
       </div>
@@ -782,39 +886,66 @@ export default function AdminModulesPage() {
       <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
           <div>
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-2xl font-bold">
               Suche & Filter
             </h2>
             <p className="text-zinc-500 mt-1">
-              Filtere nach Kategorie, Status oder Sichtbarkeit.
+              Filtere nach Titel, Key, Kategorie, Status oder Sichtbarkeit.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition"
-          >
-            Zurücksetzen
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-4 py-2 rounded-xl transition font-medium ${
+                viewMode === "table"
+                  ? "app-accent-bg text-white app-brand-shadow"
+                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+              }`}
+            >
+              Tabelle
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`px-4 py-2 rounded-xl transition font-medium ${
+                viewMode === "cards"
+                  ? "app-accent-bg text-white app-brand-shadow"
+                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-900"
+              }`}
+            >
+              Karten
+            </button>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+            >
+              Zurücksetzen
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
             placeholder="Module suchen..."
           />
 
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Kategorien
             </option>
+
             {categoryOptions.map((option) => (
               <option
                 key={option.value}
@@ -828,7 +959,7 @@ export default function AdminModulesPage() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Status
@@ -844,7 +975,7 @@ export default function AdminModulesPage() {
           <select
             value={visibilityFilter}
             onChange={(event) => setVisibilityFilter(event.target.value)}
-            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
+            className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
           >
             <option value="">
               Alle Sichtbarkeiten
@@ -858,150 +989,340 @@ export default function AdminModulesPage() {
           </select>
         </div>
 
-        <p className="text-sm text-zinc-500 mt-5">
-          {filteredModules.length} von {modules.length} Modulen gefunden.
-        </p>
-      </section>
+        <div className="flex flex-wrap items-center gap-3 mt-5">
+          <span className="text-sm text-zinc-500">
+            {filteredModules.length} von {modules.length} Modulen gefunden.
+          </span>
 
-      <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="px-5 py-4 font-semibold">
-                  Modul
-                </th>
-                <th className="px-5 py-4 font-semibold">
-                  Link
-                </th>
-                <th className="px-5 py-4 font-semibold">
-                  Kategorie
-                </th>
-                <th className="px-5 py-4 font-semibold">
-                  Status
-                </th>
-                <th className="px-5 py-4 font-semibold">
-                  Sichtbarkeit
-                </th>
-                <th className="px-5 py-4 font-semibold">
-                  Sortierung
-                </th>
-                <th className="px-5 py-4 font-semibold text-right">
-                  Aktionen
-                </th>
-              </tr>
-            </thead>
+          {search && (
+            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+              Suche: {search}
+            </span>
+          )}
 
-            <tbody>
-              {filteredModules.map((module) => (
-                <tr
-                  key={module.key}
-                  className="border-b border-zinc-100 last:border-b-0 hover:bg-zinc-50"
-                >
-                  <td className="px-5 py-4 align-top min-w-[280px]">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">
-                        {module.icon}
-                      </span>
-                      <div>
-                        <p className="font-semibold">
-                          {module.title}
-                        </p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          {module.key}
-                        </p>
-                        <p className="text-zinc-500 mt-2 line-clamp-2">
-                          {module.description || "Keine Beschreibung"}
-                        </p>
-                        {module.isCore && (
-                          <span className="inline-flex mt-2 text-xs bg-zinc-900 text-white px-2 py-1 rounded-full">
-                            Kernmodul
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
+          {categoryFilter && (
+            <span className="text-xs app-accent-soft app-accent-text px-3 py-1 rounded-full font-bold">
+              Kategorie: {getCategoryLabel(categoryFilter)}
+            </span>
+          )}
 
-                  <td className="px-5 py-4 align-top text-zinc-500">
-                    {module.href}
-                  </td>
+          {statusFilter && (
+            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+              Status: {statusFilter === "enabled" ? "Aktiv" : "Deaktiviert"}
+            </span>
+          )}
 
-                  <td className="px-5 py-4 align-top">
-                    <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                      {getCategoryLabel(module.category)}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 align-top">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getStatusClass(module.isEnabled)}`}>
-                      {module.isEnabled ? "Aktiv" : "Deaktiviert"}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 align-top">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getVisibleClass(module.isVisible)}`}>
-                      {module.isVisible ? "Sichtbar" : "Ausgeblendet"}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 align-top text-zinc-500">
-                    {module.sortOrder}
-                  </td>
-
-                  <td className="px-5 py-4 align-top">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(module)}
-                        className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition"
-                      >
-                        Bearbeiten
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void toggleEnabled(module)}
-                        className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition"
-                      >
-                        {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void toggleVisible(module)}
-                        className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition"
-                      >
-                        {module.isVisible ? "Ausblenden" : "Anzeigen"}
-                      </button>
-
-                      {!module.isCore && (
-                        <button
-                          type="button"
-                          onClick={() => void deleteModule(module)}
-                          className="bg-red-600 text-white hover:bg-red-500 px-3 py-2 rounded-xl transition"
-                        >
-                          Löschen
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredModules.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-8 text-zinc-500"
-                  >
-                    Keine Module gefunden.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {visibilityFilter && (
+            <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+              Sichtbarkeit: {visibilityFilter === "visible" ? "Sichtbar" : "Ausgeblendet"}
+            </span>
+          )}
         </div>
       </section>
+
+      {viewMode === "table" && (
+        <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
+                <tr>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Modul
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Link
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Kategorie
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Sichtbarkeit
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Sortierung
+                  </th>
+                  <th className="px-5 py-4 text-sm font-bold text-zinc-500">
+                    Aktionen
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-zinc-100">
+                {filteredModules.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-10 text-center text-zinc-500"
+                    >
+                      Keine Module gefunden.
+                    </td>
+                  </tr>
+                )}
+
+                {filteredModules.map((module) => (
+                  <tr
+                    key={module.key}
+                    className="hover:bg-zinc-50 transition"
+                  >
+                    <td className="px-5 py-4 align-top min-w-[300px]">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">
+                          {module.icon || "✨"}
+                        </span>
+
+                        <div>
+                          <p className="font-black text-zinc-950">
+                            {module.title}
+                          </p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            {module.key}
+                          </p>
+                          <p className="text-zinc-500 mt-2 line-clamp-2">
+                            {module.description || "Keine Beschreibung"}
+                          </p>
+
+                          {module.isCore && (
+                            <span className="inline-flex mt-2 text-xs bg-zinc-900 text-white px-2 py-1 rounded-full">
+                              Kernmodul
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 align-top text-zinc-500">
+                      {module.href}
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryClass(
+                          module.category,
+                        )}`}
+                      >
+                        {getCategoryLabel(module.category)}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                          module.isEnabled,
+                        )}`}
+                      >
+                        {module.isEnabled ? "Aktiv" : "Deaktiviert"}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getVisibleClass(
+                          module.isVisible,
+                        )}`}
+                      >
+                        {module.isVisible ? "Sichtbar" : "Ausgeblendet"}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 align-top text-zinc-500">
+                      {module.sortOrder}
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(module)}
+                          className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                        >
+                          Bearbeiten
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void toggleEnabled(module)}
+                          className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                        >
+                          {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void toggleVisible(module)}
+                          className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                        >
+                          {module.isVisible ? "Ausblenden" : "Anzeigen"}
+                        </button>
+
+                        {!module.isCore && (
+                          <button
+                            type="button"
+                            onClick={() => void deleteModule(module)}
+                            className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
+                          >
+                            Löschen
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {viewMode === "cards" && (
+        <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {filteredModules.length === 0 && (
+            <div className="xl:col-span-2 bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
+              <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl">
+                🔎
+              </div>
+
+              <h2 className="text-xl font-semibold mt-5">
+                Keine Module gefunden
+              </h2>
+              <p className="text-zinc-500 mt-2">
+                Erstelle ein Modul oder passe die Filter an.
+              </p>
+            </div>
+          )}
+
+          {filteredModules.map((module) => (
+            <article
+              key={module.key}
+              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition"
+            >
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryClass(
+                        module.category,
+                      )}`}
+                    >
+                      {getCategoryLabel(module.category)}
+                    </span>
+
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                        module.isEnabled,
+                      )}`}
+                    >
+                      {module.isEnabled ? "Aktiv" : "Deaktiviert"}
+                    </span>
+
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full border font-bold ${getVisibleClass(
+                        module.isVisible,
+                      )}`}
+                    >
+                      {module.isVisible ? "Sichtbar" : "Ausgeblendet"}
+                    </span>
+
+                    {module.isCore && (
+                      <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full font-bold">
+                        Kernmodul
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-4">
+                    <span className="text-3xl">
+                      {module.icon || "✨"}
+                    </span>
+
+                    <div>
+                      <h2 className="text-2xl font-black line-clamp-1">
+                        {module.title}
+                      </h2>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        {module.key}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-zinc-500 mt-4 line-clamp-2">
+                    {module.description || "Keine Beschreibung"}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(module)}
+                    className="bg-zinc-900 text-white px-4 py-2 rounded-xl hover:bg-zinc-700 transition font-bold"
+                  >
+                    Bearbeiten
+                  </button>
+
+                  {!module.isCore && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteModule(module)}
+                      className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
+                    >
+                      Löschen
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Link
+                  </p>
+                  <p className="font-bold mt-1 line-clamp-1">
+                    {module.href}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Sortierung
+                  </p>
+                  <p className="font-bold mt-1">
+                    {module.sortOrder}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-4">
+                  <p className="text-xs text-zinc-500">
+                    Badge
+                  </p>
+                  <p className="font-bold mt-1 line-clamp-1">
+                    {module.badgeLabel || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => void toggleEnabled(module)}
+                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                >
+                  {module.isEnabled ? "Deaktivieren" : "Aktivieren"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void toggleVisible(module)}
+                  className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-medium"
+                >
+                  {module.isVisible ? "Ausblenden" : "Anzeigen"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

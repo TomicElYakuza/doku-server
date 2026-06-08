@@ -12,6 +12,7 @@ import {
   useRouter,
 } from "next/navigation";
 
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import AppModal from "../../../components/AppModal";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
@@ -65,29 +66,52 @@ function getPageContent(page: WikiPage) {
   return String(page.content || "");
 }
 
-function getSafeTags(tags?: string[]) {
-  if (!Array.isArray(tags)) {
-    return [];
+function getPageDescription(page: WikiPage) {
+  return String(
+    page.description ||
+      page.excerpt ||
+      "Keine Beschreibung vorhanden.",
+  );
+}
+
+function getPageTags(page: WikiPage) {
+  if (Array.isArray(page.tags)) {
+    return page.tags
+      .map((tag) => String(tag || "").trim())
+      .filter(Boolean);
   }
 
-  return tags
-    .map((tag) => String(tag || "").trim())
-    .filter(Boolean);
+  return [];
+}
+
+function getSafeCategory(category?: string) {
+  return String(category || "").trim() || "Nicht zugeordnet";
+}
+
+function getSafeCompany(company?: string) {
+  return String(company || "").trim() || "Intern";
+}
+
+function getSafeDepartment(department?: string) {
+  return String(department || "").trim() || "Keine Abteilung";
 }
 
 function getTaxonomyLabel(
   item: TaxonomyItem,
   allItems: TaxonomyItem[],
 ) {
-  if (item.path?.trim()) {
-    return item.path.trim();
+  if (item.path) {
+    return item.path;
   }
 
   const names: string[] = [];
   let current: TaxonomyItem | undefined = item;
   const visited = new Set<string>();
 
-  while (current && !visited.has(current.id)) {
+  while (
+    current &&
+    !visited.has(current.id)
+  ) {
     visited.add(current.id);
     names.unshift(current.name);
 
@@ -120,6 +144,62 @@ function createSlugFromTitle(value: string) {
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function getReadingTime(text: string) {
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+  if (words === 0) {
+    return "0 Min.";
+  }
+
+  return `${Math.max(1, Math.ceil(words / 220))} Min.`;
+}
+
+function getCategoryClass(category: string) {
+  const normalized = category.toLowerCase();
+
+  if (normalized.includes("ticket")) {
+    return "bg-orange-50 text-orange-700 border-orange-100";
+  }
+
+  if (
+    normalized.includes("wiki") ||
+    normalized.includes("dokumentation")
+  ) {
+    return "bg-indigo-50 text-indigo-700 border-indigo-100";
+  }
+
+  if (
+    normalized.includes("system") ||
+    normalized.includes("admin")
+  ) {
+    return "bg-blue-50 text-blue-700 border-blue-100";
+  }
+
+  if (
+    normalized.includes("organisation") ||
+    normalized.includes("firma") ||
+    normalized.includes("abteilung")
+  ) {
+    return "bg-emerald-50 text-emerald-700 border-emerald-100";
+  }
+
+  if (category) {
+    return "bg-purple-50 text-purple-700 border-purple-100";
+  }
+
+  return "bg-zinc-100 text-zinc-600 border-zinc-200";
+}
+
+function formatContent(content: string) {
+  return content
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
 }
 
 export default function WikiDetailPage() {
@@ -157,9 +237,7 @@ export default function WikiDetailPage() {
       "wiki.delete",
     ]);
 
-  const slug = Array.isArray(params.slug)
-    ? String(params.slug[0] || "")
-    : String(params.slug || "");
+  const slug = String(params.slug || "");
 
   const [page, setPage] = useState<WikiPage | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -241,13 +319,19 @@ export default function WikiDetailPage() {
     const nextWikiCategories: TaxonomyItem[] = [];
     const nextTags: TaxonomyItem[] = [];
 
-    for (const [index, result] of requests.entries()) {
-      if (result.status !== "fulfilled" || !result.value.ok) {
+    for (const [
+      index,
+      result,
+    ] of requests.entries()) {
+      if (
+        result.status !== "fulfilled" ||
+        !result.value.ok
+      ) {
         continue;
       }
 
       const data = await result.value.json();
-      const items: TaxonomyItem[] = Array.isArray(data) ? data : [];
+      const items = Array.isArray(data) ? data : [];
 
       if (index === 0) {
         nextWikiCategories.push(...items);
@@ -257,21 +341,23 @@ export default function WikiDetailPage() {
     }
 
     setWikiCategories(
-      nextWikiCategories.filter((item) => item.isActive !== false),
-    );
-
-    setWikiTags(
-      Array.from(
-        new Map(
-          nextTags
-            .filter((item) => item.isActive !== false)
-            .map((item) => [
-              item.name,
-              item,
-            ]),
-        ).values(),
+      nextWikiCategories.filter(
+        (item) => item.isActive !== false,
       ),
     );
+
+    const uniqueTags = Array.from(
+      new Map(
+        nextTags
+          .filter((item) => item.isActive !== false)
+          .map((item) => [
+            item.name,
+            item,
+          ]),
+      ).values(),
+    );
+
+    setWikiTags(uniqueTags);
   }
 
   async function loadOrganization() {
@@ -296,6 +382,8 @@ export default function WikiDetailPage() {
 
   async function loadPage() {
     if (!slug) {
+      setLoading(false);
+      setError("Kein Wiki-Slug vorhanden.");
       return;
     }
 
@@ -335,16 +423,22 @@ export default function WikiDetailPage() {
   }
 
   function userCanSeePage(wikiPage: WikiPage) {
-    if (isAdmin || canManageWiki) {
+    if (
+      isAdmin ||
+      canManageWiki
+    ) {
       return true;
     }
 
-    if (!user || !canViewWiki) {
+    if (
+      !user ||
+      !canViewWiki
+    ) {
       return false;
     }
 
-    const pageCompany = String(wikiPage.company || "");
-    const pageDepartment = String(wikiPage.department || "");
+    const pageCompany = wikiPage.company || "";
+    const pageDepartment = wikiPage.department || "";
 
     if (user.department) {
       return pageDepartment === user.department;
@@ -360,16 +454,11 @@ export default function WikiDetailPage() {
   const categoryOptions = useMemo(
     () =>
       wikiCategories
-        .map((item) => {
-          const label = getTaxonomyLabel(item, wikiCategories);
-
-          return {
-            id: item.id,
-            value: label,
-            label,
-          };
-        })
-        .filter((option) => option.value.trim())
+        .map((item) => ({
+          id: item.id,
+          value: getTaxonomyLabel(item, wikiCategories),
+          label: getTaxonomyLabel(item, wikiCategories),
+        }))
         .sort(sortByLabel),
     [
       wikiCategories,
@@ -384,7 +473,6 @@ export default function WikiDetailPage() {
           value: item.name,
           label: item.name,
         }))
-        .filter((option) => option.value.trim())
         .sort(sortByLabel),
     [
       wikiTags,
@@ -395,11 +483,11 @@ export default function WikiDetailPage() {
     () =>
       Array.from(
         new Set([
-          "Intern",
           ...companies.map((nextCompany) => nextCompany.name),
           page?.company || "Intern",
         ]),
       )
+        .map((value) => String(value || "").trim())
         .filter(Boolean)
         .sort((first, second) => first.localeCompare(second)),
     [
@@ -409,17 +497,18 @@ export default function WikiDetailPage() {
   );
 
   const departmentOptions = useMemo(() => {
-    const baseValues = Array.from(
+    const values = Array.from(
       new Set([
         ...departments.map((nextDepartment) => nextDepartment.name),
-        String(page?.department || "").trim(),
+        page?.department || "",
       ]),
     )
+      .map((value) => String(value || "").trim())
       .filter(Boolean)
       .sort((first, second) => first.localeCompare(second));
 
     if (!company) {
-      return baseValues;
+      return values;
     }
 
     const selectedCompany = companies.find(
@@ -427,20 +516,25 @@ export default function WikiDetailPage() {
     );
 
     if (!selectedCompany) {
-      return baseValues;
+      return values;
     }
+
+    const filteredByCompany = departments
+      .filter(
+        (nextDepartment) =>
+          nextDepartment.companyId === selectedCompany.id,
+      )
+      .map((nextDepartment) => nextDepartment.name)
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
 
     return Array.from(
       new Set([
-        ...departments
-          .filter(
-            (nextDepartment) =>
-              nextDepartment.companyId === selectedCompany.id,
-          )
-          .map((nextDepartment) => nextDepartment.name),
-        String(page?.department || "").trim(),
+        ...filteredByCompany,
+        page?.department || "",
       ]),
     )
+      .map((value) => String(value || "").trim())
       .filter(Boolean)
       .sort((first, second) => first.localeCompare(second));
   }, [
@@ -449,6 +543,27 @@ export default function WikiDetailPage() {
     page,
     company,
   ]);
+
+  const pageTags = useMemo(
+    () => (page ? getPageTags(page) : []),
+    [
+      page,
+    ],
+  );
+
+  const pageContent = useMemo(
+    () => (page ? getPageContent(page) : ""),
+    [
+      page,
+    ],
+  );
+
+  const contentParagraphs = useMemo(
+    () => formatContent(pageContent),
+    [
+      pageContent,
+    ],
+  );
 
   function closeModal() {
     setModalOpen(false);
@@ -479,14 +594,16 @@ export default function WikiDetailPage() {
     setCompany(wikiPage.company || "Intern");
     setDepartment(wikiPage.department || "");
     setAuthor(wikiPage.author || user?.name || "System");
-    setSelectedTags(getSafeTags(wikiPage.tags));
+    setSelectedTags(getPageTags(wikiPage));
     setModalOpen(true);
   }
 
   function toggleTag(tag: string) {
     setSelectedTags((currentTags) => {
       if (currentTags.includes(tag)) {
-        return currentTags.filter((currentTag) => currentTag !== tag);
+        return currentTags.filter(
+          (currentTag) => currentTag !== tag,
+        );
       }
 
       return [
@@ -518,7 +635,9 @@ export default function WikiDetailPage() {
       return;
     }
 
-    const nextSlug = formSlug.trim() || createSlugFromTitle(title);
+    const nextSlug =
+      formSlug.trim() ||
+      createSlugFromTitle(title);
 
     if (!nextSlug) {
       alert("Bitte einen gültigen Slug eingeben.");
@@ -539,7 +658,10 @@ export default function WikiDetailPage() {
         category: category.trim(),
         company: company.trim() || "Intern",
         department: department.trim(),
-        author: author.trim() || user?.name || "System",
+        author:
+          author.trim() ||
+          user?.name ||
+          "System",
         tags: selectedTags,
       };
 
@@ -643,64 +765,84 @@ export default function WikiDetailPage() {
     }
   }
 
-  if (loading || permissionsLoading) {
+  if (
+    loading ||
+    permissionsLoading
+  ) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <p className="text-zinc-500">
-          Wiki-Seite wird geladen...
-        </p>
+      <div className="space-y-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
+          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center">
+            <div className="h-6 w-6 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          </div>
+
+          <h1 className="text-2xl font-black mt-6">
+            Wiki-Seite wird geladen
+          </h1>
+
+          <p className="text-zinc-500 mt-2">
+            Der Eintrag wird aus PostgreSQL geladen.
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (error || !page) {
+  if (
+    error ||
+    !page
+  ) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <PageHero
           eyebrow="Wiki"
           title="Wiki-Seite nicht gefunden"
-          description={error || "Diese Wiki-Seite ist nicht vorhanden."}
+          description={error || "Diese Seite existiert nicht oder wurde entfernt."}
+          badges={[
+            {
+              label: slug || "Kein Slug",
+            },
+            {
+              label: "Nicht verfügbar",
+            },
+          ]}
           actions={
             <Link
               href="/wiki"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
             >
               Zurück zum Wiki
             </Link>
           }
         />
+
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Seite nicht verfügbar
+          </h2>
+          <p className="text-red-600 mt-2">
+            {error || "Diese Wiki-Seite konnte nicht geladen werden."}
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!userCanSeePage(page)) {
     return (
-      <div className="space-y-6">
-        <PageHero
-          eyebrow="Wiki"
-          title="Kein Zugriff"
-          description="Du hast keine Berechtigung, diese Wiki-Seite zu sehen."
-          actions={
-            <Link
-              href="/wiki"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              Zurück zum Wiki
-            </Link>
-          }
-        />
-      </div>
+      <AccessDeniedCard
+        title="Wiki-Seite nicht verfügbar"
+        description="Du hast keine Berechtigung, diese Wiki-Seite zu sehen."
+        backHref="/wiki"
+        backLabel="Zurück zum Wiki"
+      />
     );
   }
 
-  const tags = getSafeTags(page.tags);
-  const pageCompany = page.company || "Intern";
-  const pageDepartment = String(page.department || "").trim();
-  const pageCategory = String(page.category || "").trim();
-  const pageDescription =
-    page.description ||
-    page.excerpt ||
-    "Keine Beschreibung vorhanden.";
+  const pageCompany = getSafeCompany(page.company);
+  const pageDepartment = getSafeDepartment(page.department);
+  const pageCategory = getSafeCategory(page.category);
+  const pageDescription = getPageDescription(page);
 
   return (
     <div className="space-y-8">
@@ -708,7 +850,7 @@ export default function WikiDetailPage() {
         open={modalOpen}
         onClose={closeModal}
         title="Wiki-Seite bearbeiten"
-        description="Kategorie und Tags kommen aus dem Admin Backend."
+        description="Titel, Slug, Kategorie, Organisation, Inhalt und Tags bearbeiten."
         footer={
           <>
             <button
@@ -722,7 +864,7 @@ export default function WikiDetailPage() {
 
             <button
               type="submit"
-              form="wiki-detail-form"
+              form="wiki-edit-form"
               disabled={saving}
               className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
@@ -732,185 +874,232 @@ export default function WikiDetailPage() {
         }
       >
         <form
-          id="wiki-detail-form"
+          id="wiki-edit-form"
           onSubmit={(event) => void handleSubmit(event)}
-          className="space-y-6"
+          className="space-y-8"
         >
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <section className="space-y-5">
             <div>
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Titel der Wiki-Seite"
-              />
+              <h3 className="text-xl font-black">
+                Seitendaten
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Titel, Slug, Kategorie und Autor.
+              </p>
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Slug
-              </label>
-              <input
-                value={formSlug}
-                onChange={(event) => setFormSlug(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="wiki-seite"
-              />
-            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Titel
+                </label>
+                <input
+                  value={title}
+                  onChange={(event) => {
+                    const value = event.target.value;
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie
-              </label>
-              <select
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
-              >
-                <option value="">
-                  Kategorie auswählen
-                </option>
+                    setTitle(value);
 
-                {categoryOptions.map((option) => (
-                  <option
-                    key={option.id}
-                    value={option.value}
-                  >
-                    {option.label}
+                    if (!formSlug) {
+                      setFormSlug(createSlugFromTitle(value));
+                    }
+                  }}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Titel der Wiki-Seite"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Slug
+                </label>
+                <input
+                  value={formSlug}
+                  onChange={(event) =>
+                    setFormSlug(
+                      createSlugFromTitle(event.target.value),
+                    )
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="wiki-seite"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Kategorie
+                </label>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Kategorie auswählen
                   </option>
-                ))}
-              </select>
 
-              {categoryOptions.length === 0 && (
-                <p className="text-sm text-red-600 mt-2">
-                  Bitte zuerst eine aktive Wiki-Kategorie im Admin Backend anlegen.
-                </p>
+                  {categoryOptions.map((option) => (
+                    <option
+                      key={option.id}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Autor
+                </label>
+                <input
+                  value={author}
+                  onChange={(event) => setAuthor(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="System"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-black">
+                Organisation
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Firma und Abteilung steuern Sichtbarkeit und Zuordnung.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firma
+                </label>
+                <select
+                  value={company}
+                  onChange={(event) => {
+                    setCompany(event.target.value);
+                    setDepartment("");
+                  }}
+                  disabled={!isAdmin && !canManageWiki}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <option value="Intern">
+                    Intern
+                  </option>
+
+                  {companyOptions
+                    .filter((option) => option !== "Intern")
+                    .map((option) => (
+                      <option
+                        key={option}
+                        value={option}
+                      >
+                        {option}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Abteilung
+                </label>
+                <select
+                  value={department}
+                  onChange={(event) => setDepartment(event.target.value)}
+                  disabled={!isAdmin && !canManageWiki}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <option value="">
+                    Keine Abteilung
+                  </option>
+
+                  {departmentOptions.map((option) => (
+                    <option
+                      key={option}
+                      value={option}
+                    >
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-black">
+                Inhalt
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Kurzbeschreibung, Volltext und vordefinierte Tags.
+              </p>
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Kurzbeschreibung
+              </label>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
+                placeholder="Kurze Beschreibung der Wiki-Seite..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-medium">
+                Inhalt
+              </label>
+              <textarea
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                rows={12}
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y"
+                placeholder="Wiki-Inhalt..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-3 font-medium">
+                Tags
+              </label>
+
+              {tagOptions.length === 0 ? (
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
+                  Noch keine globalen Wiki-Tags im Admin Backend vorhanden.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {tagOptions.map((option) => {
+                    const active = selectedTags.includes(option.value);
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleTag(option.value)}
+                        className={`px-4 py-2 rounded-xl border transition ${
+                          active
+                            ? "app-accent-bg text-white border-transparent app-brand-shadow"
+                            : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                        }`}
+                      >
+                        #{option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Autor
-              </label>
-              <input
-                value={author}
-                onChange={(event) => setAuthor(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="System"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-              <select
-                value={company}
-                onChange={(event) => {
-                  setCompany(event.target.value);
-                  setDepartment("");
-                }}
-                disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
-              >
-                {companyOptions.map((option) => (
-                  <option
-                    key={option}
-                    value={option}
-                  >
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Abteilung
-              </label>
-              <select
-                value={department}
-                onChange={(event) => setDepartment(event.target.value)}
-                disabled={!isAdmin && !canManageWiki}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
-              >
-                <option value="">
-                  Keine Abteilung
-                </option>
-
-                {departmentOptions.map((option) => (
-                  <option
-                    key={option}
-                    value={option}
-                  >
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Kurzbeschreibung
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={3}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
-              placeholder="Kurze Beschreibung der Wiki-Seite..."
-            />
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Inhalt
-            </label>
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              rows={10}
-              className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y"
-              placeholder="Wiki-Inhalt..."
-            />
-          </div>
-
-          <div>
-            <label className="block mb-3 font-medium">
-              Tags
-            </label>
-
-            {tagOptions.length === 0 ? (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
-                Noch keine globalen oder Wiki-Tags im Admin Backend vorhanden.
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {tagOptions.map((option) => {
-                  const active = selectedTags.includes(option.value);
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => toggleTag(option.value)}
-                      className={`px-4 py-2 rounded-xl border transition ${
-                        active
-                          ? "app-accent-bg text-white app-brand-shadow"
-                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
-                      }`}
-                    >
-                      #{option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          </section>
         </form>
       </AppModal>
 
@@ -922,26 +1111,21 @@ export default function WikiDetailPage() {
           {
             label: pageCompany,
           },
-          ...(pageDepartment
-            ? [
-                {
-                  label: pageDepartment,
-                },
-              ]
-            : []),
-          ...(pageCategory
-            ? [
-                {
-                  label: pageCategory,
-                },
-              ]
-            : []),
+          {
+            label: pageDepartment,
+          },
+          {
+            label: pageCategory,
+          },
+          {
+            label: `${pageTags.length} Tags`,
+          },
         ]}
         actions={
-          <div className="flex flex-wrap gap-3">
+          <>
             <Link
               href="/wiki"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
             >
               Zurück zum Wiki
             </Link>
@@ -950,7 +1134,7 @@ export default function WikiDetailPage() {
               <button
                 type="button"
                 onClick={() => startEditPage(page)}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
               >
                 Bearbeiten
               </button>
@@ -960,12 +1144,12 @@ export default function WikiDetailPage() {
               <button
                 type="button"
                 onClick={() => void handleDelete()}
-                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition"
+                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition font-bold"
               >
                 Löschen
               </button>
             )}
-          </div>
+          </>
         }
       />
 
@@ -979,7 +1163,10 @@ export default function WikiDetailPage() {
 
       {error && (
         <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-red-700 font-medium">
+          <h2 className="text-xl font-semibold text-red-700">
+            Fehler
+          </h2>
+          <p className="text-red-600 mt-2">
             {error}
           </p>
         </div>
@@ -988,156 +1175,247 @@ export default function WikiDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           label="Kategorie"
-          value={pageCategory || "Nicht gesetzt"}
+          value={pageCategory}
           description="Aus dem Admin Backend"
-          icon="🗂️"
+          icon="📚"
           tone="indigo"
         />
+
         <StatCard
           label="Tags"
-          value={tags.length}
+          value={pageTags.length}
           description="Vordefinierte Tags"
-          icon="🏷️"
+          icon="#️⃣"
           tone="purple"
         />
+
         <StatCard
-          label="Autor"
-          value={page.author || "System"}
-          description="Ersteller der Wiki-Seite"
-          icon="👤"
+          label="Lesedauer"
+          value={getReadingTime(pageContent)}
+          description="Geschätzt"
+          icon="⏱️"
           tone="blue"
         />
+
         <StatCard
           label="Slug"
           value={getPageSlug(page)}
           description="Eindeutige Seiten-Adresse"
           icon="🔗"
+          tone="green"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
+      <section className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
         <div className="space-y-6">
-          <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-            <div className="prose prose-zinc max-w-none">
-              <div className="whitespace-pre-wrap leading-8 text-zinc-800">
-                {getPageContent(page) || "Noch kein Inhalt vorhanden."}
+          <article className="bg-white border border-zinc-200 rounded-3xl p-6 md:p-8 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`text-xs px-3 py-1 rounded-full border font-bold ${getCategoryClass(
+                    pageCategory,
+                  )}`}
+                >
+                  {pageCategory}
+                </span>
+
+                <span className="text-xs bg-zinc-100 text-zinc-700 border border-zinc-200 px-3 py-1 rounded-full font-bold">
+                  {pageCompany}
+                </span>
+
+                <span className="text-xs bg-zinc-100 text-zinc-700 border border-zinc-200 px-3 py-1 rounded-full font-bold">
+                  {pageDepartment}
+                </span>
+              </div>
+
+              <h1 className="text-4xl md:text-5xl font-black tracking-[-0.04em] mt-6">
+                {getPageTitle(page)}
+              </h1>
+
+              <p className="text-xl text-zinc-500 leading-8 mt-5">
+                {pageDescription}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-zinc-100">
+                <div className="h-11 w-11 rounded-2xl app-accent-bg text-white flex items-center justify-center font-black app-brand-shadow">
+                  {(page.author || "S").charAt(0).toUpperCase()}
+                </div>
+
+                <div>
+                  <p className="font-black text-zinc-950">
+                    {page.author || "System"}
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    Aktualisiert am {page.updatedAt || page.createdAt || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-10">
+                {contentParagraphs.length > 0 ? (
+                  <div className="space-y-5">
+                    {contentParagraphs.map((paragraph, index) => (
+                      <p
+                        key={`${getPageSlug(page)}-paragraph-${index}`}
+                        className="text-zinc-700 leading-8 text-lg whitespace-pre-wrap"
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-zinc-500">
+                    Noch kein Inhalt vorhanden.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-10 pt-8 border-t border-zinc-100">
+                <h3 className="text-xl font-black">
+                  Tags
+                </h3>
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {pageTags.length === 0 && (
+                    <span className="text-sm bg-zinc-100 text-zinc-500 px-3 py-2 rounded-xl">
+                      Keine Tags
+                    </span>
+                  )}
+
+                  {pageTags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/wiki?tag=${encodeURIComponent(tag)}`}
+                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </article>
         </div>
 
         <aside className="space-y-6">
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+
+            <div className="relative">
+              <h2 className="text-2xl font-bold">
+                Schnellaktionen
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Seite bearbeiten oder verwandte Wiki-Seiten öffnen.
+              </p>
+
+              <div className="space-y-3 mt-6">
+                {canEditWiki && (
+                  <button
+                    type="button"
+                    onClick={() => startEditPage(page)}
+                    className="w-full flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
+                  >
+                    <span>Wiki-Seite bearbeiten</span>
+                    <span>→</span>
+                  </button>
+                )}
+
+                <Link
+                  href={`/wiki?category=${encodeURIComponent(pageCategory)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
+                >
+                  <span>Gleiche Kategorie öffnen</span>
+                  <span>→</span>
+                </Link>
+
+                <Link
+                  href={`/wiki?company=${encodeURIComponent(pageCompany)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
+                >
+                  <span>Gleiche Firma öffnen</span>
+                  <span>→</span>
+                </Link>
+
+                <Link
+                  href={`/wiki?department=${encodeURIComponent(pageDepartment)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
+                >
+                  <span>Gleiche Abteilung öffnen</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
               Seitendaten
             </h2>
+            <p className="text-zinc-500 mt-1">
+              Technische und organisatorische Informationen.
+            </p>
 
-            <div className="space-y-4 mt-5 text-sm">
-              <div>
-                <p className="text-zinc-400">
+            <div className="space-y-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Slug
+                </p>
+                <p className="font-black mt-1 break-all">
+                  {getPageSlug(page)}
+                </p>
+              </div>
+
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Firma
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {pageCompany}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Abteilung
                 </p>
-                <p className="font-medium text-zinc-800">
-                  {pageDepartment || "Keine Abteilung"}
+                <p className="font-black mt-1">
+                  {pageDepartment}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Kategorie
                 </p>
-                <p className="font-medium text-zinc-800">
-                  {pageCategory || "Nicht gesetzt"}
+                <p className="font-black mt-1">
+                  {pageCategory}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Erstellt
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {page.createdAt || "-"}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Aktualisiert
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {page.updatedAt || "-"}
                 </p>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Tags
-            </h2>
-
-            <div className="flex flex-wrap gap-2 mt-5">
-              {tags.length === 0 && (
-                <span className="text-sm bg-zinc-100 text-zinc-500 px-3 py-2 rounded-xl">
-                  Keine Tags
-                </span>
-              )}
-
-              {tags.map((tag) => (
-                <Link
-                  key={tag}
-                  href={`/wiki?tag=${encodeURIComponent(tag)}`}
-                  className="text-sm bg-zinc-100 text-zinc-700 px-3 py-2 rounded-xl hover:bg-zinc-200 transition"
-                >
-                  #{tag}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Schnellfilter
-            </h2>
-
-            <div className="space-y-3 mt-5">
-              {pageCategory && (
-                <Link
-                  href={`/wiki?category=${encodeURIComponent(pageCategory)}`}
-                  className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-                >
-                  Gleiche Kategorie öffnen
-                </Link>
-              )}
-
-              <Link
-                href={`/wiki?company=${encodeURIComponent(pageCompany)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Firma öffnen
-              </Link>
-
-              {pageDepartment && (
-                <Link
-                  href={`/wiki?department=${encodeURIComponent(pageDepartment)}`}
-                  className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-                >
-                  Gleiche Abteilung öffnen
-                </Link>
-              )}
-            </div>
-          </div>
+          </section>
         </aside>
-      </div>
+      </section>
     </div>
   );
 }

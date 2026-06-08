@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -11,6 +11,8 @@ import {
   useParams,
   useRouter,
 } from "next/navigation";
+
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import AppModal from "../../../components/AppModal";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
@@ -49,6 +51,12 @@ type TaxonomyItem = {
   parentId?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+};
+
+type SelectOption = {
+  id: string;
+  value: string;
+  label: string;
 };
 
 const statusOptions: {
@@ -120,7 +128,9 @@ function formatTags(tags?: string[]) {
     return [];
   }
 
-  return tags.filter(Boolean);
+  return tags
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
 }
 
 function getTaxonomyLabel(
@@ -155,12 +165,8 @@ function getTaxonomyLabel(
 }
 
 function sortByLabel(
-  first: {
-    label: string;
-  },
-  second: {
-    label: string;
-  },
+  first: SelectOption,
+  second: SelectOption,
 ) {
   return first.label.localeCompare(second.label);
 }
@@ -193,6 +199,50 @@ function getTicketAgeLabel(createdAt?: string) {
   return `${diffDays} Tage`;
 }
 
+function getSafeCategory(category?: string) {
+  return String(category || "").trim() || "Nicht zugeordnet";
+}
+
+function getSafeCompany(company?: string) {
+  return String(company || "").trim() || "Intern";
+}
+
+function getSafeDepartment(department?: string) {
+  return String(department || "").trim() || "Keine Abteilung";
+}
+
+function getStatusTone(status: TicketStatus | string) {
+  if (status === "closed" || status === "done") {
+    return "green" as const;
+  }
+
+  if (status === "waiting") {
+    return "orange" as const;
+  }
+
+  if (status === "in_progress") {
+    return "blue" as const;
+  }
+
+  return "indigo" as const;
+}
+
+function getPriorityTone(priority: TicketPriority | string) {
+  if (priority === "urgent") {
+    return "red" as const;
+  }
+
+  if (priority === "high") {
+    return "orange" as const;
+  }
+
+  if (priority === "medium") {
+    return "blue" as const;
+  }
+
+  return "green" as const;
+}
+
 export default function TicketDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -205,25 +255,42 @@ export default function TicketDetailPage() {
 
   const id = String(params.id || "");
 
-  const canManageTickets = isAdmin || hasAnyPermission([
-    "tickets.manage",
-  ]);
-  const canViewTickets = canManageTickets || hasAnyPermission([
-    "tickets.view",
-  ]);
-  const canEditTicket = canManageTickets || hasAnyPermission([
-    "tickets.edit",
-  ]);
-  const canDeleteTicket = canManageTickets || hasAnyPermission([
-    "tickets.delete",
-  ]);
-  const canCloseTicket = canManageTickets || hasAnyPermission([
-    "tickets.close",
-  ]);
-  const canCommentTicket = canManageTickets || hasAnyPermission([
-    "tickets.comment",
-    "tickets.edit",
-  ]);
+  const canManageTickets =
+    isAdmin ||
+    hasAnyPermission([
+      "tickets.manage",
+    ]);
+
+  const canViewTickets =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.view",
+    ]);
+
+  const canEditTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.edit",
+    ]);
+
+  const canDeleteTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.delete",
+    ]);
+
+  const canCloseTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.close",
+    ]);
+
+  const canCommentTicket =
+    canManageTickets ||
+    hasAnyPermission([
+      "tickets.comment",
+      "tickets.edit",
+    ]);
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -232,6 +299,7 @@ export default function TicketDetailPage() {
   const [ticketTags, setTicketTags] = useState<TaxonomyItem[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TicketStatus>("open");
@@ -265,14 +333,32 @@ export default function TicketDetailPage() {
       void loadOrganization();
     }
 
-    window.addEventListener("ticketsUpdated", handleTicketsUpdated);
-    window.addEventListener("companiesUpdated", handleCompaniesUpdated);
-    window.addEventListener("departmentsUpdated", handleDepartmentsUpdated);
+    window.addEventListener(
+      "ticketsUpdated",
+      handleTicketsUpdated,
+    );
+    window.addEventListener(
+      "companiesUpdated",
+      handleCompaniesUpdated,
+    );
+    window.addEventListener(
+      "departmentsUpdated",
+      handleDepartmentsUpdated,
+    );
 
     return () => {
-      window.removeEventListener("ticketsUpdated", handleTicketsUpdated);
-      window.removeEventListener("companiesUpdated", handleCompaniesUpdated);
-      window.removeEventListener("departmentsUpdated", handleDepartmentsUpdated);
+      window.removeEventListener(
+        "ticketsUpdated",
+        handleTicketsUpdated,
+      );
+      window.removeEventListener(
+        "companiesUpdated",
+        handleCompaniesUpdated,
+      );
+      window.removeEventListener(
+        "departmentsUpdated",
+        handleDepartmentsUpdated,
+      );
     };
   }, [
     id,
@@ -310,7 +396,9 @@ export default function TicketDetailPage() {
     }
 
     setTicketCategories(
-      nextTicketCategories.filter((item) => item.isActive !== false),
+      nextTicketCategories.filter(
+        (item) => item.isActive !== false,
+      ),
     );
 
     const uniqueTags = Array.from(
@@ -340,12 +428,17 @@ export default function TicketDetailPage() {
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
     } catch (loadError) {
-      console.error("Organisation konnte nicht geladen werden:", loadError);
+      console.error(
+        "Organisation konnte nicht geladen werden:",
+        loadError,
+      );
     }
   }
 
   async function loadData() {
     if (!id) {
+      setLoading(false);
+      setError("Keine Ticket-ID vorhanden.");
       return;
     }
 
@@ -386,30 +479,31 @@ export default function TicketDetailPage() {
 
   function getCompanyName(nextCompanyId?: string) {
     if (!nextCompanyId) {
-      return ticket?.company || "Intern";
+      return getSafeCompany(ticket?.company);
     }
 
     return (
       companies.find((nextCompany) => nextCompany.id === nextCompanyId)?.name ||
-      ticket?.company ||
-      "Intern"
+      getSafeCompany(ticket?.company)
     );
   }
 
   function getDepartmentName(nextDepartmentId?: string) {
     if (!nextDepartmentId) {
-      return ticket?.department || "Keine Abteilung";
+      return getSafeDepartment(ticket?.department);
     }
 
     return (
       departments.find((nextDepartment) => nextDepartment.id === nextDepartmentId)?.name ||
-      ticket?.department ||
-      "Keine Abteilung"
+      getSafeDepartment(ticket?.department)
     );
   }
 
   function userCanSeeTicket(currentTicket: Ticket) {
-    if (isAdmin || canManageTickets) {
+    if (
+      isAdmin ||
+      canManageTickets
+    ) {
       return true;
     }
 
@@ -511,7 +605,9 @@ export default function TicketDetailPage() {
   function toggleTag(tag: string) {
     setSelectedTags((currentTags) => {
       if (currentTags.includes(tag)) {
-        return currentTags.filter((currentTag) => currentTag !== tag);
+        return currentTags.filter(
+          (currentTag) => currentTag !== tag,
+        );
       }
 
       return [
@@ -559,7 +655,7 @@ export default function TicketDetailPage() {
     }
 
     if (!category.trim()) {
-      alert("Bitte eine Kategorie auswÃ¤hlen.");
+      alert("Bitte eine Kategorie auswählen.");
       return;
     }
 
@@ -579,7 +675,11 @@ export default function TicketDetailPage() {
         company: company.trim() || getCompanyName(companyId),
         department: department.trim() || getDepartmentName(departmentId),
         assignedTo: assignedTo.trim(),
-        createdBy: createdBy.trim() || ticket.createdBy || user?.name || "System",
+        createdBy:
+          createdBy.trim() ||
+          ticket.createdBy ||
+          user?.name ||
+          "System",
         tags: selectedTags,
       };
 
@@ -619,7 +719,7 @@ export default function TicketDetailPage() {
       nextStatus === "closed" &&
       !canCloseTicket
     ) {
-      alert("Du hast keine Berechtigung, Tickets zu schlieÃŸen.");
+      alert("Du hast keine Berechtigung, Tickets zu schließen.");
       return;
     }
 
@@ -674,12 +774,12 @@ export default function TicketDetailPage() {
     }
 
     if (!canDeleteTicket) {
-      alert("Du hast keine Berechtigung, Tickets zu lÃ¶schen.");
+      alert("Du hast keine Berechtigung, Tickets zu löschen.");
       return;
     }
 
     const confirmed = confirm(
-      `Ticket #${ticket.id} "${ticket.title}" wirklich lÃ¶schen?`,
+      `Ticket #${ticket.id} "${ticket.title}" wirklich löschen?`,
     );
 
     if (!confirmed) {
@@ -692,7 +792,6 @@ export default function TicketDetailPage() {
       setError("");
 
       saveTicketDeletedActivity(ticket);
-
       await ticketRepository.delete(ticket.id);
 
       router.push("/tickets");
@@ -702,7 +801,7 @@ export default function TicketDetailPage() {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Ticket konnte nicht gelÃ¶scht werden.",
+          : "Ticket konnte nicht gelöscht werden.",
       );
     } finally {
       setSaving(false);
@@ -711,10 +810,20 @@ export default function TicketDetailPage() {
 
   if (loading) {
     return (
-      <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-        <p className="text-zinc-500">
-          Ticket wird geladen...
-        </p>
+      <div className="space-y-8">
+        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm text-center">
+          <div className="mx-auto h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center">
+            <div className="h-6 w-6 rounded-full border-2 border-current border-t-transparent animate-spin" />
+          </div>
+
+          <h1 className="text-2xl font-black mt-6">
+            Ticket wird geladen
+          </h1>
+
+          <p className="text-zinc-500 mt-2">
+            Das Ticket wird aus PostgreSQL geladen.
+          </p>
+        </div>
       </div>
     );
   }
@@ -726,229 +835,279 @@ export default function TicketDetailPage() {
     return (
       <div className="space-y-8">
         <PageHero
-          eyebrow="Tickets"
+          eyebrow="Ticket"
           title="Ticket nicht gefunden"
-          description={error || "Dieses Ticket existiert nicht."}
+          description={error || "Dieses Ticket existiert nicht oder wurde entfernt."}
+          badges={[
+            {
+              label: id || "Keine ID",
+            },
+            {
+              label: "Nicht verfügbar",
+            },
+          ]}
           actions={
             <Link
               href="/tickets"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
             >
-              ZurÃ¼ck zu Tickets
+              Zurück zu Tickets
             </Link>
           }
         />
+
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-red-700">
+            Ticket nicht verfügbar
+          </h2>
+          <p className="text-red-600 mt-2">
+            {error || "Dieses Ticket konnte nicht geladen werden."}
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!userCanSeeTicket(ticket)) {
     return (
-      <div className="space-y-8">
-        <PageHero
-          eyebrow="Tickets"
-          title="Keine Berechtigung"
-          description="Du hast keine Berechtigung, dieses Ticket zu Ã¶ffnen."
-          actions={
-            <Link
-              href="/tickets"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
-            >
-              ZurÃ¼ck zu Tickets
-            </Link>
-          }
-        />
-      </div>
+      <AccessDeniedCard
+        title="Ticket nicht verfügbar"
+        description="Du hast keine Berechtigung, dieses Ticket zu sehen."
+        backHref="/tickets"
+        backLabel="Zurück zu Tickets"
+      />
     );
   }
 
   const companyName = getCompanyName(ticket.companyId);
   const departmentName = getDepartmentName(ticket.departmentId);
-  const ticketCategory = ticket.category || "Nicht gesetzt";
+  const ticketCategory = getSafeCategory(ticket.category);
 
   return (
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
-        title="Ticket bearbeiten"
-        description="Kategorie und Tags kommen aus dem Admin Backend."
-        maxWidth="5xl"
         onClose={closeModal}
+        title="Ticket bearbeiten"
+        description="Stammdaten, Taxonomie, Status, Priorität und Zuordnung bearbeiten."
         footer={
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          <>
             <button
               type="button"
               onClick={closeModal}
-              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition"
+              disabled={saving}
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50"
             >
               Abbrechen
             </button>
 
             <button
               type="submit"
-              form="ticket-detail-form"
+              form="ticket-edit-form"
               disabled={saving}
-              className="bg-zinc-900 text-white px-5 py-3 rounded-2xl hover:bg-zinc-700 disabled:bg-zinc-400 transition"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
             >
-              {saving ? "Speichert..." : "Ã„nderungen speichern"}
+              {saving ? "Speichert..." : "Änderungen speichern"}
             </button>
-          </div>
+          </>
         }
       >
         <form
-          id="ticket-detail-form"
+          id="ticket-edit-form"
           onSubmit={(event) => void handleSubmit(event)}
-          className="space-y-6"
+          className="space-y-8"
         >
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <section className="space-y-5">
             <div>
-              <label className="block mb-2 font-medium">
-                Titel
-              </label>
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Ticket-Titel"
-              />
+              <h3 className="text-xl font-black">
+                Ticketdaten
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Titel, Kategorie, Status und Priorität.
+              </p>
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Kategorie
-              </label>
-              <select
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                <option value="">
-                  Kategorie auswÃ¤hlen
-                </option>
-                {categoryOptions.map((option) => (
-                  <option
-                    key={option.id}
-                    value={option.value}
-                  >
-                    {option.label}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <div className="xl:col-span-2">
+                <label className="block mb-2 font-medium">
+                  Titel
+                </label>
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Ticket-Titel"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Kategorie
+                </label>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">
+                    Kategorie auswählen
                   </option>
-                ))}
-              </select>
+
+                  {categoryOptions.map((option) => (
+                    <option
+                      key={option.id}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Status
+                </label>
+                <select
+                  value={status}
+                  onChange={(event) =>
+                    setStatus(event.target.value as TicketStatus)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  {statusOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Priorität
+                </label>
+                <select
+                  value={priority}
+                  onChange={(event) =>
+                    setPriority(event.target.value as TicketPriority)
+                  }
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  {priorityOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Zugewiesen an
+                </label>
+                <input
+                  value={assignedTo}
+                  onChange={(event) => setAssignedTo(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Name oder Team"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-black">
+                Organisation
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Firma und Abteilung steuern Sichtbarkeit und Zuständigkeit.
+              </p>
             </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as TicketStatus)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                {statusOptions.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                  >
-                    {option.label}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              <div>
+                <label className="block mb-2 font-medium">
+                  Firma
+                </label>
+                <select
+                  value={companyId}
+                  onChange={(event) => handleCompanyChange(event.target.value)}
+                  disabled={!isAdmin && !canManageTickets}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <option value="">
+                    Intern
                   </option>
-                ))}
-              </select>
-            </div>
 
-            <div>
-              <label className="block mb-2 font-medium">
-                PrioritÃ¤t
-              </label>
-              <select
-                value={priority}
-                onChange={(event) => setPriority(event.target.value as TicketPriority)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white"
-              >
-                {priorityOptions.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                  >
-                    {option.label}
+                  {companies.map((nextCompany) => (
+                    <option
+                      key={nextCompany.id}
+                      value={nextCompany.id}
+                    >
+                      {nextCompany.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Abteilung
+                </label>
+                <select
+                  value={departmentId}
+                  onChange={(event) => handleDepartmentChange(event.target.value)}
+                  disabled={!isAdmin && !canManageTickets}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <option value="">
+                    Keine Abteilung
                   </option>
-                ))}
-              </select>
+
+                  {filteredDepartments.map((nextDepartment) => (
+                    <option
+                      key={nextDepartment.id}
+                      value={nextDepartment.id}
+                    >
+                      {nextDepartment.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-medium">
+                  Erstellt von
+                </label>
+                <input
+                  value={createdBy}
+                  onChange={(event) => setCreatedBy(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="System"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <h3 className="text-xl font-black">
+                Beschreibung & Tags
+              </h3>
+              <p className="text-zinc-500 mt-1">
+                Inhalt und vordefinierte Tags für bessere Filterbarkeit.
+              </p>
             </div>
 
             <div>
-              <label className="block mb-2 font-medium">
-                Zugewiesen an
-              </label>
-              <input
-                value={assignedTo}
-                onChange={(event) => setAssignedTo(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="Name oder Team"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Erstellt von
-              </label>
-              <input
-                value={createdBy}
-                onChange={(event) => setCreatedBy(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500"
-                placeholder="System"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Firma
-              </label>
-              <select
-                value={companyId}
-                onChange={(event) => handleCompanyChange(event.target.value)}
-                disabled={!isAdmin && !canManageTickets}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
-              >
-                <option value="">
-                  Intern
-                </option>
-                {companies.map((nextCompany) => (
-                  <option
-                    key={nextCompany.id}
-                    value={nextCompany.id}
-                  >
-                    {nextCompany.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2 font-medium">
-                Abteilung
-              </label>
-              <select
-                value={departmentId}
-                onChange={(event) => handleDepartmentChange(event.target.value)}
-                disabled={!isAdmin && !canManageTickets}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
-              >
-                <option value="">
-                  Allgemein
-                </option>
-                {filteredDepartments.map((nextDepartment) => (
-                  <option
-                    key={nextDepartment.id}
-                    value={nextDepartment.id}
-                  >
-                    {nextDepartment.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="xl:col-span-2">
               <label className="block mb-2 font-medium">
                 Beschreibung
               </label>
@@ -956,12 +1115,12 @@ export default function TicketDetailPage() {
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 rows={8}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none focus:border-zinc-500 resize-y"
+                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y"
                 placeholder="Beschreibung des Tickets..."
               />
             </div>
 
-            <div className="xl:col-span-2">
+            <div>
               <label className="block mb-3 font-medium">
                 Tags
               </label>
@@ -982,7 +1141,7 @@ export default function TicketDetailPage() {
                         onClick={() => toggleTag(option.value)}
                         className={`px-4 py-2 rounded-xl border transition ${
                           active
-                            ? "bg-zinc-900 text-white border-zinc-900"
+                            ? "app-accent-bg text-white border-transparent app-brand-shadow"
                             : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
                         }`}
                       >
@@ -993,7 +1152,7 @@ export default function TicketDetailPage() {
                 </div>
               )}
             </div>
-          </div>
+          </section>
         </form>
       </AppModal>
 
@@ -1011,21 +1170,24 @@ export default function TicketDetailPage() {
           {
             label: ticketCategory,
           },
+          {
+            label: companyName,
+          },
         ]}
         actions={
-          <div className="flex flex-wrap gap-3">
+          <>
             <Link
               href="/tickets"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+              className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"
             >
-              ZurÃ¼ck zu Tickets
+              Zurück zu Tickets
             </Link>
 
             {canEditTicket && (
               <button
                 type="button"
                 onClick={openEditModal}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
               >
                 Bearbeiten
               </button>
@@ -1036,9 +1198,9 @@ export default function TicketDetailPage() {
                 type="button"
                 onClick={() => void updateTicketStatus("closed")}
                 disabled={saving}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-bold"
               >
-                SchlieÃŸen
+                Schließen
               </button>
             )}
 
@@ -1047,9 +1209,9 @@ export default function TicketDetailPage() {
                 type="button"
                 onClick={() => void updateTicketStatus("open")}
                 disabled={saving}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50"
+                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition disabled:opacity-50 font-bold"
               >
-                Wieder Ã¶ffnen
+                Wieder öffnen
               </button>
             )}
 
@@ -1058,12 +1220,12 @@ export default function TicketDetailPage() {
                 type="button"
                 onClick={() => void handleDeleteTicket()}
                 disabled={saving}
-                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition disabled:opacity-50"
+                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition disabled:opacity-50 font-bold"
               >
-                LÃ¶schen
+                Löschen
               </button>
             )}
-          </div>
+          </>
         }
       />
 
@@ -1091,144 +1253,161 @@ export default function TicketDetailPage() {
           label="Status"
           value={getStatusLabel(ticket.status)}
           description="Aktueller Bearbeitungsstatus"
-          icon="ðŸŽ«"
-          tone="blue"
+          icon="●"
+          tone={getStatusTone(ticket.status)}
         />
+
         <StatCard
-          label="PrioritÃ¤t"
+          label="Priorität"
           value={getPriorityLabel(ticket.priority)}
           description="Wichtigkeit des Tickets"
-          icon="âš¡"
-          tone="orange"
+          icon="⚡"
+          tone={getPriorityTone(ticket.priority)}
         />
+
         <StatCard
           label="Alter"
           value={getTicketAgeLabel(ticket.createdAt)}
           description="Seit Erstellung"
-          icon="â±ï¸"
+          icon="⏱️"
           tone="purple"
         />
+
         <StatCard
           label="Tags"
           value={tags.length}
           description="Vordefinierte Tags"
-          icon="#ï¸âƒ£"
+          icon="#️⃣"
           tone="indigo"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
+      <section className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
         <div className="space-y-6">
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Ticketdetails
-                </h2>
-                <p className="text-zinc-500 mt-1">
-                  Stammdaten und Beschreibung des Tickets.
-                </p>
-              </div>
+          <article className="bg-white border border-zinc-200 rounded-3xl p-6 md:p-8 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-              <div className="flex flex-wrap gap-2">
-                <span className={`text-sm px-3 py-2 rounded-xl ${getStatusClass(ticket.status)}`}>
-                  {getStatusLabel(ticket.status)}
-                </span>
-                <span className={`text-sm px-3 py-2 rounded-xl ${getPriorityClass(ticket.priority)}`}>
-                  {getPriorityLabel(ticket.priority)}
-                </span>
-              </div>
-            </div>
+            <div className="relative">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div>
+                  <h2 className="text-2xl font-black">
+                    Ticketdetails
+                  </h2>
+                  <p className="text-zinc-500 mt-1">
+                    Stammdaten, Beschreibung und Zuordnung des Tickets.
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-8">
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Firma
-                </p>
-                <p className="font-semibold mt-1">
-                  {companyName}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Abteilung
-                </p>
-                <p className="font-semibold mt-1">
-                  {departmentName}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Kategorie
-                </p>
-                <p className="font-semibold mt-1">
-                  {ticketCategory}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Zugewiesen an
-                </p>
-                <p className="font-semibold mt-1">
-                  {ticket.assignedTo || "Nicht zugewiesen"}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Erstellt von
-                </p>
-                <p className="font-semibold mt-1">
-                  {ticket.createdBy || "System"}
-                </p>
-              </div>
-
-              <div className="bg-zinc-50 rounded-2xl p-5">
-                <p className="text-sm text-zinc-400">
-                  Aktualisiert
-                </p>
-                <p className="font-semibold mt-1">
-                  {ticket.updatedAt || "Unbekannt"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <h3 className="font-semibold">
-                Beschreibung
-              </h3>
-              <p className="text-zinc-700 mt-3 whitespace-pre-wrap leading-7">
-                {ticket.description || "Keine Beschreibung vorhanden."}
-              </p>
-            </div>
-
-            <div className="mt-8">
-              <h3 className="font-semibold">
-                Tags
-              </h3>
-
-              <div className="flex flex-wrap gap-2 mt-3">
-                {tags.length === 0 && (
-                  <span className="text-sm bg-zinc-100 text-zinc-500 px-3 py-2 rounded-xl">
-                    Keine Tags
-                  </span>
-                )}
-
-                {tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    href={`/tickets?tag=${encodeURIComponent(tag)}`}
-                    className="text-sm bg-zinc-100 text-zinc-700 px-3 py-2 rounded-xl hover:bg-zinc-200 transition"
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`text-sm px-3 py-2 rounded-xl border font-bold ${getStatusClass(
+                      ticket.status,
+                    )}`}
                   >
-                    #{tag}
-                  </Link>
-                ))}
+                    {getStatusLabel(ticket.status)}
+                  </span>
+
+                  <span
+                    className={`text-sm px-3 py-2 rounded-xl border font-bold ${getPriorityClass(
+                      ticket.priority,
+                    )}`}
+                  >
+                    {getPriorityLabel(ticket.priority)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-8">
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Firma
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {companyName}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Abteilung
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {departmentName}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Kategorie
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {ticketCategory}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Zugewiesen an
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {ticket.assignedTo || "Nicht zugewiesen"}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Erstellt von
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {ticket.createdBy || "System"}
+                  </p>
+                </div>
+
+                <div className="bg-zinc-50 rounded-2xl p-5">
+                  <p className="text-sm text-zinc-400">
+                    Aktualisiert
+                  </p>
+                  <p className="font-black mt-1 line-clamp-1">
+                    {ticket.updatedAt || "Unbekannt"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-zinc-100">
+                <h3 className="text-xl font-black">
+                  Beschreibung
+                </h3>
+
+                <p className="text-zinc-700 mt-4 whitespace-pre-wrap leading-8 text-lg">
+                  {ticket.description || "Keine Beschreibung vorhanden."}
+                </p>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-zinc-100">
+                <h3 className="text-xl font-black">
+                  Tags
+                </h3>
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {tags.length === 0 && (
+                    <span className="text-sm bg-zinc-100 text-zinc-500 px-3 py-2 rounded-xl">
+                      Keine Tags
+                    </span>
+                  )}
+
+                  {tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/tickets?tag=${encodeURIComponent(tag)}`}
+                      className="text-sm bg-zinc-100 text-zinc-700 px-3 py-2 rounded-xl hover:bg-zinc-200 transition font-medium"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </article>
 
           <TicketComments
             ticketId={ticket.id}
@@ -1242,130 +1421,146 @@ export default function TicketDetailPage() {
         </div>
 
         <aside className="space-y-6">
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
-              Schnellaktionen
-            </h2>
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-            <div className="space-y-3 mt-5">
-              {canEditTicket && (
-                <button
-                  type="button"
-                  onClick={openEditModal}
-                  className="w-full text-left bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
+            <div className="relative">
+              <h2 className="text-2xl font-bold">
+                Schnellaktionen
+              </h2>
+              <p className="text-zinc-500 mt-1">
+                Ticket bearbeiten, schließen oder ähnliche Tickets öffnen.
+              </p>
+
+              <div className="space-y-3 mt-6">
+                {canEditTicket && (
+                  <button
+                    type="button"
+                    onClick={openEditModal}
+                    className="w-full flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
+                  >
+                    <span>Ticket bearbeiten</span>
+                    <span>→</span>
+                  </button>
+                )}
+
+                {ticket.status !== "closed" && canCloseTicket && (
+                  <button
+                    type="button"
+                    onClick={() => void updateTicketStatus("closed")}
+                    disabled={saving}
+                    className="w-full flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition disabled:opacity-50 font-bold"
+                  >
+                    <span>Ticket schließen</span>
+                    <span>→</span>
+                  </button>
+                )}
+
+                {ticket.status === "closed" && canEditTicket && (
+                  <button
+                    type="button"
+                    onClick={() => void updateTicketStatus("open")}
+                    disabled={saving}
+                    className="w-full flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition disabled:opacity-50 font-bold"
+                  >
+                    <span>Ticket wieder öffnen</span>
+                    <span>→</span>
+                  </button>
+                )}
+
+                <Link
+                  href={`/tickets?category=${encodeURIComponent(ticketCategory)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
                 >
-                  Ticket bearbeiten
-                </button>
-              )}
+                  <span>Gleiche Kategorie öffnen</span>
+                  <span>→</span>
+                </Link>
 
-              {ticket.status !== "closed" && canCloseTicket && (
-                <button
-                  type="button"
-                  onClick={() => void updateTicketStatus("closed")}
-                  disabled={saving}
-                  className="w-full text-left bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition disabled:opacity-50"
+                <Link
+                  href={`/tickets?company=${encodeURIComponent(companyName)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
                 >
-                  Ticket schlieÃŸen
-                </button>
-              )}
+                  <span>Gleiche Firma öffnen</span>
+                  <span>→</span>
+                </Link>
 
-              {ticket.status === "closed" && canEditTicket && (
-                <button
-                  type="button"
-                  onClick={() => void updateTicketStatus("open")}
-                  disabled={saving}
-                  className="w-full text-left bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition disabled:opacity-50"
+                <Link
+                  href={`/tickets?department=${encodeURIComponent(departmentName)}`}
+                  className="flex items-center justify-between gap-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 px-4 py-4 rounded-2xl transition font-bold"
                 >
-                  Ticket wieder Ã¶ffnen
-                </button>
-              )}
-
-              <Link
-                href={`/tickets?category=${encodeURIComponent(ticketCategory)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Kategorie Ã¶ffnen
-              </Link>
-
-              <Link
-                href={`/tickets?company=${encodeURIComponent(companyName)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Firma Ã¶ffnen
-              </Link>
-
-              <Link
-                href={`/tickets?department=${encodeURIComponent(departmentName)}`}
-                className="block bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-3 rounded-2xl transition"
-              >
-                Gleiche Abteilung Ã¶ffnen
-              </Link>
+                  <span>Gleiche Abteilung öffnen</span>
+                  <span>→</span>
+                </Link>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">
+          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-2xl font-bold">
               Stammdaten
             </h2>
+            <p className="text-zinc-500 mt-1">
+              Technische und organisatorische Daten.
+            </p>
 
-            <div className="space-y-4 mt-5 text-sm">
-              <div>
-                <p className="text-zinc-400">
+            <div className="space-y-4 mt-6">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Ticket-ID
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   #{ticket.id}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Status
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {getStatusLabel(ticket.status)}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
-                  PrioritÃ¤t
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
+                  Priorität
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {getPriorityLabel(ticket.priority)}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Kategorie
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {ticketCategory}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Erstellt
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {ticket.createdAt || "Unbekannt"}
                 </p>
               </div>
 
-              <div>
-                <p className="text-zinc-400">
+              <div className="bg-zinc-50 rounded-2xl p-4">
+                <p className="text-xs text-zinc-500">
                   Aktualisiert
                 </p>
-                <p className="font-medium text-zinc-800">
+                <p className="font-black mt-1">
                   {ticket.updatedAt || "Unbekannt"}
                 </p>
               </div>
             </div>
-          </div>
+          </section>
         </aside>
-      </div>
+      </section>
     </div>
   );
 }
