@@ -309,7 +309,55 @@ const defaultPermissions: Array<{
     label: "News löschen",
     description: "Darf News löschen.",
     category: "News",
+  },  {
+    permissionKey: "inventory.view",
+    label: "IT-Inventar anzeigen",
+    description: "Darf IT-Inventar und Geräte anzeigen.",
+    category: "IT-Inventar",
   },
+  {
+    permissionKey: "inventory.create",
+    label: "IT-Inventar erstellen",
+    description: "Darf neue Geräte und Assets anlegen.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.edit",
+    label: "IT-Inventar bearbeiten",
+    description: "Darf Geräte- und Assetdaten bearbeiten.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.delete",
+    label: "IT-Inventar löschen",
+    description: "Darf Geräte und Assets löschen.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.assign",
+    label: "IT-Inventar zuweisen",
+    description: "Darf Geräte Benutzern, Firmen und Abteilungen zuweisen.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.hardware.manage",
+    label: "Hardware verwalten",
+    description: "Darf Hardwaredaten im IT-Inventar verwalten.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.software.manage",
+    label: "Software verwalten",
+    description: "Darf Software- und Betriebssystemdaten im IT-Inventar verwalten.",
+    category: "IT-Inventar",
+  },
+  {
+    permissionKey: "inventory.servers.manage",
+    label: "Server verwalten",
+    description: "Darf Server und virtuelle Systeme im IT-Inventar verwalten.",
+    category: "IT-Inventar",
+  },
+
   {
     permissionKey: "activity.view",
     label: "Aktivitäten anzeigen",

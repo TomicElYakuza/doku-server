@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { query, queryOne } from "../../../../lib/database/db";
 import { mapRolePermissionTemplateRow } from "../../../../lib/database/mappers/rolePermissionTemplateMapper";
@@ -61,6 +61,14 @@ const validPermissionKeys = new Set([
   "tickets.templates.delete",
   "files.view",
   "files.upload",
+  "inventory.view",
+  "inventory.create",
+  "inventory.edit",
+  "inventory.delete",
+  "inventory.assign",
+  "inventory.hardware.manage",
+  "inventory.software.manage",
+  "inventory.servers.manage",
   "files.delete",
   "news.view",
   "news.create",

@@ -96,6 +96,21 @@ const navigationItems: NavigationItem[] = [
       "files.view",
       "files.upload",
     ],
+  },  {
+    href: "/inventory",
+    label: "IT-Inventar",
+    icon: "▣",
+    category: "management",
+    moduleKey: "inventory",
+    permissionAny: [
+      "inventory.view",
+      "inventory.create",
+      "inventory.edit",
+      "inventory.assign",
+      "inventory.hardware.manage",
+      "inventory.software.manage",
+      "inventory.servers.manage",
+    ],
   },
   {
     href: "/tickets",
@@ -107,17 +122,6 @@ const navigationItems: NavigationItem[] = [
       "tickets.view",
       "tickets.create",
       "tickets.edit",
-    ],
-  },
-  {
-    href: "/activity",
-    label: "Aktivitäten",
-    icon: "📊",
-    category: "management",
-    moduleKey: "activities",
-    permissionAny: [
-      "activity.view",
-      "admin.view",
     ],
   },
   {
@@ -164,6 +168,12 @@ const moduleKeyAliases: Record<string, string[]> = {
   tickets: [
     "tickets",
     "ticket",
+  ],
+  inventory: [
+    "inventory",
+    "it-inventory",
+    "assets",
+    "it-assets",
   ],
   activities: [
     "activities",

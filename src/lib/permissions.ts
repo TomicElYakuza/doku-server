@@ -25,6 +25,14 @@ export type PermissionKey =
   | "files.view"
   | "files.upload"
   | "files.delete"
+  | "inventory.view"
+  | "inventory.create"
+  | "inventory.edit"
+  | "inventory.delete"
+  | "inventory.assign"
+  | "inventory.hardware.manage"
+  | "inventory.software.manage"
+  | "inventory.servers.manage"
   | "activity.view"
   | "settings.view"
   | "settings.manage"
@@ -95,9 +103,17 @@ export function canViewAdmin() {
 }
 
 export function canViewActivity() {
-  const role = getCurrentUserRole();
+  return isAdmin();
+}
 
-  return role === "admin" || role === "department_lead";
+export function canViewInventory() {
+  const user = getCachedCurrentUser();
+
+  if (!user) {
+    return false;
+  }
+
+  return user.role === "admin";
 }
 
 export function canManageSettings() {
@@ -217,7 +233,5 @@ export function roleIsAtLeast(
   currentRole: string | undefined,
   requiredRole: UserRole,
 ) {
-  return (
-    getRoleHierarchyValue(currentRole) >= getRoleHierarchyValue(requiredRole)
-  );
+  return getRoleHierarchyValue(currentRole) >= getRoleHierarchyValue(requiredRole);
 }

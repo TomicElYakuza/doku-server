@@ -136,20 +136,6 @@ const defaultAdminModules: AdminModuleCreateInput[] = [
     isVisible: true,
     isCore: false,
   },
-  {
-    key: "activity",
-    title: "Aktivitätsprotokoll",
-    description:
-      "Systemaktivitäten, Änderungen und relevante Ereignisse einsehen.",
-    href: "/activity",
-    icon: "📋",
-    category: "system",
-    badgeLabel: "Logs",
-    sortOrder: 100,
-    isEnabled: true,
-    isVisible: true,
-    isCore: false,
-  },
 ];
 
 function normalizeText(value: unknown) {

@@ -181,6 +181,7 @@ export async function GET() {
       "taxonomy_items",
       "admin_modules",
       "role_permission_templates",
+      "inventory_assets",
     ];
 
     const taxonomyColumns = columns

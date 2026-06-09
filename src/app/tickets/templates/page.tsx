@@ -1,4 +1,6 @@
-﻿"use client";
+"use client";
+
+import { adminUserRepository } from "../../../lib/adminUserRepository";
 
 import Link from "next/link";
 import {
@@ -36,6 +38,8 @@ import type {
   TicketTemplatePriority,
   TicketTemplateStatus,
 } from "../../../types/ticketTemplate";
+
+type TemplateAssignableUser = Awaited<ReturnType<typeof adminUserRepository.list>>[number];
 
 type ViewMode = "cards" | "table";
 
@@ -186,6 +190,7 @@ export default function TicketTemplatesPage() {
   const [templates, setTemplates] = useState<TicketTemplate[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [users, setUsers] = useState<TemplateAssignableUser[]>([]);
   const [ticketCategories, setTicketCategories] = useState<TaxonomyItem[]>([]);
   const [ticketTags, setTicketTags] = useState<TaxonomyItem[]>([]);
 
@@ -324,6 +329,11 @@ export default function TicketTemplatesPage() {
 
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      void adminUserRepository.list().then((nextUsers: TemplateAssignableUser[]) => {
+        setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+      }).catch((usersError: unknown) => {
+        console.error("TicketTemplates users konnten nicht geladen werden:", usersError);
+      });
     } catch (loadError) {
       console.error(
         "Organisation konnte nicht geladen werden:",
@@ -351,6 +361,11 @@ export default function TicketTemplatesPage() {
       setTemplates(Array.isArray(nextTemplates) ? nextTemplates : []);
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      void adminUserRepository.list().then((nextUsers: TemplateAssignableUser[]) => {
+        setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+      }).catch((usersError: unknown) => {
+        console.error("TicketTemplates users konnten nicht geladen werden:", usersError);
+      });
     } catch (loadError) {
       console.error(loadError);
 
@@ -966,12 +981,18 @@ export default function TicketTemplatesPage() {
                 Zugewiesen an
               </label>
 
-              <input
-                value={assignedTo}
-                onChange={(event) => setAssignedTo(event.target.value)}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                placeholder="Name oder Team"
-              />
+              <select
+                  value={assignedTo}
+                  onChange={(event) => setAssignedTo(event.target.value)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="">Nicht zugewiesen</option>
+                  {users.map((nextUser) => (
+                    <option key={nextUser.id} value={nextUser.name}>
+                      {nextUser.name} · {nextUser.email}
+                    </option>
+                  ))}
+                </select>
             </div>
 
             <div>

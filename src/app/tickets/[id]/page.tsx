@@ -1,4 +1,6 @@
-﻿"use client";
+"use client";
+
+import { adminUserRepository } from "../../../lib/adminUserRepository";
 
 import Link from "next/link";
 import {
@@ -41,6 +43,8 @@ import type {
   TicketPriority,
   TicketStatus,
 } from "../../../types/ticket";
+
+type TicketAssignableUser = Awaited<ReturnType<typeof adminUserRepository.list>>[number];
 
 type TaxonomyItem = {
   id: string;
@@ -267,6 +271,7 @@ export default function TicketDetailPage() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [users, setUsers] = useState<TicketAssignableUser[]>([]);
   const [ticketCategories, setTicketCategories] = useState<TaxonomyItem[]>([]);
   const [ticketTags, setTicketTags] = useState<TaxonomyItem[]>([]);
 
@@ -398,6 +403,11 @@ export default function TicketDetailPage() {
 
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      void adminUserRepository.list().then((nextUsers: TicketAssignableUser[]) => {
+        setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+      }).catch((usersError: unknown) => {
+        console.error("TicketDetail users konnten nicht geladen werden:", usersError);
+      });
     } catch (loadError) {
       console.error(
         "Organisation konnte nicht geladen werden:",
@@ -431,6 +441,11 @@ export default function TicketDetailPage() {
       setTicket(nextTicket);
       setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
       setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      void adminUserRepository.list().then((nextUsers: TicketAssignableUser[]) => {
+        setUsers(Array.isArray(nextUsers) ? nextUsers : []);
+      }).catch((usersError: unknown) => {
+        console.error("TicketDetail users konnten nicht geladen werden:", usersError);
+      });
 
       if (!nextTicket) {
         setError("Ticket wurde nicht gefunden.");
@@ -970,13 +985,19 @@ export default function TicketDetailPage() {
                 Zugewiesen an
               </label>
 
-              <input
-                value={assignedTo}
-                onChange={(event) => setAssignedTo(event.target.value)}
-                disabled={!canAssignTicket}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus disabled:bg-zinc-100 disabled:text-zinc-400"
-                placeholder="Name oder Team"
-              />
+              <select
+                  value={assignedTo}
+                  onChange={(event) => setAssignedTo(event.target.value)}
+                  disabled={!canAssignTicket}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                >
+                  <option value="">Nicht zugewiesen</option>
+                  {users.map((nextUser) => (
+                    <option key={nextUser.id} value={nextUser.name}>
+                      {nextUser.name} · {nextUser.email}
+                    </option>
+                  ))}
+                </select>
             </div>
 
             <div>
