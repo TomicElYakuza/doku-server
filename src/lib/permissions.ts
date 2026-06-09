@@ -1,4 +1,4 @@
-﻿import { getCachedCurrentUser } from "./currentUserRepository";
+import { getCachedCurrentUser } from "./currentUserRepository";
 import type { User, UserRole } from "../types/user";
 
 export type PermissionKey =
@@ -33,6 +33,14 @@ export type PermissionKey =
   | "inventory.hardware.manage"
   | "inventory.software.manage"
   | "inventory.servers.manage"
+  | "service.view"
+  | "service.create"
+  | "service.edit"
+  | "service.delete"
+  | "service.assign"
+  | "service.payments.manage"
+  | "service.dashboard.view"
+  | "service.customers.manage"
   | "activity.view"
   | "settings.view"
   | "settings.manage"

@@ -97,6 +97,21 @@ const navigationItems: NavigationItem[] = [
       "files.upload",
     ],
   },  {
+    href: "/service",
+    label: "Service-Center",
+    icon: "◇",
+    category: "management",
+    moduleKey: "service",
+    permissionAny: [
+      "service.view",
+      "service.create",
+      "service.edit",
+      "service.assign",
+      "service.dashboard.view",
+      "service.payments.manage",
+      "service.customers.manage",
+    ],
+  },  {
     href: "/inventory",
     label: "IT-Inventar",
     icon: "▣",

@@ -182,6 +182,8 @@ export async function GET() {
       "admin_modules",
       "role_permission_templates",
       "inventory_assets",
+      "service_customers",
+      "service_cases",
     ];
 
     const taxonomyColumns = columns

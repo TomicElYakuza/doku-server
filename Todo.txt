@@ -1,4 +1,3 @@
-Für später:
 -	AD Integration mit E-Mail und Telefon
 -	Externer Firmenzugang
 -	Cookies
