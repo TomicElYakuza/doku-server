@@ -45,7 +45,10 @@ function normalizeNullableId(value: unknown) {
   return text || null;
 }
 
-function normalizeType(value: unknown, fallback: TaxonomyType = "category") {
+function normalizeType(
+  value: unknown,
+  fallback: TaxonomyType = "category",
+) {
   if (allowedTypes.includes(value as TaxonomyType)) {
     return value as TaxonomyType;
   }
@@ -53,7 +56,10 @@ function normalizeType(value: unknown, fallback: TaxonomyType = "category") {
   return fallback;
 }
 
-function normalizeTarget(value: unknown, fallback: TaxonomyTarget = "ticket") {
+function normalizeTarget(
+  value: unknown,
+  fallback: TaxonomyTarget = "ticket",
+) {
   if (allowedTargets.includes(value as TaxonomyTarget)) {
     return value as TaxonomyTarget;
   }
@@ -61,7 +67,10 @@ function normalizeTarget(value: unknown, fallback: TaxonomyTarget = "ticket") {
   return fallback;
 }
 
-function normalizeStatus(value: unknown, fallback: TaxonomyStatus = "active") {
+function normalizeStatus(
+  value: unknown,
+  fallback: TaxonomyStatus = "active",
+) {
   if (allowedStatuses.includes(value as TaxonomyStatus)) {
     return value as TaxonomyStatus;
   }
@@ -93,6 +102,7 @@ async function findRawTaxonomyItemById(id: string) {
         name,
         slug,
         description,
+        color,
         parent_id,
         sort_order,
         status,
@@ -100,6 +110,7 @@ async function findRawTaxonomyItemById(id: string) {
         updated_at
       FROM taxonomy_items
       WHERE id = $1
+      LIMIT 1
     `,
     [id],
   );
@@ -151,6 +162,7 @@ async function assertParentIsValid(params: {
       currentParentId = nextParent.parent_id
         ? String(nextParent.parent_id)
         : "";
+
       guard += 1;
     }
   }
@@ -171,6 +183,7 @@ export async function ensureTaxonomyTable() {
       name TEXT NOT NULL,
       slug TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '',
       parent_id UUID REFERENCES taxonomy_items(id) ON DELETE SET NULL,
       sort_order INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'active',
@@ -192,6 +205,11 @@ export async function ensureTaxonomyTable() {
   await query(`
     ALTER TABLE taxonomy_items
     ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE taxonomy_items
+    ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT ''
   `);
 
   await query(`
@@ -233,6 +251,7 @@ export async function ensureTaxonomyTable() {
       name = COALESCE(NULLIF(name, ''), 'Unbenannt'),
       slug = COALESCE(NULLIF(slug, ''), LOWER(REPLACE(name, ' ', '-'))),
       description = COALESCE(description, ''),
+      color = COALESCE(color, ''),
       sort_order = COALESCE(sort_order, 0),
       status = CASE
         WHEN status IN ('active', 'inactive', 'archived') THEN status
@@ -265,7 +284,7 @@ export async function listTaxonomyItems(filters: TaxonomyListFilters = {}) {
   }
 
   if (filters.target) {
-    params.push(normalizeTarget(filters.target, "ticket"));
+    params.push(normalizeTarget(filters.target));
     whereParts.push(`target = $${params.length}`);
   }
 
@@ -291,6 +310,7 @@ export async function listTaxonomyItems(filters: TaxonomyListFilters = {}) {
         name,
         slug,
         description,
+        color,
         parent_id,
         sort_order,
         status,
@@ -298,11 +318,7 @@ export async function listTaxonomyItems(filters: TaxonomyListFilters = {}) {
         updated_at
       FROM taxonomy_items
       ${whereSql}
-      ORDER BY
-        target ASC,
-        type ASC,
-        sort_order ASC,
-        name ASC
+      ORDER BY target ASC, type ASC, sort_order ASC, name ASC
     `,
     params,
   );
@@ -331,8 +347,18 @@ export async function createTaxonomyItem(
 
   const type = normalizeType(input.type);
   const target = normalizeTarget(input.target);
-  const parentId = normalizeNullableId(input.parentId);
+  const color = normalizeText(input.color);
+  const parentId =
+    type === "category" ? normalizeNullableId(input.parentId) : null;
   const slug = input.slug ? createSlug(input.slug) : createSlug(name);
+
+  if (!slug) {
+    throw new Error("Slug konnte nicht erzeugt werden.");
+  }
+
+  if (target === "global" && type === "category") {
+    throw new Error("Globale Einträge können nur als Tags erstellt werden.");
+  }
 
   await assertParentIsValid({
     parentId,
@@ -348,11 +374,12 @@ export async function createTaxonomyItem(
         name,
         slug,
         description,
+        color,
         parent_id,
         sort_order,
         status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING
         id,
         type,
@@ -360,6 +387,7 @@ export async function createTaxonomyItem(
         name,
         slug,
         description,
+        color,
         parent_id,
         sort_order,
         status,
@@ -372,6 +400,7 @@ export async function createTaxonomyItem(
       name,
       slug,
       normalizeText(input.description),
+      color,
       parentId,
       normalizeSortOrder(input.sortOrder),
       normalizeStatus(input.status),
@@ -414,12 +443,18 @@ export async function updateTaxonomyItem(
       ? normalizeTarget(input.target, current.target as TaxonomyTarget)
       : (current.target as TaxonomyTarget);
 
+  if (nextTarget === "global" && nextType === "category") {
+    throw new Error("Globale Einträge können nur als Tags geführt werden.");
+  }
+
   const nextParentId =
-    input.parentId !== undefined
-      ? normalizeNullableId(input.parentId)
-      : current.parent_id
-        ? String(current.parent_id)
-        : null;
+    nextType === "category"
+      ? input.parentId !== undefined
+        ? normalizeNullableId(input.parentId)
+        : current.parent_id
+          ? String(current.parent_id)
+          : null
+      : null;
 
   await assertParentIsValid({
     parentId: nextParentId,
@@ -433,6 +468,10 @@ export async function updateTaxonomyItem(
       ? createSlug(input.slug || nextName)
       : current.slug || createSlug(nextName);
 
+  if (!nextSlug) {
+    throw new Error("Slug konnte nicht erzeugt werden.");
+  }
+
   const row = await queryOne<TaxonomyItemRow>(
     `
       UPDATE taxonomy_items
@@ -442,11 +481,12 @@ export async function updateTaxonomyItem(
         name = $3,
         slug = $4,
         description = $5,
-        parent_id = $6,
-        sort_order = $7,
-        status = $8,
+        color = $6,
+        parent_id = $7,
+        sort_order = $8,
+        status = $9,
         updated_at = NOW()
-      WHERE id = $9
+      WHERE id = $10
       RETURNING
         id,
         type,
@@ -454,6 +494,7 @@ export async function updateTaxonomyItem(
         name,
         slug,
         description,
+        color,
         parent_id,
         sort_order,
         status,
@@ -468,6 +509,9 @@ export async function updateTaxonomyItem(
       input.description !== undefined
         ? normalizeText(input.description)
         : current.description || "",
+      input.color !== undefined
+        ? normalizeText(input.color)
+        : current.color || "",
       nextParentId,
       input.sortOrder !== undefined
         ? normalizeSortOrder(input.sortOrder)

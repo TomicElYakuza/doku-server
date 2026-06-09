@@ -18,6 +18,7 @@ export type TaxonomyItem = {
   name: string;
   slug: string;
   description: string;
+  color: string;
   parentId: string;
   sortOrder: number;
   status: TaxonomyStatus;

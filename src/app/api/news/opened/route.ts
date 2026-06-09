@@ -1,20 +1,24 @@
 ﻿import { NextResponse } from "next/server";
 
-import { query } from "../../../../lib/database/db";
+import { query, queryOne } from "../../../../lib/database/db";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../lib/serverPermissions";
 
-type OpenedRow = {
-  news_id: number | string;
+type OpenedNewsRow = {
+  post_id: string;
 };
 
-type MarkOpenedBody = {
+type OpenedNewsBody = {
   id?: string;
   all?: boolean;
 };
+
+function normalizeText(value?: string | null) {
+  return String(value || "").trim();
+}
 
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
@@ -30,6 +34,22 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return error instanceof Error ? error.message : fallback;
+}
+
+async function ensureNewsOpenedTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS news_opened (
+      id TEXT PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+      post_id TEXT NOT NULL,
+      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, post_id)
+    )
+  `);
+}
+
+function createOpenedId(userId: string, postId: string) {
+  return `news_opened_${userId}_${postId}`.replace(/[^a-zA-Z0-9_.-]/g, "_");
 }
 
 export async function GET() {
@@ -55,16 +75,21 @@ export async function GET() {
       "admin.view",
     ]);
 
-    const rows = await query<OpenedRow>(
+    await ensureNewsOpenedTable();
+
+    const rows = await query<OpenedNewsRow>(
       `
-        SELECT news_id
+        SELECT post_id
         FROM news_opened
-        WHERE user_email = $1
+        WHERE user_id = $1
+        ORDER BY opened_at DESC
       `,
-      [currentUser.email.toLowerCase()],
+      [currentUser.id],
     );
 
-    return NextResponse.json(rows.map((row) => String(row.news_id)));
+    return NextResponse.json({
+      openedIds: rows.map((row) => String(row.post_id)),
+    });
   } catch (error) {
     console.error(error);
 
@@ -72,7 +97,7 @@ export async function GET() {
       {
         message: getErrorMessage(
           error,
-          "Gelesene News konnten nicht geladen werden.",
+          "Geöffnete News konnten nicht geladen werden.",
         ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
@@ -106,37 +131,49 @@ export async function POST(request: Request) {
       "admin.view",
     ]);
 
-    const body = (await request.json()) as MarkOpenedBody;
-    const userEmail = currentUser.email.toLowerCase();
+    await ensureNewsOpenedTable();
+
+    const body = (await request.json()) as OpenedNewsBody;
 
     if (body.all) {
-      await query(
-        `
-          INSERT INTO news_opened (
-            news_id,
-            user_email
-          )
-          SELECT
-            id,
-            $1
-          FROM news_posts
-          ON CONFLICT (
-            news_id,
-            user_email
-          ) DO NOTHING
-        `,
-        [userEmail],
-      );
+      const posts = await query<{ id: string }>(`
+        SELECT id::TEXT AS id
+        FROM news_posts
+      `);
+
+      for (const post of posts) {
+        const postId = String(post.id);
+
+        await query(
+          `
+            INSERT INTO news_opened (
+              id,
+              user_id,
+              post_id
+            )
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, post_id) DO UPDATE SET
+              opened_at = NOW()
+          `,
+          [
+            createOpenedId(currentUser.id, postId),
+            currentUser.id,
+            postId,
+          ],
+        );
+      }
 
       return NextResponse.json({
         ok: true,
       });
     }
 
-    if (!body.id) {
+    const postId = normalizeText(body.id);
+
+    if (!postId) {
       return NextResponse.json(
         {
-          message: "News-ID ist erforderlich.",
+          message: "News-ID fehlt.",
         },
         {
           status: 400,
@@ -144,19 +181,43 @@ export async function POST(request: Request) {
       );
     }
 
+    const exists = await queryOne<{ id: string }>(
+      `
+        SELECT id::TEXT AS id
+        FROM news_posts
+        WHERE id::TEXT = $1
+        LIMIT 1
+      `,
+      [postId],
+    );
+
+    if (!exists) {
+      return NextResponse.json(
+        {
+          message: "News wurde nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
+
     await query(
       `
         INSERT INTO news_opened (
-          news_id,
-          user_email
+          id,
+          user_id,
+          post_id
         )
-        VALUES ($1, $2)
-        ON CONFLICT (
-          news_id,
-          user_email
-        ) DO NOTHING
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id, post_id) DO UPDATE SET
+          opened_at = NOW()
       `,
-      [body.id, userEmail],
+      [
+        createOpenedId(currentUser.id, postId),
+        currentUser.id,
+        postId,
+      ],
     );
 
     return NextResponse.json({
@@ -169,7 +230,7 @@ export async function POST(request: Request) {
       {
         message: getErrorMessage(
           error,
-          "News konnte nicht als gelesen markiert werden.",
+          "News konnte nicht als geöffnet markiert werden.",
         ),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },

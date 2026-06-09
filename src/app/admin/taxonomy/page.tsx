@@ -28,14 +28,8 @@ import type {
   TaxonomyType,
 } from "../../../types/taxonomy";
 
-type FormMode =
-  | "create"
-  | "edit"
-  | "";
-
-type ViewMode =
-  | "table"
-  | "cards";
+type FormMode = "create" | "edit" | "";
+type ViewMode = "table" | "cards";
 
 type TargetOption = {
   value: TaxonomyTarget;
@@ -59,17 +53,26 @@ const targetOptions: TargetOption[] = [
   {
     value: "ticket",
     label: "Tickets",
-    description: "Kategorien für Ticket-Erstellung, Ticket-Filter und Ticket-Struktur.",
+    description:
+      "Kategorien und Tags für Ticket-Erstellung, Ticket-Filter und Ticket-Struktur.",
   },
   {
     value: "wiki",
     label: "Wiki",
-    description: "Kategorien für Wiki-Seiten, Dokumentation und Wissensbereiche.",
+    description:
+      "Kategorien und Tags für Wiki-Seiten, Dokumentation und Wissensbereiche.",
+  },
+  {
+    value: "news",
+    label: "News",
+    description:
+      "Kategorien und Tags für News, Ankündigungen und interne Mitteilungen.",
   },
   {
     value: "global",
     label: "Global",
-    description: "Globale Tags, die in mehreren Modulen verwendet werden können.",
+    description:
+      "Globale Tags, die in mehreren Modulen verwendet werden können.",
   },
 ];
 
@@ -77,12 +80,14 @@ const typeOptions: TypeOption[] = [
   {
     value: "category",
     label: "Kategorie",
-    description: "Hierarchische Kategorie, optional mit Parent-Struktur.",
+    description:
+      "Hierarchische Kategorie, optional mit Parent-Struktur.",
   },
   {
     value: "tag",
     label: "Tag",
-    description: "Schlagwort zur schnellen Zuordnung und Filterung.",
+    description:
+      "Schlagwort zur schnellen Zuordnung und Filterung.",
   },
 ];
 
@@ -90,17 +95,20 @@ const statusOptions: StatusOption[] = [
   {
     value: "active",
     label: "Aktiv",
-    description: "Kann in Dropdowns und Filtern verwendet werden.",
+    description:
+      "Kann in Dropdowns und Filtern verwendet werden.",
   },
   {
     value: "inactive",
     label: "Inaktiv",
-    description: "Bleibt gespeichert, wird aber nicht aktiv angeboten.",
+    description:
+      "Bleibt gespeichert, wird aber nicht aktiv angeboten.",
   },
   {
     value: "archived",
     label: "Archiviert",
-    description: "Historischer Eintrag, nicht mehr für neue Zuordnungen gedacht.",
+    description:
+      "Historischer Eintrag, nicht mehr für neue Zuordnungen gedacht.",
   },
 ];
 
@@ -162,6 +170,10 @@ function getTargetClass(target: TaxonomyTarget | string) {
     return "bg-indigo-50 text-indigo-700 border-indigo-100";
   }
 
+  if (target === "news") {
+    return "bg-sky-50 text-sky-700 border-sky-100";
+  }
+
   if (target === "global") {
     return "bg-emerald-50 text-emerald-700 border-emerald-100";
   }
@@ -182,28 +194,26 @@ function getTypeClass(type: TaxonomyType | string) {
 }
 
 function sortTaxonomyItems(items: TaxonomyItem[]) {
-  return [
-    ...items,
-  ].sort((a, b) => {
-    const targetCompare = a.target.localeCompare(b.target);
+  return [...items].sort((first, second) => {
+    const targetCompare = first.target.localeCompare(second.target);
 
     if (targetCompare !== 0) {
       return targetCompare;
     }
 
-    const typeCompare = a.type.localeCompare(b.type);
+    const typeCompare = first.type.localeCompare(second.type);
 
     if (typeCompare !== 0) {
       return typeCompare;
     }
 
-    const sortCompare = a.sortOrder - b.sortOrder;
+    const sortCompare = first.sortOrder - second.sortOrder;
 
     if (sortCompare !== 0) {
       return sortCompare;
     }
 
-    return a.name.localeCompare(b.name);
+    return first.name.localeCompare(second.name);
   });
 }
 
@@ -219,7 +229,6 @@ export default function AdminTaxonomyPage() {
 
   const [formMode, setFormMode] = useState<FormMode>("");
   const [editingId, setEditingId] = useState("");
-
   const [target, setTarget] = useState<TaxonomyTarget>("ticket");
   const [type, setType] = useState<TaxonomyType>("category");
   const [name, setName] = useState("");
@@ -308,7 +317,7 @@ export default function AdminTaxonomyPage() {
 
     resetForm();
     setTarget(nextTarget);
-    setType(nextType);
+    setType(nextTarget === "global" ? "tag" : nextType);
     setFormMode("create");
   }
 
@@ -320,7 +329,7 @@ export default function AdminTaxonomyPage() {
 
     setEditingId(item.id);
     setTarget(item.target);
-    setType(item.type);
+    setType(item.target === "global" ? "tag" : item.type);
     setName(item.name);
     setSlug(item.slug);
     setDescription(item.description || "");
@@ -332,23 +341,17 @@ export default function AdminTaxonomyPage() {
 
   const categoryItems = useMemo(
     () => items.filter((item) => item.type === "category"),
-    [
-      items,
-    ],
+    [items],
   );
 
   const tagItems = useMemo(
     () => items.filter((item) => item.type === "tag"),
-    [
-      items,
-    ],
+    [items],
   );
 
   const activeItems = useMemo(
     () => items.filter((item) => item.status === "active"),
-    [
-      items,
-    ],
+    [items],
   );
 
   const ticketCategories = useMemo(
@@ -358,9 +361,7 @@ export default function AdminTaxonomyPage() {
           item.target === "ticket" &&
           item.type === "category",
       ),
-    [
-      items,
-    ],
+    [items],
   );
 
   const wikiCategories = useMemo(
@@ -370,9 +371,17 @@ export default function AdminTaxonomyPage() {
           item.target === "wiki" &&
           item.type === "category",
       ),
-    [
-      items,
-    ],
+    [items],
+  );
+
+  const newsCategories = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          item.target === "news" &&
+          item.type === "category",
+      ),
+    [items],
   );
 
   const globalTags = useMemo(
@@ -382,9 +391,7 @@ export default function AdminTaxonomyPage() {
           item.target === "global" &&
           item.type === "tag",
       ),
-    [
-      items,
-    ],
+    [items],
   );
 
   const parentOptions = useMemo(
@@ -395,30 +402,23 @@ export default function AdminTaxonomyPage() {
           item.target === target &&
           item.id !== editingId,
       ),
-    [
-      items,
-      target,
-      editingId,
-    ],
+    [items, target, editingId],
   );
 
   const filterParentOptions = useMemo(
     () => items.filter((item) => item.type === "category"),
-    [
-      items,
-    ],
+    [items],
   );
 
   const filteredItems = useMemo(() => {
-    const query = search
-      .trim()
-      .toLowerCase();
+    const query = search.trim().toLowerCase();
 
     return items.filter((item) => {
       const pathLabel = taxonomyRepository.getPathLabel(
         item.id,
         items,
       );
+
       const parent = items.find(
         (parentItem) => parentItem.id === item.parentId,
       );
@@ -445,20 +445,16 @@ export default function AdminTaxonomyPage() {
           .includes(query);
 
       const matchesTarget =
-        !targetFilter ||
-        item.target === targetFilter;
+        !targetFilter || item.target === targetFilter;
 
       const matchesType =
-        !typeFilter ||
-        item.type === typeFilter;
+        !typeFilter || item.type === typeFilter;
 
       const matchesStatus =
-        !statusFilter ||
-        item.status === statusFilter;
+        !statusFilter || item.status === statusFilter;
 
       const matchesParent =
-        !parentFilter ||
-        item.parentId === parentFilter;
+        !parentFilter || item.parentId === parentFilter;
 
       return (
         matchesSearch &&
@@ -485,6 +481,27 @@ export default function AdminTaxonomyPage() {
     setParentFilter("");
   }
 
+  function handleTargetChange(nextTarget: TaxonomyTarget) {
+    setTarget(nextTarget);
+    setParentId("");
+
+    if (nextTarget === "global") {
+      setType("tag");
+    }
+  }
+
+  function handleTypeChange(nextType: TaxonomyType) {
+    if (target === "global" && nextType === "category") {
+      return;
+    }
+
+    setType(nextType);
+
+    if (nextType === "tag") {
+      setParentId("");
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
@@ -498,19 +515,19 @@ export default function AdminTaxonomyPage() {
       return;
     }
 
+    if (target === "global" && type === "category") {
+      alert("Globale Einträge können nur als Tags geführt werden.");
+      return;
+    }
+
     const nextSlug = slug.trim()
       ? createSlug(slug)
       : createSlug(name);
 
     if (!nextSlug) {
-      alert("Bitte einen gültigen Slug eingeben.");
+      alert("Bitte einen gültigen technischen Schlüssel eingeben.");
       return;
     }
-
-    const nextParentId =
-      type === "category"
-        ? parentId
-        : "";
 
     const payload = {
       type,
@@ -518,7 +535,8 @@ export default function AdminTaxonomyPage() {
       name: name.trim(),
       slug: nextSlug,
       description: description.trim(),
-      parentId: nextParentId,
+      color: "",
+      parentId: type === "category" ? parentId : "",
       sortOrder: Number(sortOrder || 0),
       status,
     };
@@ -529,23 +547,16 @@ export default function AdminTaxonomyPage() {
       setError("");
 
       if (editingId) {
-        await taxonomyRepository.update(
-          editingId,
-          payload,
-        );
-
+        await taxonomyRepository.update(editingId, payload);
         closeModal();
         await loadItems();
-
         setMessage("Eintrag wurde gespeichert.");
         return;
       }
 
       await taxonomyRepository.create(payload);
-
       closeModal();
       await loadItems();
-
       setMessage("Eintrag wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
@@ -602,14 +613,7 @@ export default function AdminTaxonomyPage() {
   }
 
   if (!canViewAdmin()) {
-    return (
-      <AccessDeniedCard
-        title="Kategorien & Tags nicht verfügbar"
-        description="Du hast keine Berechtigung, Taxonomie-Einträge zu sehen."
-        backHref="/admin"
-        backLabel="Zurück zum Admin Dashboard"
-      />
-    );
+    return <AccessDeniedCard />;
   }
 
   return (
@@ -619,29 +623,22 @@ export default function AdminTaxonomyPage() {
         onClose={closeModal}
         title={editingId ? "Eintrag bearbeiten" : "Eintrag erstellen"}
         description="Kategorien und Tags steuern Dropdowns, Filter und strukturierte Zuordnung."
-        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
-              disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
+              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition font-bold"
             >
               Abbrechen
             </button>
-
             <button
               type="submit"
               form="taxonomy-form"
               disabled={saving}
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow disabled:opacity-60"
             >
-              {saving
-                ? "Speichert..."
-                : editingId
-                  ? "Speichern"
-                  : "Erstellen"}
+              {saving ? "Speichert..." : editingId ? "Speichern" : "Erstellen"}
             </button>
           </>
         }
@@ -652,15 +649,12 @@ export default function AdminTaxonomyPage() {
           className="space-y-8"
         >
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-            <h3 className="text-xl font-black">
-              Ziel & Typ
-            </h3>
-
+            <h3 className="text-xl font-black">Ziel & Typ</h3>
             <p className="text-zinc-500 mt-1">
               Lege fest, wo der Eintrag verwendet wird.
             </p>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mt-5">
               {targetOptions.map((option) => {
                 const active = target === option.value;
 
@@ -668,30 +662,17 @@ export default function AdminTaxonomyPage() {
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => {
-                      setTarget(option.value);
-                      setParentId("");
-
-                      if (
-                        option.value === "global" &&
-                        type === "category"
-                      ) {
-                        setType("tag");
-                      }
-                    }}
+                    onClick={() => handleTargetChange(option.value)}
                     className={`text-left border rounded-3xl p-5 transition ${
                       active
                         ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <p className="font-black">
-                      {option.label}
-                    </p>
-
+                    <h4 className="font-black">{option.label}</h4>
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/70" : "text-zinc-500"
+                        active ? "text-white/75" : "text-zinc-500"
                       }`}
                     >
                       {option.description}
@@ -705,34 +686,24 @@ export default function AdminTaxonomyPage() {
               {typeOptions.map((option) => {
                 const active = type === option.value;
                 const disabled =
-                  target === "global" &&
-                  option.value === "category";
+                  target === "global" && option.value === "category";
 
                 return (
                   <button
                     key={option.value}
                     type="button"
                     disabled={disabled}
-                    onClick={() => {
-                      setType(option.value);
-
-                      if (option.value === "tag") {
-                        setParentId("");
-                      }
-                    }}
+                    onClick={() => handleTypeChange(option.value)}
                     className={`text-left border rounded-3xl p-5 transition disabled:opacity-50 ${
                       active
                         ? "app-accent-bg text-white border-transparent app-brand-shadow"
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <p className="font-black">
-                      {option.label}
-                    </p>
-
+                    <h4 className="font-black">{option.label}</h4>
                     <p
                       className={`text-sm mt-2 ${
-                        active ? "text-white/70" : "text-zinc-500"
+                        active ? "text-white/75" : "text-zinc-500"
                       }`}
                     >
                       {disabled
@@ -746,16 +717,14 @@ export default function AdminTaxonomyPage() {
           </section>
 
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-            <h3 className="text-xl font-black">
-              Stammdaten
-            </h3>
+            <h3 className="text-xl font-black">Stammdaten</h3>
+            <p className="text-zinc-500 mt-1">
+              Der technische Schlüssel ist optional und wird automatisch aus dem Namen erzeugt.
+            </p>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
-              <div>
-                <label className="block mb-2 font-bold">
-                  Name
-                </label>
-
+              <label className="block">
+                <span className="font-bold">Name</span>
                 <input
                   value={name}
                   onChange={(event) => {
@@ -767,92 +736,69 @@ export default function AdminTaxonomyPage() {
                       setSlug(createSlug(value));
                     }
                   }}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  className="mt-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                   placeholder="z. B. Intranet"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
-                  Slug
-                </label>
-
+              <label className="block">
+                <span className="font-bold">Technischer Schlüssel (optional)</span>
                 <input
                   value={slug}
-                  onChange={(event) =>
-                    setSlug(createSlug(event.target.value))
-                  }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
-                  placeholder="z. B. intranet"
+                  onChange={(event) => setSlug(createSlug(event.target.value))}
+                  className="mt-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  placeholder="Wird automatisch erzeugt"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
-                  Sortierung
-                </label>
-
+              <label className="block">
+                <span className="font-bold">Sortierung</span>
                 <input
                   type="number"
                   value={sortOrder}
                   onChange={(event) =>
                     setSortOrder(Number(event.target.value || 0))
                   }
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
+                  className="mt-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                   placeholder="0"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
-                  Parent
-                </label>
-
+              <label className="block">
+                <span className="font-bold">Parent</span>
                 <select
                   value={parentId}
                   onChange={(event) => setParentId(event.target.value)}
                   disabled={type !== "category"}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
+                  className="mt-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
                 >
-                  <option value="">
-                    Kein Parent
-                  </option>
-
+                  <option value="">Kein Parent</option>
                   {parentOptions.map((item) => (
-                    <option
-                      key={item.id}
-                      value={item.id}
-                    >
+                    <option key={item.id} value={item.id}>
                       {taxonomyRepository.getPathLabel(item.id, items)}
                     </option>
                   ))}
                 </select>
-
-                <p className="text-sm text-zinc-500 mt-2">
+                <span className="block text-sm text-zinc-500 mt-2">
                   Nur Kategorien können einen Parent haben.
-                </p>
-              </div>
+                </span>
+              </label>
 
-              <div className="xl:col-span-2">
-                <label className="block mb-2 font-bold">
-                  Beschreibung
-                </label>
-
+              <label className="block xl:col-span-2">
+                <span className="font-bold">Beschreibung</span>
                 <textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={4}
-                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
+                  className="mt-2 w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
                   placeholder="Beschreibung..."
                 />
-              </div>
+              </label>
             </div>
           </section>
 
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-            <h3 className="text-xl font-black">
-              Status
-            </h3>
+            <h3 className="text-xl font-black">Status</h3>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-5">
               {statusOptions.map((option) => {
@@ -869,10 +815,7 @@ export default function AdminTaxonomyPage() {
                         : "border-zinc-200 bg-white hover:bg-zinc-50"
                     }`}
                   >
-                    <p className="font-black">
-                      {option.label}
-                    </p>
-
+                    <p className="font-black">{option.label}</p>
                     <p
                       className={`text-sm mt-2 ${
                         active ? "text-white/70" : "text-zinc-500"
@@ -891,7 +834,7 @@ export default function AdminTaxonomyPage() {
       <PageHero
         eyebrow="Velunis Admin"
         title="Kategorien & Tags"
-        description="Zentrale Taxonomie für Tickets, Wiki-Seiten und globale Tags verwalten."
+        description="Zentrale Taxonomie für Tickets, Wiki-Seiten, News und globale Tags verwalten."
         badges={[
           {
             label: `${items.length} Einträge`,
@@ -915,7 +858,6 @@ export default function AdminTaxonomyPage() {
             >
               Aktualisieren
             </button>
-
             {canManageSystem() && (
               <>
                 <button
@@ -925,7 +867,6 @@ export default function AdminTaxonomyPage() {
                 >
                   Kategorie erstellen
                 </button>
-
                 <button
                   type="button"
                   onClick={() => openCreateForm("global", "tag")}
@@ -948,9 +889,7 @@ export default function AdminTaxonomyPage() {
 
       {message && (
         <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-bold">
-            {message}
-          </p>
+          <p className="text-green-700 font-bold">{message}</p>
         </section>
       )}
 
@@ -971,64 +910,63 @@ export default function AdminTaxonomyPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-6">
         <StatCard
           label="Gesamt"
           value={items.length}
           description="Alle Einträge"
-          icon="🗂️"
+          icon="🏷️"
           active={!targetFilter && !typeFilter && !statusFilter}
           onClick={resetFilters}
         />
-
         <StatCard
           label="Ticket-Kategorien"
           value={ticketCategories.length}
           description="Für Tickets"
           icon="🎫"
           tone="orange"
-          active={
-            targetFilter === "ticket" &&
-            typeFilter === "category"
-          }
+          active={targetFilter === "ticket" && typeFilter === "category"}
           onClick={() => {
             setTargetFilter("ticket");
             setTypeFilter("category");
           }}
         />
-
         <StatCard
           label="Wiki-Kategorien"
           value={wikiCategories.length}
           description="Für Wiki-Seiten"
-          icon="📚"
+          icon="📘"
           tone="indigo"
-          active={
-            targetFilter === "wiki" &&
-            typeFilter === "category"
-          }
+          active={targetFilter === "wiki" && typeFilter === "category"}
           onClick={() => {
             setTargetFilter("wiki");
             setTypeFilter("category");
           }}
         />
-
+        <StatCard
+          label="News-Kategorien"
+          value={newsCategories.length}
+          description="Für News"
+          icon="📰"
+          tone="blue"
+          active={targetFilter === "news" && typeFilter === "category"}
+          onClick={() => {
+            setTargetFilter("news");
+            setTypeFilter("category");
+          }}
+        />
         <StatCard
           label="Globale Tags"
           value={globalTags.length}
           description="Für mehrere Module"
           icon="🏷️"
           tone="purple"
-          active={
-            targetFilter === "global" &&
-            typeFilter === "tag"
-          }
+          active={targetFilter === "global" && typeFilter === "tag"}
           onClick={() => {
             setTargetFilter("global");
             setTypeFilter("tag");
           }}
         />
-
         <StatCard
           label="Aktiv"
           value={activeItems.length}
@@ -1042,16 +980,12 @@ export default function AdminTaxonomyPage() {
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
         <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
-
         <div className="relative">
           <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
-              <h2 className="text-2xl font-black">
-                Suche & Filter
-              </h2>
-
+              <h2 className="text-2xl font-black">Suche & Filter</h2>
               <p className="text-zinc-500 mt-1">
-                Suche nach Name, Slug, Beschreibung, Ziel, Typ oder Parent-Pfad.
+                Suche nach Name, technischem Schlüssel, Beschreibung, Ziel, Typ oder Parent-Pfad.
               </p>
             </div>
 
@@ -1067,7 +1001,6 @@ export default function AdminTaxonomyPage() {
               >
                 Tabelle
               </button>
-
               <button
                 type="button"
                 onClick={() => setViewMode("cards")}
@@ -1079,7 +1012,6 @@ export default function AdminTaxonomyPage() {
               >
                 Karten
               </button>
-
               <button
                 type="button"
                 onClick={resetFilters}
@@ -1103,15 +1035,9 @@ export default function AdminTaxonomyPage() {
               onChange={(event) => setTargetFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Ziele
-              </option>
-
+              <option value="">Alle Ziele</option>
               {targetOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
+                <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
@@ -1122,15 +1048,9 @@ export default function AdminTaxonomyPage() {
               onChange={(event) => setTypeFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Typen
-              </option>
-
+              <option value="">Alle Typen</option>
               {typeOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
+                <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
@@ -1141,15 +1061,9 @@ export default function AdminTaxonomyPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Status
-              </option>
-
+              <option value="">Alle Status</option>
               {statusOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
+                <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
@@ -1160,15 +1074,9 @@ export default function AdminTaxonomyPage() {
               onChange={(event) => setParentFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Parents
-              </option>
-
+              <option value="">Alle Parents</option>
               {filterParentOptions.map((item) => (
-                <option
-                  key={item.id}
-                  value={item.id}
-                >
+                <option key={item.id} value={item.id}>
                   {taxonomyRepository.getPathLabel(item.id, items)}
                 </option>
               ))}
@@ -1209,7 +1117,7 @@ export default function AdminTaxonomyPage() {
 
       {!loading && !error && filteredItems.length === 0 && (
         <EmptyState
-          icon="🗂️"
+          icon="🏷️"
           title="Keine Einträge gefunden"
           description="Erstelle einen Eintrag oder passe die Filter an."
           action={
@@ -1222,7 +1130,6 @@ export default function AdminTaxonomyPage() {
                 >
                   Kategorie erstellen
                 </button>
-
                 <button
                   type="button"
                   onClick={() => openCreateForm("global", "tag")}
@@ -1265,12 +1172,12 @@ export default function AdminTaxonomyPage() {
                   </th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-zinc-100">
                 {filteredItems.map((item) => {
                   const parent = items.find(
                     (parentItem) => parentItem.id === item.parentId,
                   );
+
                   const pathLabel = taxonomyRepository.getPathLabel(
                     item.id,
                     items,
@@ -1285,16 +1192,13 @@ export default function AdminTaxonomyPage() {
                         <p className="font-black text-zinc-950">
                           {item.name}
                         </p>
-
                         <p className="text-sm text-zinc-500 mt-1">
                           {item.description || "Keine Beschreibung vorhanden."}
                         </p>
-
                         <p className="text-xs text-zinc-400 mt-1">
                           {item.slug} · {pathLabel || item.name}
                         </p>
                       </td>
-
                       <td className="px-5 py-4 align-top">
                         <span
                           className={`text-xs px-3 py-1 rounded-full border font-bold ${getTargetClass(
@@ -1304,7 +1208,6 @@ export default function AdminTaxonomyPage() {
                           {getTargetLabel(item.target)}
                         </span>
                       </td>
-
                       <td className="px-5 py-4 align-top">
                         <span
                           className={`text-xs px-3 py-1 rounded-full border font-bold ${getTypeClass(
@@ -1314,7 +1217,6 @@ export default function AdminTaxonomyPage() {
                           {getTypeLabel(item.type)}
                         </span>
                       </td>
-
                       <td className="px-5 py-4 align-top">
                         <span
                           className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
@@ -1324,15 +1226,12 @@ export default function AdminTaxonomyPage() {
                           {getStatusLabel(item.status)}
                         </span>
                       </td>
-
                       <td className="px-5 py-4 align-top text-sm text-zinc-500">
                         {parent?.name || "-"}
                       </td>
-
                       <td className="px-5 py-4 align-top text-sm text-zinc-500">
                         {item.sortOrder}
                       </td>
-
                       <td className="px-5 py-4 align-top">
                         {canManageSystem() && (
                           <div className="flex flex-wrap gap-2">
@@ -1343,7 +1242,6 @@ export default function AdminTaxonomyPage() {
                             >
                               Bearbeiten
                             </button>
-
                             <button
                               type="button"
                               onClick={() => void handleDeleteItem(item)}
@@ -1369,10 +1267,12 @@ export default function AdminTaxonomyPage() {
             const parent = items.find(
               (parentItem) => parentItem.id === item.parentId,
             );
+
             const pathLabel = taxonomyRepository.getPathLabel(
               item.id,
               items,
             );
+
             const children = items.filter(
               (currentItem) => currentItem.parentId === item.id,
             );
@@ -1383,7 +1283,6 @@ export default function AdminTaxonomyPage() {
                 className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
               >
                 <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
-
                 <div className="relative flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-2">
@@ -1394,7 +1293,6 @@ export default function AdminTaxonomyPage() {
                       >
                         {getTargetLabel(item.target)}
                       </span>
-
                       <span
                         className={`text-xs px-3 py-1 rounded-full border font-bold ${getTypeClass(
                           item.type,
@@ -1402,7 +1300,6 @@ export default function AdminTaxonomyPage() {
                       >
                         {getTypeLabel(item.type)}
                       </span>
-
                       <span
                         className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
                           item.status,
@@ -1410,7 +1307,6 @@ export default function AdminTaxonomyPage() {
                       >
                         {getStatusLabel(item.status)}
                       </span>
-
                       {children.length > 0 && (
                         <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
                           {children.length} Untereinträge
@@ -1421,47 +1317,41 @@ export default function AdminTaxonomyPage() {
                     <h2 className="text-2xl font-black mt-4">
                       {item.name}
                     </h2>
-
                     <p className="text-zinc-500 mt-2">
                       {item.description || "Keine Beschreibung vorhanden."}
                     </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-zinc-500 mt-5">
                       <p>
-                        Slug:{" "}
+                        Schlüssel:{" "}
                         <span className="font-mono text-zinc-700">
                           {item.slug}
                         </span>
                       </p>
-
                       <p>
                         Pfad:{" "}
                         <span className="text-zinc-700">
                           {pathLabel || item.name}
                         </span>
                       </p>
-
                       <p>
                         Parent:{" "}
                         <span className="text-zinc-700">
                           {parent?.name || "-"}
                         </span>
                       </p>
-
                       <p>
                         Sortierung:{" "}
                         <span className="text-zinc-700">
                           {item.sortOrder}
                         </span>
                       </p>
-
                       <p>
                         Erstellt:{" "}
                         <span className="text-zinc-700">
                           {item.createdAt}
                         </span>
                       </p>
-
                       <p>
                         Aktualisiert:{" "}
                         <span className="text-zinc-700">
@@ -1480,7 +1370,6 @@ export default function AdminTaxonomyPage() {
                       >
                         Bearbeiten
                       </button>
-
                       <button
                         type="button"
                         onClick={() => void handleDeleteItem(item)}
@@ -1499,18 +1388,13 @@ export default function AdminTaxonomyPage() {
 
       <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm overflow-hidden relative">
         <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
-
         <div className="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
           <div>
-            <h2 className="text-2xl font-black">
-              Nächster Schritt
-            </h2>
-
+            <h2 className="text-2xl font-black">Nächster Schritt</h2>
             <p className="text-zinc-500 mt-2">
-              Diese Kategorien und Tags werden in Ticket-Erstellung, Ticket-Bearbeitung, Wiki-Erstellung und Wiki-Bearbeitung als Dropdowns verwendet.
+              Diese Kategorien und Tags werden in Ticket-, Wiki- und News-Formularen als Dropdowns und Filter verwendet.
             </p>
           </div>
-
           <div className="flex flex-wrap gap-3">
             <Link
               href="/tickets"
@@ -1518,12 +1402,17 @@ export default function AdminTaxonomyPage() {
             >
               Tickets öffnen
             </Link>
-
             <Link
               href="/wiki"
               className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
             >
               Wiki öffnen
+            </Link>
+            <Link
+              href="/news"
+              className="bg-white border border-zinc-200 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+            >
+              News öffnen
             </Link>
           </div>
         </div>

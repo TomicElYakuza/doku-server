@@ -1,40 +1,49 @@
 ﻿import { NextResponse } from "next/server";
 
 import { query, queryOne } from "../../../lib/database/db";
-import { mapNewsRow } from "../../../lib/database/mappers/newsMapper";
+import {
+  mapNewsPostRow,
+  type NewsPostRow,
+} from "../../../lib/database/mappers/newsMapper";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
-import type { NewsRow } from "../../../lib/database/mappers/newsMapper";
 
 type CreateNewsPostBody = {
-  id?: string;
   title?: string;
+  excerpt?: string;
   description?: string;
   content?: string;
   category?: string;
   author?: string;
   pinned?: boolean;
+  publishedAt?: string;
 };
 
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-function createNewsId(title: string) {
-  const slug = title
-    .toLowerCase()
-    .trim()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function normalizeBoolean(value: unknown) {
+  return Boolean(value);
+}
 
-  return `${slug || "news"}-${Date.now()}`;
+function normalizePublishedAt(value?: string | null) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString();
+  }
+
+  return date.toISOString();
 }
 
 function getErrorStatus(error: unknown) {
@@ -51,6 +60,76 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return error instanceof Error ? error.message : fallback;
+}
+
+async function ensureNewsPostsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS news_posts (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',
+      author TEXT NOT NULL DEFAULT '',
+      pinned BOOLEAN NOT NULL DEFAULT FALSE,
+      published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS content TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS author TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await query(`
+    ALTER TABLE news_posts
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await query(`
+    UPDATE news_posts
+    SET
+      description = COALESCE(NULLIF(description, ''), ''),
+      content = COALESCE(content, ''),
+      category = COALESCE(category, ''),
+      author = COALESCE(NULLIF(author, ''), 'Velunis'),
+      pinned = COALESCE(pinned, FALSE),
+      published_at = COALESCE(published_at, created_at, NOW()),
+      created_at = COALESCE(created_at, NOW()),
+      updated_at = COALESCE(updated_at, NOW())
+  `);
 }
 
 export async function GET(request: Request) {
@@ -76,9 +155,12 @@ export async function GET(request: Request) {
       "admin.view",
     ]);
 
+    await ensureNewsPostsTable();
+
     const url = new URL(request.url);
-    const category = url.searchParams.get("category");
-    const pinned = url.searchParams.get("pinned");
+    const category = normalizeText(url.searchParams.get("category"));
+    const search = normalizeText(url.searchParams.get("search"));
+    const pinnedParam = url.searchParams.get("pinned");
 
     const params: unknown[] = [];
     const whereParts: string[] = [];
@@ -88,15 +170,22 @@ export async function GET(request: Request) {
       whereParts.push(`category = $${params.length}`);
     }
 
-    if (pinned === "true" || pinned === "false") {
-      params.push(pinned === "true");
+    if (search) {
+      params.push(`%${search}%`);
+      whereParts.push(
+        `(title ILIKE $${params.length} OR description ILIKE $${params.length} OR content ILIKE $${params.length} OR category ILIKE $${params.length} OR author ILIKE $${params.length})`,
+      );
+    }
+
+    if (pinnedParam === "true" || pinnedParam === "false") {
+      params.push(pinnedParam === "true");
       whereParts.push(`pinned = $${params.length}`);
     }
 
     const whereSql =
       whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    const rows = await query<NewsRow>(
+    const rows = await query<NewsPostRow>(
       `
         SELECT
           id,
@@ -106,16 +195,17 @@ export async function GET(request: Request) {
           category,
           author,
           pinned,
+          published_at,
           created_at,
           updated_at
         FROM news_posts
         ${whereSql}
-        ORDER BY pinned DESC, created_at DESC
+        ORDER BY pinned DESC, published_at DESC, created_at DESC
       `,
       params,
     );
 
-    return NextResponse.json(rows.map(mapNewsRow));
+    return NextResponse.json(rows.map(mapNewsPostRow));
   } catch (error) {
     console.error(error);
 
@@ -148,22 +238,48 @@ export async function POST(request: Request) {
 
     await requireAnyServerPermission([
       "news.create",
+      "news.edit",
       "settings.manage",
     ]);
+
+    await ensureNewsPostsTable();
 
     const body = (await request.json()) as CreateNewsPostBody;
 
     const title = normalizeText(body.title);
+    const description = normalizeText(body.description || body.excerpt);
+    const content = normalizeText(body.content);
     const category = normalizeText(body.category);
-    const description = normalizeText(body.description);
-    const content = String(body.content || "");
-    const author = normalizeText(body.author) || currentUser.name || "System";
-    const pinned = Boolean(body.pinned);
+    const author = normalizeText(body.author) || currentUser.name || "Velunis";
+    const pinned = normalizeBoolean(body.pinned);
+    const publishedAt = normalizePublishedAt(body.publishedAt);
 
     if (!title) {
       return NextResponse.json(
         {
           message: "Titel ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!description) {
+      return NextResponse.json(
+        {
+          message: "Kurzbeschreibung ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!content) {
+      return NextResponse.json(
+        {
+          message: "Inhalt ist erforderlich.",
         },
         {
           status: 400,
@@ -182,18 +298,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const id = normalizeText(body.id) || createNewsId(title);
-
-    const row = await queryOne<NewsRow>(
+    const row = await queryOne<NewsPostRow>(
       `
         INSERT INTO news_posts (
-          id,
           title,
           description,
           content,
           category,
           author,
-          pinned
+          pinned,
+          published_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING
@@ -204,17 +318,18 @@ export async function POST(request: Request) {
           category,
           author,
           pinned,
+          published_at,
           created_at,
           updated_at
       `,
       [
-        id,
         title,
         description,
         content,
         category,
         author,
         pinned,
+        publishedAt,
       ],
     );
 
@@ -229,7 +344,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(mapNewsRow(row), {
+    return NextResponse.json(mapNewsPostRow(row), {
       status: 201,
     });
   } catch (error) {
