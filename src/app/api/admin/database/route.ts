@@ -1,16 +1,20 @@
+import { NextResponse } from "next/server";
+
+import { query, queryOne } from "../../../../lib/database/db";
 import {
-  NextResponse,
-} from "next/server";
-import {
-  query,
-  queryOne,
-} from "../../../../lib/database/db";
+  isPermissionError,
+  requireAnyServerPermission,
+} from "../../../../lib/serverPermissions";
 
 type DatabaseInfoRow = {
   database_name: string;
   schema_name: string;
   database_time: string;
   postgres_version: string;
+};
+
+type TableNameRow = {
+  table_name: string;
 };
 
 type TableRow = {
@@ -32,47 +36,80 @@ type IndexRow = {
   indexdef: string;
 };
 
-type MigrationTableRow = {
-  table_name: string;
-};
-
 type CountRow = {
   count: string;
 };
 
+function quoteIdentifier(identifier: string) {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
 async function getTableCount(tableName: string) {
   const row = await queryOne<CountRow>(
-    `SELECT COUNT(*)::text AS count FROM ${tableName}`,
+    `SELECT COUNT(*)::text AS count FROM ${quoteIdentifier(tableName)}`,
   );
 
   return Number(row?.count || 0);
+}
+
+function createCheckItems(
+  existingValues: string[],
+  expectedValues: string[],
+  key: "tableName" | "columnName",
+) {
+  const existingSet = new Set(existingValues);
+
+  return expectedValues.map((value) => ({
+    [key]: value,
+    exists: existingSet.has(value),
+  }));
+}
+
+function getErrorStatus(error: unknown) {
+  if (isPermissionError(error)) {
+    return 403;
+  }
+
+  return 500;
+}
+
+function getErrorMessage(error: unknown) {
+  if (isPermissionError(error)) {
+    return "Keine Berechtigung.";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unbekannter Fehler";
 }
 
 export async function GET() {
   const startedAt = Date.now();
 
   try {
-    const databaseInfo = await queryOne<DatabaseInfoRow>(
-      `
-        SELECT
-          current_database()::text AS database_name,
-          current_schema()::text AS schema_name,
-          NOW()::text AS database_time,
-          version()::text AS postgres_version
-      `,
-    );
+    await requireAnyServerPermission([
+      "settings.manage",
+      "admin.view",
+      "settings.view",
+    ]);
 
-    const baseTables = await query<{
-      table_name: string;
-    }>(
-      `
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_type = 'BASE TABLE'
-        ORDER BY table_name ASC
-      `,
-    );
+    const databaseInfo = await queryOne<DatabaseInfoRow>(`
+      SELECT
+        current_database()::text AS database_name,
+        current_schema()::text AS schema_name,
+        NOW()::text AS database_time,
+        version()::text AS postgres_version
+    `);
+
+    const baseTables = await query<TableNameRow>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name ASC
+    `);
 
     const tables: TableRow[] = [];
 
@@ -85,50 +122,42 @@ export async function GET() {
       });
     }
 
-    const columns = await query<ColumnRow>(
-      `
-        SELECT
-          table_name,
-          column_name,
-          data_type,
-          is_nullable,
-          column_default
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-        ORDER BY table_name ASC, ordinal_position ASC
-      `,
-    );
+    const columns = await query<ColumnRow>(`
+      SELECT
+        table_name,
+        column_name,
+        data_type,
+        is_nullable,
+        column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      ORDER BY table_name ASC, ordinal_position ASC
+    `);
 
-    const indexes = await query<IndexRow>(
-      `
-        SELECT
-          tablename,
-          indexname,
-          indexdef
-        FROM pg_indexes
-        WHERE schemaname = 'public'
-        ORDER BY tablename ASC, indexname ASC
-      `,
-    );
+    const indexes = await query<IndexRow>(`
+      SELECT
+        tablename,
+        indexname,
+        indexdef
+      FROM pg_indexes
+      WHERE schemaname = 'public'
+      ORDER BY tablename ASC, indexname ASC
+    `);
 
-    const migrationTables = await query<MigrationTableRow>(
-      `
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name IN (
-            'schema_migrations',
-            'migrations',
-            'knex_migrations',
-            '_prisma_migrations'
-          )
-        ORDER BY table_name ASC
-      `,
-    );
+    const migrationTables = await query<TableNameRow>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name IN (
+          'schema_migrations',
+          'migrations',
+          'knex_migrations',
+          '_prisma_migrations'
+        )
+      ORDER BY table_name ASC
+    `);
 
-    const existingTableNames = new Set(
-      baseTables.map((table) => table.table_name),
-    );
+    const existingTableNames = baseTables.map((table) => table.table_name);
 
     const expectedTables = [
       "admin_users",
@@ -154,73 +183,17 @@ export async function GET() {
       "role_permission_templates",
     ];
 
-    const expectedStatus = expectedTables.map((tableName) => ({
-      tableName,
-      exists: existingTableNames.has(tableName),
-    }));
-
     const taxonomyColumns = columns
       .filter((column) => column.table_name === "taxonomy_items")
       .map((column) => column.column_name);
-
-    const taxonomyChecks = [
-      "id",
-      "type",
-      "target",
-      "name",
-      "slug",
-      "parent_id",
-      "sort_order",
-      "is_active",
-      "created_at",
-      "updated_at",
-    ].map((columnName) => ({
-      columnName,
-      exists: taxonomyColumns.includes(columnName),
-    }));
 
     const adminModuleColumns = columns
       .filter((column) => column.table_name === "admin_modules")
       .map((column) => column.column_name);
 
-    const adminModuleChecks = [
-      "module_key",
-      "title",
-      "description",
-      "href",
-      "icon",
-      "category",
-      "badge_label",
-      "sort_order",
-      "is_enabled",
-      "is_visible",
-      "is_core",
-      "created_at",
-      "updated_at",
-    ].map((columnName) => ({
-      columnName,
-      exists: adminModuleColumns.includes(columnName),
-    }));
-
     const roleTemplateColumns = columns
       .filter((column) => column.table_name === "role_permission_templates")
       .map((column) => column.column_name);
-
-    const roleTemplateChecks = [
-      "template_key",
-      "name",
-      "description",
-      "role_key",
-      "permission_keys",
-      "is_default",
-      "is_active",
-      "sort_order",
-      "created_at",
-      "updated_at",
-    ].map((columnName) => ({
-      columnName,
-      exists: roleTemplateColumns.includes(columnName),
-    }));
 
     return NextResponse.json({
       ok: true,
@@ -239,10 +212,63 @@ export async function GET() {
         hasMigrationTable: migrationTables.length > 0,
       },
       checks: {
-        expectedTables: expectedStatus,
-        taxonomyColumns: taxonomyChecks,
-        adminModuleColumns: adminModuleChecks,
-        rolePermissionTemplateColumns: roleTemplateChecks,
+        expectedTables: createCheckItems(
+          existingTableNames,
+          expectedTables,
+          "tableName",
+        ),
+        taxonomyColumns: createCheckItems(
+          taxonomyColumns,
+          [
+            "id",
+            "type",
+            "target",
+            "name",
+            "slug",
+            "parent_id",
+            "color",
+            "sort_order",
+            "is_active",
+            "created_at",
+            "updated_at",
+          ],
+          "columnName",
+        ),
+        adminModuleColumns: createCheckItems(
+          adminModuleColumns,
+          [
+            "module_key",
+            "title",
+            "description",
+            "href",
+            "icon",
+            "category",
+            "badge_label",
+            "sort_order",
+            "is_enabled",
+            "is_visible",
+            "is_core",
+            "created_at",
+            "updated_at",
+          ],
+          "columnName",
+        ),
+        rolePermissionTemplateColumns: createCheckItems(
+          roleTemplateColumns,
+          [
+            "template_key",
+            "name",
+            "description",
+            "role_key",
+            "permission_keys",
+            "is_default",
+            "is_active",
+            "sort_order",
+            "created_at",
+            "updated_at",
+          ],
+          "columnName",
+        ),
       },
       responseTimeMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
@@ -275,10 +301,10 @@ export async function GET() {
         },
         responseTimeMs: Date.now() - startedAt,
         checkedAt: new Date().toISOString(),
-        message: error instanceof Error ? error.message : "Unbekannter Fehler",
+        message: getErrorMessage(error),
       },
       {
-        status: 500,
+        status: getErrorStatus(error),
       },
     );
   }

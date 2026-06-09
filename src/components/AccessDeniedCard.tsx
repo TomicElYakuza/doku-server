@@ -1,4 +1,6 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import Link from "next/link";
 
 type AccessDeniedCardProps = {
   title?: string;
@@ -8,69 +10,58 @@ type AccessDeniedCardProps = {
 };
 
 export default function AccessDeniedCard({
-  title = "Zugriff verweigert",
-  description = "Du hast keine Berechtigung für diesen Bereich.",
-  backHref = "/dashboard",
-  backLabel = "Zurück zum Dashboard",
+  title = "Kein Zugriff",
+  description = "Du hast mit deiner aktuellen Rolle keine Berechtigung für diesen Bereich.",
+  backHref,
+  backLabel = "Zurück",
 }: AccessDeniedCardProps) {
   return (
-    <div className="space-y-8">
-      <section className="relative overflow-hidden rounded-[2rem] app-accent-bg text-white p-8 md:p-10 app-brand-shadow">
-        <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute inset-x-0 top-0 h-1 bg-white/25" />
+    <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm overflow-hidden relative">
+      <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-500 opacity-10 blur-3xl" />
+      <div className="absolute -left-16 -bottom-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-        <div className="relative max-w-4xl">
-          <p className="text-sm uppercase tracking-[0.22em] text-white/60 font-black">
-            Sicherheit
-          </p>
+      <div className="relative max-w-3xl">
+        <div className="h-16 w-16 rounded-3xl bg-orange-50 text-orange-700 flex items-center justify-center text-3xl font-black">
+          403
+        </div>
 
-          <h1 className="text-4xl md:text-5xl font-black tracking-[-0.04em] mt-4">
-            {title}
-          </h1>
+        <p className="mt-6 text-sm font-black uppercase tracking-[0.25em] text-orange-600">
+          Zugriff verweigert
+        </p>
 
-          <p className="text-white/70 text-lg leading-8 mt-4">
-            {description}
-          </p>
+        <h1 className="mt-3 text-3xl md:text-4xl font-black text-zinc-950 tracking-tight">
+          {title}
+        </h1>
 
-          <div className="flex flex-wrap gap-3 mt-8">
+        <p className="mt-4 text-zinc-500 text-lg leading-8 max-w-2xl">
+          {description}
+        </p>
+
+        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+          <Link
+            href="/forbidden"
+            className="w-full sm:w-auto app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow text-center"
+          >
+            403-Seite öffnen
+          </Link>
+
+          {backHref ? (
             <Link
               href={backHref}
-              className="bg-white text-zinc-950 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+              className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-900 px-5 py-3 rounded-2xl transition font-bold text-center"
             >
               {backLabel}
             </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm overflow-hidden relative">
-        <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
-
-        <div className="relative flex flex-col md:flex-row md:items-start gap-5">
-          <div className="h-14 w-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl shrink-0">
-            🛡️
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-black text-zinc-950">
-              Keine Berechtigung
-            </h2>
-
-            <p className="text-zinc-500 mt-2 leading-7">
-              Dein aktueller Benutzer darf diesen Bereich nicht öffnen. Falls du Zugriff benötigst, wende dich an einen Administrator.
-            </p>
-
+          ) : (
             <Link
-              href={backHref}
-              className="inline-flex mt-6 app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+              href="/dashboard"
+              className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-900 px-5 py-3 rounded-2xl transition font-bold text-center"
             >
-              {backLabel}
+              Zum Dashboard
             </Link>
-          </div>
+          )}
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
-
