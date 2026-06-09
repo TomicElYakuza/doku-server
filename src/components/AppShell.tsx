@@ -16,18 +16,12 @@ import {
   getCachedCurrentUser,
   loadCurrentUser,
 } from "../lib/currentUserRepository";
-import {
-  useAppSettings,
-} from "../hooks/useAppSettings";
-import {
-  usePermissions,
-} from "../hooks/usePermissions";
-import {
-  useUserSettings,
-} from "../hooks/useUserSettings";
-import type {
-  AppTheme,
-} from "../types/settings";
+import { adminModuleRepository } from "../lib/adminModuleRepository";
+import { useAppSettings } from "../hooks/useAppSettings";
+import { usePermissions } from "../hooks/usePermissions";
+import { useUserSettings } from "../hooks/useUserSettings";
+import type { AdminModuleConfig } from "../types/adminModule";
+import type { AppTheme } from "../types/settings";
 
 type AppShellProps = {
   children?: ReactNode;
@@ -44,6 +38,7 @@ type NavigationItem = {
   label: string;
   icon: string;
   category: NavigationCategory;
+  moduleKey?: string;
   adminOnly?: boolean;
   permissionAny?: string[];
 };
@@ -57,8 +52,9 @@ const navigationItems: NavigationItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
-    icon: "🏠",
+    icon: "⌂",
     category: "overview",
+    moduleKey: "dashboard",
     permissionAny: [
       "dashboard.view",
       "tickets.view",
@@ -71,18 +67,22 @@ const navigationItems: NavigationItem[] = [
     label: "News",
     icon: "📰",
     category: "overview",
+    moduleKey: "news",
     permissionAny: [
       "news.view",
+      "news.create",
       "news.edit",
     ],
   },
   {
     href: "/wiki",
     label: "Wiki",
-    icon: "📚",
+    icon: "📘",
     category: "management",
+    moduleKey: "wiki",
     permissionAny: [
       "wiki.view",
+      "wiki.create",
       "wiki.edit",
     ],
   },
@@ -91,6 +91,7 @@ const navigationItems: NavigationItem[] = [
     label: "Dateien",
     icon: "📁",
     category: "management",
+    moduleKey: "files",
     permissionAny: [
       "files.view",
       "files.upload",
@@ -101,23 +102,38 @@ const navigationItems: NavigationItem[] = [
     label: "Tickets",
     icon: "🎫",
     category: "management",
+    moduleKey: "tickets",
     permissionAny: [
       "tickets.view",
+      "tickets.create",
       "tickets.edit",
+    ],
+  },
+  {
+    href: "/activities",
+    label: "Aktivitäten",
+    icon: "📊",
+    category: "management",
+    moduleKey: "activities",
+    permissionAny: [
+      "activity.view",
+      "admin.view",
     ],
   },
   {
     href: "/admin",
     label: "Admin Dashboard",
-    icon: "🛠️",
+    icon: "⚙️",
     category: "admin",
+    moduleKey: "admin",
     adminOnly: true,
   },
   {
     href: "/admin/settings",
     label: "Systemeinstellungen",
-    icon: "⚠️",
+    icon: "🛠️",
     category: "admin",
+    moduleKey: "admin-settings",
     adminOnly: true,
   },
   {
@@ -127,6 +143,43 @@ const navigationItems: NavigationItem[] = [
     category: "settings",
   },
 ];
+
+const moduleKeyAliases: Record<string, string[]> = {
+  dashboard: [
+    "dashboard",
+    "overview",
+  ],
+  news: [
+    "news",
+    "admin-news",
+  ],
+  wiki: [
+    "wiki",
+    "wiki-pages",
+  ],
+  files: [
+    "files",
+    "documents",
+  ],
+  tickets: [
+    "tickets",
+    "ticket",
+  ],
+  activities: [
+    "activities",
+    "activity",
+    "activity-log",
+  ],
+  admin: [
+    "admin",
+    "admin-dashboard",
+  ],
+  "admin-settings": [
+    "admin-settings",
+    "settings",
+    "system-settings",
+  ],
+};
 
 const categoryLabels: Record<NavigationCategory, string> = {
   overview: "Übersicht",
@@ -309,8 +362,8 @@ function getPageTitle(pathname: string) {
     return "Dateien";
   }
 
-  if (pathname.startsWith("/activity")) {
-    return "Aktivität";
+  if (pathname.startsWith("/activities")) {
+    return "Aktivitäten";
   }
 
   if (pathname.startsWith("/settings")) {
@@ -345,6 +398,10 @@ function getSectionLabel(pathname: string) {
     return "Unternehmensnews";
   }
 
+  if (pathname.startsWith("/activities")) {
+    return "Aktivitäten";
+  }
+
   if (pathname.startsWith("/settings")) {
     return "Benutzerbereich";
   }
@@ -368,11 +425,10 @@ function getThemeClasses(
         "bg-white/92 border-zinc-200 text-zinc-950 backdrop-blur-xl",
       sidebarCard:
         "bg-zinc-50 border-zinc-200 text-zinc-950",
-      sidebarCardHover:
-        "hover:bg-white",
       topbar:
         "bg-white/88 border-zinc-200 text-zinc-950 backdrop-blur-xl",
-      sidebarMuted: "text-zinc-500",
+      sidebarMuted:
+        "text-zinc-500",
       inactiveNav:
         "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
       activeNav:
@@ -403,11 +459,10 @@ function getThemeClasses(
         "bg-[#050610]/95 border-white/10 text-white backdrop-blur-xl",
       sidebarCard:
         "bg-white/[0.07] border-white/10 text-white",
-      sidebarCardHover:
-        "hover:bg-white/[0.1]",
       topbar:
         "bg-[#050610]/92 border-white/10 text-white backdrop-blur-xl",
-      sidebarMuted: "text-zinc-500",
+      sidebarMuted:
+        "text-zinc-500",
       inactiveNav:
         "text-zinc-300 hover:bg-white/10 hover:text-white",
       activeNav:
@@ -437,11 +492,10 @@ function getThemeClasses(
       "bg-[#060711] border-white/10 text-white",
     sidebarCard:
       "bg-white/[0.06] border-white/10 text-white",
-    sidebarCardHover:
-      "hover:bg-white/[0.09]",
     topbar:
       "bg-[#060711]/95 border-white/10 text-white backdrop-blur-xl",
-    sidebarMuted: "text-zinc-500",
+    sidebarMuted:
+      "text-zinc-500",
     inactiveNav:
       "text-zinc-300 hover:bg-white/10 hover:text-white",
     activeNav:
@@ -454,7 +508,7 @@ function getThemeClasses(
     topbarSurface:
       "bg-white/[0.07] border-white/10 text-white",
     mobileNav:
-      "bg-[#060711]/95 border-white/10 text-zinc-300 backdrop-blur-xl",
+      "bg-[#060711]/95 border-white/10 text-zinc-300",
     logoutButton:
       "bg-white text-zinc-950 hover:bg-zinc-100",
     versionText:
@@ -464,14 +518,51 @@ function getThemeClasses(
   };
 }
 
+function getModuleLookup(modules: AdminModuleConfig[]) {
+  const lookup = new Map<string, AdminModuleConfig>();
+
+  modules.forEach((module) => {
+    lookup.set(module.key, module);
+  });
+
+  return lookup;
+}
+
+function moduleAllowsItem(
+  item: NavigationItem,
+  moduleLookup: Map<string, AdminModuleConfig>,
+  modulesLoaded: boolean,
+) {
+  if (!item.moduleKey) {
+    return true;
+  }
+
+  if (!modulesLoaded) {
+    return true;
+  }
+
+  const aliases = moduleKeyAliases[item.moduleKey] || [item.moduleKey];
+
+  for (const alias of aliases) {
+    const module = moduleLookup.get(alias);
+
+    if (module) {
+      return module.isEnabled && module.isVisible;
+    }
+  }
+
+  return true;
+}
+
 export default function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-
   const [user, setUser] = useState(getCachedCurrentUser());
   const [loading, setLoading] = useState(true);
+  const [adminModules, setAdminModules] = useState<AdminModuleConfig[]>([]);
+  const [modulesLoaded, setModulesLoaded] = useState(false);
 
   const {
     settings: appSettings,
@@ -513,6 +604,45 @@ export default function AppShell({
     pathname,
   ]);
 
+  useEffect(() => {
+    if (isPublicPath(pathname)) {
+      return;
+    }
+
+    void loadAdminModules();
+
+    function handleAdminModulesUpdated() {
+      void loadAdminModules();
+    }
+
+    window.addEventListener(
+      "adminModulesUpdated",
+      handleAdminModulesUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "adminModulesUpdated",
+        handleAdminModulesUpdated,
+      );
+    };
+  }, [
+    pathname,
+  ]);
+
+  async function loadAdminModules() {
+    try {
+      const modules = await adminModuleRepository.list();
+
+      setAdminModules(Array.isArray(modules) ? modules : []);
+    } catch (error) {
+      console.error("Admin-Module konnten nicht geladen werden:", error);
+      setAdminModules([]);
+    } finally {
+      setModulesLoaded(true);
+    }
+  }
+
   async function ensureUser() {
     try {
       setLoading(true);
@@ -547,10 +677,21 @@ export default function AppShell({
     }
   }
 
+  const moduleLookup = useMemo(
+    () => getModuleLookup(adminModules),
+    [
+      adminModules,
+    ],
+  );
+
   const visibleNavigationItems = useMemo(
     () =>
       navigationItems.filter((item) => {
         const userIsAdmin = isAdmin || user?.role === "admin";
+
+        if (!moduleAllowsItem(item, moduleLookup, modulesLoaded)) {
+          return false;
+        }
 
         if (userIsAdmin) {
           return true;
@@ -569,6 +710,8 @@ export default function AppShell({
     [
       hasAnyPermission,
       isAdmin,
+      moduleLookup,
+      modulesLoaded,
       user,
     ],
   );
@@ -588,16 +731,11 @@ export default function AppShell({
     ],
   );
 
-  const effectiveTheme =
-    userSettings.theme ||
-    appSettings.theme ||
-    "modern";
-
+  const effectiveTheme = userSettings.theme || appSettings.theme || "modern";
   const shellMode = getShellMode(
     effectiveTheme,
     appSettings.darkMode,
   );
-
   const themeClasses = getThemeClasses(
     shellMode,
     userSettings.compactMode ?? appSettings.compactMode,
@@ -605,38 +743,31 @@ export default function AppShell({
 
   const pageTitle = getPageTitle(pathname);
   const sectionLabel = getSectionLabel(pathname);
-
   const brandName = normalizeBrandValue(
     appSettings.companyName,
     "Velunis",
   );
-
   const workspaceName = normalizeBrandValue(
     appSettings.appName,
     "Intranet",
   );
-
   const appVersion =
-    appSettings.appVersion ||
-    appSettings.version ||
-    "0.1.0";
-
+    appSettings.appVersion || appSettings.version || "0.1.0";
   const mobileNavigationItems = visibleNavigationItems.slice(0, 5);
 
   if (isPublicPath(pathname)) {
-    return (
-      <>
-        {children}
-      </>
-    );
+    return <>{children}</>;
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-100 flex items-center justify-center">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm">
-          <p className="text-zinc-500">
+      <div className="min-h-screen app-accent-bg text-white flex items-center justify-center px-6">
+        <div className="bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
+          <p className="font-black text-2xl">
             Velunis Workspace wird geladen...
+          </p>
+          <p className="text-white/70 mt-2">
+            Benutzer, Rechte und Module werden vorbereitet.
           </p>
         </div>
       </div>
@@ -645,17 +776,15 @@ export default function AppShell({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-100 flex items-center justify-center p-6">
-        <div className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm max-w-md w-full">
-          <h1 className="text-2xl font-bold text-zinc-900">
-            Nicht angemeldet
-          </h1>
-          <p className="text-zinc-500 mt-2">
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center px-6">
+        <div className="bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl max-w-md">
+          <h1 className="text-3xl font-black">Nicht angemeldet</h1>
+          <p className="text-white/70 mt-3">
             Bitte melde dich an, um fortzufahren.
           </p>
           <Link
             href="/login"
-            className="inline-flex mt-6 app-accent-bg text-white px-5 py-3 rounded-2xl transition app-brand-shadow"
+            className="inline-flex mt-6 app-accent-bg text-white px-5 py-3 rounded-2xl font-black"
           >
             Zum Login
           </Link>
@@ -666,54 +795,30 @@ export default function AppShell({
 
   return (
     <div className={themeClasses.shell}>
-      <aside
-        className={`hidden lg:flex fixed inset-y-0 left-0 w-72 border-r ${themeClasses.sidebar} z-40`}
-      >
-        <div className="w-full h-full flex flex-col overflow-hidden">
-          <div className="px-5 py-5">
-            <Link
-              href="/dashboard"
-              className={`relative block rounded-[1.6rem] border p-4 overflow-hidden transition ${themeClasses.sidebarCard} ${themeClasses.sidebarCardHover}`}
-            >
-              <div className="absolute -top-16 -right-16 h-36 w-36 rounded-full opacity-25 blur-2xl app-accent-bg" />
-              <div className="absolute -bottom-20 -left-16 h-40 w-40 rounded-full opacity-20 blur-2xl app-accent-bg" />
-
-              <div className="relative flex items-center gap-3">
-                <div className="h-12 w-12 rounded-2xl app-accent-bg text-white flex items-center justify-center font-black text-xl app-brand-shadow">
-                  V
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-2xl font-black tracking-tight leading-none">
-                    {brandName}
-                  </p>
-                  <p className={`text-xs mt-1 truncate ${themeClasses.versionText}`}>
-                    {workspaceName} Workspace
-                  </p>
-                </div>
+      <div className="min-h-screen xl:grid xl:grid-cols-[292px_1fr]">
+        <aside
+          className={`hidden xl:flex xl:flex-col border-r h-screen sticky top-0 overflow-hidden ${themeClasses.sidebar}`}
+        >
+          <div className="p-6 border-b border-white/10">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl app-accent-bg app-brand-shadow flex items-center justify-center font-black text-xl text-white">
+                V
               </div>
-
-              <div className="relative mt-4 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.8)]" />
-                <span className={`text-xs ${themeClasses.versionText}`}>
-                  System online
-                </span>
+              <div>
+                <p className="font-black text-lg leading-tight">{brandName}</p>
+                <p className={`text-sm ${themeClasses.sidebarMuted}`}>
+                  {workspaceName} Workspace
+                </p>
               </div>
-            </Link>
+            </div>
           </div>
 
-          <nav className="flex-1 px-4 py-3 space-y-7 overflow-hidden">
+          <nav className="flex-1 min-h-0 px-4 py-5 space-y-5 overflow-hidden">
             {groupedNavigationItems.map((group) => (
-              <div
-                key={group.category}
-                className="space-y-2"
-              >
-                <p
-                  className={`px-3 text-[10px] uppercase tracking-[0.26em] font-black ${themeClasses.sidebarMuted}`}
-                >
+              <div key={group.category}>
+                <p className={`text-xs font-black uppercase tracking-[0.18em] px-3 mb-3 ${themeClasses.sidebarMuted}`}>
                   {categoryLabels[group.category]}
                 </p>
-
                 <div className="space-y-1.5">
                   {group.items.map((item) => {
                     const active = isActivePath(pathname, item.href);
@@ -722,14 +827,14 @@ export default function AppShell({
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${
+                        className={`group flex items-center gap-3 px-3 py-3 rounded-2xl transition font-bold ${
                           active
                             ? `${themeClasses.activeNav} app-accent-bg`
                             : themeClasses.inactiveNav
                         }`}
                       >
                         <span
-                          className={`h-8 w-8 rounded-xl flex items-center justify-center text-sm ${
+                          className={`h-9 w-9 rounded-xl flex items-center justify-center text-sm font-black ${
                             active
                               ? themeClasses.activeIcon
                               : themeClasses.inactiveIcon
@@ -737,9 +842,7 @@ export default function AppShell({
                         >
                           {item.icon}
                         </span>
-                        <span className="truncate">
-                          {item.label}
-                        </span>
+                        <span>{item.label}</span>
                       </Link>
                     );
                   })}
@@ -748,105 +851,72 @@ export default function AppShell({
             ))}
           </nav>
 
-          <div className="px-4 pb-5">
-            <div className={`relative rounded-[1.6rem] border p-4 overflow-hidden ${themeClasses.sidebarCard}`}>
-              <div className="absolute inset-x-0 top-0 h-1 app-accent-bg" />
-              <div className="absolute -right-12 -bottom-12 h-28 w-28 rounded-full opacity-20 blur-2xl app-accent-bg" />
-
-              <div className="relative flex items-center justify-between gap-3">
-                <div>
-                  <p className={`text-[10px] uppercase tracking-[0.22em] font-black ${themeClasses.sidebarMuted}`}>
-                    System
-                  </p>
-                  <p className="text-sm font-bold mt-1">
-                    Velunis Intranet
-                  </p>
-                </div>
-
-                <span className="rounded-full app-accent-bg text-white px-3 py-1 text-xs font-black app-brand-shadow">
-                  v{appVersion}
-                </span>
+          <div className="p-4">
+            <div className={`border rounded-3xl p-5 ${themeClasses.sidebarCard}`}>
+              <p className="font-black">System</p>
+              <p className={`text-sm mt-1 ${themeClasses.sidebarMuted}`}>
+                Velunis Intranet
+              </p>
+              <div className={`h-2 rounded-full mt-4 ${themeClasses.systemTrack}`}>
+                <div className="h-full w-2/3 rounded-full app-accent-bg" />
               </div>
-
-              <div className={`relative mt-4 h-1.5 rounded-full overflow-hidden ${themeClasses.systemTrack}`}>
-                <div className="h-full w-4/5 rounded-full app-accent-bg" />
-              </div>
-
-              <p className={`relative text-xs mt-3 ${themeClasses.versionText}`}>
-                Interner Arbeitsbereich für Tickets, Wissen und Dokumente.
+              <p className={`text-xs mt-3 ${themeClasses.versionText}`}>
+                v{appVersion} · Module DB-basiert
               </p>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      <div className="lg:pl-72 min-h-screen flex flex-col">
-        <header
-          className={`sticky top-0 z-30 h-[72px] border-b ${themeClasses.topbar}`}
-        >
-          <div className="h-full px-5 xl:px-8 flex items-center justify-between gap-5">
-            <div className="min-w-0 flex items-center gap-4">
-              <div className="hidden md:flex h-11 w-11 rounded-2xl app-accent-bg items-center justify-center app-brand-shadow">
-                <span className="text-white text-lg">
+        <div className="min-w-0">
+          <header className={`sticky top-0 z-30 border-b ${themeClasses.topbar}`}>
+            <div className="px-5 py-4 xl:px-8 flex items-center justify-between gap-4">
+              <div className="min-w-0 flex items-center gap-4">
+                <div className={`hidden md:flex h-11 w-11 rounded-2xl border items-center justify-center ${themeClasses.topbarSurface}`}>
                   ✦
-                </span>
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.26em] font-black text-zinc-500">
-                  {sectionLabel}
-                </p>
-                <h1 className="text-xl font-black truncate">
-                  {pageTitle}
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div
-                className={`hidden md:flex items-center gap-3 rounded-2xl border px-3 py-2 ${themeClasses.topbarSurface}`}
-              >
-                <div className="h-10 w-10 rounded-2xl app-accent-bg text-white flex items-center justify-center text-sm font-black app-brand-shadow">
-                  {getInitials(user.name)}
                 </div>
-
-                <div className="leading-tight min-w-0">
-                  <p className="text-sm font-black truncate max-w-40">
-                    {user.name}
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-white/50">
+                    {sectionLabel}
                   </p>
-                  <p className="text-xs text-zinc-400 truncate max-w-40">
-                    {getRoleLabel(user.role)} · {brandName}
-                  </p>
+                  <h1 className="text-xl xl:text-2xl font-black truncate">
+                    {pageTitle}
+                  </h1>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                className={`group inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl transition text-sm font-black shadow-sm ${themeClasses.logoutButton}`}
-              >
-                <span className="hidden sm:inline">
+              <div className="flex items-center gap-3">
+                <div className={`hidden md:flex items-center gap-3 border rounded-2xl px-4 py-2 ${themeClasses.topbarSurface}`}>
+                  <div className="h-9 w-9 rounded-xl app-accent-bg flex items-center justify-center text-white font-black">
+                    {getInitials(user.name)}
+                  </div>
+                  <div>
+                    <p className="font-black leading-tight">{user.name}</p>
+                    <p className="text-xs opacity-70">
+                      {getRoleLabel(user.role)} · {brandName}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className={`group inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl transition text-sm font-black shadow-sm ${themeClasses.logoutButton}`}
+                >
                   Abmelden
-                </span>
-                <span className="text-base group-hover:translate-x-0.5 transition">
-                  ↗
-                </span>
-              </button>
+                  <span aria-hidden>↗</span>
+                </button>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main className={`flex-1 ${themeClasses.main} pb-24 lg:pb-8`}>
-          <div className="w-full max-w-none">
+          <main className={themeClasses.main}>
             {children}
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
 
-      <nav
-        className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t ${themeClasses.mobileNav}`}
-      >
-        <div className="grid grid-cols-5 gap-1 px-2 py-2">
+      <nav className={`xl:hidden fixed bottom-4 left-4 right-4 z-40 border rounded-3xl shadow-2xl px-3 py-2 ${themeClasses.mobileNav}`}>
+        <div className="grid grid-cols-5 gap-1">
           {mobileNavigationItems.map((item) => {
             const active = isActivePath(pathname, item.href);
 
@@ -854,18 +924,14 @@ export default function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
+                className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-xs font-black transition ${
                   active
-                    ? `${themeClasses.activeNav} app-accent-bg`
-                    : themeClasses.inactiveNav
+                    ? "app-accent-bg text-white app-brand-shadow"
+                    : "hover:bg-zinc-100/10"
                 }`}
               >
-                <span className="text-base leading-none">
-                  {item.icon}
-                </span>
-                <span className="truncate max-w-full">
-                  {item.label}
-                </span>
+                <span>{item.icon}</span>
+                <span className="truncate max-w-full">{item.label}</span>
               </Link>
             );
           })}
@@ -874,6 +940,3 @@ export default function AppShell({
     </div>
   );
 }
-
-
-

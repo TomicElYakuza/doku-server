@@ -1,6 +1,4 @@
-﻿import {
-  requestJson,
-} from "./apiClient";
+﻿import { requestJson } from "./apiClient";
 import type {
   AdminModuleConfig,
   AdminModuleCreateInput,
@@ -14,19 +12,26 @@ export type AdminModuleRepository = {
   create: (input: AdminModuleCreateInput) => Promise<AdminModuleConfig>;
   update: (
     key: string,
-    input: AdminModuleUpdateInput
+    input: AdminModuleUpdateInput,
   ) => Promise<AdminModuleConfig>;
   delete: (key: string) => Promise<void>;
+  clearCache: () => void;
 };
+
+let cachedModules: AdminModuleConfig[] | null = null;
+let pendingModulesRequest: Promise<AdminModuleConfig[]> | null = null;
 
 function dispatchAdminModulesUpdated() {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.dispatchEvent(
-    new Event("adminModulesUpdated"),
-  );
+  window.dispatchEvent(new Event("adminModulesUpdated"));
+}
+
+function clearModuleCache() {
+  cachedModules = null;
+  pendingModulesRequest = null;
 }
 
 function normalizeCreateInput(input: AdminModuleCreateInput) {
@@ -35,7 +40,7 @@ function normalizeCreateInput(input: AdminModuleCreateInput) {
     title: input.title.trim(),
     description: input.description?.trim() || "",
     href: input.href.trim(),
-    icon: input.icon?.trim() || "🧩",
+    icon: input.icon?.trim() || "",
     category: input.category?.trim() || "admin",
     badgeLabel: input.badgeLabel?.trim() || "",
     sortOrder: Number.isFinite(Number(input.sortOrder))
@@ -62,15 +67,70 @@ function normalizeUpdateInput(input: AdminModuleUpdateInput) {
   };
 }
 
+function normalizeModule(module: AdminModuleConfig): AdminModuleConfig {
+  return {
+    key: String(module.key || "").trim(),
+    title: String(module.title || "").trim(),
+    description: String(module.description || "").trim(),
+    href: String(module.href || "").trim(),
+    icon: String(module.icon || "").trim(),
+    category: String(module.category || "admin").trim(),
+    badgeLabel: String(module.badgeLabel || "").trim(),
+    sortOrder: Number(module.sortOrder || 0),
+    isEnabled: Boolean(module.isEnabled),
+    isVisible: Boolean(module.isVisible),
+    isCore: Boolean(module.isCore),
+    createdAt: String(module.createdAt || ""),
+    updatedAt: String(module.updatedAt || ""),
+  };
+}
+
+function sortModules(modules: AdminModuleConfig[]) {
+  return [...modules].sort((first, second) => {
+    const sortCompare =
+      Number(first.sortOrder || 0) - Number(second.sortOrder || 0);
+
+    if (sortCompare !== 0) {
+      return sortCompare;
+    }
+
+    return first.title.localeCompare(second.title);
+  });
+}
+
+async function fetchModules() {
+  const modules = await requestJson<AdminModuleConfig[]>("/api/admin/modules");
+
+  const normalizedModules = sortModules(
+    Array.isArray(modules)
+      ? modules.map(normalizeModule).filter((module) => module.key)
+      : [],
+  );
+
+  cachedModules = normalizedModules;
+
+  return normalizedModules;
+}
+
 export const postgresAdminModuleRepository: AdminModuleRepository = {
   async list() {
-    return requestJson<AdminModuleConfig[]>("/api/admin/modules");
+    if (cachedModules) {
+      return cachedModules;
+    }
+
+    if (!pendingModulesRequest) {
+      pendingModulesRequest = fetchModules().finally(() => {
+        pendingModulesRequest = null;
+      });
+    }
+
+    return pendingModulesRequest;
   },
 
   async listVisible() {
     const modules = await postgresAdminModuleRepository.list();
 
-    return modules.filter((module) => module.isVisible);
+    return modules.filter((module) => module.isEnabled && module.isVisible);
   },
 
   async findByKey(key: string) {
@@ -78,10 +138,20 @@ export const postgresAdminModuleRepository: AdminModuleRepository = {
       return null;
     }
 
+    const cachedModule = cachedModules?.find(
+      (module) => module.key === key,
+    );
+
+    if (cachedModule) {
+      return cachedModule;
+    }
+
     try {
-      return await requestJson<AdminModuleConfig>(
+      const module = await requestJson<AdminModuleConfig>(
         `/api/admin/modules/${encodeURIComponent(key)}`,
       );
+
+      return normalizeModule(module);
     } catch {
       return null;
     }
@@ -102,23 +172,18 @@ export const postgresAdminModuleRepository: AdminModuleRepository = {
       throw new Error("Link ist erforderlich.");
     }
 
-    const module = await requestJson<AdminModuleConfig>(
-      "/api/admin/modules",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-    );
+    const module = await requestJson<AdminModuleConfig>("/api/admin/modules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
 
+    clearModuleCache();
     dispatchAdminModulesUpdated();
 
-    return module;
+    return normalizeModule(module);
   },
 
-  async update(
-    key: string,
-    input: AdminModuleUpdateInput,
-  ) {
+  async update(key: string, input: AdminModuleUpdateInput) {
     if (!key) {
       throw new Error("Modul-Key ist erforderlich.");
     }
@@ -131,9 +196,10 @@ export const postgresAdminModuleRepository: AdminModuleRepository = {
       },
     );
 
+    clearModuleCache();
     dispatchAdminModulesUpdated();
 
-    return module;
+    return normalizeModule(module);
   },
 
   async delete(key: string) {
@@ -141,16 +207,19 @@ export const postgresAdminModuleRepository: AdminModuleRepository = {
       return;
     }
 
-    await requestJson<{
-      ok: boolean;
-    }>(
+    await requestJson<{ ok: boolean }>(
       `/api/admin/modules/${encodeURIComponent(key)}`,
       {
         method: "DELETE",
       },
     );
 
+    clearModuleCache();
     dispatchAdminModulesUpdated();
+  },
+
+  clearCache() {
+    clearModuleCache();
   },
 };
 
