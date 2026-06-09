@@ -19,6 +19,20 @@ type SaveDepartmentPermissionsBody = {
   permissionKeys?: string[];
 };
 
+function normalizePermissionKeys(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((permissionKey) => String(permissionKey || "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
     return 403;
@@ -32,20 +46,37 @@ function getErrorMessage(error: unknown, fallback: string) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "settings.manage",
       "admin.view",
     ]);
 
     const { departmentId } = await context.params;
-    const permissionKeys = await listDepartmentPermissionKeys(
-      decodeURIComponent(departmentId),
-    );
+    const decodedDepartmentId = decodeURIComponent(departmentId);
+
+    if (!decodedDepartmentId) {
+      return NextResponse.json(
+        {
+          message: "Abteilung ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const permissionKeys =
+      await listDepartmentPermissionKeys(decodedDepartmentId);
 
     return NextResponse.json(permissionKeys);
   } catch (error) {
@@ -68,21 +99,33 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PUT(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission(["users.manage_permissions"]);
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+      "settings.manage",
+    ]);
 
     const { departmentId } = await context.params;
-    const body = (await request.json()) as SaveDepartmentPermissionsBody;
-    const permissionKeys = Array.isArray(body.permissionKeys)
-      ? body.permissionKeys
-      : [];
+    const decodedDepartmentId = decodeURIComponent(departmentId);
 
-    await saveDepartmentPermissionKeys(
-      decodeURIComponent(departmentId),
-      permissionKeys,
-    );
+    if (!decodedDepartmentId) {
+      return NextResponse.json(
+        {
+          message: "Abteilung ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const body = (await request.json()) as SaveDepartmentPermissionsBody;
+    const permissionKeys = normalizePermissionKeys(body.permissionKeys);
+
+    await saveDepartmentPermissionKeys(decodedDepartmentId, permissionKeys);
 
     return NextResponse.json({
       ok: true,
+      permissionKeys,
     });
   } catch (error) {
     console.error(error);

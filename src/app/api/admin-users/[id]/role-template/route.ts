@@ -1,21 +1,13 @@
-﻿import {
-  NextResponse,
-} from "next/server";
-import {
-  query,
-  queryOne,
-} from "../../../../../lib/database/db";
+﻿import { NextResponse } from "next/server";
+
+import { query, queryOne } from "../../../../../lib/database/db";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../../lib/serverPermissions";
-import {
-  mapRolePermissionTemplateRow,
-} from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
-import type {
-  RolePermissionTemplateRow,
-} from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
+import { mapRolePermissionTemplateRow } from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
+import type { RolePermissionTemplateRow } from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
 
 type RouteContext = {
   params: Promise<{
@@ -41,8 +33,87 @@ type ApplyResult = {
   replaceExisting: boolean;
 };
 
+const legacyPermissionPairs = [
+  ["news", "manage", "news", "edit"],
+  ["wiki", "manage", "wiki", "edit"],
+  ["tickets", "manage", "tickets", "edit"],
+  ["tickets.templates", "manage", "tickets.templates", "edit"],
+  ["files", "manage", "files", "upload"],
+  ["activity", "manage", "activity", "view"],
+];
+
+const validPermissionKeys = new Set([
+  "*",
+  "dashboard.view",
+  "admin.view",
+  "settings.view",
+  "settings.manage",
+  "users.view",
+  "users.create",
+  "users.edit",
+  "users.delete",
+  "users.manage",
+  "users.manage_permissions",
+  "organization.view",
+  "organization.manage",
+  "companies.manage",
+  "departments.manage",
+  "taxonomy.manage",
+  "wiki.view",
+  "wiki.create",
+  "wiki.edit",
+  "wiki.delete",
+  "tickets.view",
+  "tickets.create",
+  "tickets.edit",
+  "tickets.assign",
+  "tickets.close",
+  "tickets.delete",
+  "tickets.templates.view",
+  "tickets.templates.create",
+  "tickets.templates.edit",
+  "tickets.templates.delete",
+  "files.view",
+  "files.upload",
+  "files.delete",
+  "news.view",
+  "news.create",
+  "news.edit",
+  "news.delete",
+  "activity.view",
+]);
+
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
+}
+
+function getLegacyPermissionKey(fromNamespace: string, fromAction: string) {
+  return [fromNamespace, fromAction].join(".");
+}
+
+function getNextPermissionKey(toNamespace: string, toAction: string) {
+  return [toNamespace, toAction].join(".");
+}
+
+function mapLegacyPermissionKey(permissionKey: string) {
+  for (const [fromNamespace, fromAction, toNamespace, toAction] of legacyPermissionPairs) {
+    if (permissionKey === getLegacyPermissionKey(fromNamespace, fromAction)) {
+      return getNextPermissionKey(toNamespace, toAction);
+    }
+  }
+
+  return permissionKey;
+}
+
+function normalizePermissionKey(value: unknown) {
+  const permissionKey = normalizeText(String(value || ""));
+  const mappedPermissionKey = mapLegacyPermissionKey(permissionKey);
+
+  if (!validPermissionKeys.has(mappedPermissionKey)) {
+    return "";
+  }
+
+  return mappedPermissionKey;
 }
 
 function normalizePermissionKeys(permissionKeys?: string[]) {
@@ -51,11 +122,7 @@ function normalizePermissionKeys(permissionKeys?: string[]) {
   }
 
   return Array.from(
-    new Set(
-      permissionKeys
-        .map((permissionKey) => String(permissionKey).trim())
-        .filter(Boolean),
-    ),
+    new Set(permissionKeys.map(normalizePermissionKey).filter(Boolean)),
   );
 }
 
@@ -71,6 +138,17 @@ function normalizeRole(value?: string | null) {
   return "employee";
 }
 
+function createUserPermissionId(
+  userId: string,
+  permissionKey: string,
+  scopeType: string,
+  scopeId: string,
+) {
+  return ["user", userId, permissionKey, scopeType, scopeId || "global"]
+    .join("_")
+    .replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
     return 403;
@@ -79,10 +157,7 @@ function getErrorStatus(error: unknown) {
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
+function getErrorMessage(error: unknown, fallback: string) {
   if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
@@ -90,14 +165,9 @@ function getErrorMessage(
   return error instanceof Error ? error.message : fallback;
 }
 
-export async function POST(
-  request: Request,
-  context: RouteContext,
-) {
+export async function POST(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission([
-      "users.manage_permissions",
-    ]);
+    await requireAnyServerPermission(["users.manage_permissions"]);
 
     const currentUser = await getCurrentServerUser();
 
@@ -112,14 +182,23 @@ export async function POST(
       );
     }
 
-    const {
-      id,
-    } = await context.params;
-
+    const { id } = await context.params;
     const userId = decodeURIComponent(id);
-    const body = await request.json() as ApplyRoleTemplateBody;
+
+    const body = (await request.json()) as ApplyRoleTemplateBody;
     const templateKey = normalizeText(body.templateKey);
     const replaceExisting = body.replaceExisting !== false;
+
+    if (!userId) {
+      return NextResponse.json(
+        {
+          message: "Benutzer-ID ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
     if (!templateKey) {
       return NextResponse.json(
@@ -134,16 +213,12 @@ export async function POST(
 
     const user = await queryOne<AdminUserRow>(
       `
-        SELECT
-          id,
-          role
+        SELECT id, role
         FROM admin_users
         WHERE id = $1
         LIMIT 1
       `,
-      [
-        userId,
-      ],
+      [userId],
     );
 
     if (!user) {
@@ -174,9 +249,7 @@ export async function POST(
         WHERE template_key = $1
         LIMIT 1
       `,
-      [
-        templateKey,
-      ],
+      [templateKey],
     );
 
     if (!templateRow) {
@@ -213,10 +286,7 @@ export async function POST(
           updated_at = NOW()
         WHERE id = $2
       `,
-      [
-        roleKey,
-        userId,
-      ],
+      [roleKey, userId],
     );
 
     if (replaceExisting) {
@@ -227,13 +297,14 @@ export async function POST(
             AND scope_type = 'global'
             AND scope_id = ''
         `,
-        [
-          userId,
-        ],
+        [userId],
       );
     }
 
     for (const permissionKey of permissionKeys) {
+      const scopeType = "global";
+      const scopeId = "";
+
       await query(
         `
           INSERT INTO user_permissions (
@@ -244,17 +315,21 @@ export async function POST(
             scope_id
           )
           VALUES (
-            gen_random_uuid()::text,
             $1,
             $2,
-            'global',
-            ''
+            $3,
+            $4,
+            $5
           )
-          ON CONFLICT (user_id, permission_key, scope_type, scope_id) DO NOTHING
+          ON CONFLICT (user_id, permission_key, scope_type, scope_id)
+          DO NOTHING
         `,
         [
+          createUserPermissionId(userId, permissionKey, scopeType, scopeId),
           userId,
           permissionKey,
+          scopeType,
+          scopeId,
         ],
       );
     }

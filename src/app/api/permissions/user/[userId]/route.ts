@@ -8,6 +8,7 @@ import {
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../../lib/serverPermissions";
+import type { PermissionScopeType } from "../../../../../types/permission";
 
 type RouteContext = {
   params: Promise<{
@@ -23,6 +24,65 @@ type SaveUserPermissionsBody = {
   }>;
 };
 
+function normalizeScopeType(value: unknown): PermissionScopeType {
+  if (
+    value === "global" ||
+    value === "company" ||
+    value === "department" ||
+    value === "own"
+  ) {
+    return value;
+  }
+
+  return "global";
+}
+
+function normalizeUserPermissions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .map((permission) => {
+      const rawPermission = permission as {
+        permissionKey?: string;
+        scopeType?: string;
+        scopeId?: string;
+      };
+
+      const permissionKey = String(rawPermission.permissionKey || "").trim();
+      const scopeType = normalizeScopeType(rawPermission.scopeType);
+      const scopeId = String(rawPermission.scopeId || "").trim();
+
+      return {
+        permissionKey,
+        scopeType,
+        scopeId,
+      };
+    })
+    .filter((permission) => {
+      if (!permission.permissionKey) {
+        return false;
+      }
+
+      const key = [
+        permission.permissionKey,
+        permission.scopeType,
+        permission.scopeId,
+      ].join("::");
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+
+      return true;
+    });
+}
+
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
     return 403;
@@ -36,18 +96,36 @@ function getErrorMessage(error: unknown, fallback: string) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "settings.manage",
       "admin.view",
     ]);
 
     const { userId } = await context.params;
-    const permissions = await listUserPermissions(decodeURIComponent(userId));
+    const decodedUserId = decodeURIComponent(userId);
+
+    if (!decodedUserId) {
+      return NextResponse.json(
+        {
+          message: "Benutzer ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const permissions = await listUserPermissions(decodedUserId);
 
     return NextResponse.json(permissions);
   } catch (error) {
@@ -70,16 +148,33 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PUT(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission(["users.manage_permissions"]);
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+      "settings.manage",
+    ]);
 
     const { userId } = await context.params;
-    const body = (await request.json()) as SaveUserPermissionsBody;
-    const permissions = Array.isArray(body.permissions) ? body.permissions : [];
+    const decodedUserId = decodeURIComponent(userId);
 
-    await saveUserPermissions(decodeURIComponent(userId), permissions);
+    if (!decodedUserId) {
+      return NextResponse.json(
+        {
+          message: "Benutzer ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const body = (await request.json()) as SaveUserPermissionsBody;
+    const permissions = normalizeUserPermissions(body.permissions);
+
+    await saveUserPermissions(decodedUserId, permissions);
 
     return NextResponse.json({
       ok: true,
+      permissions,
     });
   } catch (error) {
     console.error(error);

@@ -42,6 +42,10 @@ type UserPermissionRow = {
   created_at: string;
 };
 
+type OptionalSchemaError = Error & {
+  code?: string;
+};
+
 const ADMIN_PERMISSION_KEY = "*";
 
 const rolePermissionDefaults: Record<string, string[]> = {
@@ -74,14 +78,6 @@ const rolePermissionDefaults: Record<string, string[]> = {
     "tickets.templates.view",
     "files.view",
     "files.upload",
-    "news.view",
-  ],
-  viewer: [
-    "dashboard.view",
-    "wiki.view",
-    "tickets.view",
-    "tickets.templates.view",
-    "files.view",
     "news.view",
   ],
 };
@@ -155,8 +151,7 @@ const defaultPermissions: Array<{
   {
     permissionKey: "users.manage_permissions",
     label: "Berechtigungen verwalten",
-    description:
-      "Darf Rollen-, Firmen-, Abteilungs- und Benutzerrechte verwalten.",
+    description: "Darf Rollen-, Firmen-, Abteilungs- und Benutzerrechte verwalten.",
     category: "Benutzer",
   },
   {
@@ -366,6 +361,16 @@ function normalizePermissionKey(value: unknown) {
   return String(value || "").trim();
 }
 
+function normalizePermissionUserRole(value: unknown) {
+  const role = String(value || "").trim();
+
+  if (role === "admin" || role === "department_lead" || role === "employee") {
+    return role;
+  }
+
+  return "employee";
+}
+
 function normalizeScopeType(value: unknown): PermissionScopeType {
   if (
     value === "global" ||
@@ -377,6 +382,59 @@ function normalizeScopeType(value: unknown): PermissionScopeType {
   }
 
   return "global";
+}
+
+function isIgnorableOptionalSchemaError(error: unknown) {
+  const databaseError = error as OptionalSchemaError;
+
+  return (
+    databaseError.code === "42P01" ||
+    databaseError.code === "42703" ||
+    databaseError.message?.includes("does not exist") ||
+    databaseError.message?.includes("existiert nicht")
+  );
+}
+
+async function runOptionalSchemaCleanup(sql: string) {
+  try {
+    await query(sql);
+  } catch (error) {
+    if (!isIgnorableOptionalSchemaError(error)) {
+      throw error;
+    }
+  }
+}
+
+async function normalizeLegacyRoles() {
+  await runOptionalSchemaCleanup(`
+    ALTER TABLE admin_users
+    ALTER COLUMN role SET DEFAULT 'employee'
+  `);
+
+  await runOptionalSchemaCleanup(`
+    UPDATE admin_users
+    SET
+      role = 'employee',
+      updated_at = NOW()
+    WHERE role IS NULL
+       OR TRIM(role) = ''
+       OR role = CONCAT('view', 'er')
+  `);
+
+  await runOptionalSchemaCleanup(`
+    ALTER TABLE app_settings
+    ALTER COLUMN default_user_role SET DEFAULT 'employee'
+  `);
+
+  await runOptionalSchemaCleanup(`
+    UPDATE app_settings
+    SET
+      default_user_role = 'employee',
+      updated_at = NOW()
+    WHERE default_user_role IS NULL
+       OR TRIM(default_user_role) = ''
+       OR default_user_role = CONCAT('view', 'er')
+  `);
 }
 
 function mapPermissionRow(row: PermissionRow): Permission {
@@ -481,6 +539,8 @@ export async function ensurePermissionTables() {
     ALTER TABLE user_permissions
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   `);
+
+  await normalizeLegacyRoles();
 }
 
 async function normalizeLegacyPermissionAssignments() {
@@ -533,7 +593,8 @@ export async function seedDefaultPermissions() {
           category
         )
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (permission_key) DO UPDATE SET
+        ON CONFLICT (permission_key)
+        DO UPDATE SET
           label = EXCLUDED.label,
           description = EXCLUDED.description,
           category = EXCLUDED.category,
@@ -612,7 +673,8 @@ export async function saveCompanyPermissionKeys(
           permission_key
         )
         VALUES ($1, $2, $3)
-        ON CONFLICT (company_id, permission_key) DO NOTHING
+        ON CONFLICT (company_id, permission_key)
+        DO NOTHING
       `,
       [
         createAssignmentId(["company", companyId, permissionKey]),
@@ -666,7 +728,8 @@ export async function saveDepartmentPermissionKeys(
           permission_key
         )
         VALUES ($1, $2, $3)
-        ON CONFLICT (department_id, permission_key) DO NOTHING
+        ON CONFLICT (department_id, permission_key)
+        DO NOTHING
       `,
       [
         createAssignmentId(["department", departmentId, permissionKey]),
@@ -750,7 +813,8 @@ export async function saveUserPermissions(
           scope_id
         )
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (user_id, permission_key, scope_type, scope_id) DO NOTHING
+        ON CONFLICT (user_id, permission_key, scope_type, scope_id)
+        DO NOTHING
       `,
       [
         createAssignmentId([
@@ -790,7 +854,12 @@ export async function findPermissionUserById(userId: string) {
     [userId],
   );
 
-  return row;
+  return row
+    ? {
+        ...row,
+        role: normalizePermissionUserRole(row.role),
+      }
+    : null;
 }
 
 export async function findActivePermissionUserByEmail(email: string) {
@@ -815,7 +884,12 @@ export async function findActivePermissionUserByEmail(email: string) {
     [email],
   );
 
-  return row;
+  return row
+    ? {
+        ...row,
+        role: normalizePermissionUserRole(row.role),
+      }
+    : null;
 }
 
 export async function getEffectivePermissionKeysForUser(
@@ -824,7 +898,8 @@ export async function getEffectivePermissionKeysForUser(
   await seedDefaultPermissions();
 
   const permissionKeys = new Set<string>();
-  const roleDefaults = rolePermissionDefaults[user.role] || [];
+  const normalizedRole = normalizePermissionUserRole(user.role);
+  const roleDefaults = rolePermissionDefaults[normalizedRole] || [];
 
   roleDefaults.forEach((permissionKey) => permissionKeys.add(permissionKey));
 
@@ -892,10 +967,7 @@ export async function getEffectivePermissionResultForUserId(
   };
 }
 
-export function hasPermissionKey(
-  permissionKeys: string[],
-  permissionKey: string,
-) {
+export function hasPermissionKey(permissionKeys: string[], permissionKey: string) {
   return (
     permissionKeys.includes(ADMIN_PERMISSION_KEY) ||
     permissionKeys.includes(permissionKey)

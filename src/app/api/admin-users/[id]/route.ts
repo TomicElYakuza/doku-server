@@ -50,7 +50,6 @@ function normalizeText(value?: string | null) {
 
 function normalizeNullableId(value?: string | null) {
   const normalized = normalizeText(value);
-
   return normalized || null;
 }
 
@@ -76,20 +75,12 @@ function normalizeRole(value?: string | null, fallback = "employee") {
     return "department_lead";
   }
 
-  if (value === "viewer") {
-    return "viewer";
-  }
-
   if (fallback === "admin") {
     return "admin";
   }
 
   if (fallback === "department_lead") {
     return "department_lead";
-  }
-
-  if (fallback === "viewer") {
-    return "viewer";
   }
 
   return "employee";
@@ -121,7 +112,11 @@ function normalizeStatus(value?: string | null, fallback = "active") {
 
 function mapAdminUserWithLoginRow(row: AdminUserWithLoginRow) {
   return {
-    ...mapAdminUserRow(row),
+    ...mapAdminUserRow({
+      ...row,
+      role: normalizeRole(row.role),
+    }),
+    role: normalizeRole(row.role),
     username: row.username || "",
     passwordMustChange: Boolean(row.password_must_change),
     hasPassword: Boolean(row.password_hash),
@@ -261,6 +256,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { id } = await context.params;
     const decodedId = decodeURIComponent(id);
+
     const row = await findAdminUserById(decodedId);
 
     if (!row) {
@@ -291,10 +287,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        message: getErrorMessage(
-          error,
-          "Benutzer konnte nicht geladen werden.",
-        ),
+        message: getErrorMessage(error, "Benutzer konnte nicht geladen werden."),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
@@ -358,40 +351,32 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const nextName =
       body.name !== undefined ? normalizeText(body.name) : current.name;
-
     const nextEmail =
       body.email !== undefined ? normalizeEmail(body.email) : current.email;
-
     const nextUsername =
       body.username !== undefined
         ? normalizeUsername(body.username)
         : current.username || "";
-
     const nextRole =
       canEditAdministrativeFields && body.role !== undefined
         ? normalizeRole(body.role, current.role)
-        : current.role;
-
+        : normalizeRole(current.role);
     const nextStatus =
       canEditAdministrativeFields && body.status !== undefined
         ? normalizeStatus(body.status, current.status)
         : current.status;
-
     const nextCompanyId =
       canEditAdministrativeFields && body.companyId !== undefined
         ? normalizeNullableId(body.companyId)
         : current.company_id;
-
     const nextDepartmentId =
       canEditAdministrativeFields && body.departmentId !== undefined
         ? normalizeNullableId(body.departmentId)
         : current.department_id;
-
     const nextCompany =
       canEditAdministrativeFields && body.company !== undefined
         ? normalizeText(body.company) || "Intern"
         : current.company || "Intern";
-
     const nextDepartment =
       canEditAdministrativeFields && body.department !== undefined
         ? normalizeText(body.department)
@@ -469,10 +454,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       username: string | null;
     }>(
       `
-        SELECT
-          id,
-          email,
-          username
+        SELECT id, email, username
         FROM admin_users
         WHERE id <> $1
           AND (
@@ -582,10 +564,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        message: getErrorMessage(
-          error,
-          "Benutzer konnte nicht aktualisiert werden.",
-        ),
+        message: getErrorMessage(error, "Benutzer konnte nicht aktualisiert werden."),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {
@@ -669,10 +648,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        message: getErrorMessage(
-          error,
-          "Benutzer konnte nicht gelöscht werden.",
-        ),
+        message: getErrorMessage(error, "Benutzer konnte nicht gelöscht werden."),
         error: error instanceof Error ? error.message : "Unbekannter Fehler",
       },
       {

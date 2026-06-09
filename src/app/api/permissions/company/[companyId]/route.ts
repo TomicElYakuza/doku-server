@@ -19,6 +19,20 @@ type SaveCompanyPermissionsBody = {
   permissionKeys?: string[];
 };
 
+function normalizePermissionKeys(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((permissionKey) => String(permissionKey || "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
     return 403;
@@ -32,20 +46,36 @@ function getErrorMessage(error: unknown, fallback: string) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "settings.manage",
       "admin.view",
     ]);
 
     const { companyId } = await context.params;
-    const permissionKeys = await listCompanyPermissionKeys(
-      decodeURIComponent(companyId),
-    );
+    const decodedCompanyId = decodeURIComponent(companyId);
+
+    if (!decodedCompanyId) {
+      return NextResponse.json(
+        {
+          message: "Firma ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const permissionKeys = await listCompanyPermissionKeys(decodedCompanyId);
 
     return NextResponse.json(permissionKeys);
   } catch (error) {
@@ -68,21 +98,33 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PUT(request: Request, context: RouteContext) {
   try {
-    await requireAnyServerPermission(["users.manage_permissions"]);
+    await requireAnyServerPermission([
+      "users.manage_permissions",
+      "settings.manage",
+    ]);
 
     const { companyId } = await context.params;
-    const body = (await request.json()) as SaveCompanyPermissionsBody;
-    const permissionKeys = Array.isArray(body.permissionKeys)
-      ? body.permissionKeys
-      : [];
+    const decodedCompanyId = decodeURIComponent(companyId);
 
-    await saveCompanyPermissionKeys(
-      decodeURIComponent(companyId),
-      permissionKeys,
-    );
+    if (!decodedCompanyId) {
+      return NextResponse.json(
+        {
+          message: "Firma ist erforderlich.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const body = (await request.json()) as SaveCompanyPermissionsBody;
+    const permissionKeys = normalizePermissionKeys(body.permissionKeys);
+
+    await saveCompanyPermissionKeys(decodedCompanyId, permissionKeys);
 
     return NextResponse.json({
       ok: true,
+      permissionKeys,
     });
   } catch (error) {
     console.error(error);

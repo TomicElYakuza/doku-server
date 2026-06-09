@@ -475,7 +475,7 @@ async function ensureCoreTables() {
       UPDATE admin_users
       SET
         role = CASE
-          WHEN role IN ('admin', 'department_lead', 'employee', 'viewer') THEN role
+          WHEN role IN ('admin', 'department_lead', 'employee') THEN role
           ELSE 'employee'
         END,
         department = CASE

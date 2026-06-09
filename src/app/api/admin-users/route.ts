@@ -42,7 +42,6 @@ function normalizeText(value?: string | null) {
 
 function normalizeNullableId(value?: string | null) {
   const normalized = normalizeText(value);
-
   return normalized || null;
 }
 
@@ -68,10 +67,6 @@ function normalizeRole(value?: string | null) {
     return "department_lead";
   }
 
-  if (value === "viewer") {
-    return "viewer";
-  }
-
   return "employee";
 }
 
@@ -89,7 +84,11 @@ function normalizeStatus(value?: string | null) {
 
 function mapAdminUserWithLoginRow(row: AdminUserWithLoginRow) {
   return {
-    ...mapAdminUserRow(row),
+    ...mapAdminUserRow({
+      ...row,
+      role: normalizeRole(row.role),
+    }),
+    role: normalizeRole(row.role),
     username: row.username || "",
     passwordMustChange: Boolean(row.password_must_change),
     hasPassword: Boolean(row.password_hash),
@@ -198,7 +197,7 @@ export async function GET(request: Request) {
     }
 
     if (role) {
-      params.push(role);
+      params.push(normalizeRole(role));
       whereParts.push(`role = $${params.length}`);
     }
 
@@ -383,13 +382,10 @@ export async function POST(request: Request) {
       username: string | null;
     }>(
       `
-        SELECT
-          id,
-          email,
-          username
+        SELECT id, email, username
         FROM admin_users
         WHERE LOWER(email) = LOWER($1)
-          OR LOWER(username) = LOWER($2)
+           OR LOWER(username) = LOWER($2)
         LIMIT 1
       `,
       [email, username],
@@ -435,8 +431,16 @@ export async function POST(request: Request) {
           department
         )
         VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9, $10,
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
           $11
         )
         RETURNING

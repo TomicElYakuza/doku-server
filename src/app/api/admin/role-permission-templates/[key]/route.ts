@@ -1,19 +1,12 @@
-﻿import {
-  NextResponse,
-} from "next/server";
-import {
-  queryOne,
-} from "../../../../../lib/database/db";
-import {
-  mapRolePermissionTemplateRow,
-} from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
+﻿import { NextResponse } from "next/server";
+
+import { queryOne } from "../../../../../lib/database/db";
+import { mapRolePermissionTemplateRow } from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
 import {
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../../lib/serverPermissions";
-import type {
-  RolePermissionTemplateRow,
-} from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
+import type { RolePermissionTemplateRow } from "../../../../../lib/database/mappers/rolePermissionTemplateMapper";
 
 type RouteContext = {
   params: Promise<{
@@ -31,14 +24,81 @@ type UpdateTemplateBody = {
   sortOrder?: number;
 };
 
+const legacyPermissionPairs = [
+  ["news", "manage", "news", "edit"],
+  ["wiki", "manage", "wiki", "edit"],
+  ["tickets", "manage", "tickets", "edit"],
+  ["tickets.templates", "manage", "tickets.templates", "edit"],
+  ["files", "manage", "files", "upload"],
+  ["activity", "manage", "activity", "view"],
+];
+
+const validPermissionKeys = new Set([
+  "*",
+  "dashboard.view",
+  "admin.view",
+  "settings.view",
+  "settings.manage",
+  "users.view",
+  "users.create",
+  "users.edit",
+  "users.delete",
+  "users.manage",
+  "users.manage_permissions",
+  "organization.view",
+  "organization.manage",
+  "companies.manage",
+  "departments.manage",
+  "taxonomy.manage",
+  "wiki.view",
+  "wiki.create",
+  "wiki.edit",
+  "wiki.delete",
+  "tickets.view",
+  "tickets.create",
+  "tickets.edit",
+  "tickets.assign",
+  "tickets.close",
+  "tickets.delete",
+  "tickets.templates.view",
+  "tickets.templates.create",
+  "tickets.templates.edit",
+  "tickets.templates.delete",
+  "files.view",
+  "files.upload",
+  "files.delete",
+  "news.view",
+  "news.create",
+  "news.edit",
+  "news.delete",
+  "activity.view",
+]);
+
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
 }
 
-function normalizeSortOrder(
-  value: unknown,
-  fallback: number,
-) {
+function normalizeRole(value?: string | null, fallback = "employee") {
+  if (value === "admin") {
+    return "admin";
+  }
+
+  if (value === "department_lead") {
+    return "department_lead";
+  }
+
+  if (value === "employee") {
+    return "employee";
+  }
+
+  if (fallback === "admin" || fallback === "department_lead") {
+    return fallback;
+  }
+
+  return "employee";
+}
+
+function normalizeSortOrder(value: unknown, fallback: number) {
   const numberValue = Number(value);
 
   if (!Number.isFinite(numberValue)) {
@@ -48,17 +108,42 @@ function normalizeSortOrder(
   return Math.floor(numberValue);
 }
 
+function getLegacyPermissionKey(fromNamespace: string, fromAction: string) {
+  return [fromNamespace, fromAction].join(".");
+}
+
+function getNextPermissionKey(toNamespace: string, toAction: string) {
+  return [toNamespace, toAction].join(".");
+}
+
+function mapLegacyPermissionKey(permissionKey: string) {
+  for (const [fromNamespace, fromAction, toNamespace, toAction] of legacyPermissionPairs) {
+    if (permissionKey === getLegacyPermissionKey(fromNamespace, fromAction)) {
+      return getNextPermissionKey(toNamespace, toAction);
+    }
+  }
+
+  return permissionKey;
+}
+
+function normalizePermissionKey(value: unknown) {
+  const permissionKey = normalizeText(String(value || ""));
+  const mappedPermissionKey = mapLegacyPermissionKey(permissionKey);
+
+  if (!validPermissionKeys.has(mappedPermissionKey)) {
+    return "";
+  }
+
+  return mappedPermissionKey;
+}
+
 function normalizePermissionKeys(permissionKeys?: string[]) {
   if (!Array.isArray(permissionKeys)) {
     return [];
   }
 
   return Array.from(
-    new Set(
-      permissionKeys
-        .map((permissionKey) => String(permissionKey).trim())
-        .filter(Boolean),
-    ),
+    new Set(permissionKeys.map(normalizePermissionKey).filter(Boolean)),
   );
 }
 
@@ -70,10 +155,7 @@ function getErrorStatus(error: unknown) {
   return 500;
 }
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-) {
+function getErrorMessage(error: unknown, fallback: string) {
   if (isPermissionError(error)) {
     return "Keine Berechtigung.";
   }
@@ -81,42 +163,40 @@ function getErrorMessage(
   return error instanceof Error ? error.message : fallback;
 }
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-) {
+async function findTemplate(templateKey: string) {
+  return queryOne<RolePermissionTemplateRow>(
+    `
+      SELECT
+        template_key,
+        name,
+        description,
+        role_key,
+        permission_keys,
+        is_default,
+        is_active,
+        sort_order,
+        created_at,
+        updated_at
+      FROM role_permission_templates
+      WHERE template_key = $1
+      LIMIT 1
+    `,
+    [templateKey],
+  );
+}
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "settings.manage",
       "users.manage_permissions",
+      "admin.view",
     ]);
 
-    const {
-      key,
-    } = await context.params;
-
+    const { key } = await context.params;
     const templateKey = decodeURIComponent(key);
 
-    const row = await queryOne<RolePermissionTemplateRow>(
-      `
-        SELECT
-          template_key,
-          name,
-          description,
-          role_key,
-          permission_keys,
-          is_default,
-          is_active,
-          sort_order,
-          created_at,
-          updated_at
-        FROM role_permission_templates
-        WHERE template_key = $1
-      `,
-      [
-        templateKey,
-      ],
-    );
+    const row = await findTemplate(templateKey);
 
     if (!row) {
       return NextResponse.json(
@@ -129,9 +209,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      mapRolePermissionTemplateRow(row),
-    );
+    return NextResponse.json(mapRolePermissionTemplateRow(row));
   } catch (error) {
     console.error(error);
 
@@ -150,43 +228,18 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "settings.manage",
       "users.manage_permissions",
     ]);
 
-    const {
-      key,
-    } = await context.params;
-
+    const { key } = await context.params;
     const templateKey = decodeURIComponent(key);
-    const body = await request.json() as UpdateTemplateBody;
+    const body = (await request.json()) as UpdateTemplateBody;
 
-    const current = await queryOne<RolePermissionTemplateRow>(
-      `
-        SELECT
-          template_key,
-          name,
-          description,
-          role_key,
-          permission_keys,
-          is_default,
-          is_active,
-          sort_order,
-          created_at,
-          updated_at
-        FROM role_permission_templates
-        WHERE template_key = $1
-      `,
-      [
-        templateKey,
-      ],
-    );
+    const current = await findTemplate(templateKey);
 
     if (!current) {
       return NextResponse.json(
@@ -199,9 +252,8 @@ export async function PATCH(
       );
     }
 
-    const nextName = body.name !== undefined
-      ? normalizeText(body.name)
-      : current.name;
+    const nextName =
+      body.name !== undefined ? normalizeText(body.name) : current.name;
 
     if (!nextName) {
       return NextResponse.json(
@@ -213,6 +265,31 @@ export async function PATCH(
         },
       );
     }
+
+    const nextDescription =
+      body.description !== undefined
+        ? normalizeText(body.description)
+        : current.description;
+
+    const nextRoleKey =
+      body.roleKey !== undefined
+        ? normalizeRole(body.roleKey, current.role_key)
+        : normalizeRole(current.role_key);
+
+    const nextPermissionKeys = Array.isArray(body.permissionKeys)
+      ? normalizePermissionKeys(body.permissionKeys)
+      : normalizePermissionKeys(current.permission_keys || []);
+
+    const nextIsDefault =
+      typeof body.isDefault === "boolean" ? body.isDefault : current.is_default;
+
+    const nextIsActive =
+      typeof body.isActive === "boolean" ? body.isActive : current.is_active;
+
+    const nextSortOrder =
+      body.sortOrder !== undefined
+        ? normalizeSortOrder(body.sortOrder, current.sort_order)
+        : current.sort_order;
 
     const row = await queryOne<RolePermissionTemplateRow>(
       `
@@ -241,24 +318,12 @@ export async function PATCH(
       `,
       [
         nextName,
-        body.description !== undefined
-          ? normalizeText(body.description)
-          : current.description,
-        body.roleKey !== undefined
-          ? normalizeText(body.roleKey) || "employee"
-          : current.role_key,
-        Array.isArray(body.permissionKeys)
-          ? normalizePermissionKeys(body.permissionKeys)
-          : current.permission_keys || [],
-        typeof body.isDefault === "boolean"
-          ? body.isDefault
-          : current.is_default,
-        typeof body.isActive === "boolean"
-          ? body.isActive
-          : current.is_active,
-        body.sortOrder !== undefined
-          ? normalizeSortOrder(body.sortOrder, current.sort_order)
-          : current.sort_order,
+        nextDescription,
+        nextRoleKey,
+        nextPermissionKeys,
+        nextIsDefault,
+        nextIsActive,
+        nextSortOrder,
         templateKey,
       ],
     );
@@ -274,9 +339,7 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json(
-      mapRolePermissionTemplateRow(row),
-    );
+    return NextResponse.json(mapRolePermissionTemplateRow(row));
   } catch (error) {
     console.error(error);
 
@@ -295,30 +358,35 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
     await requireAnyServerPermission([
       "settings.manage",
       "users.manage_permissions",
     ]);
 
-    const {
-      key,
-    } = await context.params;
+    const { key } = await context.params;
+    const templateKey = decodeURIComponent(key);
 
-    await queryOne(
+    const deleted = await queryOne<{ template_key: string }>(
       `
         DELETE FROM role_permission_templates
         WHERE template_key = $1
         RETURNING template_key
       `,
-      [
-        decodeURIComponent(key),
-      ],
+      [templateKey],
     );
+
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          message: "Rollen-Vorlage nicht gefunden.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
 
     return NextResponse.json({
       ok: true,

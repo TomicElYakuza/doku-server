@@ -1,11 +1,6 @@
 ﻿"use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import AppModal from "../../../components/AppModal";
@@ -13,25 +8,17 @@ import EmptyState from "../../../components/EmptyState";
 import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
 import StatCard from "../../../components/StatCard";
-import {
-  canViewAdmin,
-} from "../../../lib/permissions";
-import {
-  rolePermissionTemplateRepository,
-} from "../../../lib/rolePermissionTemplateRepository";
-import type {
-  RolePermissionTemplate,
-} from "../../../types/rolePermissionTemplate";
-import type {
-  UserRole,
-} from "../../../types/user";
+import { canViewAdmin } from "../../../lib/permissions";
+import { rolePermissionTemplateRepository } from "../../../lib/rolePermissionTemplateRepository";
+import type { RolePermissionTemplate } from "../../../types/rolePermissionTemplate";
+import type { UserRole } from "../../../types/user";
 
 type TemplateForm = {
   key: string;
   name: string;
   description: string;
   roleKey: UserRole | string;
-  permissionKeysText: string;
+  permissionKeys: string[];
   isDefault: boolean;
   isActive: boolean;
   sortOrder: number;
@@ -44,16 +31,16 @@ const emptyForm: TemplateForm = {
   name: "",
   description: "",
   roleKey: "employee",
-  permissionKeysText: "",
+  permissionKeys: [],
   isDefault: false,
   isActive: true,
   sortOrder: 0,
 };
 
-const roleOptions: {
+const roleOptions: Array<{
   value: UserRole | string;
   label: string;
-}[] = [
+}> = [
   {
     value: "employee",
     label: "Mitarbeiter",
@@ -68,46 +55,106 @@ const roleOptions: {
   },
 ];
 
-const commonPermissions = [
-  "dashboard.view",
-  "news.view",
-  "news.edit",
-  "wiki.view",
-  "wiki.edit",
-  "tickets.view",
-  "tickets.create",
-  "tickets.edit",
-  "tickets.templates.view",
-  "tickets.templates.edit",
-  "files.view",
-  "files.upload",
-  "settings.manage",
-  "organization.manage",
-  "users.manage",
-  "users.manage_permissions",
-  "admin.view",
+const permissionGroups: Array<{
+  title: string;
+  description: string;
+  permissions: string[];
+}> = [
+  {
+    title: "System",
+    description: "Dashboard, Admin-Bereich und Systemeinstellungen",
+    permissions: [
+      "dashboard.view",
+      "admin.view",
+      "settings.view",
+      "settings.manage",
+      "activity.view",
+    ],
+  },
+  {
+    title: "Benutzer",
+    description: "Benutzerverwaltung und Berechtigungen",
+    permissions: [
+      "users.view",
+      "users.create",
+      "users.edit",
+      "users.delete",
+      "users.manage",
+      "users.manage_permissions",
+    ],
+  },
+  {
+    title: "Organisation",
+    description: "Firmen, Abteilungen und Organisationsrechte",
+    permissions: [
+      "organization.view",
+      "organization.manage",
+      "companies.manage",
+      "departments.manage",
+      "taxonomy.manage",
+    ],
+  },
+  {
+    title: "Wiki",
+    description: "Wiki lesen, erstellen, bearbeiten und löschen",
+    permissions: ["wiki.view", "wiki.create", "wiki.edit", "wiki.delete"],
+  },
+  {
+    title: "Tickets",
+    description: "Tickets lesen, erstellen, bearbeiten und abschließen",
+    permissions: [
+      "tickets.view",
+      "tickets.create",
+      "tickets.edit",
+      "tickets.assign",
+      "tickets.close",
+      "tickets.delete",
+    ],
+  },
+  {
+    title: "Ticket-Vorlagen",
+    description: "Ticket-Vorlagen lesen und verwalten",
+    permissions: [
+      "tickets.templates.view",
+      "tickets.templates.create",
+      "tickets.templates.edit",
+      "tickets.templates.delete",
+    ],
+  },
+  {
+    title: "Dateien",
+    description: "Dateien anzeigen, hochladen und löschen",
+    permissions: ["files.view", "files.upload", "files.delete"],
+  },
+  {
+    title: "News",
+    description: "News lesen, erstellen, bearbeiten und löschen",
+    permissions: ["news.view", "news.create", "news.edit", "news.delete"],
+  },
 ];
 
+const allPermissionKeys = permissionGroups.flatMap((group) => group.permissions);
+
 function getRoleLabel(role: string) {
-  return (
-    roleOptions.find((option) => option.value === role)?.label ||
-    role
-  );
+  return roleOptions.find((option) => option.value === role)?.label || role;
 }
 
-function normalizePermissionKeys(text: string) {
+function normalizeRoleKey(roleKey: string) {
+  if (roleKey === "admin" || roleKey === "department_lead") {
+    return roleKey;
+  }
+
+  return "employee";
+}
+
+function normalizePermissionKeys(permissionKeys: string[]) {
   return Array.from(
     new Set(
-      text
-        .split(/[\n,]/)
-        .map((permission) => permission.trim())
-        .filter(Boolean),
+      permissionKeys
+        .map((permissionKey) => permissionKey.trim())
+        .filter((permissionKey) => allPermissionKeys.includes(permissionKey)),
     ),
   );
-}
-
-function permissionKeysToText(permissionKeys: string[]) {
-  return permissionKeys.join("\n");
 }
 
 function getStatusClass(active: boolean) {
@@ -131,8 +178,8 @@ function normalizeForm(template: RolePermissionTemplate): TemplateForm {
     key: template.key,
     name: template.name,
     description: template.description,
-    roleKey: template.roleKey || "employee",
-    permissionKeysText: permissionKeysToText(template.permissionKeys),
+    roleKey: normalizeRoleKey(String(template.roleKey || "employee")),
+    permissionKeys: normalizePermissionKeys(template.permissionKeys || []),
     isDefault: template.isDefault,
     isActive: template.isActive,
     sortOrder: template.sortOrder || 0,
@@ -140,9 +187,7 @@ function normalizeForm(template: RolePermissionTemplate): TemplateForm {
 }
 
 function sortTemplates(templates: RolePermissionTemplate[]) {
-  return [
-    ...templates,
-  ].sort((first, second) => {
+  return [...templates].sort((first, second) => {
     const sortCompare =
       Number(first.sortOrder || 0) - Number(second.sortOrder || 0);
 
@@ -196,17 +241,13 @@ export default function AdminRoleTemplatesPage() {
       setLoading(true);
       setError("");
 
-      const nextTemplates =
-        await rolePermissionTemplateRepository.list();
+      const nextTemplates = await rolePermissionTemplateRepository.list();
 
       setTemplates(
-        sortTemplates(
-          Array.isArray(nextTemplates) ? nextTemplates : [],
-        ),
+        sortTemplates(Array.isArray(nextTemplates) ? nextTemplates : []),
       );
     } catch (loadError) {
       console.error(loadError);
-
       setError(
         loadError instanceof Error
           ? loadError.message
@@ -233,9 +274,8 @@ export default function AdminRoleTemplatesPage() {
       ...emptyForm,
       sortOrder:
         templates.length > 0
-          ? Math.max(
-              ...templates.map((template) => template.sortOrder || 0),
-            ) + 10
+          ? Math.max(...templates.map((template) => template.sortOrder || 0)) +
+            10
           : 10,
     });
     setModalOpen(true);
@@ -260,51 +300,66 @@ export default function AdminRoleTemplatesPage() {
     setDefaultFilter("");
   }
 
-  function addPermissionToForm(permission: string) {
-    const currentPermissions = normalizePermissionKeys(
-      form.permissionKeysText,
-    );
+  function togglePermission(permissionKey: string) {
+    setForm((current) => {
+      const currentPermissions = normalizePermissionKeys(current.permissionKeys);
 
-    if (currentPermissions.includes(permission)) {
-      updateForm(
-        "permissionKeysText",
-        permissionKeysToText(
-          currentPermissions.filter(
-            (currentPermission) => currentPermission !== permission,
+      if (currentPermissions.includes(permissionKey)) {
+        return {
+          ...current,
+          permissionKeys: currentPermissions.filter(
+            (currentPermission) => currentPermission !== permissionKey,
           ),
-        ),
-      );
+        };
+      }
 
-      return;
-    }
+      return {
+        ...current,
+        permissionKeys: normalizePermissionKeys([
+          ...currentPermissions,
+          permissionKey,
+        ]),
+      };
+    });
+  }
 
-    updateForm(
-      "permissionKeysText",
-      permissionKeysToText([
-        ...currentPermissions,
-        permission,
+  function selectPermissionGroup(permissionKeys: string[]) {
+    setForm((current) => ({
+      ...current,
+      permissionKeys: normalizePermissionKeys([
+        ...current.permissionKeys,
+        ...permissionKeys,
       ]),
-    );
+    }));
+  }
+
+  function clearPermissionGroup(permissionKeys: string[]) {
+    setForm((current) => ({
+      ...current,
+      permissionKeys: current.permissionKeys.filter(
+        (permissionKey) => !permissionKeys.includes(permissionKey),
+      ),
+    }));
   }
 
   const selectedPermissions = useMemo(
-    () => normalizePermissionKeys(form.permissionKeysText),
-    [
-      form.permissionKeysText,
-    ],
+    () => normalizePermissionKeys(form.permissionKeys),
+    [form.permissionKeys],
   );
 
   const filteredTemplates = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return templates.filter((template) => {
+      const normalizedRoleKey = normalizeRoleKey(String(template.roleKey));
+
       const matchesSearch =
         !query ||
         [
           template.key,
           template.name,
           template.description,
-          template.roleKey,
+          normalizedRoleKey,
           template.permissionKeys.join(" "),
         ]
           .filter(Boolean)
@@ -312,78 +367,47 @@ export default function AdminRoleTemplatesPage() {
           .toLowerCase()
           .includes(query);
 
-      const matchesRole =
-        !roleFilter ||
-        template.roleKey === roleFilter;
+      const matchesRole = !roleFilter || normalizedRoleKey === roleFilter;
 
       const matchesStatus =
         !statusFilter ||
-        (
-          statusFilter === "active" &&
-          template.isActive
-        ) ||
-        (
-          statusFilter === "inactive" &&
-          !template.isActive
-        );
+        (statusFilter === "active" && template.isActive) ||
+        (statusFilter === "inactive" && !template.isActive);
 
       const matchesDefault =
         !defaultFilter ||
-        (
-          defaultFilter === "default" &&
-          template.isDefault
-        ) ||
-        (
-          defaultFilter === "custom" &&
-          !template.isDefault
-        );
+        (defaultFilter === "default" && template.isDefault) ||
+        (defaultFilter === "custom" && !template.isDefault);
 
-      return (
-        matchesSearch &&
-        matchesRole &&
-        matchesStatus &&
-        matchesDefault
-      );
+      return matchesSearch && matchesRole && matchesStatus && matchesDefault;
     });
-  }, [
-    templates,
-    search,
-    roleFilter,
-    statusFilter,
-    defaultFilter,
-  ]);
+  }, [templates, search, roleFilter, statusFilter, defaultFilter]);
 
   const activeCount = useMemo(
     () => templates.filter((template) => template.isActive).length,
-    [
-      templates,
-    ],
+    [templates],
   );
 
   const inactiveCount = useMemo(
     () => templates.filter((template) => !template.isActive).length,
-    [
-      templates,
-    ],
+    [templates],
   );
 
   const defaultCount = useMemo(
     () => templates.filter((template) => template.isDefault).length,
-    [
-      templates,
-    ],
+    [templates],
   );
 
   const permissionCount = useMemo(
     () =>
       Array.from(
         new Set(
-          templates.flatMap((template) => template.permissionKeys),
+          templates.flatMap((template) =>
+            normalizePermissionKeys(template.permissionKeys || []),
+          ),
         ),
       ).length,
-    [
-      templates,
-    ],
+    [templates],
   );
 
   async function handleSubmit(event: FormEvent) {
@@ -399,9 +423,7 @@ export default function AdminRoleTemplatesPage() {
       return;
     }
 
-    const permissionKeys = normalizePermissionKeys(
-      form.permissionKeysText,
-    );
+    const permissionKeys = normalizePermissionKeys(form.permissionKeys);
 
     try {
       setSaving(true);
@@ -409,26 +431,23 @@ export default function AdminRoleTemplatesPage() {
       setError("");
 
       if (editingKey) {
-        const updatedTemplate =
-          await rolePermissionTemplateRepository.update(
-            editingKey,
-            {
-              name: form.name.trim(),
-              description: form.description.trim(),
-              roleKey: form.roleKey,
-              permissionKeys,
-              isDefault: form.isDefault,
-              isActive: form.isActive,
-              sortOrder: Number(form.sortOrder || 0),
-            },
-          );
+        const updatedTemplate = await rolePermissionTemplateRepository.update(
+          editingKey,
+          {
+            name: form.name.trim(),
+            description: form.description.trim(),
+            roleKey: normalizeRoleKey(String(form.roleKey)),
+            permissionKeys,
+            isDefault: form.isDefault,
+            isActive: form.isActive,
+            sortOrder: Number(form.sortOrder || 0),
+          },
+        );
 
         setTemplates((current) =>
           sortTemplates(
             current.map((template) =>
-              template.key === updatedTemplate.key
-                ? updatedTemplate
-                : template,
+              template.key === updatedTemplate.key ? updatedTemplate : template,
             ),
           ),
         );
@@ -438,30 +457,22 @@ export default function AdminRoleTemplatesPage() {
         return;
       }
 
-      const createdTemplate =
-        await rolePermissionTemplateRepository.create({
-          key: form.key.trim(),
-          name: form.name.trim(),
-          description: form.description.trim(),
-          roleKey: form.roleKey,
-          permissionKeys,
-          isDefault: form.isDefault,
-          isActive: form.isActive,
-          sortOrder: Number(form.sortOrder || 0),
-        });
+      const createdTemplate = await rolePermissionTemplateRepository.create({
+        key: form.key.trim(),
+        name: form.name.trim(),
+        description: form.description.trim(),
+        roleKey: normalizeRoleKey(String(form.roleKey)),
+        permissionKeys,
+        isDefault: form.isDefault,
+        isActive: form.isActive,
+        sortOrder: Number(form.sortOrder || 0),
+      });
 
-      setTemplates((current) =>
-        sortTemplates([
-          ...current,
-          createdTemplate,
-        ]),
-      );
-
+      setTemplates((current) => sortTemplates([...current, createdTemplate]));
       closeModal();
       setMessage("Rollen-Vorlage wurde erstellt.");
     } catch (saveError) {
       console.error(saveError);
-
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -477,20 +488,17 @@ export default function AdminRoleTemplatesPage() {
       setMessage("");
       setError("");
 
-      const updatedTemplate =
-        await rolePermissionTemplateRepository.update(
-          template.key,
-          {
-            isActive: !template.isActive,
-          },
-        );
+      const updatedTemplate = await rolePermissionTemplateRepository.update(
+        template.key,
+        {
+          isActive: !template.isActive,
+        },
+      );
 
       setTemplates((current) =>
         sortTemplates(
           current.map((item) =>
-            item.key === updatedTemplate.key
-              ? updatedTemplate
-              : item,
+            item.key === updatedTemplate.key ? updatedTemplate : item,
           ),
         ),
       );
@@ -502,7 +510,6 @@ export default function AdminRoleTemplatesPage() {
       );
     } catch (toggleError) {
       console.error(toggleError);
-
       setError(
         toggleError instanceof Error
           ? toggleError.message
@@ -533,7 +540,6 @@ export default function AdminRoleTemplatesPage() {
       setMessage("Rollen-Vorlage wurde gelöscht.");
     } catch (deleteError) {
       console.error(deleteError);
-
       setError(
         deleteError instanceof Error
           ? deleteError.message
@@ -547,40 +553,30 @@ export default function AdminRoleTemplatesPage() {
   }
 
   if (!canViewAdmin()) {
-    return (
-      <AccessDeniedCard
-        title="Rollen-Vorlagen nicht verfügbar"
-        description="Du hast keine Berechtigung, Rollen-Vorlagen zu sehen."
-        backHref="/admin"
-        backLabel="Zurück zum Admin Dashboard"
-      />
-    );
+    return <AccessDeniedCard />;
   }
 
   return (
     <div className="space-y-8">
       <AppModal
         open={modalOpen}
+        title={editingKey ? "Rollen-Vorlage bearbeiten" : "Rollen-Vorlage erstellen"}
+        description="Definiere Rolle, Status und Berechtigungen für diese Vorlage."
         onClose={closeModal}
-        title={editingKey ? "Vorlage bearbeiten" : "Vorlage erstellen"}
-        description="Rollen-Vorlagen definieren Standardrechte, die später auf Benutzer angewendet werden können."
-        size="2xl"
         footer={
           <>
             <button
               type="button"
               onClick={closeModal}
-              disabled={saving}
-              className="bg-zinc-100 text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-200 transition disabled:opacity-50 font-bold"
+              className="bg-zinc-100 hover:bg-zinc-200 px-5 py-3 rounded-2xl transition font-bold"
             >
               Abbrechen
             </button>
-
             <button
               type="submit"
               form="role-template-form"
               disabled={saving}
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition disabled:opacity-50 font-bold app-brand-shadow"
+              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow disabled:opacity-60"
             >
               {saving
                 ? "Speichert..."
@@ -597,92 +593,70 @@ export default function AdminRoleTemplatesPage() {
           className="space-y-8"
         >
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-            <h3 className="text-xl font-black">
-              Vorlage
-            </h3>
-
+            <h3 className="text-xl font-black">Vorlage</h3>
             <p className="text-zinc-500 mt-1">
               Name, Key, Rolle und Sortierung für diese Rechtevorlage.
             </p>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-5">
-              <div>
-                <label className="block mb-2 font-bold">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+              <label className="space-y-2">
+                <span className="text-sm font-bold text-zinc-600">
                   Template-Key
-                </label>
-
+                </span>
                 <input
                   value={form.key}
-                  onChange={(event) =>
-                    updateForm("key", event.target.value)
-                  }
+                  onChange={(event) => updateForm("key", event.target.value)}
                   disabled={Boolean(editingKey)}
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus disabled:bg-zinc-100 disabled:text-zinc-400"
                   placeholder="z. B. employee-default"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
-                  Name
-                </label>
-
+              <label className="space-y-2">
+                <span className="text-sm font-bold text-zinc-600">Name</span>
                 <input
                   value={form.name}
-                  onChange={(event) =>
-                    updateForm("name", event.target.value)
-                  }
+                  onChange={(event) => updateForm("name", event.target.value)}
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                   placeholder="Mitarbeiter Standard"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
-                  Rolle
-                </label>
-
+              <label className="space-y-2">
+                <span className="text-sm font-bold text-zinc-600">Rolle</span>
                 <select
                   value={form.roleKey}
                   onChange={(event) =>
-                    updateForm("roleKey", event.target.value)
+                    updateForm("roleKey", normalizeRoleKey(event.target.value))
                   }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
                 >
                   {roleOptions.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                    >
+                    <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label className="block mb-2 font-bold">
+              <label className="space-y-2">
+                <span className="text-sm font-bold text-zinc-600">
                   Sortierung
-                </label>
-
+                </span>
                 <input
                   type="number"
                   value={form.sortOrder}
                   onChange={(event) =>
-                    updateForm(
-                      "sortOrder",
-                      Number(event.target.value || 0),
-                    )
+                    updateForm("sortOrder", Number(event.target.value || 0))
                   }
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus"
                 />
-              </div>
+              </label>
 
-              <div className="xl:col-span-2">
-                <label className="block mb-2 font-bold">
+              <label className="md:col-span-2 space-y-2">
+                <span className="text-sm font-bold text-zinc-600">
                   Beschreibung
-                </label>
-
+                </span>
                 <textarea
                   value={form.description}
                   onChange={(event) =>
@@ -692,14 +666,12 @@ export default function AdminRoleTemplatesPage() {
                   className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-none"
                   placeholder="Beschreibung der Vorlage..."
                 />
-              </div>
+              </label>
             </div>
           </section>
 
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
-            <h3 className="text-xl font-black">
-              Status & Standard
-            </h3>
+            <h3 className="text-xl font-black">Status & Standard</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
               <label className="flex items-start gap-3 bg-white border border-zinc-200 rounded-3xl p-5">
@@ -711,11 +683,8 @@ export default function AdminRoleTemplatesPage() {
                   }
                   className="h-5 w-5 mt-1 accent-indigo-600"
                 />
-
                 <span>
-                  <span className="block font-black">
-                    Standard-Vorlage
-                  </span>
+                  <span className="block font-black">Standard-Vorlage</span>
                   <span className="block text-sm text-zinc-500 mt-1">
                     Diese Vorlage dient als Default für die Rolle.
                   </span>
@@ -731,11 +700,8 @@ export default function AdminRoleTemplatesPage() {
                   }
                   className="h-5 w-5 mt-1 accent-indigo-600"
                 />
-
                 <span>
-                  <span className="block font-black">
-                    Aktiv
-                  </span>
+                  <span className="block font-black">Aktiv</span>
                   <span className="block text-sm text-zinc-500 mt-1">
                     Nur aktive Vorlagen werden später verwendet.
                   </span>
@@ -747,57 +713,84 @@ export default function AdminRoleTemplatesPage() {
           <section className="bg-zinc-50 border border-zinc-100 rounded-3xl p-5">
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
               <div>
-                <h3 className="text-xl font-black">
-                  Berechtigungen
-                </h3>
-
+                <h3 className="text-xl font-black">Berechtigungen auswählen</h3>
                 <p className="text-zinc-500 mt-1">
-                  Eine Berechtigung pro Zeile oder kommagetrennt eintragen.
+                  Rechte können nur über die vordefinierte Liste ausgewählt
+                  werden.
                 </p>
               </div>
-
               <span className="rounded-full app-accent-soft app-accent-text px-4 py-2 text-sm font-bold">
                 {selectedPermissions.length} Rechte
               </span>
             </div>
 
-            <div className="mt-5">
-              <textarea
-                value={form.permissionKeysText}
-                onChange={(event) =>
-                  updateForm("permissionKeysText", event.target.value)
-                }
-                rows={8}
-                className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus resize-y font-mono text-sm"
-                placeholder="Eine Berechtigung pro Zeile..."
-              />
-            </div>
+            <div className="space-y-5 mt-5">
+              {permissionGroups.map((group) => {
+                const selectedInGroup = group.permissions.filter((permission) =>
+                  selectedPermissions.includes(permission),
+                );
+                const groupComplete =
+                  selectedInGroup.length === group.permissions.length;
 
-            <div className="mt-5">
-              <h4 className="font-black">
-                Schnell-Auswahl
-              </h4>
+                return (
+                  <div
+                    key={group.title}
+                    className="bg-white border border-zinc-200 rounded-3xl p-5"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                      <div>
+                        <h4 className="font-black">{group.title}</h4>
+                        <p className="text-sm text-zinc-500 mt-1">
+                          {group.description}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-2">
+                          {selectedInGroup.length} von {group.permissions.length} aktiv
+                        </p>
+                      </div>
 
-              <div className="flex flex-wrap gap-2 mt-3">
-                {commonPermissions.map((permission) => {
-                  const active = selectedPermissions.includes(permission);
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectPermissionGroup(group.permissions)}
+                          disabled={groupComplete}
+                          className="bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 px-3 py-2 rounded-xl transition text-xs font-bold"
+                        >
+                          Gruppe auswählen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => clearPermissionGroup(group.permissions)}
+                          disabled={selectedInGroup.length === 0}
+                          className="bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 px-3 py-2 rounded-xl transition text-xs font-bold"
+                        >
+                          Gruppe entfernen
+                        </button>
+                      </div>
+                    </div>
 
-                  return (
-                    <button
-                      key={permission}
-                      type="button"
-                      onClick={() => addPermissionToForm(permission)}
-                      className={`text-xs px-3 py-2 rounded-xl border transition font-bold ${
-                        active
-                          ? "app-accent-bg text-white border-transparent app-brand-shadow"
-                          : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
-                      }`}
-                    >
-                      {permission}
-                    </button>
-                  );
-                })}
-              </div>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {group.permissions.map((permission) => {
+                        const active = selectedPermissions.includes(permission);
+
+                        return (
+                          <button
+                            key={permission}
+                            type="button"
+                            onClick={() => togglePermission(permission)}
+                            className={`text-xs px-3 py-2 rounded-xl border transition font-bold ${
+                              active
+                                ? "app-accent-bg text-white border-transparent app-brand-shadow"
+                                : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                            }`}
+                          >
+                            {permission}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         </form>
@@ -830,7 +823,6 @@ export default function AdminRoleTemplatesPage() {
             >
               Aktualisieren
             </button>
-
             <button
               type="button"
               onClick={openCreateModal}
@@ -851,9 +843,7 @@ export default function AdminRoleTemplatesPage() {
 
       {message && (
         <section className="bg-green-50 border border-green-100 rounded-3xl p-6 shadow-sm">
-          <p className="text-green-700 font-bold">
-            {message}
-          </p>
+          <p className="text-green-700 font-bold">{message}</p>
         </section>
       )}
 
@@ -879,11 +869,10 @@ export default function AdminRoleTemplatesPage() {
           label="Vorlagen"
           value={templates.length}
           description="Alle Rollen-Vorlagen"
-          icon="🧾"
+          icon="📋"
           active={!roleFilter && !statusFilter && !defaultFilter}
           onClick={resetFilters}
         />
-
         <StatCard
           label="Aktiv"
           value={activeCount}
@@ -893,7 +882,6 @@ export default function AdminRoleTemplatesPage() {
           active={statusFilter === "active"}
           onClick={() => setStatusFilter("active")}
         />
-
         <StatCard
           label="Standard"
           value={defaultCount}
@@ -903,7 +891,6 @@ export default function AdminRoleTemplatesPage() {
           active={defaultFilter === "default"}
           onClick={() => setDefaultFilter("default")}
         />
-
         <StatCard
           label="Rechte"
           value={permissionCount}
@@ -919,12 +906,10 @@ export default function AdminRoleTemplatesPage() {
         <div className="relative">
           <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
             <div>
-              <h2 className="text-2xl font-black">
-                Suche & Filter
-              </h2>
-
+              <h2 className="text-2xl font-black">Suche & Filter</h2>
               <p className="text-zinc-500 mt-1">
-                Filtere nach Rolle, Status, Standard-Vorlage, Namen oder Berechtigungen.
+                Filtere nach Rolle, Status, Standard-Vorlage, Namen oder
+                Berechtigungen.
               </p>
             </div>
 
@@ -940,7 +925,6 @@ export default function AdminRoleTemplatesPage() {
               >
                 Tabelle
               </button>
-
               <button
                 type="button"
                 onClick={() => setViewMode("cards")}
@@ -952,7 +936,6 @@ export default function AdminRoleTemplatesPage() {
               >
                 Karten
               </button>
-
               <button
                 type="button"
                 onClick={resetFilters}
@@ -976,15 +959,9 @@ export default function AdminRoleTemplatesPage() {
               onChange={(event) => setRoleFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Rollen
-              </option>
-
+              <option value="">Alle Rollen</option>
               {roleOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
+                <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
@@ -995,15 +972,9 @@ export default function AdminRoleTemplatesPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Status
-              </option>
-              <option value="active">
-                Aktiv
-              </option>
-              <option value="inactive">
-                Deaktiviert
-              </option>
+              <option value="">Alle Status</option>
+              <option value="active">Aktiv</option>
+              <option value="inactive">Deaktiviert</option>
             </select>
 
             <select
@@ -1011,21 +982,16 @@ export default function AdminRoleTemplatesPage() {
               onChange={(event) => setDefaultFilter(event.target.value)}
               className="border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
             >
-              <option value="">
-                Alle Typen
-              </option>
-              <option value="default">
-                Standard
-              </option>
-              <option value="custom">
-                Benutzerdefiniert
-              </option>
+              <option value="">Alle Typen</option>
+              <option value="default">Standard</option>
+              <option value="custom">Benutzerdefiniert</option>
             </select>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mt-5">
             <span className="text-sm text-zinc-500">
-              {filteredTemplates.length} von {templates.length} Vorlagen gefunden.
+              {filteredTemplates.length} von {templates.length} Vorlagen
+              gefunden.
             </span>
 
             {search && (
@@ -1048,7 +1014,10 @@ export default function AdminRoleTemplatesPage() {
 
             {defaultFilter && (
               <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
-                Typ: {defaultFilter === "default" ? "Standard" : "Benutzerdefiniert"}
+                Typ:{" "}
+                {defaultFilter === "default"
+                  ? "Standard"
+                  : "Benutzerdefiniert"}
               </span>
             )}
           </div>
@@ -1057,7 +1026,7 @@ export default function AdminRoleTemplatesPage() {
 
       {!loading && !error && filteredTemplates.length === 0 && (
         <EmptyState
-          icon="🧾"
+          icon="📋"
           title="Keine Rollen-Vorlagen gefunden"
           description="Passe die Filter an oder erstelle eine neue Rollen-Vorlage."
           action={
@@ -1081,15 +1050,9 @@ export default function AdminRoleTemplatesPage() {
                   <th className="px-5 py-4 font-bold text-zinc-500">
                     Vorlage
                   </th>
-                  <th className="px-5 py-4 font-bold text-zinc-500">
-                    Rolle
-                  </th>
-                  <th className="px-5 py-4 font-bold text-zinc-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 font-bold text-zinc-500">
-                    Rechte
-                  </th>
+                  <th className="px-5 py-4 font-bold text-zinc-500">Rolle</th>
+                  <th className="px-5 py-4 font-bold text-zinc-500">Status</th>
+                  <th className="px-5 py-4 font-bold text-zinc-500">Rechte</th>
                   <th className="px-5 py-4 font-bold text-zinc-500">
                     Sortierung
                   </th>
@@ -1098,26 +1061,19 @@ export default function AdminRoleTemplatesPage() {
                   </th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-zinc-100">
                 {filteredTemplates.map((template) => (
-                  <tr
-                    key={template.key}
-                    className="hover:bg-zinc-50 transition"
-                  >
+                  <tr key={template.key} className="hover:bg-zinc-50 transition">
                     <td className="px-5 py-4 align-top min-w-[300px]">
                       <p className="font-black text-zinc-950">
                         {template.name}
                       </p>
-
                       <p className="text-xs text-zinc-400 mt-1">
                         {template.key}
                       </p>
-
                       <p className="text-zinc-500 mt-2 line-clamp-2">
                         {template.description || "Keine Beschreibung"}
                       </p>
-
                       <div className="flex flex-wrap gap-2 mt-3">
                         <span
                           className={`text-xs px-3 py-1 rounded-full border font-bold ${getDefaultClass(
@@ -1133,7 +1089,7 @@ export default function AdminRoleTemplatesPage() {
 
                     <td className="px-5 py-4 align-top">
                       <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
-                        {getRoleLabel(String(template.roleKey))}
+                        {getRoleLabel(normalizeRoleKey(String(template.roleKey)))}
                       </span>
                     </td>
 
@@ -1149,7 +1105,7 @@ export default function AdminRoleTemplatesPage() {
 
                     <td className="px-5 py-4 align-top min-w-[260px]">
                       <div className="flex flex-wrap gap-2">
-                        {template.permissionKeys
+                        {normalizePermissionKeys(template.permissionKeys || [])
                           .slice(0, 5)
                           .map((permission) => (
                             <span
@@ -1160,13 +1116,17 @@ export default function AdminRoleTemplatesPage() {
                             </span>
                           ))}
 
-                        {template.permissionKeys.length > 5 && (
+                        {normalizePermissionKeys(template.permissionKeys || [])
+                          .length > 5 && (
                           <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg font-bold">
-                            +{template.permissionKeys.length - 5}
+                            +
+                            {normalizePermissionKeys(template.permissionKeys || [])
+                              .length - 5}
                           </span>
                         )}
 
-                        {template.permissionKeys.length === 0 && (
+                        {normalizePermissionKeys(template.permissionKeys || [])
+                          .length === 0 && (
                           <span className="text-xs text-zinc-400">
                             Keine Rechte
                           </span>
@@ -1187,17 +1147,13 @@ export default function AdminRoleTemplatesPage() {
                         >
                           Bearbeiten
                         </button>
-
                         <button
                           type="button"
                           onClick={() => void toggleActive(template)}
                           className="bg-zinc-100 hover:bg-zinc-200 px-3 py-2 rounded-xl transition font-bold"
                         >
-                          {template.isActive
-                            ? "Deaktivieren"
-                            : "Aktivieren"}
+                          {template.isActive ? "Deaktivieren" : "Aktivieren"}
                         </button>
-
                         <button
                           type="button"
                           onClick={() => void deleteTemplate(template)}
@@ -1217,91 +1173,77 @@ export default function AdminRoleTemplatesPage() {
 
       {viewMode === "cards" && filteredTemplates.length > 0 && (
         <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {filteredTemplates.map((template) => (
-            <article
-              key={template.key}
-              className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
-            >
-              <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
+          {filteredTemplates.map((template) => {
+            const templatePermissions = normalizePermissionKeys(
+              template.permissionKeys || [],
+            );
 
-              <div className="relative">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
-                        {getRoleLabel(String(template.roleKey))}
-                      </span>
+            return (
+              <article
+                key={template.key}
+                className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm hover:border-indigo-200 hover:shadow-md transition overflow-hidden relative"
+              >
+                <div className="absolute -right-14 -top-14 h-32 w-32 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
-                          template.isActive,
-                        )}`}
-                      >
-                        {template.isActive ? "Aktiv" : "Deaktiviert"}
-                      </span>
+                <div className="relative">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full font-bold">
+                          {getRoleLabel(normalizeRoleKey(String(template.roleKey)))}
+                        </span>
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getStatusClass(
+                            template.isActive,
+                          )}`}
+                        >
+                          {template.isActive ? "Aktiv" : "Deaktiviert"}
+                        </span>
+                        <span
+                          className={`text-xs px-3 py-1 rounded-full border font-bold ${getDefaultClass(
+                            template.isDefault,
+                          )}`}
+                        >
+                          {template.isDefault ? "Standard" : "Benutzerdefiniert"}
+                        </span>
+                      </div>
 
-                      <span
-                        className={`text-xs px-3 py-1 rounded-full border font-bold ${getDefaultClass(
-                          template.isDefault,
-                        )}`}
-                      >
-                        {template.isDefault
-                          ? "Standard"
-                          : "Benutzerdefiniert"}
-                      </span>
+                      <h2 className="text-2xl font-black mt-4">
+                        {template.name}
+                      </h2>
+                      <p className="text-zinc-500 mt-2 line-clamp-2">
+                        {template.description || "Keine Beschreibung"}
+                      </p>
                     </div>
 
-                    <h2 className="text-2xl font-black mt-4">
-                      {template.name}
-                    </h2>
-
-                    <p className="text-zinc-500 mt-2 line-clamp-2">
-                      {template.description || "Keine Beschreibung"}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(template)}
+                      className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow shrink-0"
+                    >
+                      Bearbeiten
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(template)}
-                    className="app-accent-bg text-white px-4 py-2 rounded-xl transition font-bold app-brand-shadow shrink-0"
-                  >
-                    Bearbeiten
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Key
-                    </p>
-                    <p className="font-black mt-1 break-all">
-                      {template.key}
-                    </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">Key</p>
+                      <p className="font-black mt-1 break-all">{template.key}</p>
+                    </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">Rechte</p>
+                      <p className="font-black mt-1">
+                        {templatePermissions.length}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-50 rounded-2xl p-4">
+                      <p className="text-xs text-zinc-500">Sortierung</p>
+                      <p className="font-black mt-1">{template.sortOrder}</p>
+                    </div>
                   </div>
 
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Rechte
-                    </p>
-                    <p className="font-black mt-1">
-                      {template.permissionKeys.length}
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 rounded-2xl p-4">
-                    <p className="text-xs text-zinc-500">
-                      Sortierung
-                    </p>
-                    <p className="font-black mt-1">
-                      {template.sortOrder}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-5">
-                  {template.permissionKeys
-                    .slice(0, 10)
-                    .map((permission) => (
+                  <div className="flex flex-wrap gap-2 mt-5">
+                    {templatePermissions.slice(0, 10).map((permission) => (
                       <span
                         key={`${template.key}-${permission}`}
                         className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-lg"
@@ -1310,39 +1252,39 @@ export default function AdminRoleTemplatesPage() {
                       </span>
                     ))}
 
-                  {template.permissionKeys.length > 10 && (
-                    <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg font-bold">
-                      +{template.permissionKeys.length - 10}
-                    </span>
-                  )}
+                    {templatePermissions.length > 10 && (
+                      <span className="text-xs app-accent-bg text-white px-2 py-1 rounded-lg font-bold">
+                        +{templatePermissions.length - 10}
+                      </span>
+                    )}
 
-                  {template.permissionKeys.length === 0 && (
-                    <span className="text-sm text-zinc-400">
-                      Keine Rechte hinterlegt.
-                    </span>
-                  )}
+                    {templatePermissions.length === 0 && (
+                      <span className="text-sm text-zinc-400">
+                        Keine Rechte hinterlegt.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => void toggleActive(template)}
+                      className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold"
+                    >
+                      {template.isActive ? "Deaktivieren" : "Aktivieren"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteTemplate(template)}
+                      className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
+                    >
+                      Löschen
+                    </button>
+                  </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => void toggleActive(template)}
-                    className="bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl transition font-bold"
-                  >
-                    {template.isActive ? "Deaktivieren" : "Aktivieren"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void deleteTemplate(template)}
-                    className="bg-red-600 text-white hover:bg-red-500 px-4 py-2 rounded-xl transition font-bold"
-                  >
-                    Löschen
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
       )}
     </div>

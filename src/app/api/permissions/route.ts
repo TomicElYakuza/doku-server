@@ -19,13 +19,18 @@ function getErrorMessage(error: unknown, fallback: string) {
     return "Keine Berechtigung.";
   }
 
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export async function GET() {
   try {
     await requireAnyServerPermission([
       "users.manage_permissions",
+      "settings.manage",
       "admin.view",
     ]);
 

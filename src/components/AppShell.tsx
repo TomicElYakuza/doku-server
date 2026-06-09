@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -362,7 +362,7 @@ function getPageTitle(pathname: string) {
     return "Dateien";
   }
 
-  if (pathname.startsWith("/activities")) {
+  if (pathname.startsWith("/activity")) {
     return "Aktivitäten";
   }
 
@@ -398,7 +398,7 @@ function getSectionLabel(pathname: string) {
     return "Unternehmensnews";
   }
 
-  if (pathname.startsWith("/activities")) {
+  if (pathname.startsWith("/activity")) {
     return "Aktivitäten";
   }
 
