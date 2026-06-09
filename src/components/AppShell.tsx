@@ -110,7 +110,7 @@ const navigationItems: NavigationItem[] = [
     ],
   },
   {
-    href: "/activities",
+    href: "/activity",
     label: "Aktivitäten",
     icon: "📊",
     category: "management",
@@ -559,8 +559,9 @@ export default function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState(getCachedCurrentUser());
-  const [loading, setLoading] = useState(true);
+  const cachedUser = getCachedCurrentUser();
+  const [user, setUser] = useState(cachedUser);
+  const [loading, setLoading] = useState(!cachedUser);
   const [adminModules, setAdminModules] = useState<AdminModuleConfig[]>([]);
   const [modulesLoaded, setModulesLoaded] = useState(false);
 
@@ -583,10 +584,24 @@ export default function AppShell({
       return;
     }
 
-    void ensureUser();
+    const currentCachedUser = getCachedCurrentUser();
+
+    if (currentCachedUser) {
+      setUser(currentCachedUser);
+      setLoading(false);
+      void refreshUserInBackground();
+    } else {
+      void ensureUserBlocking();
+    }
 
     function handleCurrentUserUpdated() {
-      setUser(getCachedCurrentUser());
+      const nextCachedUser = getCachedCurrentUser();
+
+      setUser(nextCachedUser);
+
+      if (!nextCachedUser && !isPublicPath(pathname)) {
+        router.push("/login");
+      }
     }
 
     window.addEventListener(
@@ -602,6 +617,7 @@ export default function AppShell({
     };
   }, [
     pathname,
+    router,
   ]);
 
   useEffect(() => {
@@ -609,9 +625,12 @@ export default function AppShell({
       return;
     }
 
-    void loadAdminModules();
+    if (!modulesLoaded) {
+      void loadAdminModules();
+    }
 
     function handleAdminModulesUpdated() {
+      adminModuleRepository.clearCache?.();
       void loadAdminModules();
     }
 
@@ -628,6 +647,7 @@ export default function AppShell({
     };
   }, [
     pathname,
+    modulesLoaded,
   ]);
 
   async function loadAdminModules() {
@@ -643,7 +663,7 @@ export default function AppShell({
     }
   }
 
-  async function ensureUser() {
+  async function ensureUserBlocking() {
     try {
       setLoading(true);
 
@@ -660,6 +680,20 @@ export default function AppShell({
       router.push("/login");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshUserInBackground() {
+    try {
+      const nextUser = await loadCurrentUser();
+
+      setUser(nextUser);
+
+      if (!nextUser) {
+        router.push("/login");
+      }
+    } catch (error) {
+      console.error("Benutzer konnte im Hintergrund nicht aktualisiert werden:", error);
     }
   }
 

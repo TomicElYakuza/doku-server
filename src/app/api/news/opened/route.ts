@@ -36,20 +36,66 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function createOpenedId(userId: string, postId: string) {
+  return `news_opened_${userId}_${postId}`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+}
+
 async function ensureNewsOpenedTable() {
+  await query(`
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto"
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS news_opened (
       id TEXT PRIMARY KEY,
       user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-      post_id TEXT NOT NULL,
-      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(user_id, post_id)
+      post_id TEXT NOT NULL DEFAULT '',
+      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-}
 
-function createOpenedId(userId: string, postId: string) {
-  return `news_opened_${userId}_${postId}`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  await query(`
+    ALTER TABLE news_opened
+    ADD COLUMN IF NOT EXISTS id TEXT
+  `);
+
+  await query(`
+    ALTER TABLE news_opened
+    ADD COLUMN IF NOT EXISTS user_id UUID
+  `);
+
+  await query(`
+    ALTER TABLE news_opened
+    ADD COLUMN IF NOT EXISTS post_id TEXT NOT NULL DEFAULT ''
+  `);
+
+  await query(`
+    ALTER TABLE news_opened
+    ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await query(`
+    UPDATE news_opened
+    SET
+      post_id = COALESCE(NULLIF(post_id, ''), ''),
+      opened_at = COALESCE(opened_at, NOW())
+  `);
+
+  await query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname = 'news_opened_user_post_unique_idx'
+      ) THEN
+        CREATE UNIQUE INDEX news_opened_user_post_unique_idx
+        ON news_opened(user_id, post_id)
+        WHERE user_id IS NOT NULL AND post_id <> '';
+      END IF;
+    END $$;
+  `);
 }
 
 export async function GET() {
@@ -82,6 +128,7 @@ export async function GET() {
         SELECT post_id
         FROM news_opened
         WHERE user_id = $1
+          AND post_id <> ''
         ORDER BY opened_at DESC
       `,
       [currentUser.id],
@@ -149,10 +196,13 @@ export async function POST(request: Request) {
             INSERT INTO news_opened (
               id,
               user_id,
-              post_id
+              post_id,
+              opened_at
             )
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, post_id) DO UPDATE SET
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
+              post_id = EXCLUDED.post_id,
               opened_at = NOW()
           `,
           [
@@ -207,10 +257,13 @@ export async function POST(request: Request) {
         INSERT INTO news_opened (
           id,
           user_id,
-          post_id
+          post_id,
+          opened_at
         )
-        VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, post_id) DO UPDATE SET
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          post_id = EXCLUDED.post_id,
           opened_at = NOW()
       `,
       [
