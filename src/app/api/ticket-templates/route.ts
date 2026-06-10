@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { query, queryOne } from "../../../lib/database/db";
 import {
@@ -63,6 +63,16 @@ function normalizePriority(value?: string) {
   }
 
   return normalized;
+}
+
+function normalizeLimit(value: string | null) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 200;
+  }
+
+  return Math.min(Math.floor(parsed), 500);
 }
 
 function normalizeTags(tags?: string[]) {

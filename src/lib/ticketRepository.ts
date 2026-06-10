@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Ticket,
   TicketPriority,
   TicketStatus,
@@ -98,9 +98,30 @@ function dispatchTicketsUpdated() {
     return;
   }
 
-  window.dispatchEvent(new Event("ticketsUpdated"));
+  clearTicketListCache();
+    window.dispatchEvent(new Event("ticketsUpdated"));
 }
 
+
+const TICKET_REPOSITORY_CACHE_TIME_MS = 30_000;
+
+const ticketListCache = new Map<string, {
+  value: Ticket[];
+  cachedAt: number;
+}>();
+
+const ticketListPromises = new Map<string, Promise<Ticket[]>>();
+
+function isTicketListCacheValid(cacheKey: string) {
+  const cached = ticketListCache.get(cacheKey);
+
+  return Boolean(cached) && Date.now() - cached!.cachedAt < TICKET_REPOSITORY_CACHE_TIME_MS;
+}
+
+function clearTicketListCache() {
+  ticketListCache.clear();
+  ticketListPromises.clear();
+}
 export const ticketRepository = {
   async list(filters?: TicketFilters) {
     const query = buildQuery(filters);

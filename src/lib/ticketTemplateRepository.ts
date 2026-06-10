@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   TicketTemplate,
   TicketTemplatePriority,
   TicketTemplateStatus,
@@ -70,9 +70,26 @@ function dispatchTicketTemplatesUpdated() {
     return;
   }
 
-  window.dispatchEvent(new Event("ticketTemplatesUpdated"));
+  clearTicketTemplatesCache();
+    window.dispatchEvent(new Event("ticketTemplatesUpdated"));
 }
 
+
+const TICKET_TEMPLATE_REPOSITORY_CACHE_TIME_MS = 30_000;
+
+let ticketTemplatesCache: TicketTemplate[] | null = null;
+let ticketTemplatesCacheAt = 0;
+let ticketTemplatesPromise: Promise<TicketTemplate[]> | null = null;
+
+function isTicketTemplatesCacheValid() {
+  return Boolean(ticketTemplatesCache) && Date.now() - ticketTemplatesCacheAt < TICKET_TEMPLATE_REPOSITORY_CACHE_TIME_MS;
+}
+
+function clearTicketTemplatesCache() {
+  ticketTemplatesCache = null;
+  ticketTemplatesCacheAt = 0;
+  ticketTemplatesPromise = null;
+}
 export const ticketTemplateRepository = {
   async list() {
     const response = await fetch("/api/ticket-templates", {
