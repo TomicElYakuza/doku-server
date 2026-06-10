@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Company,
   CompanyCreateInput,
   CompanyStatus,
@@ -142,17 +142,78 @@ function dispatchDepartmentsUpdated() {
   );
 }
 
-export const postgresCompanyRepository: CompanyRepository = {
+export 
+const COMPANY_REPOSITORY_CACHE_TIME_MS = 30_000;
+
+let companiesCache: Company[] | null = null;
+let companiesCacheAt = 0;
+let companiesPromise: Promise<Company[]> | null = null;
+
+let departmentsCache: Department[] | null = null;
+let departmentsCacheAt = 0;
+let departmentsPromise: Promise<Department[]> | null = null;
+
+function isCompaniesCacheValid() {
+  return Boolean(companiesCache) && Date.now() - companiesCacheAt < COMPANY_REPOSITORY_CACHE_TIME_MS;
+}
+
+function isDepartmentsCacheValid() {
+  return Boolean(departmentsCache) && Date.now() - departmentsCacheAt < COMPANY_REPOSITORY_CACHE_TIME_MS;
+}
+
+function clearOrganizationCache() {
+  companiesCache = null;
+  companiesCacheAt = 0;
+  companiesPromise = null;
+  departmentsCache = null;
+  departmentsCacheAt = 0;
+  departmentsPromise = null;
+}
+const postgresCompanyRepository: CompanyRepository = {
   async listCompanies() {
-    return requestJson<Company[]>(
-      "/api/companies"
-    );
+    if (isCompaniesCacheValid()) {
+      return companiesCache || [];
+    }
+
+    if (companiesPromise) {
+      return companiesPromise;
+    }
+
+    companiesPromise = requestJson<Company[]>("/api/companies")
+      .then((companies) => {
+        companiesCache = Array.isArray(companies) ? companies : [];
+        companiesCacheAt = Date.now();
+
+        return companiesCache;
+      })
+      .finally(() => {
+        companiesPromise = null;
+      });
+
+    return companiesPromise;
   },
 
   async listDepartments() {
-    return requestJson<Department[]>(
-      "/api/departments"
-    );
+    if (isDepartmentsCacheValid()) {
+      return departmentsCache || [];
+    }
+
+    if (departmentsPromise) {
+      return departmentsPromise;
+    }
+
+    departmentsPromise = requestJson<Department[]>("/api/departments")
+      .then((departments) => {
+        departmentsCache = Array.isArray(departments) ? departments : [];
+        departmentsCacheAt = Date.now();
+
+        return departmentsCache;
+      })
+      .finally(() => {
+        departmentsPromise = null;
+      });
+
+    return departmentsPromise;
   },
 
   async searchCompanies(

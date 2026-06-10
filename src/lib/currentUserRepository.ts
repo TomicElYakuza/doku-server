@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   User,
 } from "../types/user";
 
@@ -14,6 +14,15 @@ type LoginResponse = {
   user: User;
 };
 
+
+const CURRENT_USER_CACHE_TIME_MS = 30_000;
+
+let cachedCurrentUserAt = 0;
+let loadCurrentUserPromise: Promise<User | null> | null = null;
+
+function isCurrentUserCacheValid() {
+  return Boolean(cachedCurrentUser) && Date.now() - cachedCurrentUserAt < CURRENT_USER_CACHE_TIME_MS;
+}
 function dispatchCurrentUserUpdated() {
   if (typeof window === "undefined") {
     return;
@@ -71,39 +80,56 @@ export function getCachedCurrentUser() {
 export function setCachedCurrentUser(
   user: User | null
 ) {
+  cachedCurrentUserAt = Date.now();
   cachedCurrentUser =
     user;
 
   dispatchCurrentUserUpdated();
 }
 
-export async function loadCurrentUser() {
-  try {
-    const data =
-      await requestJson<{
-        user: User | null;
-      }>(
-        "/api/auth/current-user",
-        {
-          method:
-            "GET",
-        }
-      );
-
-    cachedCurrentUser =
-      data.user;
-
-    dispatchCurrentUserUpdated();
-
+export async function loadCurrentUser(options?: { force?: boolean }) {
+  if (!options?.force && isCurrentUserCacheValid()) {
     return cachedCurrentUser;
-  } catch (error) {
-    cachedCurrentUser =
-      null;
-
-    dispatchCurrentUserUpdated();
-
-    return null;
   }
+
+  if (!options?.force && loadCurrentUserPromise) {
+    return loadCurrentUserPromise;
+  }
+
+  loadCurrentUserPromise = fetch("/api/auth/current-user", {
+    cache: "no-store",
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        cachedCurrentUserAt = Date.now();
+  cachedCurrentUser = null;
+        cachedCurrentUserAt = Date.now();
+        dispatchCurrentUserUpdated();
+        return null;
+      }
+
+      const body = await response.json();
+      cachedCurrentUserAt = Date.now();
+  cachedCurrentUser = body.user || null;
+      cachedCurrentUserAt = Date.now();
+      dispatchCurrentUserUpdated();
+
+      return cachedCurrentUser;
+    })
+    .catch((error) => {
+      console.error(error);
+      cachedCurrentUserAt = Date.now();
+  cachedCurrentUser = null;
+      cachedCurrentUserAt = Date.now();
+      dispatchCurrentUserUpdated();
+
+      return null;
+    })
+    .finally(() => {
+      loadCurrentUserPromise = null;
+    });
+
+  return loadCurrentUserPromise;
 }
 
 export async function loginCurrentUser(
@@ -142,6 +168,7 @@ export async function loginCurrentUser(
       }
     );
 
+  cachedCurrentUserAt = Date.now();
   cachedCurrentUser =
     data.user;
 
@@ -164,7 +191,8 @@ export async function logoutCurrentUser() {
       }
     );
   } finally {
-    cachedCurrentUser =
+    cachedCurrentUserAt = Date.now();
+  cachedCurrentUser =
       null;
 
     dispatchCurrentUserUpdated();
@@ -172,6 +200,7 @@ export async function logoutCurrentUser() {
 }
 
 export function clearCurrentUserCache() {
+  cachedCurrentUserAt = Date.now();
   cachedCurrentUser =
     null;
 

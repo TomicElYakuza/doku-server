@@ -1,4 +1,6 @@
-﻿"use client";
+"use client";
+
+import { taxonomyRepository } from "../../lib/taxonomyRepository";
 
 import Link from "next/link";
 import {
@@ -281,9 +283,9 @@ export default function WikiPageList() {
 
   async function loadTaxonomyItems() {
     const requests = await Promise.allSettled([
-      fetch("/api/taxonomy?target=wiki&type=category"),
-      fetch("/api/taxonomy?target=wiki&type=tag"),
-      fetch("/api/taxonomy?target=global&type=tag"),
+      taxonomyRepository.listActiveByTargetAndType("wiki", "category"),
+      taxonomyRepository.listActiveByTargetAndType("wiki", "tag"),
+      taxonomyRepository.listActiveByTargetAndType("global", "tag"),
     ]);
 
     const nextWikiCategories: TaxonomyItem[] = [];
@@ -293,12 +295,13 @@ export default function WikiPageList() {
       index,
       result,
     ] of requests.entries()) {
-      if (result.status !== "fulfilled" || !result.value.ok) {
+      if (result.status !== "fulfilled") {
         continue;
       }
 
-      const data = await result.value.json();
-      const items: TaxonomyItem[] = Array.isArray(data) ? data : [];
+      const items: TaxonomyItem[] = Array.isArray(result.value)
+        ? result.value
+        : [];
 
       if (index === 0) {
         nextWikiCategories.push(...items);

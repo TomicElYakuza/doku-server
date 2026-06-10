@@ -1,4 +1,4 @@
-﻿import {
+import {
   requestJson,
 } from "./apiClient";
 
@@ -56,6 +56,26 @@ function dispatchPermissionsUpdated() {
   );
 }
 
+
+const EFFECTIVE_PERMISSIONS_CACHE_TIME_MS = 30_000;
+
+const effectivePermissionsCache = new Map<string, {
+  value: Awaited<ReturnType<PermissionRepository["getEffectivePermissions"]>>;
+  cachedAt: number;
+}>();
+
+const effectivePermissionsPromises = new Map<string, Promise<Awaited<ReturnType<PermissionRepository["getEffectivePermissions"]>>>>();
+
+function isEffectivePermissionsCacheValid(userId: string) {
+  const cached = effectivePermissionsCache.get(userId);
+
+  return Boolean(cached) && Date.now() - cached!.cachedAt < EFFECTIVE_PERMISSIONS_CACHE_TIME_MS;
+}
+
+function clearEffectivePermissionsCache() {
+  effectivePermissionsCache.clear();
+  effectivePermissionsPromises.clear();
+}
 export const permissionRepository: PermissionRepository = {
   async listPermissions() {
     return requestJson<Permission[]>(
@@ -128,7 +148,8 @@ export const permissionRepository: PermissionRepository = {
       }
     );
 
-    dispatchPermissionsUpdated();
+    clearEffectivePermissionsCache();
+  dispatchPermissionsUpdated();
   },
 
   async saveDepartmentPermissions(
@@ -154,7 +175,8 @@ export const permissionRepository: PermissionRepository = {
       }
     );
 
-    dispatchPermissionsUpdated();
+    clearEffectivePermissionsCache();
+  dispatchPermissionsUpdated();
   },
 
   async saveUserPermissions(
@@ -196,7 +218,8 @@ export const permissionRepository: PermissionRepository = {
       }
     );
 
-    dispatchPermissionsUpdated();
+    clearEffectivePermissionsCache();
+  dispatchPermissionsUpdated();
   },
 
   async getEffectivePermissions(

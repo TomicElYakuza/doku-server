@@ -8,7 +8,10 @@ import EmptyState from "../../components/EmptyState";
 import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
 import StatCard from "../../components/StatCard";
-import { adminUserRepository } from "../../lib/adminUserRepository";
+import {
+  assignableUserRepository,
+  type AssignableUser,
+} from "../../lib/assignableUserRepository";
 import { companyRepository } from "../../lib/companyRepository";
 import { serviceCenterRepository } from "../../lib/serviceCenterRepository";
 import type { Company, Department } from "../../types/company";
@@ -22,7 +25,7 @@ import type {
 } from "../../types/service";
 
 type ViewMode = "table" | "cards";
-type ServiceAssignableUser = Awaited<ReturnType<typeof adminUserRepository.list>>[number];
+type ServiceAssignableUser = AssignableUser;
 
 type ServiceForm = {
   customerName: string;
@@ -441,7 +444,7 @@ export default function ServiceCenterPage() {
           serviceCenterRepository.list(),
           companyRepository.listCompanies(),
           companyRepository.listDepartments(),
-          adminUserRepository.list(),
+          assignableUserRepository.list(),
         ]);
 
       setServiceCases(Array.isArray(nextCases) ? nextCases : []);

@@ -8,11 +8,13 @@ import EmptyState from "../../components/EmptyState";
 import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
 import StatCard from "../../components/StatCard";
-import { adminUserRepository } from "../../lib/adminUserRepository";
+import {
+  assignableUserRepository,
+  type AssignableUser,
+} from "../../lib/assignableUserRepository";
 import { companyRepository } from "../../lib/companyRepository";
 import { inventoryRepository } from "../../lib/inventoryRepository";
 import type { Company, Department } from "../../types/company";
-import type { AdminUser } from "../../types/user";
 import type {
   InventoryAsset,
   InventoryAssetInput,
@@ -348,7 +350,7 @@ export default function InventoryPage() {
   const [assets, setAssets] = useState<InventoryAsset[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users, setUsers] = useState<AssignableUser[]>([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -413,7 +415,7 @@ export default function InventoryPage() {
         inventoryRepository.list(),
         companyRepository.listCompanies(),
         companyRepository.listDepartments(),
-        adminUserRepository.list(),
+        assignableUserRepository.list(),
       ]);
 
       setAssets(Array.isArray(nextAssets) ? nextAssets : []);

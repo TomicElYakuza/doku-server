@@ -194,6 +194,19 @@ function mapServiceCaseRow(row: ServiceCaseRow): ServiceCase {
   };
 }
 
+let serviceSchemaReadyPromise: Promise<void> | null = null;
+
+async function ensureServiceSchemaReady() {
+  if (!serviceSchemaReadyPromise) {
+    serviceSchemaReadyPromise = ensureServiceTables().catch((error) => {
+      serviceSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return serviceSchemaReadyPromise;
+}
+
 async function ensureServiceTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS service_customers (
@@ -281,7 +294,7 @@ export async function GET(request: Request) {
       "admin.view",
     ]);
 
-    await ensureServiceTables();
+    await ensureServiceSchemaReady();
 
     const url = new URL(request.url);
     const search = normalizeText(url.searchParams.get("search"));
@@ -418,7 +431,7 @@ export async function POST(request: Request) {
   try {
     await requireAnyServerPermission(["service.create", "admin.view"]);
 
-    await ensureServiceTables();
+    await ensureServiceSchemaReady();
 
     const body = (await request.json()) as ServiceCaseInput;
 

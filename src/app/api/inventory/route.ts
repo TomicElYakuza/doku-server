@@ -144,6 +144,19 @@ function mapInventoryAssetRow(row: InventoryAssetRow): InventoryAsset {
   };
 }
 
+let inventorySchemaReadyPromise: Promise<void> | null = null;
+
+async function ensureInventorySchemaReady() {
+  if (!inventorySchemaReadyPromise) {
+    inventorySchemaReadyPromise = ensureInventoryTables().catch((error) => {
+      inventorySchemaReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return inventorySchemaReadyPromise;
+}
+
 async function ensureInventoryTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS inventory_assets (
@@ -348,7 +361,7 @@ export async function GET(request: Request) {
       "admin.view",
     ]);
 
-    await ensureInventoryTables();
+    await ensureInventorySchemaReady();
 
     const url = new URL(request.url);
     const search = normalizeText(url.searchParams.get("search"));
@@ -466,7 +479,7 @@ export async function POST(request: Request) {
   try {
     await requireAnyServerPermission(["inventory.create", "admin.view"]);
 
-    await ensureInventoryTables();
+    await ensureInventorySchemaReady();
 
     const body = (await request.json()) as InventoryAssetInput;
 

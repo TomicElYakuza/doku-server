@@ -1,4 +1,4 @@
-﻿import { requestJson } from "./apiClient";
+import { requestJson } from "./apiClient";
 import type {
   AppAccentColor,
   AppSettings,
@@ -45,6 +45,22 @@ function dispatchSettingsUpdated() {
   window.dispatchEvent(new Event("appSettingsUpdated"));
 }
 
+
+const APP_SETTINGS_CACHE_TIME_MS = 30_000;
+
+let appSettingsCache: AppSettings | null = null;
+let appSettingsCacheAt = 0;
+let appSettingsPromise: Promise<AppSettings> | null = null;
+
+function isAppSettingsCacheValid() {
+  return Boolean(appSettingsCache) && Date.now() - appSettingsCacheAt < APP_SETTINGS_CACHE_TIME_MS;
+}
+
+function clearAppSettingsCache() {
+  appSettingsCache = null;
+  appSettingsCacheAt = 0;
+  appSettingsPromise = null;
+}
 const defaultSettings: AppSettings = {
   appName: "Intranet",
   companyName: "Velunis",
@@ -71,7 +87,26 @@ const defaultSettings: AppSettings = {
 
 export const postgresAppSettingsRepository: AppSettingsRepository = {
   async get() {
-    return requestJson<AppSettings>("/api/app-settings");
+    if (isAppSettingsCacheValid()) {
+      return appSettingsCache || defaultSettings;
+    }
+
+    if (appSettingsPromise) {
+      return appSettingsPromise;
+    }
+
+    appSettingsPromise = requestJson<AppSettings>("/api/app-settings")
+      .then((settings) => {
+        appSettingsCache = settings;
+        appSettingsCacheAt = Date.now();
+
+        return settings;
+      })
+      .finally(() => {
+        appSettingsPromise = null;
+      });
+
+    return appSettingsPromise;
   },
 
   getDefault() {
