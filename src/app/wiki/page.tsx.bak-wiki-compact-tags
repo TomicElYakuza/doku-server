@@ -265,8 +265,6 @@ export default function WikiPageList() {
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | WikiVisibility>("all");
   const [pinnedFilter, setPinnedFilter] = useState<"all" | "pinned" | "normal">("all");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [openActionMenuSlug, setOpenActionMenuSlug] = useState("");
-  const [openTagMenuKey, setOpenTagMenuKey] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSlug, setEditingSlug] = useState("");
@@ -294,28 +292,6 @@ export default function WikiPageList() {
   }, [
     settings.defaultWikiView,
   ]);
-
-  useEffect(() => {
-    function closeWikiDropdowns(event: MouseEvent) {
-      const target = event.target;
-
-      if (
-        target instanceof HTMLElement &&
-        target.closest("[data-wiki-dropdown-root]")
-      ) {
-        return;
-      }
-
-      setOpenActionMenuSlug("");
-      setOpenTagMenuKey("");
-    }
-
-    document.addEventListener("click", closeWikiDropdowns);
-
-    return () => {
-      document.removeEventListener("click", closeWikiDropdowns);
-    };
-  }, []); // data-wiki-dropdown-close-listener
 
   useEffect(() => {
     void loadData();
@@ -1063,143 +1039,30 @@ export default function WikiPageList() {
     }
   }
 
-  function renderTagStack(
-    pageTags: string[],
-    limit = 3,
-  ) {
-    const visibleTags = pageTags.slice(0, limit);
-    const hiddenTags = pageTags.slice(limit);
-    const hiddenCount = hiddenTags.length;
-    const menuKey = pageTags.join("|");
-
-    if (pageTags.length === 0) {
-      return (
-        <span className="inline-flex h-7 items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-400">
-          Keine Tags
-        </span>
-      );
-    }
-
-    return (
-      <div
-        data-wiki-dropdown-root="true"
-        className="relative flex max-w-[380px] flex-wrap items-center gap-1.5"
-      >
-        {visibleTags.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            onClick={() => {
-              setTagFilter(tag);
-              setOpenTagMenuKey("");
-            }}
-            className="inline-flex h-7 items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
-            title={tag}
-          >
-            #{tag}
-          </button>
-        ))}
-
-        {hiddenCount > 0 && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setOpenActionMenuSlug("");
-                setOpenTagMenuKey((current) =>
-                  current === menuKey ? "" : menuKey,
-                );
-              }}
-              className="inline-flex h-7 items-center rounded-lg app-accent-soft app-accent-text px-2.5 text-xs font-black shadow-sm transition hover:shadow-md"
-              title={hiddenTags.map((tag) => `#${tag}`).join(", ")}
-            >
-              +{hiddenCount}
-            </button>
-
-            {openTagMenuKey === menuKey && (
-              <div className="absolute left-0 top-8 z-[9999] w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
-                <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                  Weitere Tags
-                </p>
-
-                <div className="flex max-h-56 flex-col gap-1 overflow-auto">
-                  {hiddenTags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => {
-                        setTagFilter(tag);
-                        setOpenTagMenuKey("");
-                      }}
-                      className="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-zinc-700 transition hover:bg-zinc-50"
-                      title={tag}
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   function renderActions(page: WikiPage) {
-    const actionClass =
-      "inline-flex h-8 min-w-[82px] items-center justify-center rounded-xl px-3 text-xs font-black leading-none shadow-md transition";
-
-    const menuItemClass =
-      "block w-full rounded-lg px-3 py-2 text-left text-xs font-black text-zinc-700 transition hover:bg-zinc-50";
-
-    const menuOpen = openActionMenuSlug === page.slug;
+    const baseClass =
+      "inline-flex h-8 items-center justify-center rounded-xl px-3 text-[12px] font-black leading-none transition";
 
     return (
-      <div
-        data-wiki-dropdown-root="true"
-        className="relative flex items-center gap-1.5"
-      >
+      <div className="flex items-center gap-2">
         <Link
           href={getWikiHref(page.slug)}
-          className={`${actionClass} app-accent-bg text-white hover:shadow-lg`}
+          className={`${baseClass} app-accent-bg text-white app-brand-shadow hover:shadow-md`}
         >
           Öffnen
         </Link>
 
-        {canDeleteWiki && (
-          <button
-            type="button"
-            onClick={() => void handleDeletePage(page)}
-            className={`${actionClass} bg-red-600 text-white hover:bg-red-500 hover:shadow-lg`}
-          >
-            Löschen
-          </button>
-        )}
+        <details className="relative">
+          <summary className={`${baseClass} cursor-pointer list-none border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50`}>
+            Mehr
+          </summary>
 
-        <button
-          type="button"
-          onClick={() => {
-            setOpenTagMenuKey("");
-            setOpenActionMenuSlug((current) =>
-              current === page.slug ? "" : page.slug,
-            );
-          }}
-          className={`${actionClass} border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:shadow-lg`}
-        >
-          Mehr
-        </button>
-
-        {menuOpen && (
-          <div className="absolute right-0 top-10 z-[9999] w-44 rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
+          <div className="absolute right-0 z-30 mt-2 w-44 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl">
             {canEditWiki && (
               <button
                 type="button"
-                onClick={() => {
-                  setOpenActionMenuSlug("");
-                  void handleTogglePinned(page);
-                }}
-                className={menuItemClass}
+                onClick={() => void handleTogglePinned(page)}
+                className="w-full rounded-lg px-3 py-2 text-left text-[12px] font-bold text-zinc-700 transition hover:bg-zinc-50"
               >
                 {page.pinned ? "Fixierung lösen" : "Fixieren"}
               </button>
@@ -1208,11 +1071,8 @@ export default function WikiPageList() {
             {canEditWiki && page.status !== "archived" && (
               <button
                 type="button"
-                onClick={() => {
-                  setOpenActionMenuSlug("");
-                  void handleArchivePage(page);
-                }}
-                className={menuItemClass}
+                onClick={() => void handleArchivePage(page)}
+                className="w-full rounded-lg px-3 py-2 text-left text-[12px] font-bold text-amber-700 transition hover:bg-amber-50"
               >
                 Archivieren
               </button>
@@ -1221,8 +1081,7 @@ export default function WikiPageList() {
             {canViewVersions && (
               <Link
                 href={`/wiki/${encodeURIComponent(page.slug)}/versions`}
-                onClick={() => setOpenActionMenuSlug("")}
-                className={menuItemClass}
+                className="block rounded-lg px-3 py-2 text-[12px] font-bold text-zinc-700 transition hover:bg-zinc-50"
               >
                 Versionen
               </Link>
@@ -1231,17 +1090,24 @@ export default function WikiPageList() {
             {canEditWiki && (
               <button
                 type="button"
-                onClick={() => {
-                  setOpenActionMenuSlug("");
-                  startEditPage(page);
-                }}
-                className={menuItemClass}
+                onClick={() => startEditPage(page)}
+                className="w-full rounded-lg px-3 py-2 text-left text-[12px] font-bold text-zinc-700 transition hover:bg-zinc-50"
               >
                 Bearbeiten
               </button>
             )}
+
+            {canDeleteWiki && (
+              <button
+                type="button"
+                onClick={() => void handleDeletePage(page)}
+                className="w-full rounded-lg px-3 py-2 text-left text-[12px] font-black text-red-600 transition hover:bg-red-50"
+              >
+                Löschen
+              </button>
+            )}
           </div>
-        )}
+        </details>
       </div>
     );
   }
@@ -1933,8 +1799,8 @@ export default function WikiPageList() {
           )}
 
           {filteredPages.length > 0 && viewMode === "table" && (
-            <section className="app-surface border border-zinc-200 rounded-3xl shadow-sm overflow-visible">
-              <div className="overflow-visible">
+            <section className="app-surface border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-zinc-50 border-b border-zinc-200">
                     <tr>
@@ -1953,7 +1819,7 @@ export default function WikiPageList() {
                       <th className="px-5 py-4 text-sm font-bold text-zinc-500">
                         Aktualisiert
                       </th>
-                      <th className="px-5 py-4 text-sm font-bold text-zinc-500 w-[250px]">
+                      <th className="px-5 py-4 text-sm font-bold text-zinc-500 w-[150px]">
                         Aktionen
                       </th>
                     </tr>
@@ -2012,7 +1878,24 @@ export default function WikiPageList() {
                           </td>
 
                           <td className="px-5 py-4 align-top">
-                            {renderTagStack(pageTags, 3)}
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {pageTags.length === 0 && (
+                                <span className="text-[11px] app-muted-surface text-zinc-500 border border-zinc-200 px-2.5 py-1 rounded-full shadow-sm">
+                                  Keine Tags hinterlegt
+                                </span>
+                              )}
+
+                              {pageTags.map((tag) => (
+                                <button
+                                  key={tag}
+                                  type="button"
+                                  onClick={() => setTagFilter(tag)}
+                                  className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full hover:bg-zinc-200 transition"
+                                >
+                                  #{tag}
+                                </button>
+                              ))}
+                            </div>
                           </td>
 
                           <td className="px-5 py-4 align-top text-sm text-zinc-500">

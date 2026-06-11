@@ -4,7 +4,10 @@
 import type {
   WikiCreateInput,
   WikiPage,
+  WikiStatus,
   WikiUpdateInput,
+  WikiVersion,
+  WikiVisibility,
 } from "../types/wiki";
 
 type WikiFilters = {
@@ -12,12 +15,20 @@ type WikiFilters = {
   department?: string;
   category?: string;
   tag?: string;
+  status?: WikiStatus | "all";
+  visibility?: WikiVisibility | "all";
+  pinned?: boolean;
 };
 
 export type WikiRepository = {
   list: (filters?: WikiFilters) => Promise<WikiPage[]>;
   search: (query: string) => Promise<WikiPage[]>;
   findBySlug: (slug: string) => Promise<WikiPage | null>;
+  listVersions: (slug: string) => Promise<WikiVersion[]>;
+  restoreVersion: (
+    slug: string,
+    versionId: string,
+  ) => Promise<void>;
   create: (page: WikiCreateInput) => Promise<WikiPage>;
   update: (
     slug: string,
@@ -66,6 +77,18 @@ function buildQuery(filters?: WikiFilters) {
     searchParams.set("tag", filters.tag.trim());
   }
 
+  if (filters?.status && filters.status !== "all") {
+    searchParams.set("status", filters.status);
+  }
+
+  if (filters?.visibility && filters.visibility !== "all") {
+    searchParams.set("visibility", filters.visibility);
+  }
+
+  if (typeof filters?.pinned === "boolean") {
+    searchParams.set("pinned", filters.pinned ? "true" : "false");
+  }
+
   const query = searchParams.toString();
 
   return query ? `?${query}` : "";
@@ -89,6 +112,26 @@ function normalizeText(value: unknown) {
   return String(value || "").trim();
 }
 
+function normalizeStatus(value: unknown): WikiStatus {
+  const status = String(value || "").trim();
+
+  if (status === "draft" || status === "published" || status === "archived") {
+    return status;
+  }
+
+  return "published";
+}
+
+function normalizeVisibility(value: unknown): WikiVisibility {
+  const visibility = String(value || "").trim();
+
+  if (visibility === "global" || visibility === "company" || visibility === "department") {
+    return visibility;
+  }
+
+  return "company";
+}
+
 function normalizeCreatePayload(page: WikiCreateInput) {
   return {
     slug: normalizeText(page.slug),
@@ -101,51 +144,27 @@ function normalizeCreatePayload(page: WikiCreateInput) {
     author: normalizeText(page.author) || "System",
     tags: normalizeTags(page.tags),
     content: String(page.content || ""),
+    status: normalizeStatus(page.status),
+    visibility: normalizeVisibility(page.visibility),
+    pinned: Boolean(page.pinned),
   };
 }
 
 function normalizeUpdatePayload(updates: WikiUpdateInput) {
   return {
-    slug:
-      updates.slug !== undefined
-        ? normalizeText(updates.slug)
-        : undefined,
-    title:
-      updates.title !== undefined
-        ? normalizeText(updates.title)
-        : undefined,
-    description:
-      updates.description !== undefined
-        ? normalizeText(updates.description)
-        : undefined,
-    excerpt:
-      updates.excerpt !== undefined
-        ? normalizeText(updates.excerpt)
-        : undefined,
-    company:
-      updates.company !== undefined
-        ? normalizeText(updates.company) || "Intern"
-        : undefined,
-    category:
-      updates.category !== undefined
-        ? normalizeText(updates.category)
-        : undefined,
-    department:
-      updates.department !== undefined
-        ? normalizeText(updates.department)
-        : undefined,
-    author:
-      updates.author !== undefined
-        ? normalizeText(updates.author) || "System"
-        : undefined,
-    tags:
-      updates.tags !== undefined
-        ? normalizeTags(updates.tags)
-        : undefined,
-    content:
-      updates.content !== undefined
-        ? String(updates.content || "")
-        : undefined,
+    slug: updates.slug !== undefined ? normalizeText(updates.slug) : undefined,
+    title: updates.title !== undefined ? normalizeText(updates.title) : undefined,
+    description: updates.description !== undefined ? normalizeText(updates.description) : undefined,
+    excerpt: updates.excerpt !== undefined ? normalizeText(updates.excerpt) : undefined,
+    company: updates.company !== undefined ? normalizeText(updates.company) || "Intern" : undefined,
+    category: updates.category !== undefined ? normalizeText(updates.category) : undefined,
+    department: updates.department !== undefined ? normalizeText(updates.department) : undefined,
+    author: updates.author !== undefined ? normalizeText(updates.author) || "System" : undefined,
+    tags: updates.tags !== undefined ? normalizeTags(updates.tags) : undefined,
+    content: updates.content !== undefined ? String(updates.content || "") : undefined,
+    status: updates.status !== undefined ? normalizeStatus(updates.status) : undefined,
+    visibility: updates.visibility !== undefined ? normalizeVisibility(updates.visibility) : undefined,
+    pinned: updates.pinned !== undefined ? Boolean(updates.pinned) : undefined,
   };
 }
 
@@ -153,9 +172,10 @@ function pageMatchesQuery(
   page: WikiPage,
   query: string,
 ) {
-  const normalizedQuery = query
-    .trim()
-    .toLowerCase();
+  const normalizedQuery =
+    query
+      .trim()
+      .toLowerCase();
 
   if (!normalizedQuery) {
     return true;
@@ -170,6 +190,8 @@ function pageMatchesQuery(
     page.category,
     page.company,
     page.department,
+    page.status,
+    page.visibility,
     page.tags?.join(" "),
     page.createdAt,
     page.updatedAt,
@@ -213,6 +235,34 @@ export const postgresWikiRepository: WikiRepository = {
     } catch {
       return null;
     }
+  },
+
+  async listVersions(slug: string) {
+    if (!slug) {
+      return [];
+    }
+
+    return requestJson<WikiVersion[]>(
+      `/api/wiki-pages/${encodeURIComponent(slug)}/versions`,
+    );
+  },
+
+  async restoreVersion(
+    slug: string,
+    versionId: string,
+  ) {
+    if (!slug || !versionId) {
+      return;
+    }
+
+    await requestJson<{ ok: boolean }>(
+      `/api/wiki-pages/${encodeURIComponent(slug)}/versions/${encodeURIComponent(versionId)}/restore`,
+      {
+        method: "POST",
+      },
+    );
+
+    dispatchWikiPagesUpdated();
   },
 
   async create(page: WikiCreateInput) {
@@ -281,9 +331,7 @@ export const postgresWikiRepository: WikiRepository = {
       return;
     }
 
-    await requestJson<{
-      ok: boolean;
-    }>(
+    await requestJson<{ ok: boolean }>(
       `/api/wiki-pages/${encodeURIComponent(slug)}`,
       {
         method: "DELETE",

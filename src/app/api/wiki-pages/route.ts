@@ -1,16 +1,28 @@
-﻿import { NextResponse } from "next/server";
+﻿import {
+  NextResponse,
+} from "next/server";
 
-import { query, queryOne } from "../../../lib/database/db";
+import {
+  query,
+  queryOne,
+} from "../../../lib/database/db";
 import {
   mapWikiPageRow,
   type WikiPageRow,
 } from "../../../lib/database/mappers/wikiMapper";
-import { createSlug } from "../../../lib/database/slug";
+import {
+  createSlug,
+} from "../../../lib/database/slug";
 import {
   getCurrentServerUser,
+  hasAnyServerPermission,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../lib/serverPermissions";
+import type {
+  WikiStatus,
+  WikiVisibility,
+} from "../../../types/wiki";
 
 type CreateWikiPageBody = {
   slug?: string;
@@ -23,6 +35,9 @@ type CreateWikiPageBody = {
   author?: string;
   tags?: string[];
   content?: string;
+  status?: WikiStatus;
+  visibility?: WikiVisibility;
+  pinned?: boolean;
 };
 
 function normalizeText(value?: string | null) {
@@ -37,6 +52,36 @@ function normalizeTags(value: unknown) {
   return Array.from(
     new Set(value.map((tag) => String(tag).trim()).filter(Boolean)),
   );
+}
+
+function normalizeStatus(value: unknown): WikiStatus {
+  const status =
+    String(value || "").trim();
+
+  if (status === "draft" || status === "published" || status === "archived") {
+    return status;
+  }
+
+  return "published";
+}
+
+function normalizeVisibility(value: unknown, company: string, department: string): WikiVisibility {
+  const visibility =
+    String(value || "").trim();
+
+  if (visibility === "global" || visibility === "company" || visibility === "department") {
+    return visibility;
+  }
+
+  if (department) {
+    return "department";
+  }
+
+  if (company) {
+    return "company";
+  }
+
+  return "global";
 }
 
 function getErrorStatus(error: unknown) {
@@ -55,9 +100,76 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+async function ensureWikiProductionColumns() {
+  await query(`
+    ALTER TABLE wiki_pages
+    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'
+  `);
+
+  await query(`
+    ALTER TABLE wiki_pages
+    ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'company'
+  `);
+
+  await query(`
+    ALTER TABLE wiki_pages
+    ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await query(`
+    UPDATE wiki_pages
+    SET
+      status = COALESCE(NULLIF(status, ''), 'published'),
+      visibility = CASE
+        WHEN visibility IN ('global', 'company', 'department') THEN visibility
+        WHEN COALESCE(NULLIF(department, ''), '') <> '' THEN 'department'
+        WHEN COALESCE(NULLIF(company, ''), '') <> '' THEN 'company'
+        ELSE 'global'
+      END,
+      pinned = COALESCE(pinned, FALSE)
+  `);
+}
+
+function addViewerScope(
+  whereParts: string[],
+  params: unknown[],
+  currentUser: Awaited<ReturnType<typeof getCurrentServerUser>>,
+) {
+  if (!currentUser) {
+    whereParts.push("FALSE");
+    return;
+  }
+
+  params.push(currentUser.company || "");
+  const companyParam = `$${params.length}`;
+
+  params.push(currentUser.department || "");
+  const departmentParam = `$${params.length}`;
+
+  whereParts.push(`
+    (
+      visibility = 'global'
+      OR (
+        visibility = 'company'
+        AND COALESCE(company, '') = ${companyParam}
+      )
+      OR (
+        visibility = 'department'
+        AND COALESCE(department, '') = ${departmentParam}
+      )
+      OR (
+        COALESCE(visibility, '') = ''
+        AND COALESCE(company, '') = ''
+        AND COALESCE(department, '') = ''
+      )
+    )
+  `);
+}
+
 export async function GET(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -76,13 +188,42 @@ export async function GET(request: Request) {
       "admin.view",
     ]);
 
+    await ensureWikiProductionColumns();
+
+    const canManageWiki =
+      await hasAnyServerPermission([
+        "wiki.manage",
+        "admin.view",
+      ]);
+
     const url = new URL(request.url);
     const category = normalizeText(url.searchParams.get("category"));
     const tag = normalizeText(url.searchParams.get("tag"));
     const search = normalizeText(url.searchParams.get("search"));
+    const status = normalizeText(url.searchParams.get("status"));
+    const visibility = normalizeText(url.searchParams.get("visibility"));
+    const pinned = normalizeText(url.searchParams.get("pinned"));
 
     const params: unknown[] = [];
     const whereParts: string[] = [];
+
+    if (!canManageWiki) {
+      whereParts.push("status = 'published'");
+      addViewerScope(whereParts, params, currentUser);
+    } else if (status && status !== "all") {
+      params.push(status);
+      whereParts.push(`status = $${params.length}`);
+    }
+
+    if (canManageWiki && visibility && visibility !== "all") {
+      params.push(visibility);
+      whereParts.push(`visibility = $${params.length}`);
+    }
+
+    if (pinned === "true" || pinned === "false") {
+      params.push(pinned === "true");
+      whereParts.push(`pinned = $${params.length}`);
+    }
 
     if (category) {
       params.push(category);
@@ -118,11 +259,14 @@ export async function GET(request: Request) {
           author,
           tags,
           content,
+          status,
+          visibility,
+          pinned,
           created_at,
           updated_at
         FROM wiki_pages
         ${whereSql}
-        ORDER BY updated_at DESC, title ASC
+        ORDER BY pinned DESC, updated_at DESC, title ASC
       `,
       params,
     );
@@ -137,7 +281,10 @@ export async function GET(request: Request) {
           error,
           "Wiki-Seiten konnten nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -148,7 +295,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -167,18 +315,23 @@ export async function POST(request: Request) {
       "settings.manage",
     ]);
 
-    const body = (await request.json()) as CreateWikiPageBody;
+    await ensureWikiProductionColumns();
+
+    const body =
+      (await request.json()) as CreateWikiPageBody;
 
     const title = normalizeText(body.title);
     const description = normalizeText(body.description);
     const excerpt = normalizeText(body.excerpt) || description;
     const category = normalizeText(body.category);
     const department = normalizeText(body.department);
-    const company =
-      normalizeText(body.company) || currentUser.company || "Intern";
+    const company = normalizeText(body.company) || currentUser.company || "Intern";
     const author = normalizeText(body.author) || currentUser.name || "System";
     const content = String(body.content || "");
     const tags = normalizeTags(body.tags);
+    const status = normalizeStatus(body.status);
+    const visibility = normalizeVisibility(body.visibility, company, department);
+    const pinned = Boolean(body.pinned);
 
     if (!title) {
       return NextResponse.json(
@@ -211,7 +364,9 @@ export async function POST(request: Request) {
         WHERE slug = $1
         LIMIT 1
       `,
-      [slug],
+      [
+        slug,
+      ],
     );
 
     if (existing) {
@@ -237,9 +392,12 @@ export async function POST(request: Request) {
           department,
           author,
           tags,
-          content
+          content,
+          status,
+          visibility,
+          pinned
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING
           id,
           slug,
@@ -252,6 +410,9 @@ export async function POST(request: Request) {
           author,
           tags,
           content,
+          status,
+          visibility,
+          pinned,
           created_at,
           updated_at
       `,
@@ -266,6 +427,9 @@ export async function POST(request: Request) {
         author,
         tags,
         content,
+        status,
+        visibility,
+        pinned,
       ],
     );
 
@@ -292,7 +456,10 @@ export async function POST(request: Request) {
           error,
           "Wiki-Seite konnte nicht erstellt werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

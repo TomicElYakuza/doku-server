@@ -296,16 +296,7 @@ export default function WikiPageList() {
   ]);
 
   useEffect(() => {
-    function closeWikiDropdowns(event: MouseEvent) {
-      const target = event.target;
-
-      if (
-        target instanceof HTMLElement &&
-        target.closest("[data-wiki-dropdown-root]")
-      ) {
-        return;
-      }
-
+    function closeWikiDropdowns() {
       setOpenActionMenuSlug("");
       setOpenTagMenuKey("");
     }
@@ -1071,6 +1062,8 @@ export default function WikiPageList() {
     const hiddenTags = pageTags.slice(limit);
     const hiddenCount = hiddenTags.length;
     const menuKey = pageTags.join("|");
+    const tagButtonClass =
+      "inline-flex h-7 items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100";
 
     if (pageTags.length === 0) {
       return (
@@ -1082,8 +1075,8 @@ export default function WikiPageList() {
 
     return (
       <div
-        data-wiki-dropdown-root="true"
         className="relative flex max-w-[380px] flex-wrap items-center gap-1.5"
+        onClick={(event) => event.stopPropagation()}
       >
         {visibleTags.map((tag) => (
           <button
@@ -1093,7 +1086,7 @@ export default function WikiPageList() {
               setTagFilter(tag);
               setOpenTagMenuKey("");
             }}
-            className="inline-flex h-7 items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
+            className={tagButtonClass}
             title={tag}
           >
             #{tag}
@@ -1104,7 +1097,8 @@ export default function WikiPageList() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation();
                 setOpenActionMenuSlug("");
                 setOpenTagMenuKey((current) =>
                   current === menuKey ? "" : menuKey,
@@ -1117,7 +1111,10 @@ export default function WikiPageList() {
             </button>
 
             {openTagMenuKey === menuKey && (
-              <div className="absolute left-0 top-8 z-[9999] w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
+              <div
+                className="absolute left-0 z-40 mt-2 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
                   Weitere Tags
                 </p>
@@ -1148,7 +1145,7 @@ export default function WikiPageList() {
 
   function renderActions(page: WikiPage) {
     const actionClass =
-      "inline-flex h-8 min-w-[82px] items-center justify-center rounded-xl px-3 text-xs font-black leading-none shadow-md transition";
+      "inline-flex h-8 min-w-[74px] items-center justify-center rounded-xl px-3 text-xs font-black leading-none shadow-sm transition";
 
     const menuItemClass =
       "block w-full rounded-lg px-3 py-2 text-left text-xs font-black text-zinc-700 transition hover:bg-zinc-50";
@@ -1157,12 +1154,12 @@ export default function WikiPageList() {
 
     return (
       <div
-        data-wiki-dropdown-root="true"
         className="relative flex items-center gap-1.5"
+        onClick={(event) => event.stopPropagation()}
       >
         <Link
           href={getWikiHref(page.slug)}
-          className={`${actionClass} app-accent-bg text-white hover:shadow-lg`}
+          className={`${actionClass} app-accent-bg text-white app-brand-shadow hover:shadow-md`}
         >
           Öffnen
         </Link>
@@ -1171,7 +1168,7 @@ export default function WikiPageList() {
           <button
             type="button"
             onClick={() => void handleDeletePage(page)}
-            className={`${actionClass} bg-red-600 text-white hover:bg-red-500 hover:shadow-lg`}
+            className={`${actionClass} bg-red-600 text-white hover:bg-red-500`}
           >
             Löschen
           </button>
@@ -1179,19 +1176,23 @@ export default function WikiPageList() {
 
         <button
           type="button"
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
             setOpenTagMenuKey("");
             setOpenActionMenuSlug((current) =>
               current === page.slug ? "" : page.slug,
             );
           }}
-          className={`${actionClass} border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:shadow-lg`}
+          className={`${actionClass} cursor-pointer border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50`}
         >
           Mehr
         </button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-10 z-[9999] w-44 rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl">
+          <div
+            className="absolute right-0 top-10 z-40 w-44 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             {canEditWiki && (
               <button
                 type="button"
@@ -1933,8 +1934,8 @@ export default function WikiPageList() {
           )}
 
           {filteredPages.length > 0 && viewMode === "table" && (
-            <section className="app-surface border border-zinc-200 rounded-3xl shadow-sm overflow-visible">
-              <div className="overflow-visible">
+            <section className="app-surface border border-zinc-200 rounded-3xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-zinc-50 border-b border-zinc-200">
                     <tr>

@@ -3,7 +3,9 @@ Erstell von
 permission für eigene tickets, usw löschen, aber nur die eigenen
 Assets volle Systeme machen, sprich PC welchen man anlegt mit Monitor Maus Tastatur usw, modellnummer usw ergänzen
 News.mange prüfen
-Berechtigungen mit mange und user beibehaltn nach speichern
+Berechtigungen mit manage und user beibehaltn nach speichern
+
+wiki Versionen drop down menü
 
 -	AD Integration mit E-Mail und Telefon
 -	Externer Firmenzugang

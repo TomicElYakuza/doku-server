@@ -1,4 +1,8 @@
-﻿import type { WikiPage } from "../../../types/wiki";
+﻿import type {
+  WikiPage,
+  WikiStatus,
+  WikiVisibility,
+} from "../../../types/wiki";
 
 export type WikiPageRow = {
   id: string;
@@ -12,12 +16,25 @@ export type WikiPageRow = {
   author: string | null;
   tags: string[] | null;
   content: string | null;
+  status: string | null;
+  visibility: string | null;
+  pinned: boolean | null;
   created_at: string;
   updated_at: string;
 };
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+  try {
+    return new Intl.DateTimeFormat("de-AT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 function normalizeTags(tags: string[] | null) {
@@ -38,6 +55,22 @@ function normalizeText(value: string | null) {
   return String(value || "").trim();
 }
 
+function normalizeStatus(value: string | null): WikiStatus {
+  if (value === "draft" || value === "published" || value === "archived") {
+    return value;
+  }
+
+  return "published";
+}
+
+function normalizeVisibility(value: string | null): WikiVisibility {
+  if (value === "global" || value === "company" || value === "department") {
+    return value;
+  }
+
+  return "company";
+}
+
 export function mapWikiPageRow(row: WikiPageRow): WikiPage {
   const description = normalizeText(row.description);
 
@@ -52,6 +85,9 @@ export function mapWikiPageRow(row: WikiPageRow): WikiPage {
     author: normalizeText(row.author) || "Unbekannt",
     tags: normalizeTags(row.tags),
     content: row.content || "",
+    status: normalizeStatus(row.status),
+    visibility: normalizeVisibility(row.visibility),
+    pinned: Boolean(row.pinned),
     createdAt: formatDate(row.created_at),
     updatedAt: formatDate(row.updated_at),
   };

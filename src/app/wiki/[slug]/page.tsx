@@ -33,12 +33,15 @@ import {
   wikiRepository,
 } from "../../../lib/wikiRepository";
 import type {
+  WikiPage,
+  WikiStatus,
+  WikiVisibility,
+} from "../../../types/wiki";
+
+import type {
   Company,
   Department,
 } from "../../../types/company";
-import type {
-  WikiPage,
-} from "../../../types/wiki";
 
 type TaxonomyItem = {
   id: string;
@@ -139,6 +142,30 @@ function formatDate(value?: string | null) {
   }
 }
 
+function getWikiStatusLabel(status?: string | null) {
+  if (status === "draft") {
+    return "Entwurf";
+  }
+
+  if (status === "archived") {
+    return "Archiviert";
+  }
+
+  return "Veröffentlicht";
+}
+
+function getWikiVisibilityLabel(visibility?: string | null) {
+  if (visibility === "global") {
+    return "Global";
+  }
+
+  if (visibility === "department") {
+    return "Abteilung";
+  }
+
+  return "Firma";
+}
+
 export default function WikiDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -174,6 +201,12 @@ export default function WikiDetailPage() {
       "wiki.delete",
     ]);
 
+  const canViewVersions =
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.edit",
+    ]);
+
   const slug = Array.isArray(params.slug)
     ? String(params.slug[0] || "")
     : String(params.slug || "");
@@ -196,6 +229,9 @@ export default function WikiDetailPage() {
   const [department, setDepartment] = useState("");
   const [author, setAuthor] = useState("System");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [status, setStatus] = useState<WikiStatus>("published");
+  const [visibility, setVisibility] = useState<WikiVisibility>("company");
+  const [pinned, setPinned] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -502,6 +538,9 @@ export default function WikiDetailPage() {
     setDepartment("");
     setAuthor("System");
     setSelectedTags([]);
+    setStatus("published");
+    setVisibility("company");
+    setPinned(false);
   }
 
   function startEditPage(wikiPage: WikiPage) {
@@ -520,6 +559,9 @@ export default function WikiDetailPage() {
     setDepartment(wikiPage.department || "");
     setAuthor(wikiPage.author || user?.name || "System");
     setSelectedTags(getSafeTags(wikiPage.tags));
+    setStatus(wikiPage.status || "published");
+    setVisibility(wikiPage.visibility || "company");
+    setPinned(Boolean(wikiPage.pinned));
     setModalOpen(true);
   }
 
@@ -632,6 +674,130 @@ export default function WikiDetailPage() {
     }
   }
 
+  async function handleArchive() {
+    if (!page) {
+      return;
+    }
+
+    if (!canEditWiki) {
+      alert("Du hast keine Berechtigung, diese Seite zu archivieren.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Wiki-Seite "${page.title}" archivieren?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setMessage("");
+      setError("");
+
+      const updatedPage = await wikiRepository.update(
+        page.slug,
+        {
+          status: "archived",
+        },
+      );
+
+      if (updatedPage) {
+        setPage(updatedPage);
+      }
+
+      void activityRepository.create({
+        type: "updated",
+        title: "Wiki-Seite archiviert",
+        description: `Wiki-Seite "${page.title}" wurde archiviert.`,
+        entityType: "wiki",
+        entityId: page.slug,
+        userName: user?.name || "System",
+        userEmail: user?.email || "",
+        user: user?.name || "System",
+        companyId: "",
+        departmentId: "",
+        company: page.company || "Intern",
+        department: page.department || "",
+        metadata: {
+          pageSlug: page.slug,
+          pageTitle: page.title,
+          status: "archived",
+        },
+      });
+
+      setMessage("Wiki-Seite wurde archiviert.");
+    } catch (archiveError) {
+      console.error(archiveError);
+
+      setError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : "Wiki-Seite konnte nicht archiviert werden.",
+      );
+    }
+  }
+
+  async function handleTogglePinned() {
+    if (!page) {
+      return;
+    }
+
+    if (!canEditWiki) {
+      alert("Du hast keine Berechtigung, diese Seite zu fixieren.");
+      return;
+    }
+
+    try {
+      setMessage("");
+      setError("");
+
+      const updatedPage = await wikiRepository.update(
+        page.slug,
+        {
+          pinned: !page.pinned,
+        },
+      );
+
+      if (updatedPage) {
+        setPage(updatedPage);
+      }
+
+      void activityRepository.create({
+        type: "updated",
+        title: page.pinned ? "Wiki-Fixierung entfernt" : "Wiki-Seite fixiert",
+        description: page.pinned
+          ? `Fixierung von "${page.title}" wurde entfernt.`
+          : `Wiki-Seite "${page.title}" wurde fixiert.`,
+        entityType: "wiki",
+        entityId: page.slug,
+        userName: user?.name || "System",
+        userEmail: user?.email || "",
+        user: user?.name || "System",
+        companyId: "",
+        departmentId: "",
+        company: page.company || "Intern",
+        department: page.department || "",
+        metadata: {
+          pageSlug: page.slug,
+          pageTitle: page.title,
+          pinned: !page.pinned,
+        },
+      });
+
+      setMessage(page.pinned ? "Fixierung wurde entfernt." : "Wiki-Seite wurde fixiert.");
+    } catch (pinError) {
+      console.error(pinError);
+
+      setError(
+        pinError instanceof Error
+          ? pinError.message
+          : "Fixierung konnte nicht geändert werden.",
+      );
+    }
+  }
+
   async function handleDelete() {
     if (!page) {
       return;
@@ -690,6 +856,8 @@ export default function WikiDetailPage() {
         title="Wiki-Seite wird geladen..."
         description="Seiteninhalt, Berechtigungen und Metadaten werden vorbereitet."
       />
+
+
     );
   }
 
@@ -703,7 +871,7 @@ export default function WikiDetailPage() {
           action={
             <Link
               href="/wiki"
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+              className="app-accent-bg text-white px-3.5 py-2 rounded-xl transition font-bold app-brand-shadow text-sm hover:shadow-md"
             >
               Zurück zum Wiki
             </Link>
@@ -723,7 +891,7 @@ export default function WikiDetailPage() {
           action={
             <Link
               href="/wiki"
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+              className="app-accent-bg text-white px-3.5 py-2 rounded-xl transition font-bold app-brand-shadow text-sm hover:shadow-md"
             >
               Zurück zum Wiki
             </Link>
@@ -740,7 +908,10 @@ export default function WikiDetailPage() {
   const pageDescription =
     page.description ||
     page.excerpt ||
-    "Keine Beschreibung vorhanden.";
+    "Für diese Wiki-Seite wurde noch keine Kurzbeschreibung hinterlegt.";
+
+  const statusLabel = getWikiStatusLabel(page.status);
+  const visibilityLabel = getWikiVisibilityLabel(page.visibility);
 
   if (!permissionsLoading && !canViewWiki) {
     return (
@@ -897,7 +1068,7 @@ export default function WikiDetailPage() {
                 className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <option value="">
-                  Keine Abteilung
+                  Ohne Abteilung
                 </option>
 
                 {departmentOptions.map((option) => (
@@ -911,7 +1082,59 @@ export default function WikiDetailPage() {
               </select>
             </div>
 
-            <div className="xl:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block mb-2 font-bold">
+                  Status
+                </label>
+
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as WikiStatus)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="published">Veröffentlicht</option>
+                  <option value="draft">Entwurf</option>
+                  <option value="archived">Archiviert</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-bold">
+                  Sichtbarkeit
+                </label>
+
+                <select
+                  value={visibility}
+                  onChange={(event) => setVisibility(event.target.value as WikiVisibility)}
+                  className="w-full border border-zinc-200 rounded-2xl px-5 py-4 outline-none app-focus bg-white"
+                >
+                  <option value="global">Global</option>
+                  <option value="company">Firma</option>
+                  <option value="department">Abteilung</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-2 font-bold">
+                  Wichtig
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setPinned((current) => !current)}
+                  className={`w-full border rounded-2xl px-5 py-4 transition font-bold ${
+                    pinned
+                      ? "app-accent-bg text-white app-brand-shadow border-transparent"
+                      : "bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50"
+                  }`}
+                >
+                  {pinned ? "Fixiert / wichtig" : "Nicht fixiert"}
+                </button>
+              </div>
+            </div>
+
+<div className="xl:col-span-2">
               <label className="block mb-2 font-bold">
                 Kurzbeschreibung
               </label>
@@ -946,11 +1169,11 @@ export default function WikiDetailPage() {
             </label>
 
             {tagOptions.length === 0 ? (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
+              <div className="app-muted-surface border border-zinc-200 rounded-2xl p-4 text-sm text-zinc-500">
                 Noch keine globalen oder Wiki-Tags im Admin Backend vorhanden.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 items-center">
                 {tagOptions.map((option) => {
                   const active = selectedTags.includes(option.value);
 
@@ -978,7 +1201,7 @@ export default function WikiDetailPage() {
       <PageHero
         eyebrow="Wiki Detail"
         title={getPageTitle(page)}
-        description={pageDescription}
+        description={pageDescription || "Interne Wissensseite mit Status, Sichtbarkeit und Versionen."}
         badges={[
           {
             label: pageCompany,
@@ -1000,21 +1223,63 @@ export default function WikiDetailPage() {
           {
             label: `${tags.length} Tags`,
           },
+          {
+            label: statusLabel,
+          },
+          {
+            label: visibilityLabel,
+          },
+          ...(page.pinned
+            ? [
+                {
+                  label: "Fixiert",
+                },
+              ]
+            : []),
         ]}
         actions={
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-1.5 items-center">
             <Link
               href="/wiki"
-              className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+              className="app-muted-surface text-zinc-800 border border-white/40 px-3.5 py-2 rounded-xl hover:shadow-md transition font-bold text-sm"
             >
               Zurück zum Wiki
             </Link>
+
+            {canViewVersions && (
+              <Link
+                href={`/wiki/${encodeURIComponent(page.slug)}/versions`}
+                className="app-muted-surface text-zinc-800 border border-white/40 px-3.5 py-2 rounded-xl hover:shadow-md transition font-bold text-sm"
+              >
+                Versionen
+              </Link>
+            )}
+
+            {canEditWiki && (
+              <button
+                type="button"
+                onClick={() => void handleTogglePinned()}
+                className="app-muted-surface text-zinc-800 border border-white/40 px-3.5 py-2 rounded-xl hover:shadow-md transition font-bold text-sm"
+              >
+                {page.pinned ? "Lösen" : "Fixieren"}
+              </button>
+            )}
+
+            {canEditWiki && page.status !== "archived" && (
+              <button
+                type="button"
+                onClick={() => void handleArchive()}
+                className="bg-amber-50 text-amber-700 border border-amber-100 px-3.5 py-2 rounded-xl hover:bg-amber-100 transition font-bold shadow-sm text-sm"
+              >
+                Archivieren
+              </button>
+            )}
 
             {canEditWiki && (
               <button
                 type="button"
                 onClick={() => startEditPage(page)}
-                className="bg-white text-zinc-900 px-5 py-3 rounded-2xl hover:bg-zinc-100 transition font-bold"
+                className="app-muted-surface text-zinc-800 border border-white/40 px-3.5 py-2 rounded-xl hover:shadow-md transition font-bold text-sm"
               >
                 Bearbeiten
               </button>
@@ -1024,7 +1289,7 @@ export default function WikiDetailPage() {
               <button
                 type="button"
                 onClick={() => void handleDelete()}
-                className="bg-red-600 text-white px-5 py-3 rounded-2xl hover:bg-red-500 transition font-bold"
+                className="bg-red-600 text-white px-3.5 py-2 rounded-xl hover:bg-red-500 transition font-bold shadow-sm text-sm"
               >
                 Löschen
               </button>
@@ -1084,8 +1349,8 @@ export default function WikiDetailPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
         <section className="space-y-6">
-          <article className="bg-white border border-zinc-200 rounded-3xl p-6 xl:p-8 shadow-sm overflow-hidden relative">
-            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+          <article className="app-surface border border-zinc-200 rounded-3xl p-6 xl:p-8 shadow-sm overflow-hidden relative">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl pointer-events-none" />
 
             <div className="relative prose prose-zinc max-w-none">
               <div className="whitespace-pre-wrap leading-8 text-zinc-800 text-lg">
@@ -1096,12 +1361,12 @@ export default function WikiDetailPage() {
         </section>
 
         <aside className="space-y-6">
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
+          <section className="app-surface border border-zinc-200 rounded-3xl p-6 shadow-sm overflow-hidden relative">
             <div className="absolute -right-12 -top-12 h-28 w-28 rounded-full app-accent-bg opacity-10 blur-3xl" />
 
             <div className="relative">
-              <h2 className="text-xl font-black">
-                Seitendaten
+              <h2 className="text-xl font-black tracking-tight">
+                Wiki-Informationen
               </h2>
 
               <div className="space-y-4 mt-5 text-sm">
@@ -1119,7 +1384,7 @@ export default function WikiDetailPage() {
                     Abteilung
                   </p>
                   <p className="font-black text-zinc-800">
-                    {pageDepartment || "Keine Abteilung"}
+                    {pageDepartment || "Ohne Abteilung"}
                   </p>
                 </div>
 
@@ -1137,7 +1402,7 @@ export default function WikiDetailPage() {
                     Erstellt
                   </p>
                   <p className="font-black text-zinc-800">
-                    {formatDate(page.createdAt)}
+                    {formatDate(page.createdAt) === "Invalid Date" ? "Nicht gesetzt" : formatDate(page.createdAt)}
                   </p>
                 </div>
 
@@ -1146,22 +1411,22 @@ export default function WikiDetailPage() {
                     Aktualisiert
                   </p>
                   <p className="font-black text-zinc-800">
-                    {formatDate(page.updatedAt)}
+                    {formatDate(page.updatedAt) === "Invalid Date" ? "Nicht gesetzt" : formatDate(page.updatedAt)}
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-xl font-black">
+          <section className="app-surface border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-xl font-black tracking-tight">
               Tags
             </h2>
 
             <div className="flex flex-wrap gap-2 mt-5">
               {tags.length === 0 && (
                 <span className="text-sm bg-zinc-100 text-zinc-500 px-3 py-2 rounded-xl">
-                  Keine Tags
+                  Keine Tags hinterlegt
                 </span>
               )}
 
@@ -1177,9 +1442,9 @@ export default function WikiDetailPage() {
             </div>
           </section>
 
-          <section className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm">
-            <h2 className="text-xl font-black">
-              Schnellfilter
+          <section className="app-surface border border-zinc-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-xl font-black tracking-tight">
+              Wiki-Kontext
             </h2>
 
             <div className="space-y-3 mt-5">
