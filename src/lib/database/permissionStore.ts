@@ -49,7 +49,9 @@ type OptionalSchemaError = Error & {
 const ADMIN_PERMISSION_KEY = "*";
 
 const rolePermissionDefaults: Record<string, string[]> = {
-  admin: [ADMIN_PERMISSION_KEY],
+  admin: [
+    ADMIN_PERMISSION_KEY,
+  ],
   department_lead: [
     "dashboard.view",
     "wiki.view",
@@ -70,14 +72,7 @@ const rolePermissionDefaults: Record<string, string[]> = {
     "organization.view",
     "activity.view",
   ],
-  employee: [ "wiki.view",
-    "tickets.view",
-    "tickets.create",
-    "tickets.templates.view",
-    "files.view",
-    "files.upload",
-    "news.view",
-  ],
+  employee: [],
 };
 
 const defaultPermissions: Array<{

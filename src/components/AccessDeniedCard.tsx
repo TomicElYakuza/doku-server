@@ -1,6 +1,12 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
+import {
+  useEffect,
+} from "react";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 
 type AccessDeniedCardProps = {
   title?: string;
@@ -10,58 +16,50 @@ type AccessDeniedCardProps = {
 };
 
 export default function AccessDeniedCard({
-  title = "Kein Zugriff",
-  description = "Du hast mit deiner aktuellen Rolle keine Berechtigung für diesen Bereich.",
-  backHref,
-  backLabel = "Zurück",
+  title = "Zugriff verweigert",
+  description = "Du hast keine Berechtigung für diesen Bereich.",
+  backHref = "/forbidden",
+  backLabel = "Zur Fehlerseite",
 }: AccessDeniedCardProps) {
-  return (
-    <section className="bg-white border border-zinc-200 rounded-3xl p-8 shadow-sm overflow-hidden relative">
-      <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-500 opacity-10 blur-3xl" />
-      <div className="absolute -left-16 -bottom-16 h-40 w-40 rounded-full app-accent-bg opacity-10 blur-3xl" />
+  const router = useRouter();
+  const pathname = usePathname();
 
-      <div className="relative max-w-3xl">
-        <div className="h-16 w-16 rounded-3xl bg-orange-50 text-orange-700 flex items-center justify-center text-3xl font-black">
+  useEffect(() => {
+    if (
+      pathname !== "/forbidden" &&
+      pathname !== "/unauthorized"
+    ) {
+      router.replace(backHref || "/forbidden");
+    }
+  }, [
+    router,
+    pathname,
+    backHref,
+  ]);
+
+  return (
+    <div className="app-surface rounded-3xl p-8">
+      <div className="flex flex-col items-center justify-center text-center min-h-[260px]">
+        <div className="w-14 h-14 rounded-2xl app-accent-soft app-accent-text flex items-center justify-center text-2xl font-black mb-5">
           403
         </div>
 
-        <p className="mt-6 text-sm font-black uppercase tracking-[0.25em] text-orange-600">
+        <p className="text-xs font-black uppercase tracking-[0.35em] text-orange-600 mb-3">
           Zugriff verweigert
         </p>
 
-        <h1 className="mt-3 text-3xl md:text-4xl font-black text-zinc-950 tracking-tight">
+        <h1 className="text-3xl font-black text-zinc-950">
           {title}
         </h1>
 
-        <p className="mt-4 text-zinc-500 text-lg leading-8 max-w-2xl">
+        <p className="text-zinc-500 mt-3 max-w-xl leading-relaxed">
           {description}
         </p>
 
-        <div className="mt-8 flex flex-col sm:flex-row gap-3">
-          <Link
-            href="/forbidden"
-            className="w-full sm:w-auto app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow text-center"
-          >
-            403-Seite öffnen
-          </Link>
-
-          {backHref ? (
-            <Link
-              href={backHref}
-              className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-900 px-5 py-3 rounded-2xl transition font-bold text-center"
-            >
-              {backLabel}
-            </Link>
-          ) : (
-            <Link
-              href="/dashboard"
-              className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-900 px-5 py-3 rounded-2xl transition font-bold text-center"
-            >
-              Zum Dashboard
-            </Link>
-          )}
-        </div>
+        <p className="text-sm text-zinc-400 mt-6">
+          Weiterleitung zu {backLabel || "Forbidden"}...
+        </p>
       </div>
-    </section>
+    </div>
   );
 }

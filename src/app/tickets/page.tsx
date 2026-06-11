@@ -19,6 +19,7 @@ import {
 } from "next/navigation";
 
 import AppModal from "../../components/AppModal";
+import AccessDeniedCard from "../../components/AccessDeniedCard";
 import EmptyState from "../../components/EmptyState";
 import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
@@ -217,6 +218,7 @@ export default function TicketsPage() {
 
   const {
     user,
+    loading: permissionsLoading,
     isAdmin,
     hasAnyPermission,
   } = usePermissions();
@@ -225,6 +227,12 @@ export default function TicketsPage() {
     isAdmin ||
     hasAnyPermission([
       "tickets.edit",
+    ]);
+
+  const canViewTickets =
+    isAdmin ||
+    hasAnyPermission([
+      "tickets.view",
     ]);
 
   const canCreateTicket =
@@ -351,6 +359,17 @@ export default function TicketsPage() {
   }, []);
 
   useEffect(() => {
+    if (!permissionsLoading) {
+      void loadData();
+    }
+  }, [
+    permissionsLoading,
+    canViewTickets,
+    canCreateTicket,
+    canManageTickets,
+  ]);
+
+  useEffect(() => {
     if (settingsApplied) {
       return;
     }
@@ -461,10 +480,33 @@ export default function TicketsPage() {
         nextCompanies,
         nextDepartments,
       ] = await Promise.all([
-        ticketRepository.list(),
-        companyRepository.listCompanies(),
-        companyRepository.listDepartments(),
-        loadTaxonomyItems(),
+        canViewTickets
+          ? ticketRepository.list()
+          : Promise.resolve([]),
+        companyRepository.listCompanies().catch((companiesError) => {
+          console.warn(
+            "Firmen konnten auf der Ticketseite nicht geladen werden:",
+            companiesError,
+          );
+
+          return [];
+        }),
+        companyRepository.listDepartments().catch((departmentsError) => {
+          console.warn(
+            "Abteilungen konnten auf der Ticketseite nicht geladen werden:",
+            departmentsError,
+          );
+
+          return [];
+        }),
+        loadTaxonomyItems().catch((taxonomyError) => {
+          console.warn(
+            "Ticket-Taxonomie konnte nicht geladen werden:",
+            taxonomyError,
+          );
+
+          return undefined;
+        }),
       ]);
 
       setTickets(Array.isArray(nextTickets) ? nextTickets : []);
@@ -511,16 +553,56 @@ export default function TicketsPage() {
       return true;
     }
 
-    if (!user) {
+    if (!user || !canViewTickets) {
       return false;
+    }
+
+    const userName =
+      String(user.name || "").trim().toLowerCase();
+
+    const userEmail =
+      String(user.email || "").trim().toLowerCase();
+
+    const assignedTo =
+      String(ticket.assignedTo || "").trim().toLowerCase();
+
+    const createdBy =
+      String(ticket.createdBy || "").trim().toLowerCase();
+
+    if (
+      userName &&
+      (
+        assignedTo.includes(userName) ||
+        createdBy.includes(userName)
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      userEmail &&
+      (
+        assignedTo.includes(userEmail) ||
+        createdBy.includes(userEmail)
+      )
+    ) {
+      return true;
     }
 
     if (user.departmentId) {
       return ticket.departmentId === user.departmentId;
     }
 
+    if (user.department) {
+      return ticket.department === user.department;
+    }
+
     if (user.companyId) {
       return ticket.companyId === user.companyId;
+    }
+
+    if (user.company) {
+      return ticket.company === user.company;
     }
 
     return false;
@@ -1052,6 +1134,26 @@ export default function TicketsPage() {
           </button>
         )}
       </div>
+    );
+  }
+
+  if (permissionsLoading) {
+    return (
+      <LoadingState
+        title="Berechtigungen werden geprüft..."
+        description="Dein Ticket-Zugriff wird vorbereitet."
+      />
+    );
+  }
+
+  if (!canViewTickets) {
+    return (
+      <AccessDeniedCard
+        title="Tickets nicht freigegeben"
+        description="Dein Benutzer hat keine Berechtigung für die Ticketübersicht. Ein Administrator kann das Recht tickets.view vergeben."
+        backHref="/forbidden"
+        backLabel="Zur Fehlerseite"
+      />
     );
   }
 

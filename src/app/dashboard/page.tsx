@@ -419,12 +419,14 @@ export default function DashboardPage() {
               Aktualisieren
             </button>
 
-            <Link
-              href="/tickets"
-              className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
-            >
-              Tickets öffnen
-            </Link>
+            {canViewTickets && (
+              <Link
+                href="/tickets"
+                className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
+              >
+                Tickets öffnen
+              </Link>
+            )}
 
             {userIsAdmin && (
               <Link
