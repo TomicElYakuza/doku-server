@@ -1,24 +1,24 @@
-﻿import { NextResponse } from "next/server";
+﻿import {
+  NextResponse,
+} from "next/server";
 
-import { query, queryOne } from "../../../../lib/database/db";
+import {
+  query,
+} from "../../../../lib/database/db";
 import {
   getCurrentServerUser,
   isPermissionError,
   requireAnyServerPermission,
 } from "../../../../lib/serverPermissions";
 
-type OpenedNewsRow = {
-  post_id: string;
+type OpenedRow = {
+  news_id: number | string;
 };
 
-type OpenedNewsBody = {
-  id?: string;
+type MarkOpenedBody = {
+  id?: string | number;
   all?: boolean;
 };
-
-function normalizeText(value?: string | null) {
-  return String(value || "").trim();
-}
 
 function getErrorStatus(error: unknown) {
   if (isPermissionError(error)) {
@@ -36,37 +36,37 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function createOpenedId(userId: string, postId: string) {
-  return `news_opened_${userId}_${postId}`.replace(/[^a-zA-Z0-9_.-]/g, "_");
+function normalizeNewsId(value: unknown) {
+  const normalized =
+    String(value || "").trim();
+
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed =
+    Number(normalized);
+
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
 }
 
 async function ensureNewsOpenedTable() {
   await query(`
-    CREATE EXTENSION IF NOT EXISTS "pgcrypto"
-  `);
-
-  await query(`
     CREATE TABLE IF NOT EXISTS news_opened (
-      id TEXT PRIMARY KEY,
-      user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-      post_id TEXT NOT NULL DEFAULT '',
-      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      news_id BIGINT NOT NULL,
+      user_email TEXT NOT NULL,
+      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (news_id, user_email)
     )
   `);
 
   await query(`
     ALTER TABLE news_opened
-    ADD COLUMN IF NOT EXISTS id TEXT
-  `);
-
-  await query(`
-    ALTER TABLE news_opened
-    ADD COLUMN IF NOT EXISTS user_id UUID
-  `);
-
-  await query(`
-    ALTER TABLE news_opened
-    ADD COLUMN IF NOT EXISTS post_id TEXT NOT NULL DEFAULT ''
+    DROP CONSTRAINT IF EXISTS news_opened_news_id_fkey
   `);
 
   await query(`
@@ -75,32 +75,32 @@ async function ensureNewsOpenedTable() {
   `);
 
   await query(`
-    UPDATE news_opened
-    SET
-      post_id = COALESCE(NULLIF(post_id, ''), ''),
-      opened_at = COALESCE(opened_at, NOW())
+    DELETE FROM news_opened
+    WHERE news_id::TEXT !~ '^[0-9]+$'
   `);
 
   await query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_indexes
-        WHERE schemaname = 'public'
-          AND indexname = 'news_opened_user_post_unique_idx'
-      ) THEN
-        CREATE UNIQUE INDEX news_opened_user_post_unique_idx
-        ON news_opened(user_id, post_id)
-        WHERE user_id IS NOT NULL AND post_id <> '';
-      END IF;
-    END $$;
+    ALTER TABLE news_opened
+    ALTER COLUMN news_id TYPE BIGINT
+    USING news_id::TEXT::BIGINT
+  `);
+
+  await query(`
+    ALTER TABLE news_opened
+    ALTER COLUMN user_email TYPE TEXT
+    USING user_email::TEXT
+  `);
+
+  await query(`
+    ALTER TABLE news_opened
+    ALTER COLUMN opened_at SET DEFAULT NOW()
   `);
 }
 
 export async function GET() {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -115,27 +115,26 @@ export async function GET() {
 
     await requireAnyServerPermission([
       "news.view",
-      "news.create",
-      "news.edit",
-      "news.delete",
       "admin.view",
     ]);
 
     await ensureNewsOpenedTable();
 
-    const rows = await query<OpenedNewsRow>(
+    const rows = await query(
       `
-        SELECT post_id
+        SELECT news_id
         FROM news_opened
-        WHERE user_id = $1
-          AND post_id <> ''
-        ORDER BY opened_at DESC
+        WHERE LOWER(user_email) = LOWER($1)
       `,
-      [currentUser.id],
+      [
+        currentUser.email,
+      ],
     );
 
     return NextResponse.json({
-      openedIds: rows.map((row) => String(row.post_id)),
+      openedIds: (rows as OpenedRow[]).map((row) =>
+        String(row.news_id),
+      ),
     });
   } catch (error) {
     console.error(error);
@@ -144,9 +143,12 @@ export async function GET() {
       {
         message: getErrorMessage(
           error,
-          "Geöffnete News konnten nicht geladen werden.",
+          "Gelesene News konnten nicht geladen werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -157,7 +159,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -172,58 +175,52 @@ export async function POST(request: Request) {
 
     await requireAnyServerPermission([
       "news.view",
-      "news.create",
-      "news.edit",
-      "news.delete",
       "admin.view",
     ]);
 
     await ensureNewsOpenedTable();
 
-    const body = (await request.json()) as OpenedNewsBody;
+    const body =
+      (await request.json()) as MarkOpenedBody;
+
+    const userEmail =
+      currentUser.email.toLowerCase();
 
     if (body.all) {
-      const posts = await query<{ id: string }>(`
-        SELECT id::TEXT AS id
-        FROM news_posts
-      `);
-
-      for (const post of posts) {
-        const postId = String(post.id);
-
-        await query(
-          `
-            INSERT INTO news_opened (
-              id,
-              user_id,
-              post_id,
-              opened_at
-            )
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-              user_id = EXCLUDED.user_id,
-              post_id = EXCLUDED.post_id,
-              opened_at = NOW()
-          `,
-          [
-            createOpenedId(currentUser.id, postId),
-            currentUser.id,
-            postId,
-          ],
-        );
-      }
+      await query(
+        `
+          INSERT INTO news_opened (
+            news_id,
+            user_email
+          )
+          SELECT
+            id,
+            $1
+          FROM news_posts
+          ON CONFLICT (
+            news_id,
+            user_email
+          )
+          DO UPDATE SET
+            opened_at = NOW()
+        `,
+        [
+          userEmail,
+        ],
+      );
 
       return NextResponse.json({
         ok: true,
       });
     }
 
-    const postId = normalizeText(body.id);
+    const newsId =
+      normalizeNewsId(body.id);
 
-    if (!postId) {
+    if (!newsId) {
       return NextResponse.json(
         {
-          message: "News-ID fehlt.",
+          message: "News-ID ist ungültig.",
         },
         {
           status: 400,
@@ -231,45 +228,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const exists = await queryOne<{ id: string }>(
-      `
-        SELECT id::TEXT AS id
-        FROM news_posts
-        WHERE id::TEXT = $1
-        LIMIT 1
-      `,
-      [postId],
-    );
-
-    if (!exists) {
-      return NextResponse.json(
-        {
-          message: "News wurde nicht gefunden.",
-        },
-        {
-          status: 404,
-        },
-      );
-    }
-
     await query(
       `
         INSERT INTO news_opened (
-          id,
-          user_id,
-          post_id,
-          opened_at
+          news_id,
+          user_email
         )
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (id) DO UPDATE SET
-          user_id = EXCLUDED.user_id,
-          post_id = EXCLUDED.post_id,
+        VALUES (
+          $1,
+          $2
+        )
+        ON CONFLICT (
+          news_id,
+          user_email
+        )
+        DO UPDATE SET
           opened_at = NOW()
       `,
       [
-        createOpenedId(currentUser.id, postId),
-        currentUser.id,
-        postId,
+        newsId,
+        userEmail,
       ],
     );
 
@@ -283,9 +261,12 @@ export async function POST(request: Request) {
       {
         message: getErrorMessage(
           error,
-          "News konnte nicht als geöffnet markiert werden.",
+          "News konnte nicht als gelesen markiert werden.",
         ),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

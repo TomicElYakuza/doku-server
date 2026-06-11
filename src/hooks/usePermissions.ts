@@ -79,7 +79,7 @@ export function usePermissions(): UsePermissionsResult {
   ] = useState(true);
 
   const reload = useCallback(
-    async (_options?: ReloadPermissionsOptions) => {
+    async (options?: ReloadPermissionsOptions) => {
       try {
         setLoading(true);
 

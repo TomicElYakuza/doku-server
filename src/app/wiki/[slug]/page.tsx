@@ -15,6 +15,7 @@ import {
 } from "next/navigation";
 
 import AppModal from "../../../components/AppModal";
+import AccessDeniedCard from "../../../components/AccessDeniedCard";
 import EmptyState from "../../../components/EmptyState";
 import LoadingState from "../../../components/LoadingState";
 import PageHero from "../../../components/PageHero";
@@ -152,7 +153,7 @@ export default function WikiDetailPage() {
   const canManageWiki =
     isAdmin ||
     hasAnyPermission([
-      "wiki.edit",
+      "wiki.manage",
     ]);
 
   const canViewWiki =
@@ -369,15 +370,28 @@ export default function WikiDetailPage() {
       return false;
     }
 
-    const pageCompany = String(wikiPage.company || "");
-    const pageDepartment = String(wikiPage.department || "");
+    const pageCompany =
+      String(wikiPage.company || "").trim();
 
-    if (user.department) {
-      return pageDepartment === user.department;
+    const pageDepartment =
+      String(wikiPage.department || "").trim();
+
+    const userCompany =
+      String(user.company || "").trim();
+
+    const userDepartment =
+      String(user.department || "").trim();
+
+    if (!pageCompany && !pageDepartment) {
+      return true;
     }
 
-    if (user.company) {
-      return pageCompany === user.company;
+    if (userDepartment && pageDepartment === userDepartment) {
+      return true;
+    }
+
+    if (userCompany && pageCompany === userCompany) {
+      return true;
     }
 
     return false;
@@ -727,6 +741,18 @@ export default function WikiDetailPage() {
     page.description ||
     page.excerpt ||
     "Keine Beschreibung vorhanden.";
+
+  if (!permissionsLoading && !canViewWiki) {
+    return (
+      <div data-wiki-view-guard="true">
+        <AccessDeniedCard
+          title="Kein Zugriff"
+          description="Du hast keine Berechtigung, das Wiki anzuzeigen."
+        />
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-8">

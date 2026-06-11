@@ -202,6 +202,12 @@ const defaultPermissions: Array<{
     category: "Wiki",
   },
   {
+    permissionKey: "wiki.manage",
+    label: "Wiki verwalten",
+    description: "Darf Wiki-Seiten vollständig verwalten.",
+    category: "Wiki",
+  },
+  {
     permissionKey: "tickets.view",
     label: "Tickets anzeigen",
     description: "Darf Tickets sehen.",
@@ -411,10 +417,6 @@ const legacyPermissionRenames = [
   {
     from: ["news", "manage"].join("."),
     to: "news.edit",
-  },
-  {
-    from: ["wiki", "manage"].join("."),
-    to: "wiki.edit",
   },
   {
     from: ["tickets", "manage"].join("."),
@@ -992,7 +994,31 @@ export async function getEffectivePermissionKeysForUser(
 
   roleDefaults.forEach((permissionKey) => permissionKeys.add(permissionKey));
 
-  if (permissionKeys.has(ADMIN_PERMISSION_KEY)) {
+  // DIRECT_USER_PERMISSIONS_SERVER_FIX
+  // Direkte Benutzerrechte müssen serverseitig in den effektiven Rechten landen.
+  // Sonst sieht die Sidebar ein Recht clientseitig, aber API-Routen blockieren trotzdem.
+  const directUserPermissionRows = await query<{ permission_key: string }>(
+    `
+      SELECT
+        permission_key
+      FROM user_permissions
+      WHERE user_id = $1
+    `,
+    [
+      user.id,
+    ],
+  );
+
+  for (const row of directUserPermissionRows) {
+    const permissionKey =
+      normalizePermissionKey(row.permission_key);
+
+    if (permissionKey) {
+      permissionKeys.add(permissionKey);
+    }
+  }
+
+if (permissionKeys.has(ADMIN_PERMISSION_KEY)) {
     return [ADMIN_PERMISSION_KEY];
   }
 

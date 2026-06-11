@@ -72,9 +72,7 @@ export async function GET(request: Request) {
 
     await requireAnyServerPermission([
       "wiki.view",
-      "wiki.create",
-      "wiki.edit",
-      "wiki.delete",
+      "wiki.manage",
       "admin.view",
     ]);
 
@@ -163,7 +161,11 @@ export async function POST(request: Request) {
       );
     }
 
-    await requireAnyServerPermission(["wiki.create", "settings.manage"]);
+    await requireAnyServerPermission([
+      "wiki.create",
+      "wiki.manage",
+      "settings.manage",
+    ]);
 
     const body = (await request.json()) as CreateWikiPageBody;
 

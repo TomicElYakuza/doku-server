@@ -132,9 +132,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     await requireAnyServerPermission([
       "wiki.view",
-      "wiki.create",
-      "wiki.edit",
-      "wiki.delete",
+      "wiki.manage",
       "admin.view",
     ]);
 
@@ -186,7 +184,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    await requireAnyServerPermission(["wiki.edit", "settings.manage"]);
+    await requireAnyServerPermission([
+      "wiki.edit",
+      "wiki.manage",
+      "settings.manage",
+    ]);
 
     const { slug } = await context.params;
     const currentSlug = decodeURIComponent(slug);
@@ -375,7 +377,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
       );
     }
 
-    await requireAnyServerPermission(["wiki.delete", "settings.manage"]);
+    await requireAnyServerPermission([
+      "wiki.delete",
+      "wiki.manage",
+      "settings.manage",
+    ]);
 
     const { slug } = await context.params;
     const decodedSlug = decodeURIComponent(slug);

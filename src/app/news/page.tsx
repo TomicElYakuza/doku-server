@@ -1,5 +1,11 @@
 ﻿"use client";
 
+import {
+  usePermissions,
+} from "../../hooks/usePermissions";
+
+import AccessDeniedCard from "../../components/AccessDeniedCard";
+
 import Link from "next/link";
 import {
   useEffect,
@@ -24,6 +30,24 @@ import {
 import type {
   NewsPost,
 } from "../../types/news";
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("de-AT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "-";
+  }
+}
 
 function getCategoryClass(category: string) {
   if (category === "System") {
@@ -65,10 +89,47 @@ function getPostCategory(post: NewsPost) {
 }
 
 function getPostDate(post: NewsPost) {
-  return post.createdAt || "-";
+  const value =
+    post.publishedAt || post.createdAt;
+
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("de-AT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "-";
+  }
 }
 
 export default function NewsLandingPage() {
+
+  const {
+    loading: permissionsLoading,
+    isAdmin,
+    hasAnyPermission,
+  } = usePermissions();
+
+  const canViewNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.view",
+    ]);
+
+  const canManageNews =
+    isAdmin ||
+    hasAnyPermission([
+      "news.create",
+      "news.edit",
+      "news.delete",
+    ]);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -314,11 +375,15 @@ export default function NewsLandingPage() {
                   </span>
                 )}
 
-                {unread && (
-                  <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold">
-                    Neu
-                  </span>
-                )}
+                <span
+                  className={
+                    unread
+                      ? "text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold"
+                      : "text-xs bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full font-bold"
+                  }
+                >
+                  {unread ? "Neu" : "Gelesen"}
+                </span>
               </div>
 
               <h2 className="text-2xl font-black tracking-[-0.03em] text-zinc-950 mt-4 line-clamp-2">
@@ -364,6 +429,26 @@ export default function NewsLandingPage() {
     );
   }
 
+  if (permissionsLoading) {
+    return (
+      <LoadingState
+        title="Berechtigungen werden geprüft..."
+        description="Dein News-Zugriff wird vorbereitet."
+      />
+    );
+  }
+
+  if (!canViewNews) {
+    return (
+      <AccessDeniedCard
+        title="News nicht freigegeben"
+        description="Dein Benutzer hat keine Berechtigung für die News. Ein Administrator kann das Recht news.view vergeben."
+        backHref="/forbidden"
+        backLabel="Zur Fehlerseite"
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
       <PageHero
@@ -396,7 +481,7 @@ export default function NewsLandingPage() {
               </button>
             )}
 
-            {canManageSystem() && (
+            {canManageNews && (
               <Link
                 href="/admin/news"
                 className="bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl hover:bg-white/20 transition font-bold"

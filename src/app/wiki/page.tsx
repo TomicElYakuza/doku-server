@@ -14,6 +14,7 @@ import {
 } from "next/navigation";
 
 import AppModal from "../../components/AppModal";
+import AccessDeniedCard from "../../components/AccessDeniedCard";
 import EmptyState from "../../components/EmptyState";
 import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
@@ -149,6 +150,7 @@ export default function WikiPageList() {
     user,
     isAdmin,
     hasAnyPermission,
+    loading: permissionsLoading,
   } = usePermissions();
 
   const {
@@ -158,7 +160,15 @@ export default function WikiPageList() {
   const canManageWiki =
     isAdmin ||
     hasAnyPermission([
-      "wiki.edit",
+      "wiki.manage",
+    ]);
+
+  const canViewWiki =
+    isAdmin ||
+    canManageWiki ||
+    hasAnyPermission([
+      "wiki.view",
+      "wiki.manage",
     ]);
 
   const canCreateWiki =
@@ -354,19 +364,57 @@ export default function WikiPageList() {
       setError("");
 
       const [
-        nextPages,
-        nextCompanies,
-        nextDepartments,
-      ] = await Promise.all([
+        pagesResult,
+        companiesResult,
+        departmentsResult,
+        taxonomyResult,
+      ] = await Promise.allSettled([
         wikiRepository.list(),
         companyRepository.listCompanies(),
         companyRepository.listDepartments(),
         loadTaxonomyItems(),
       ]);
 
-      setPages(Array.isArray(nextPages) ? nextPages : []);
-      setCompanies(Array.isArray(nextCompanies) ? nextCompanies : []);
-      setDepartments(Array.isArray(nextDepartments) ? nextDepartments : []);
+      if (pagesResult.status !== "fulfilled") {
+        throw pagesResult.reason;
+      }
+
+      setPages(Array.isArray(pagesResult.value) ? pagesResult.value : []);
+
+      if (companiesResult.status === "fulfilled") {
+        setCompanies(
+          Array.isArray(companiesResult.value)
+            ? companiesResult.value
+            : [],
+        );
+      } else {
+        console.warn(
+          "Organisation/Firmen konnten für Wiki nicht geladen werden:",
+          companiesResult.reason,
+        );
+        setCompanies([]);
+      }
+
+      if (departmentsResult.status === "fulfilled") {
+        setDepartments(
+          Array.isArray(departmentsResult.value)
+            ? departmentsResult.value
+            : [],
+        );
+      } else {
+        console.warn(
+          "Organisation/Abteilungen konnten für Wiki nicht geladen werden:",
+          departmentsResult.reason,
+        );
+        setDepartments([]);
+      }
+
+      if (taxonomyResult.status !== "fulfilled") {
+        console.warn(
+          "Wiki-Taxonomie konnte nicht geladen werden:",
+          taxonomyResult.reason,
+        );
+      }
     } catch (loadError) {
       console.error(loadError);
 
@@ -385,16 +433,32 @@ export default function WikiPageList() {
       return true;
     }
 
-    if (!user) {
+    if (!user || !canViewWiki) {
       return false;
     }
 
-    if (user.department) {
-      return page.department === user.department;
+    const pageCompany =
+      String(page.company || "").trim();
+
+    const pageDepartment =
+      String(page.department || "").trim();
+
+    const userCompany =
+      String(user.company || "").trim();
+
+    const userDepartment =
+      String(user.department || "").trim();
+
+    if (!pageCompany && !pageDepartment) {
+      return true;
     }
 
-    if (user.company) {
-      return page.company === user.company;
+    if (userDepartment && pageDepartment === userDepartment) {
+      return true;
+    }
+
+    if (userCompany && pageCompany === userCompany) {
+      return true;
     }
 
     return false;
@@ -402,11 +466,11 @@ export default function WikiPageList() {
 
   const visiblePages = useMemo(
     () => pages.filter(userCanSeePage),
-    [
-      pages,
+    [      pages,
       user,
       isAdmin,
       canManageWiki,
+      canViewWiki,
     ],
   );
 
@@ -853,6 +917,18 @@ export default function WikiPageList() {
       </div>
     );
   }
+
+  if (!permissionsLoading && user && !canViewWiki) {
+    return (
+      <div data-wiki-view-guard="true">
+        <AccessDeniedCard
+          title="Kein Zugriff"
+          description="Du hast keine Berechtigung, das Wiki anzuzeigen."
+        />
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-8">

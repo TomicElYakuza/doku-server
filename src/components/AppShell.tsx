@@ -77,8 +77,7 @@ const navigationItems: NavigationItem[] = [
     moduleKey: "wiki",
     permissionAny: [
       "wiki.view",
-      "wiki.create",
-      "wiki.edit",
+      "wiki.manage",
     ],
   },
   {
@@ -854,15 +853,39 @@ export default function AppShell({
           className={`hidden xl:flex xl:flex-col border-r h-screen sticky top-0 overflow-hidden ${themeClasses.sidebar}`}
         >
           <div className="p-6 border-b border-white/10">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl app-accent-bg app-brand-shadow flex items-center justify-center font-black text-xl text-white">
-                V
-              </div>
-              <div>
-                <p className="font-black text-lg leading-tight">{brandName}</p>
-                <p className={`text-sm ${themeClasses.sidebarMuted}`}>
-                  {workspaceName} Workspace
-                </p>
+            <div
+              data-sidebar-brand-card="true"
+              className="relative overflow-hidden rounded-[2rem] border border-current/10 bg-current/[0.035] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.14)]"
+            >
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -left-10 -top-10 h-28 w-28 rounded-full app-accent-bg opacity-25 blur-2xl"
+              />
+
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2 top-2 h-20 w-20 rounded-full app-brand-gradient opacity-20 blur-xl"
+              />
+
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-4 bottom-0 h-px app-brand-gradient opacity-45"
+              />
+
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl app-accent-bg app-brand-shadow flex items-center justify-center font-black text-xl text-white ring-1 ring-white/20">
+                  V
+                </div>
+
+                <div className="min-w-0">
+                  <p className="font-black text-lg leading-tight truncate">
+                    {brandName}
+                  </p>
+
+                  <p className={`text-sm ${themeClasses.sidebarMuted} truncate`}>
+                    {workspaceName} Workspace
+                  </p>
+                </div>
               </div>
             </div>
           </div>
