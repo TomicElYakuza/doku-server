@@ -1,4 +1,7 @@
-Schulungen, Erstell von 
+Schulungen
+Erstell von 
+permission für eigene tickets, usw löschen, aber nur die eigenen
+News noch auf abteilungsnews usw upgraden
 
 -	AD Integration mit E-Mail und Telefon
 -	Externer Firmenzugang

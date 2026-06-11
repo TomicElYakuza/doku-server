@@ -1,9 +1,13 @@
-﻿import { NextResponse } from "next/server";
+import {
+  NextResponse,
+} from "next/server";
 
-import { query, queryOne } from "../../../lib/database/db";
+import {
+  query,
+  queryOne,
+} from "../../../lib/database/db";
 import {
   mapNewsPostRow,
-  type NewsPostRow,
 } from "../../../lib/database/mappers/newsMapper";
 import {
   getCurrentServerUser,
@@ -134,7 +138,8 @@ async function ensureNewsPostsTable() {
 
 export async function GET(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -149,9 +154,6 @@ export async function GET(request: Request) {
 
     await requireAnyServerPermission([
       "news.view",
-      "news.create",
-      "news.edit",
-      "news.delete",
       "admin.view",
     ]);
 
@@ -183,9 +185,11 @@ export async function GET(request: Request) {
     }
 
     const whereSql =
-      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+      whereParts.length > 0
+        ? `WHERE ${whereParts.join(" AND ")}`
+        : "";
 
-    const rows = await query<NewsPostRow>(
+    const rows = await query(
       `
         SELECT
           id,
@@ -205,14 +209,22 @@ export async function GET(request: Request) {
       params,
     );
 
-    return NextResponse.json(rows.map(mapNewsPostRow));
+    return NextResponse.json(
+      (rows as Parameters<typeof mapNewsPostRow>[0][]).map(mapNewsPostRow),
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: getErrorMessage(error, "News konnten nicht geladen werden."),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "News konnten nicht geladen werden.",
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -223,7 +235,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -244,13 +257,15 @@ export async function POST(request: Request) {
 
     await ensureNewsPostsTable();
 
-    const body = (await request.json()) as CreateNewsPostBody;
+    const body =
+      (await request.json()) as CreateNewsPostBody;
 
     const title = normalizeText(body.title);
     const description = normalizeText(body.description || body.excerpt);
     const content = normalizeText(body.content);
     const category = normalizeText(body.category);
-    const author = normalizeText(body.author) || currentUser.name || "Velunis";
+    const author =
+      normalizeText(body.author) || currentUser.name || "Velunis";
     const pinned = normalizeBoolean(body.pinned);
     const publishedAt = normalizePublishedAt(body.publishedAt);
 
@@ -298,7 +313,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const row = await queryOne<NewsPostRow>(
+    const row = await queryOne(
       `
         INSERT INTO news_posts (
           title,
@@ -344,16 +359,25 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(mapNewsPostRow(row), {
-      status: 201,
-    });
+    return NextResponse.json(
+      mapNewsPostRow(row as Parameters<typeof mapNewsPostRow>[0]),
+      {
+        status: 201,
+      },
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: getErrorMessage(error, "News konnte nicht erstellt werden."),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "News konnte nicht erstellt werden.",
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

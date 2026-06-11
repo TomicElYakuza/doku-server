@@ -1,6 +1,11 @@
-import { NextResponse } from "next/server";
+import {
+  NextResponse,
+} from "next/server";
 
-import { query, queryOne } from "../../../lib/database/db";
+import {
+  query,
+  queryOne,
+} from "../../../lib/database/db";
 import {
   mapTicketRow,
   type TicketRow,
@@ -34,7 +39,12 @@ const allowedStatusValues = [
   "closed",
 ];
 
-const allowedPriorityValues = ["low", "medium", "high", "urgent"];
+const allowedPriorityValues = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
 
 function normalizeText(value?: string | null) {
   return String(value || "").trim();
@@ -73,7 +83,10 @@ function normalizeLimit(value: string | null) {
     return 200;
   }
 
-  return Math.min(Math.floor(parsed), 500);
+  return Math.min(
+    Math.floor(parsed),
+    500,
+  );
 }
 
 function normalizeTags(tags?: string[]) {
@@ -82,7 +95,11 @@ function normalizeTags(tags?: string[]) {
   }
 
   return Array.from(
-    new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)),
+    new Set(
+      tags
+        .map((tag) => String(tag).trim())
+        .filter(Boolean),
+    ),
   );
 }
 
@@ -104,7 +121,8 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export async function GET(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -119,11 +137,6 @@ export async function GET(request: Request) {
 
     await requireAnyServerPermission([
       "tickets.view",
-      "tickets.create",
-      "tickets.edit",
-      "tickets.assign",
-      "tickets.close",
-      "tickets.delete",
       "admin.view",
     ]);
 
@@ -135,6 +148,7 @@ export async function GET(request: Request) {
     const companyId = normalizeText(url.searchParams.get("companyId"));
     const departmentId = normalizeText(url.searchParams.get("departmentId"));
     const hideClosed = url.searchParams.get("hideClosed");
+    const limit = normalizeLimit(url.searchParams.get("limit"));
 
     const params: unknown[] = [];
     const whereParts: string[] = [];
@@ -174,21 +188,70 @@ export async function GET(request: Request) {
     }
 
     if (currentUser.role !== "admin") {
-      if (currentUser.departmentId) {
-        params.push(currentUser.departmentId);
-        whereParts.push(`department_id = $${params.length}`);
-      } else if (currentUser.companyId) {
-        params.push(currentUser.companyId);
-        whereParts.push(`company_id = $${params.length}`);
+      const scopeParts: string[] = [];
+
+      const currentUserDepartmentId =
+        String(currentUser.departmentId || "").trim();
+
+      const currentUserCompanyId =
+        String(currentUser.companyId || "").trim();
+
+      const currentUserDepartment =
+        String(currentUser.department || "").trim();
+
+      const currentUserCompany =
+        String(currentUser.company || "").trim();
+
+      if (currentUserDepartmentId) {
+        params.push(currentUserDepartmentId);
+        scopeParts.push(`department_id = $${params.length}`);
+      }
+
+      if (currentUserDepartment) {
+        params.push(currentUserDepartment);
+        scopeParts.push(`department = $${params.length}`);
+      }
+
+      if (!currentUserDepartmentId && !currentUserDepartment) {
+        if (currentUserCompanyId) {
+          params.push(currentUserCompanyId);
+          scopeParts.push(`company_id = $${params.length}`);
+        }
+
+        if (currentUserCompany) {
+          params.push(currentUserCompany);
+          scopeParts.push(`company = $${params.length}`);
+        }
+      }
+
+      const userScopeValues = [
+        currentUser.name,
+        currentUser.email,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+
+      userScopeValues.forEach((value) => {
+        params.push(`%${value}%`);
+        scopeParts.push(`assigned_to ILIKE $${params.length}`);
+        scopeParts.push(`created_by ILIKE $${params.length}`);
+      });
+
+      if (scopeParts.length > 0) {
+        whereParts.push(`(${scopeParts.join(" OR ")})`);
       } else {
         whereParts.push("1 = 0");
       }
     }
 
     const whereSql =
-      whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+      whereParts.length > 0
+        ? `WHERE ${whereParts.join(" AND ")}`
+        : "";
 
-    const rows = await query<TicketRow>(
+    params.push(limit);
+
+    const rows = await query(
       `
         SELECT
           id,
@@ -209,18 +272,27 @@ export async function GET(request: Request) {
         FROM tickets
         ${whereSql}
         ORDER BY id DESC
+        LIMIT $${params.length}
       `,
       params,
     );
 
-    return NextResponse.json(rows.map(mapTicketRow));
+    return NextResponse.json(
+      (rows as TicketRow[]).map(mapTicketRow),
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: getErrorMessage(error, "Tickets konnten nicht geladen werden."),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Tickets konnten nicht geladen werden.",
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),
@@ -231,7 +303,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const currentUser = await getCurrentServerUser();
+    const currentUser =
+      await getCurrentServerUser();
 
     if (!currentUser) {
       return NextResponse.json(
@@ -244,9 +317,13 @@ export async function POST(request: Request) {
       );
     }
 
-    await requireAnyServerPermission(["tickets.create", "settings.manage"]);
+    await requireAnyServerPermission([
+      "tickets.create",
+      "settings.manage",
+    ]);
 
-    const body = (await request.json()) as CreateTicketBody;
+    const body =
+      (await request.json()) as CreateTicketBody;
 
     const title = normalizeText(body.title);
     const category = normalizeText(body.category);
@@ -278,27 +355,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const canChooseScope = currentUser.role === "admin";
+    const canChooseScope =
+      currentUser.role === "admin";
 
-    const companyId = canChooseScope
-      ? normalizeNullableId(body.companyId)
-      : currentUser.companyId || null;
+    const companyId =
+      canChooseScope
+        ? normalizeNullableId(body.companyId)
+        : currentUser.companyId || null;
 
-    const departmentId = canChooseScope
-      ? normalizeNullableId(body.departmentId)
-      : currentUser.departmentId || null;
+    const departmentId =
+      canChooseScope
+        ? normalizeNullableId(body.departmentId)
+        : currentUser.departmentId || null;
 
-    const company = canChooseScope
-      ? normalizeText(body.company) || currentUser.company || "Intern"
-      : currentUser.company || "Intern";
+    const company =
+      canChooseScope
+        ? normalizeText(body.company) || currentUser.company || "Intern"
+        : currentUser.company || "Intern";
 
-    const department = canChooseScope
-      ? normalizeText(body.department)
-      : currentUser.department || "";
+    const department =
+      canChooseScope
+        ? normalizeText(body.department)
+        : currentUser.department || "";
 
-    const createdBy = normalizeText(body.createdBy) || currentUser.name || "System";
+    const createdBy =
+      normalizeText(body.createdBy) || currentUser.name || "System";
 
-    const row = await queryOne<TicketRow>(
+    const row = await queryOne(
       `
         INSERT INTO tickets (
           title,
@@ -315,9 +398,18 @@ export async function POST(request: Request) {
           tags
         )
         VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9, $10,
-          $11, $12
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12
         )
         RETURNING
           id,
@@ -363,16 +455,25 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(mapTicketRow(row), {
-      status: 201,
-    });
+    return NextResponse.json(
+      mapTicketRow(row as TicketRow),
+      {
+        status: 201,
+      },
+    );
   } catch (error) {
     console.error(error);
 
     return NextResponse.json(
       {
-        message: getErrorMessage(error, "Ticket konnte nicht erstellt werden."),
-        error: error instanceof Error ? error.message : "Unbekannter Fehler",
+        message: getErrorMessage(
+          error,
+          "Ticket konnte nicht erstellt werden.",
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unbekannter Fehler",
       },
       {
         status: getErrorStatus(error),

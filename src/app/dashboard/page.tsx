@@ -7,9 +7,13 @@ import {
   useState,
 } from "react";
 
+import AccessDeniedCard from "../../components/AccessDeniedCard";
 import EmptyState from "../../components/EmptyState";
 import LoadingState from "../../components/LoadingState";
 import PageHero from "../../components/PageHero";
+import {
+  usePermissions,
+} from "../../hooks/usePermissions";
 import StatCard from "../../components/StatCard";
 import {
   appSettingsRepository,
@@ -36,15 +40,6 @@ import type {
 import type {
   User,
 } from "../../types/user";
-
-type FocusItem = {
-  key: string;
-  title: string;
-  description: string;
-  href: string;
-  badge: string;
-  icon: string;
-};
 
 function getTicketStatusLabel(status: string) {
   return ticketRepository.getStatusLabel(status);
@@ -79,7 +74,7 @@ function getCategoryClass(category: string) {
     return "bg-emerald-50 text-emerald-700";
   }
 
-  return "bg-zinc-100 text-zinc-700 dark:text-zinc-200";
+  return "bg-zinc-100 text-zinc-700";
 }
 
 function getRoleLabel(role?: string) {
@@ -111,6 +106,12 @@ function formatDate(value?: string | null) {
 }
 
 export default function DashboardPage() {
+  const {
+    loading: permissionsLoading,
+    permissionKeys,
+    hasPermission,
+    isAdmin: permissionUserIsAdmin,
+  } = usePermissions();
   const [
     currentUser,
     setCurrentUser,
@@ -142,6 +143,10 @@ export default function DashboardPage() {
   ] = useState("");
 
   useEffect(() => {
+    if (permissionsLoading) {
+      return;
+    }
+
     void loadDashboard();
 
     function handleDashboardRefresh() {
@@ -191,23 +196,62 @@ export default function DashboardPage() {
         handleDashboardRefresh,
       );
     };
-  }, []);
+  }, [
+    permissionsLoading,
+    permissionUserIsAdmin,
+    permissionKeys,
+  ]);
 
   async function loadDashboard() {
     try {
       setLoading(true);
       setError("");
 
+      const nextUser = await loadCurrentUser();
+
+      const nextSettings =
+        await appSettingsRepository.get().catch((settingsError) => {
+          console.warn(
+            "App-Einstellungen konnten im Dashboard nicht geladen werden:",
+            settingsError,
+          );
+
+          return appSettingsRepository.getDefault();
+        });
+
+      const nextUserIsAdmin =
+        nextUser?.role === "admin" || permissionUserIsAdmin;
+
+      const nextCanViewTickets =
+        nextUserIsAdmin || hasPermission("tickets.view");
+
+      const nextCanViewNews =
+        nextUserIsAdmin || hasPermission("news.view");
+
       const [
-        nextUser,
         nextTickets,
         nextNewsPosts,
-        nextSettings,
       ] = await Promise.all([
-        loadCurrentUser(),
-        ticketRepository.list(),
-        newsRepository.list(),
-        appSettingsRepository.get(),
+        nextCanViewTickets
+          ? ticketRepository.list().catch((ticketError) => {
+              console.warn(
+                "Tickets konnten im Dashboard nicht geladen werden:",
+                ticketError,
+              );
+
+              return [];
+            })
+          : Promise.resolve([]),
+        nextCanViewNews
+          ? newsRepository.list().catch((newsError) => {
+              console.warn(
+                "News konnten im Dashboard nicht geladen werden:",
+                newsError,
+              );
+
+              return [];
+            })
+          : Promise.resolve([]),
       ]);
 
       setCurrentUser(nextUser);
@@ -290,7 +334,7 @@ export default function DashboardPage() {
   const latestTickets = useMemo(
     () => [
       ...tickets,
-    ].slice(0, 5),
+    ].slice(0, 6),
     [
       tickets,
     ],
@@ -317,63 +361,40 @@ export default function DashboardPage() {
       ? 0
       : Math.round((closedTickets.length / tickets.length) * 100);
 
-  const focusItems = useMemo(() => {
-    const items: FocusItem[] = [];
-    const usedTicketIds = new Set<string>();
+  const userIsAdmin =
+    currentUser?.role === "admin" || permissionUserIsAdmin;
 
-    myOpenTickets.slice(0, 2).forEach((ticket) => {
-      const id = String(ticket.id);
+  const canViewDashboard =
+    userIsAdmin || hasPermission("dashboard.view");
 
-      usedTicketIds.add(id);
+  const canViewTickets =
+    userIsAdmin || hasPermission("tickets.view");
 
-      items.push({
-        key: `my-ticket-${id}`,
-        title: ticket.title,
-        description: ticket.description || "Dieses Ticket ist dir zugeordnet oder wurde von dir erstellt.",
-        href: `/tickets/${encodeURIComponent(id)}`,
-        badge: "Mein Ticket",
-        icon: "◎",
-      });
-    });
+  const canViewNews =
+    userIsAdmin || hasPermission("news.view");
 
-    urgentTickets
-      .filter((ticket) => !usedTicketIds.has(String(ticket.id)))
-      .slice(0, 2)
-      .forEach((ticket) => {
-        const id = String(ticket.id);
+  if (permissionsLoading) {
+    return (
+      <LoadingState
+        title="Berechtigungen werden geprüft..."
+        description="Dein Dashboard-Zugriff wird vorbereitet."
+      />
+    );
+  }
 
-        items.push({
-          key: `urgent-ticket-${id}`,
-          title: ticket.title,
-          description: ticket.description || "Dieses Ticket hat eine hohe Priorität.",
-          href: `/tickets/${encodeURIComponent(id)}`,
-          badge: getTicketPriorityLabel(ticket.priority),
-          icon: "!",
-        });
-      });
-
-    pinnedNews.slice(0, 2).forEach((post) => {
-      items.push({
-        key: `news-${post.id}`,
-        title: post.title,
-        description: post.description || "Fixierte interne Meldung.",
-        href: "/news",
-        badge: "News",
-        icon: "●",
-      });
-    });
-
-    return items.slice(0, 5);
-  }, [
-    myOpenTickets,
-    urgentTickets,
-    pinnedNews,
-  ]);
-
-  const userIsAdmin = currentUser?.role === "admin";
+  if (!canViewDashboard) {
+    return (
+      <AccessDeniedCard
+        title="Dashboard nicht freigegeben"
+        description="Dein Benutzer hat keine Berechtigung für das Dashboard. Ein Administrator kann das Recht dashboard.view vergeben."
+        backHref="/forbidden"
+        backLabel="Zur Fehlerseite"
+      />
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHero
         eyebrow="Dashboard"
         title={`Willkommen${currentUser?.name ? `, ${currentUser.name}` : ""}`}
@@ -478,141 +499,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm p-6 xl:col-span-2">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-                <div>
-                  <h2 className="text-xl font-black text-zinc-950">
-                    Heute im Fokus
-                  </h2>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    Was für dich gerade wichtig ist.
-                  </p>
-                </div>
-
-                <span className="text-xs font-bold px-3 py-2 rounded-full app-accent-soft app-accent-text">
-                  {focusItems.length > 0 ? `${focusItems.length} Hinweise` : "Alles ruhig"}
-                </span>
-              </div>
-
-              {focusItems.length === 0 && (
-                <div className="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 p-8">
-                  <EmptyState
-                    icon="✓"
-                    title="Keine dringenden Punkte"
-                    description="Aktuell gibt es keine eigenen offenen Tickets, keine hohen Prioritäten und keine fixierten Meldungen."
-                    action={
-                      <Link
-                        href="/tickets"
-                        className="app-accent-bg text-white px-5 py-3 rounded-2xl transition font-bold app-brand-shadow"
-                      >
-                        Tickets prüfen
-                      </Link>
-                    }
-                  />
-                </div>
-              )}
-
-              {focusItems.length > 0 && (
-                <div className="space-y-3">
-                  {focusItems.map((item) => (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      className="block border border-zinc-200 rounded-3xl p-5 bg-white hover:border-indigo-200 hover:shadow-sm transition"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xl font-black app-accent-text">
-                          {item.icon}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-full app-accent-soft app-accent-text">
-                              {item.badge}
-                            </span>
-                          </div>
-
-                          <h3 className="font-black text-zinc-950 truncate">
-                            {item.title}
-                          </h3>
-                          <p className="text-sm text-zinc-500 mt-1 line-clamp-2">
-                            {item.description}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm p-6">
-              <div>
-                <h2 className="text-xl font-black text-zinc-950">
-                  Arbeitsstatus
-                </h2>
-                <p className="text-sm text-zinc-500 mt-1">
-                  Ticket-Fortschritt im aktuellen Bereich.
-                </p>
-              </div>
-
-              <div className="mt-8">
-                <div className="flex items-end justify-between gap-4 mb-3">
-                  <span className="text-5xl font-black text-zinc-950">
-                    {ticketCompletionPercent}%
-                  </span>
-                  <span className="text-sm font-bold text-zinc-500">
-                    abgeschlossen
-                  </span>
-                </div>
-
-                <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full app-accent-bg rounded-full transition-all"
-                    style={{
-                      width: `${ticketCompletionPercent}%`,
-                    }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-6">
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <p className="text-xs font-bold text-zinc-500 uppercase">
-                      Offen
-                    </p>
-                    <p className="text-2xl font-black text-zinc-950">
-                      {openTickets.length}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <p className="text-xs font-bold text-zinc-500 uppercase">
-                      Erledigt
-                    </p>
-                    <p className="text-2xl font-black text-zinc-950">
-                      {closedTickets.length}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-2xl bg-zinc-50 border border-zinc-200 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
-                    Rolle
-                  </p>
-                  <p className="mt-1 font-black text-zinc-950">
-                    {getRoleLabel(currentUser?.role)}
-                  </p>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    Admin- und Datenbankdetails liegen im Admin Backend.
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm p-6">
-              <div className="flex items-center justify-between gap-4 mb-6">
+            <section className="app-surface rounded-3xl p-6 xl:col-span-2">
+              <div className="flex items-center justify-between gap-4 mb-5">
                 <div>
                   <h2 className="text-xl font-black text-zinc-950">
                     Meine Tickets
@@ -631,20 +519,22 @@ export default function DashboardPage() {
               </div>
 
               {myOpenTickets.length === 0 && (
-                <EmptyState
-                  icon="✓"
-                  title="Keine eigenen offenen Tickets"
-                  description="Aktuell sind dir keine offenen Tickets direkt zugeordnet."
-                />
+                <div className="app-muted-surface rounded-3xl p-8">
+                  <EmptyState
+                    icon="✓"
+                    title="Keine eigenen offenen Tickets"
+                    description="Aktuell sind dir keine offenen Tickets direkt zugeordnet."
+                  />
+                </div>
               )}
 
               {myOpenTickets.length > 0 && (
-                <div className="space-y-3">
-                  {myOpenTickets.slice(0, 5).map((ticket) => (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {myOpenTickets.slice(0, 6).map((ticket) => (
                     <Link
                       key={ticket.id}
                       href={`/tickets/${encodeURIComponent(String(ticket.id))}`}
-                      className="block border border-zinc-200 rounded-2xl p-4 hover:border-indigo-200 hover:shadow-sm transition"
+                      className="app-muted-surface app-card-hover block rounded-2xl p-4 transition"
                     >
                       <div className="flex flex-wrap gap-2 mb-3">
                         <span
@@ -671,8 +561,137 @@ export default function DashboardPage() {
               )}
             </section>
 
-            <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm p-6">
-              <div className="flex items-center justify-between gap-4 mb-6">
+            <section className="app-surface rounded-3xl p-6">
+              <div>
+                <h2 className="text-xl font-black text-zinc-950">
+                  Arbeitsstatus
+                </h2>
+                <p className="text-sm text-zinc-500 mt-1">
+                  Ticket-Fortschritt im aktuellen Bereich.
+                </p>
+              </div>
+
+              <div className="mt-6">
+                <div className="flex items-end justify-between gap-4 mb-3">
+                  <span className="text-5xl font-black text-zinc-950">
+                    {ticketCompletionPercent}%
+                  </span>
+                  <span className="text-sm font-bold text-zinc-500">
+                    abgeschlossen
+                  </span>
+                </div>
+
+                <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+                  <div
+                    className="h-full app-accent-bg rounded-full transition-all"
+                    style={{
+                      width: `${ticketCompletionPercent}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-6">
+                  <div className="app-muted-surface rounded-2xl p-4">
+                    <p className="text-xs font-bold text-zinc-500 uppercase">
+                      Offen
+                    </p>
+                    <p className="text-2xl font-black text-zinc-950">
+                      {openTickets.length}
+                    </p>
+                  </div>
+
+                  <div className="app-muted-surface rounded-2xl p-4">
+                    <p className="text-xs font-bold text-zinc-500 uppercase">
+                      Erledigt
+                    </p>
+                    <p className="text-2xl font-black text-zinc-950">
+                      {closedTickets.length}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="app-muted-surface mt-4 rounded-2xl p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
+                    Rolle
+                  </p>
+                  <p className="mt-1 font-black text-zinc-950">
+                    {getRoleLabel(currentUser?.role)}
+                  </p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Admin- und Datenbankdetails liegen im Admin Backend.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <section className="app-surface rounded-3xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-xl font-black text-zinc-950">
+                    Letzte Ticket-Aktivität
+                  </h2>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    Neueste Tickets im System.
+                  </p>
+                </div>
+
+                <Link
+                  href="/tickets"
+                  className="text-sm font-bold app-accent-text hover:underline"
+                >
+                  Tickets öffnen
+                </Link>
+              </div>
+
+              {latestTickets.length === 0 && (
+                <EmptyState
+                  icon="◫"
+                  title="Keine Tickets vorhanden"
+                  description="Neue Supportfälle erscheinen automatisch in dieser Übersicht."
+                />
+              )}
+
+              {latestTickets.length > 0 && (
+                <div className="space-y-3">
+                  {latestTickets.map((ticket) => (
+                    <Link
+                      key={ticket.id}
+                      href={`/tickets/${encodeURIComponent(String(ticket.id))}`}
+                      className="app-muted-surface app-card-hover block rounded-2xl p-4 transition"
+                    >
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}
+                        >
+                          {getTicketStatusLabel(ticket.status)}
+                        </span>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}
+                        >
+                          {getTicketPriorityLabel(ticket.priority)}
+                        </span>
+                      </div>
+
+                      <h3 className="font-black text-zinc-950">
+                        #{ticket.id} · {ticket.title}
+                      </h3>
+                      <p className="text-sm text-zinc-500 mt-1">
+                        {ticket.company || "Intern"} ·{" "}
+                        {ticket.department || "Keine Abteilung"}
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-20">
+                        Aktualisiert: {formatDate(ticket.updatedAt)}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="app-surface rounded-3xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-5">
                 <div>
                   <h2 className="text-xl font-black text-zinc-950">
                     Aktuelle News
@@ -706,7 +725,7 @@ export default function DashboardPage() {
                     return (
                       <article
                         key={post.id}
-                        className="border border-zinc-200 rounded-2xl p-4"
+                        className="app-muted-surface rounded-2xl p-4"
                       >
                         <div className="flex flex-wrap gap-2 mb-3">
                           {category && (
@@ -737,70 +756,6 @@ export default function DashboardPage() {
               )}
             </section>
           </div>
-
-          <section className="bg-white border border-zinc-200 rounded-3xl shadow-sm p-6">
-            <div className="flex items-center justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-xl font-black text-zinc-950">
-                  Letzte Ticket-Aktivität
-                </h2>
-                <p className="text-sm text-zinc-500 mt-1">
-                  Neueste Tickets im System.
-                </p>
-              </div>
-
-              <Link
-                href="/tickets"
-                className="text-sm font-bold app-accent-text hover:underline"
-              >
-                Tickets öffnen
-              </Link>
-            </div>
-
-            {latestTickets.length === 0 && (
-              <EmptyState
-                icon="◫"
-                title="Keine Tickets vorhanden"
-                description="Neue Supportfälle erscheinen automatisch in dieser Übersicht."
-              />
-            )}
-
-            {latestTickets.length > 0 && (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                {latestTickets.map((ticket) => (
-                  <Link
-                    key={ticket.id}
-                    href={`/tickets/${encodeURIComponent(String(ticket.id))}`}
-                    className="block border border-zinc-200 rounded-2xl p-4 hover:border-indigo-200 hover:shadow-sm transition"
-                  >
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span
-                        className={`text-xs font-bold px-2.5 py-1 rounded-full ${getTicketStatusClass(ticket.status)}`}
-                      >
-                        {getTicketStatusLabel(ticket.status)}
-                      </span>
-                      <span
-                        className={`text-xs font-bold px-2.5 py-1 rounded-full ${getTicketPriorityClass(ticket.priority)}`}
-                      >
-                        {getTicketPriorityLabel(ticket.priority)}
-                      </span>
-                    </div>
-
-                    <h3 className="font-black text-zinc-950">
-                      #{ticket.id} · {ticket.title}
-                    </h3>
-                    <p className="text-sm text-zinc-500 mt-1">
-                      {ticket.company || "Intern"} ·{" "}
-                      {ticket.department || "Keine Abteilung"}
-                    </p>
-                    <p className="text-xs text-zinc-4000 mt-2">
-                      Aktualisiert: {formatDate(ticket.updatedAt)}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
         </>
       )}
     </div>

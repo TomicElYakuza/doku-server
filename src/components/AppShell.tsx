@@ -55,12 +55,7 @@ const navigationItems: NavigationItem[] = [
     icon: "⌂",
     category: "overview",
     moduleKey: "dashboard",
-    permissionAny: [
-      "dashboard.view",
-      "tickets.view",
-      "wiki.view",
-      "news.view",
-    ],
+    permissionAny: [ "dashboard.view" ],
   },
   {
     href: "/news",

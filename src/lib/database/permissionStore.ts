@@ -70,9 +70,7 @@ const rolePermissionDefaults: Record<string, string[]> = {
     "organization.view",
     "activity.view",
   ],
-  employee: [
-    "dashboard.view",
-    "wiki.view",
+  employee: [ "wiki.view",
     "tickets.view",
     "tickets.create",
     "tickets.templates.view",
